@@ -3,6 +3,7 @@ import {sessionOf,type JoltState} from '../lib/jolt';
 import type {Trace} from '../lib/clockComparison';
 import type {AxisRange} from '../lib/plotAxes';
 import {formatTime} from '../lib/timeline';
+import {discreteCursor} from './ChartCursor';
 import {ComparisonPlot} from './ComparisonPlot';
 import {PlotAxes} from './PlotAxes';
 import {IconButton} from './Icon';
@@ -44,7 +45,8 @@ export function JoltChart({state,chart=null,focusRange=null,onOpenTime,fps=60}:{
  const zoomAt=(factor:number,time:number)=>{const f=Math.max(.1,Math.min(10,factor));setRange([time+(lo-time)/f,time+(hi-time)/f]);};
  const phaseY=phaseVertical??[-16,16];
  const frameRate=Number.isFinite(fps)&&fps>0?fps:60;
- const snapTime=(time:number)=>Math.max(0,Math.round(time*frameRate))/frameRate;
+ const snapTime=(time:number)=>discreteCursor(time,frameRate).time;
+ const cursorLabel=(time:number)=>discreteCursor(time,frameRate).label;
  return <section className="jolt-timeline" aria-label="Jolt + Fire">
   <div className="timeline-controls">
    <IconButton icon="zoomOut" label="Zoom out Jolt timeline" onClick={()=>zoom(1/1.5)}/>
@@ -55,13 +57,13 @@ export function JoltChart({state,chart=null,focusRange=null,onOpenTime,fps=60}:{
   <div className="chart-head"><b>Jolt timeline</b><span>Y: GUI time · lime dots = readings · blue = section fit</span></div>
   <ChartLegend kind="jolt" continuations/>
   <PlotAxes x={[lo,hi]} y={[bottom,top]} onX={setRange} onY={setVertical} resetX={()=>setRange(null)} resetY={()=>setVertical(null)} formatX={t=>`${t<0?'−':''}${formatTime(Math.abs(t),.01)}`}>
-   <ComparisonPlot title="Recovered GUI time against video time" series={[{name:'Jolt reading / section fit',color:'#64a8d1',trace,dots:true},{name:'Before-side continuation',color:'#55d8ed',trace:agreement.gaps.map(g=>g.before),dashed:true},{name:'After-side continuation',color:'#f2ba79',trace:agreement.gaps.map(g=>g.after),dashed:true}]} annotations={annotations} onOpenTime={onOpenTime} snapTime={snapTime} lo={lo} hi={hi} bottom={bottom} top={top} hover={hover} onHover={setHover} onCursor={p=>setCursor(p?{...p,phase:false}:null)} showXLabels={false} formatY={tick=>timeLabel(tick/20)} markers={markers} onZoom={zoomAt} onPan={(x,y)=>{setRange(x);setVertical(y);}}/>
+   <ComparisonPlot title="Recovered GUI time against video time" series={[{name:'Jolt reading / section fit',color:'#64a8d1',trace,dots:true},{name:'Before-side continuation',color:'#55d8ed',trace:agreement.gaps.map(g=>g.before),dashed:true},{name:'After-side continuation',color:'#f2ba79',trace:agreement.gaps.map(g=>g.after),dashed:true}]} annotations={annotations} onOpenTime={onOpenTime} snapTime={snapTime} cursorLabel={cursorLabel} lo={lo} hi={hi} bottom={bottom} top={top} hover={hover} onHover={setHover} onCursor={p=>setCursor(p?{...p,phase:false}:null)} showXLabels={false} formatY={tick=>timeLabel(tick/20)} markers={markers} onZoom={zoomAt} onPan={(x,y)=>{setRange(x);setVertical(y);}}/>
   </PlotAxes>
   <div className="jolt-cursor" role="status">{joltCursorText(state,chart,cursor&&!cursor.phase?cursor.time:null,false,cursor&&!cursor.phase?cursor.value:undefined)}</div>
   <div className="chart-head"><b>Fire–Jolt phase agreement</b><span>Y: offset from initial phase · ticks modulo 32</span></div>
   <ChartLegend kind="agreement" continuations/>
   <PlotAxes x={[lo,hi]} y={phaseY as AxisRange} onX={setRange} onY={setPhaseVertical} resetX={()=>setRange(null)} resetY={()=>setPhaseVertical(null)} formatX={timeLabel}>
-   <ComparisonPlot title="Fire–Jolt phase agreement against video time" series={[{name:'Fire at a Jolt reading',color:'#50dba5',trace:agreement.observed},{name:'Fire with estimated Jolt clock',color:'#75b8ff',trace:agreement.estimated,dashed:true},{name:'Fire with steady extrapolated clock (display only)',color:'#a0a8b8',trace:agreement.fallback,dashed:true},{name:'Before-side continuation',color:'#55d8ed',trace:agreement.gaps.map(g=>g.phaseBefore),dashed:true},{name:'After-side continuation',color:'#f2ba79',trace:agreement.gaps.map(g=>g.phaseAfter),dashed:true}]} annotations={annotations} onOpenTime={onOpenTime} snapTime={snapTime} lo={lo} hi={hi} bottom={phaseY[0]} top={phaseY[1]} hover={hover} onHover={setHover} onCursor={p=>setCursor(p?{...p,phase:true}:null)} showXLabels={false} markers={markers} zeroLine onZoom={zoomAt} onPan={(x,y)=>{setRange(x);setPhaseVertical(y);}}/>
+   <ComparisonPlot title="Fire–Jolt phase agreement against video time" series={[{name:'Fire at a Jolt reading',color:'#50dba5',trace:agreement.observed},{name:'Fire with estimated Jolt clock',color:'#75b8ff',trace:agreement.estimated,dashed:true},{name:'Fire with steady extrapolated clock (display only)',color:'#a0a8b8',trace:agreement.fallback,dashed:true},{name:'Before-side continuation',color:'#55d8ed',trace:agreement.gaps.map(g=>g.phaseBefore),dashed:true},{name:'After-side continuation',color:'#f2ba79',trace:agreement.gaps.map(g=>g.phaseAfter),dashed:true}]} annotations={annotations} onOpenTime={onOpenTime} snapTime={snapTime} cursorLabel={cursorLabel} lo={lo} hi={hi} bottom={phaseY[0]} top={phaseY[1]} hover={hover} onHover={setHover} onCursor={p=>setCursor(p?{...p,phase:true}:null)} showXLabels={false} markers={markers} zeroLine onZoom={zoomAt} onPan={(x,y)=>{setRange(x);setPhaseVertical(y);}}/>
   </PlotAxes>
   {!agreement.count&&<p className="dim">No fire labels overlap this Jolt section for the selected label source.</p>}
   <div className="jolt-cursor" role="status">{joltCursorText(state,chart,cursor?.phase?cursor.time:null,true,cursor?.phase?cursor.value:undefined)}</div>

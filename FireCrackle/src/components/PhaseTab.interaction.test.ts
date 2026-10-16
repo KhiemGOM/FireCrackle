@@ -13,6 +13,7 @@ import { PhaseTab } from "./PhaseTab";
 import { FlagsPanel } from "./FlagsPanel";
 import { FlagCompare } from "./FlagCompare";
 import { JoltPanel } from "./JoltPanel";
+import {ChartCursor} from "./ChartCursor";
 type Element=ReactElement<Record<string,any>>;
 const flag:Flag={frame:800,end_frame:820,severity:"hard",kind:"phase_shift",phase_delta:5};
 const jump=vi.fn();
@@ -209,4 +210,22 @@ it('opens the clicked video time from Jolt + Fire even with canonical X selected
  const jolt=all(root,e=>typeof e.type==='function'&&e.props.focusRange!==undefined)[0];
  jolt.props.onOpenTime(8.5);await Promise.resolve();
  expect(jump).toHaveBeenCalledExactlyOnceWith(510);
+});
+
+it('shows the same discrete vertical cursor in Timing and Sprites and clears it on leave',()=>{
+ hooks.values[6]={start:0,pxPerFrame:10};
+ let root=render();
+ const event=(clientX:number)=>({clientX,currentTarget:{getBoundingClientRect:()=>({left:0,width:1000})}});
+ const canvas=all(root,e=>e.type==='canvas')[0];
+ canvas.props.onPointerMove(event(601));root=render();
+ let cursors=all(root,e=>e.type===ChartCursor);
+ expect(cursors).toHaveLength(2);
+ expect(cursors[0].props.cursor).toEqual(cursors[1].props.cursor);
+ expect(cursors[0].props.cursor).toMatchObject({time:1});
+ expect(cursors[0].props.cursor.label).toContain('Frame 60');
+ const value=hooks.values[19];
+ canvas.props.onPointerMove(event(604));expect(hooks.values[19]).toEqual(value);
+ canvas.props.onPointerMove(event(606));expect(hooks.values[19].time).toBe(61/60);
+ canvas.props.onPointerLeave();root=render();
+ expect(all(root,e=>e.type===ChartCursor).every(e=>e.props.cursor===null)).toBe(true);
 });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton } from "./Icon";
 import { JoltChart } from "./JoltChart";
+import {ChartCursor,discreteCursor} from "./ChartCursor";
 import { LABEL_SOURCE_NAMES, type Backend, type View, type Flag, type LabelSource } from "../lib/api";
 import {
   flagSpans,
@@ -87,6 +88,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [rowRange,setRowRange]=useState<AxisRange|undefined>(undefined);
   const [inspecting,setInspecting]=useState(false);
   const [rulerOpacity,setRulerOpacity]=useState(0.35);
+  const [chartCursor,setChartCursor]=useState<{time:number;label:string}|null>(null);
   function changeClock(next:JoltState) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
@@ -188,7 +190,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     const x = e.clientX - r.left;
     const spans = flagSpans(chart.flags, timeOf, t0, t1, r.width,4,chart.flag_positions);
     const flagIdx = hitFlag(spans, x);
-    const t = xToTime(x, t0, t1, r.width);
+    const t = discreteCursor(xToTime(x, t0, t1, r.width),fps,chart.corrected_time?originTick:undefined).time;
     const nearest = nearestPoint(displayPoints, t);
     const point = nearest && nearest.pts >= t0 && nearest.pts <= t1 ? nearest : null;
     return { flagIdx, point, t };
@@ -202,12 +204,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       if (d.moved) {
         const width = e.currentTarget.getBoundingClientRect().width;
         if (width > 0) setViewport({...d.viewport,start:d.viewport.start-dx/width*logicalWidth/d.viewport.pxPerFrame});
-        setHover(null);
+        setHover(null);setChartCursor(null);
         return;
       }
     }
     const hit = locate(e);
     if (!hit) return;
+    setChartCursor(discreteCursor(hit.t,fps,chart?.corrected_time?originTick:undefined));
     if (hit.flagIdx !== null) {
       const f = chart!.flags[hit.flagIdx];
       setHover(`${f.severity} flag · frame ${f.frame}${f.end_frame > f.frame ? `–${f.end_frame}` : ""} · Δ ${f.phase_delta.toFixed(1)} ticks · click to focus · Ctrl+click to open video`);
@@ -245,7 +248,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       drag.current = { x: e.clientX, viewport, moved: false };
     },
     onPointerMove: onMove,
-    onPointerLeave: () => setHover(null),
+    onPointerLeave: () => {setHover(null);setChartCursor(null);},
     onPointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => {
       const d = drag.current;
       drag.current = null;
@@ -331,7 +334,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             <div hidden={viewMode!=="phase"}>
             {controls("timing offset")}
             <ChartLegend kind="phase" canonical={!!chart?.corrected_time} ruler={rulerOn}/>
-            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /></PlotAxes>
+            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><div style={{position:"relative",height:"100%"}}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /><ChartCursor cursor={chartCursor} lo={t0} hi={t1}/></div></PlotAxes>
             </div>
             <div className="chart-head" hidden={viewMode!=="row"}>
               <span className="panel-title">Sprite row against time</span>
@@ -340,7 +343,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             <div hidden={viewMode!=="row"}>
             {controls("sprite row")}
             <ChartLegend kind="row" canonical={!!chart?.corrected_time} ruler={rulerOn}/>
-            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={rowRange??[0,31]} onX={axisX} onY={setRowRange} resetX={resetX} resetY={()=>setRowRange(undefined)}><canvas ref={rowRef} className="chart row" {...chartEvents} /></PlotAxes>
+            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={rowRange??[0,31]} onX={axisX} onY={setRowRange} resetX={resetX} resetY={()=>setRowRange(undefined)}><div style={{position:"relative",height:"100%"}}><canvas ref={rowRef} className="chart row" {...chartEvents} /><ChartCursor cursor={chartCursor} lo={t0} hi={t1}/></div></PlotAxes>
             </div>
           </>
         )}
