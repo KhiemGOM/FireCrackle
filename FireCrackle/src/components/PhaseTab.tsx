@@ -290,7 +290,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
+        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
 
         <div hidden={viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>

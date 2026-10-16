@@ -19,3 +19,14 @@ it('Ctrl-click opens the actual video X coordinate and never starts a pan',()=>{
  plot.props.onClick({...event,clientX:20});expect(onOpenTime).toHaveBeenCalledTimes(1);
  expect(onPan).not.toHaveBeenCalled();
 });
+
+it('uses the same snapped time for the linked cursor, readout and Ctrl-click',()=>{
+ const onHover=vi.fn(),onCursor=vi.fn(),onOpenTime=vi.fn();
+ const snapTime=(t:number)=>Math.round(t*60)/60;
+ const plot=ComparisonPlot({title:'test',series:[],lo:0,hi:10,bottom:-10,top:10,hover:null,onHover,onCursor,onOpenTime,snapTime});
+ const event={ctrlKey:true,clientX:536,clientY:85,preventDefault:vi.fn(),currentTarget:{getBoundingClientRect:()=>({left:0,top:0,width:1000,height:175})}};
+ plot.props.onPointerMove(event);plot.props.onClick(event);
+ expect(onHover).toHaveBeenLastCalledWith(301/60);
+ expect(onCursor).toHaveBeenLastCalledWith({time:301/60,value:0});
+ expect(onOpenTime).toHaveBeenLastCalledWith(301/60);
+});

@@ -36,3 +36,10 @@ it('passes the Label navigation callback to both Jolt + Fire plots',()=>{
  for(const plot of plots){expect(plot.props.onOpenTime).toBe(onOpenTime);plot.props.onOpenTime(396.025);}
  expect(onOpenTime).toHaveBeenCalledTimes(2);
 });
+
+it('snaps both linked cursors to frames at the supplied video rate, not an assumed 20 Hz clock',()=>{
+ const state:JoltState={version:1,clock:'jolt',session:'["1","1"]',data:{name:'test',source:'',version:'1',unresolved:0,anchors:[{time:0,tick:100,game:'1',screen:'1'}]}};
+ hooks.cursor=0;
+ const plots=all(JoltChart({state,fps:30}),ComparisonPlot);
+ for(const plot of plots){expect(plot.props.snapTime(1.021)).toBe(31/30);expect(plot.props.snapTime(-.1)).toBe(0);}
+});
