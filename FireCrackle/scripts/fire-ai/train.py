@@ -7,15 +7,30 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
-from torchvision.models import mobilenet_v3_small
+from torchvision.models import mobilenet_v3_small,resnet18
 from render import colour_mask, contact_sheet
 
 
-def make_model():
+def make_model(architecture="mobilenet_v3_small"):
+    if architecture == "resnet18":
+        model=resnet18(weights=None,num_classes=128)
+        # Small-input stem retains the fire pixel structure before residual blocks.
+        model.conv1=nn.Conv2d(4,64,3,stride=1,padding=1,bias=False)
+        model.maxpool=nn.Identity()
+        return model
+    if architecture != "mobilenet_v3_small":
+        raise ValueError(f"Unknown architecture: {architecture}")
     model=mobilenet_v3_small(weights=None,num_classes=128)
     # Keep more spatial detail at 64x64; all remaining blocks are unmodified.
     old=model.features[0][0]
     model.features[0][0]=nn.Conv2d(4,old.out_channels,3,stride=1,padding=1,bias=False)
+    return model
+
+
+def checkpoint_model(checkpoint):
+    # Existing pilot checkpoints predate explicit architecture metadata.
+    model=make_model(checkpoint.get("architecture","mobilenet_v3_small"))
+    model.load_state_dict(checkpoint["state_dict"])
     return model
 
 

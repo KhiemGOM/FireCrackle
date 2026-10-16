@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.nn import functional as F
-from train import make_model,evaluate
+from train import checkpoint_model,evaluate
 from gpu_render import Renderer,homography,projected,mask_input
 from train_large import frozen_samples
 from render import contact_sheet
@@ -21,8 +21,8 @@ def save_result(model,x,y,directory,name,device):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('checkpoint',type=Path);ap.add_argument('backgrounds',type=Path);ap.add_argument('out',type=Path);args=ap.parse_args()
     args.out.mkdir(parents=True,exist_ok=True);torch.set_num_threads(4);device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    renderer=Renderer(np.load(args.backgrounds/'val.npz')['x'],device);model=make_model().to(device)
-    model.load_state_dict(torch.load(args.checkpoint,map_location=device,weights_only=True)['state_dict'])
+    renderer=Renderer(np.load(args.backgrounds/'val.npz')['x'],device)
+    model=checkpoint_model(torch.load(args.checkpoint,map_location='cpu',weights_only=True)).to(device)
     xx,y=frozen_samples(renderer,4096,30000000)
     result={'synthetic_real_backgrounds':save_result(model,xx,y,args.out,'real-bg',device)}
     # Ordinary real-background patches with no synthetic foreground. The model

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from render import rectify
-from train import make_model,inputs
+from train import checkpoint_model,inputs
 
 
 def stats(times):return dict(median_ms=float(np.median(times)),p95_ms=float(np.quantile(times,.95)))
@@ -12,7 +12,7 @@ def stats(times):return dict(median_ms=float(np.median(times)),p95_ms=float(np.q
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument("checkpoint",type=Path);ap.add_argument("real",type=Path);args=ap.parse_args()
-    torch.set_num_threads(4);model=make_model().eval();model.load_state_dict(torch.load(args.checkpoint,map_location="cpu",weights_only=True)["state_dict"])
+    torch.set_num_threads(4);model=checkpoint_model(torch.load(args.checkpoint,map_location="cpu",weights_only=True)).eval()
     manifest=json.loads((args.real/"manifest.json").read_text());c=manifest["samples"][1];w,h=manifest["width"],manifest["height"]
     image=np.fromfile(args.real/f'{c["frame"]}.rgb',np.uint8).reshape(h,w,3);quad=np.array(c["quad"])*[w,h]
     one=inputs(np.array([rectify(image,quad)]));out={"torch":torch.__version__,"cpu_threads":4,"includes":"rectification, rough mask, normalization, model forward and argmax; decoded native frame already in RAM"}

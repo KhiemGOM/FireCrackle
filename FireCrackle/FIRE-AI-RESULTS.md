@@ -436,3 +436,139 @@ predictions and visual evidence are retained under ignored `.board/fire-ai/`.
 New video provenance hashes are in `large-bg/background-video-hashes.json`.
 As before, raw frames, upstream sprites, crops, model weights and dependencies
 are not committed or bundled into the app.
+
+## Larger architecture: paired ResNet-18 experiment
+
+This experiment changes architecture/capacity under one fixed training recipe.
+The small-input ResNet-18 has **11,235,072 parameters**, compared with
+**1,649,200** for MobileNetV3-Small (6.81 times as many). Its stem is a 3x3,
+stride-one, four-channel convolution with no initial max-pool; the residual
+blocks are otherwise unchanged and the classifier has 128 outputs. Both start
+from random weights, with no ImageNet or real-fire fine-tuning.
+
+The paired run trains both models on the **same tensor and target labels at
+every step**, with independent model RNG states. The label-order generator is
+independent of model initialization and dropout. Each receives 16 epochs of
+512 balanced 128-class batches: **1,048,576 fresh synthetic composites**.
+Both use the same AdamW learning rate 0.002, weight decay 0.01, cosine epoch
+schedule, CUDA mixed precision, 64x64 RGB plus rough colour mask, background
+banks and renderer. These are fresh draws, not a claim of a million independent
+real scenes or hash-deduplicated images. Architecture also changes inductive
+bias and compute; this is not a parameter-count-only ablation or a search for
+each architecture's best hyperparameters.
+
+The original 2,048-example synthetic validation set and training preview are
+byte-identical to the previous run. Each checkpoint is selected independently
+by the first maximum synthetic validation top-one count. Both are frozen before
+real evaluation. The new label RNG makes the paired small control a new run;
+the older small model's metrics remain recorded above, rather than being
+silently replaced. No real fire targets or real diagnostic checkpoint selection
+are used. All earlier cautions about reviewed subsets and repeatedly used real
+diagnostic clips still apply.
+
+The preset, input hashes and executed Python source snapshot are retained in
+`.board/fire-ai/resnet18/{protocol.json,evaluation-input-hashes.json,source/}`.
+The architecture loader preserves older checkpoints without architecture
+metadata. The research controls now contain **20 passing tests**, including
+forward-output equivalence after both new and legacy checkpoint loading.
+
+### Frozen paired results
+
+The complete paired run took **1,678.85 seconds (28.0 minutes)**, including
+training both models and synthetic validation. Both selected epoch 14; ResNet
+scored 2,048/2,048 on selection validation and the small control 2,047/2,048.
+These checkpoint hashes were recorded before real evaluation:
+
+- ResNet-18: `8a9734236002f518fd780e06a6452259ab2584f13ee6b09dd652814cd324183d`
+- Paired small control: `a31d7fc1d66704fdee42879da9f030bcd29782633c98b8a56ee3f1245b312607`
+
+| Same real cases | Previous real-BG small AI | Paired small control | ResNet-18 | Our colour matcher |
+|---|---:|---:|---:|---:|
+|Survival, exact|15/52|13/52|16/52|24/52|
+|Survival, top three|16/52|16/52|21/52|26/52|
+|Reviewed survival, exact|14/15|15/15|15/15|15/15|
+|Quad1, exact|26/310|35/310|45/310|87/310|
+|Quad1, top three|45/310|54/310|66/310|102/310|
+|Six-case Quad1 screen, exact|6/6|6/6|6/6|6/6|
+
+The production matcher hashes are unchanged from the measured baseline above.
+All copied evaluation input hashes are unchanged. The primary comparison is
+**ResNet against the paired small control**, not against a different earlier
+training stream. Exact matching means sheet, row and mirror all agree. The
+reviewed and six-case subsets remain small and selected; the full sets remain
+ambiguous development diagnostics, not a new untouched final test set.
+
+| Same synthetic/codec tests, exact | Paired small control | ResNet-18 |
+|---|---:|---:|
+|Fresh held-out real-BG synthetic test|4090/4096|4096/4096|
+|32 shots, uncompressed|1024/1024|1024/1024|
+|Same shots, H.264 CRF24|958/1024|937/1024|
+|Same shots, H.264 CRF32|623/1024|570/1024|
+
+The larger model improves the synthetic distribution but **regresses codec
+top-one accuracy against its paired control**. No actual codec augmentation
+was added to this architecture experiment. At raw softmax >=0.95, wrong/above-
+threshold counts are:
+
+| Diagnostic gate | Paired small control | ResNet-18 |
+|---|---:|---:|
+|Survival|15/26|17/28|
+|Quad1|30/50|24/45|
+|CRF24|13/926|9/841|
+|CRF32|88/579|37/388|
+
+Confidence still cannot authorize real labels. Of the same 256 no-foreground
+background controls, the small model gives 30/256 above 0.5, 4/256 above 0.8,
+and 1/256 above 0.95; ResNet gives zero at all three thresholds. This remains
+a narrow diagnostic: neither model has a no-fire output class.
+
+### Measured inference cost
+
+PyTorch 2.10.0+cu128, four CPU threads, RTX 4060 Laptop GPU. Both use the same
+decoded native frame and quad, with 20 CPU/30 GPU warm-ups and 200 batch-one
+measurements. Values include rectification, rough mask, normalization, forward
+pass and argmax; GPU batch one also includes transfers and synchronization.
+Video decode, UI, process/model startup and geometry optimization are excluded.
+
+| Local timing, median / p95 | Paired small control | ResNet-18 |
+|---|---:|---:|
+|CPU, one quad|4.22 / 5.09 ms|17.07 / 23.53 ms|
+|GPU, one quad|4.88 / 5.76 ms|2.90 / 3.48 ms|
+|GPU, 256 crops, model only|12.25 / 12.71 ms|167.26 / 171.22 ms|
+|Checkpoint bytes|6,719,913|45,012,683|
+
+The bigger network is faster in this local GPU batch-one measurement, but
+substantially slower on CPU and in GPU batching. These are one-machine timings,
+not application latency guarantees; no ONNX or quantized runtime was tested.
+
+**Finding:** the bigger architecture helps the broad real diagnostics modestly
+(+3/52 survival, +10/310 Quad1 against the paired control), while our matcher
+still ranks more exact appearances first. It fits the held-out synthetic task
+perfectly yet retains a large real-data gap and weaker codec accuracy. Capacity
+alone under this training recipe does not make it a useful replacement. This
+does not rule out a different renderer, training recipe or pretrained model;
+none of those was tested in this comparison. No production or release files
+changed, and no real-data tuning followed these results.
+
+### Reproduce the capacity experiment
+
+```powershell
+& $py FireCrackle/scripts/fire-ai/train_large.py .board/fire-ai/backgrounds-reviewed .board/fire-ai/resnet18 --architecture resnet18 --paired-control --epochs 16 --steps 512
+# Copy the unchanged evaluation NPZs into separate {survival,quad1,curated-survival,codec}
+# directories under resnet18 and resnet18/small-control; retain earlier predictions.
+# Run these evaluation commands once for each model directory:
+$run = '.board/fire-ai/resnet18' # then '.board/fire-ai/resnet18/small-control'
+& $py FireCrackle/scripts/fire-ai/evaluate.py "$run/best.pt" "$run/survival"
+& $py FireCrackle/scripts/fire-ai/evaluate.py "$run/best.pt" "$run/quad1"
+& $py FireCrackle/scripts/fire-ai/evaluate.py "$run/best.pt" "$run/curated-survival" --names val
+& $py FireCrackle/scripts/fire-ai/evaluate.py "$run/best.pt" "$run/codec" --names uncompressed h264-crf24 h264-crf32
+& $py FireCrackle/scripts/fire-ai/test_large.py "$run/best.pt" .board/fire-ai/backgrounds-reviewed "$run/synthetic-test"
+& $py FireCrackle/scripts/fire-ai/benchmark.py "$run/best.pt" .board/fire-ai/baseline-reviewed
+```
+
+Complete results are retained in `.board/fire-ai/resnet18/assessment.json`,
+with per-case prediction arrays, freeze records, histories and timings in each
+model directory. The six-case score selects the same frozen indices from each
+full Quad1 prediction array. The current trainer uses independent label ordering;
+the exact older training stream is preserved by the trainer at commit `cd4f8f3`.
+No dependency, upstream asset, real crop or model weight is bundled or committed.

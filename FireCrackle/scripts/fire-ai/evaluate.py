@@ -5,15 +5,15 @@ import time
 from pathlib import Path
 import numpy as np
 import torch
-from train import make_model,inputs,evaluate
+from train import checkpoint_model,inputs,evaluate
 from render import contact_sheet
 
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument("checkpoint",type=Path);ap.add_argument("data",type=Path);ap.add_argument("--names",nargs="+",default=["real"]);args=ap.parse_args()
     torch.set_num_threads(4);device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model=make_model().to(device);checkpoint=torch.load(args.checkpoint,map_location=device,weights_only=True);model.load_state_dict(checkpoint["state_dict"])
-    result={"checkpoint_epoch":checkpoint["epoch"]}
+    checkpoint=torch.load(args.checkpoint,map_location="cpu",weights_only=True);model=checkpoint_model(checkpoint).to(device)
+    result={"checkpoint_epoch":checkpoint["epoch"],"architecture":checkpoint.get("architecture","mobilenet_v3_small")}
     for name in args.names:
         data=np.load(args.data/f"{name}.npz");y=torch.tensor(data["y"],dtype=torch.long);start=time.perf_counter()
         xx=inputs(data["x"]);metrics,order,confidence=evaluate(model,xx,y,device);metrics["elapsed_seconds"]=time.perf_counter()-start
