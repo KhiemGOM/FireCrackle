@@ -31,8 +31,8 @@ export function displayClockAt(reference:TimeReference,time:number,rate=20):{tic
   while(lo<hi){const mid=(lo+hi)>>>1;if(times[mid]<time)lo=mid+1;else hi=mid;}
   const before=lo>0?reference.sampleAt(times[lo-1]):null,after=lo<times.length?reference.sampleAt(times[lo]):null;
   let tick:number;
-  if(before&&after&&after.tick>=before.tick&&times[lo]>times[lo-1])tick=before.tick+(time-times[lo-1])/(times[lo]-times[lo-1])*(after.tick-before.tick);
-  else if(before)tick=before.tick+(time-times[lo-1])*rate;
+  // Never smear a possible cut into gradual clock drift.
+  if(before)tick=before.tick+(time-times[lo-1])*rate;
   else if(after)tick=after.tick+(time-times[lo])*rate;
   else return null;
   return {tick,estimated:true,fallback:true};
@@ -62,9 +62,9 @@ export function clockGapGuides(chart:PhaseChart,reference:TimeReference,origin:n
   if(!left||!right)continue;
   const before:{time:number;value:number}[]=[],after:{time:number;value:number}[]=[];
   for(let j=0;j<=64;j++){
-   const t=from+(to-from)*j/64,tick=a.tick+(b.tick-a.tick)*j/64,time=(tick-origin)/20;
-   before.push({time,value:relativePhase(tick-(a.tick+rate*(t-from))+left.phase,baseline)});
-   after.push({time,value:relativePhase(tick-(b.tick+rate*(t-to))+right.phase,baseline)});
+   const time=((a.tick-origin)/20)*(1-j/64)+((b.tick-origin)/20)*j/64;
+   before.push({time,value:relativePhase(left.phase,baseline)});
+   after.push({time,value:relativePhase(right.phase-(b.tick-a.tick-rate*(to-from)),baseline)});
   }
   out.push({t0:(a.tick-origin)/20,t1:(b.tick-origin)/20,shift_ticks:b.tick-a.tick-rate*(to-from),before,after});
  }

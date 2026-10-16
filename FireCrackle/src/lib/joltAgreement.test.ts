@@ -28,3 +28,15 @@ it('restores classified report breaks and keeps legacy section markers unclassif
  expect(joltMarkers(imported)).toEqual([{time:1,end:2,label:'Reported cut',color:'#bd8bff',dashed:true}]);
  expect(joltMarkers(state)[0].label).toContain('cause unspecified');
 });
+
+it('continues both clocks as parallel straight lines and retains measured fire jumps without invented drift',()=>{
+ const result=fireJoltAgreement(chart([[0,4],[1,24],[1.25,29],[1.5,2],[1.75,9],[2,14],[3,2]]),state);
+ const gap=result.gaps[0];
+ expect(gap.shift).toBe(160);
+ expect(gap.before).toEqual([{time:1,value:120},{time:2,value:140}]);
+ expect(gap.after).toEqual([{time:1,value:280},{time:2,value:300}]);
+ expect(result.fallback.flat().map(p=>p.value)).toEqual([0,0,-2]);
+ expect(result.count).toBe(4);
+ expect(new Set(gap.phaseBefore.map(p=>p.value)).size).toBe(1);
+ expect(new Set(gap.phaseAfter.map(p=>p.value)).size).toBe(1);
+});

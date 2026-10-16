@@ -1,6 +1,7 @@
 import {relativePhase,type PhaseChart} from './chart';
 import {joltPhase,sessionOf,timeReference,type JoltState} from './jolt';
 import type {Trace} from './clockComparison';
+import {displayClockAt} from './reviewFlags';
 import {FLAG_COLORS} from './flagAppearance';
 
 export interface ClockMarker {time:number;end?:number;label:string;color:string;dashed?:boolean}
@@ -32,5 +33,27 @@ export function fireJoltAgreement(chart:PhaseChart|null,state:JoltState){
   trace[trace.length-1].push({time:p.pts,value});
   last={time:p.pts,value,estimated:isEstimated};
  }
- return {observed,estimated,baseline,count:paired?.points.length??0};
+ const fallback:Trace=[];
+ let previous:{time:number;value:number}|null=null;
+ for(const p of chart?.points??[]){
+  const clock=displayClockAt(reference,p.pts,chart!.tick_rate);
+  if(!clock?.fallback){previous=null;continue;}
+  const value=relativePhase(clock.tick-p.step,baseline??0);
+  if(!previous||p.pts<=previous.time||p.pts-previous.time>2||Math.abs(value-previous.value)>16)fallback.push([]);
+  fallback[fallback.length-1].push({time:p.pts,value});previous={time:p.pts,value};
+ }
+ const gaps=anchors.slice(1).flatMap((b,i)=>{
+  const a=anchors[i];
+  if(b.time<=a.time||reference.sampleAt((a.time+b.time)/2)!==null)return [];
+  const shift=b.tick-a.tick-20*(b.time-a.time);
+  const leftPoints=paired?.points.filter(p=>p.pts<=a.time)??[];
+  const left=leftPoints[leftPoints.length-1],right=paired?.points.find(p=>p.pts>=b.time);
+  return [{from:a.time,to:b.time,shift,
+   before:[{time:a.time,value:a.tick},{time:b.time,value:a.tick+20*(b.time-a.time)}],
+   after:[{time:a.time,value:b.tick-20*(b.time-a.time)},{time:b.time,value:b.tick}],
+   phaseBefore:left?[{time:a.time,value:relativePhase(left.phase,baseline??0)},{time:b.time,value:relativePhase(left.phase,baseline??0)}]:[],
+   phaseAfter:right?[{time:a.time,value:relativePhase(right.phase-shift,baseline??0)},{time:b.time,value:relativePhase(right.phase-shift,baseline??0)}]:[],
+  }];
+ });
+ return {observed,estimated,fallback,gaps,baseline,count:paired?.points.length??0};
 }

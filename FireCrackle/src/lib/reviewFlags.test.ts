@@ -15,8 +15,8 @@ it('keeps one source-labelled review list across video/canonical clocks includin
  expect(corrected.flags).toEqual(combined.flags);
  expect(corrected.points).toEqual([]);
  expect(corrected.flag_positions![0]).toEqual({t0:1,t1:6,uncertain:true});
- expect(corrected.flag_positions![1].t0).toBeCloseTo(2.694444);
- expect(corrected.flag_positions![1].t1).toBeCloseTo(2.694444);
+ expect(corrected.flag_positions![1].t0).toBeCloseTo(2+1/60);
+ expect(corrected.flag_positions![1].t1).toBeCloseTo(2+1/60);
  expect(corrected.flag_positions![1].uncertain).toBe(true);
  const spans=flagSpans(corrected.flags,()=>NaN,0,10,1000,4,corrected.flag_positions);
  expect([spans[0].x0,spans[0].x1]).toEqual([100,600]);
@@ -26,7 +26,7 @@ it('offers a labelled display estimate without adding ticks to the independent e
  const reference=timeReference(state);
  expect(reference.sampleAt(2)).toBeNull();
  expect(canonicalFlagPositions([{t0:.5,t1:.5},{t0:2,t1:2}],reference,100)[0]).toEqual({t0:.5,t1:.5,uncertain:false});
- expect(displayClockAt(reference,2)).toMatchObject({fallback:true,estimated:true});
+ expect(displayClockAt(reference,2)).toMatchObject({tick:140,fallback:true,estimated:true});
  expect(reference.sampleAt(2)).toBeNull();
 });
 it('excludes another game report and preserves the selected label-source fire evidence',()=>{

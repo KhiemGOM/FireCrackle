@@ -11,7 +11,10 @@ it('never fabricates a GUI timeline when Jolt is absent',()=>{expect(all(render(
 it('draws only recovered ticks, preserves clock breaks and allows two-axis pan',()=>{
  const state:JoltState={version:1,clock:'video',session:'["1","1"]',data:{name:'test',source:'',version:'1',unresolved:0,anchors:[{time:0,tick:100,game:'1',screen:'1',segment:'a'},{time:1,tick:120,game:'1',screen:'1',segment:'a'},{time:3,tick:130,game:'1',screen:'1',segment:'b'}]}};
  let plot=all(render(state),ComparisonPlot)[0];
- expect(plot.props.series).toHaveLength(1);
+ expect(plot.props.series).toHaveLength(3);
+ expect(plot.props.series[1].trace[0]).toEqual([{time:1,value:120},{time:3,value:160}]);
+ expect(plot.props.series[2].trace[0]).toEqual([{time:1,value:90},{time:3,value:130}]);
+ expect(plot.props.annotations[0].text).toContain("-30.0");
  expect(all(render(state),ComparisonPlot)).toHaveLength(2);
  expect(plot.props.series[0].dots).toBe(true);
  expect(plot.props.formatY(120)).toBe('0:06.00');

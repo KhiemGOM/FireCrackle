@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, localJoltKey, parseJolt, plotAnchors, restoreJolt, sessionOf, timeReference, type JoltAnchor, type JoltState } from "./jolt";
+import {relativePhase} from "./chart";
 import type { PhaseChart } from "./chart";
 
 const report={version:"2.3",source:"same.mp4",games:[{number:1,screen:1},{number:2,screen:2}],jolts:[{tick:999}, {}, {}, {}, {}],runs:[{game:1,points:[[1,100,0],[3,140,1]]},{game:1,points:[[5,300,2],[7,340,3]]},{game:2,points:[[4,50,4]]}],breaks:[{kind:"removed"},{kind:"screen"}]};
@@ -15,7 +16,9 @@ it.each([0,40])('shows real fire through missing Jolt clock spans and two contin
  expect(display.gap_guides).toHaveLength(1);
  expect(display.gap_guides![0].shift_ticks).toBe(jump);
  expect(display.gap_guides![0].before[0].value).toBe(0);
- expect(display.gap_guides![0].after[64].value).toBe(0);
+ expect(display.gap_guides![0].after[64].value).toBe(relativePhase(-jump,0));
+ expect(new Set(display.gap_guides![0].before.map(p=>p.value)).size).toBe(1);
+ expect(new Set(display.gap_guides![0].after.map(p=>p.value)).size).toBe(1);
  if(!jump)expect(display.gap_guides![0].before).toEqual(display.gap_guides![0].after);
 });
 it('keeps fire before the first Jolt reading inside the display viewport',()=>{
