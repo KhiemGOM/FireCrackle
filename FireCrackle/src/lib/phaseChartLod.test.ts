@@ -28,6 +28,19 @@ it("includes both viewport boundaries and does not draw offscreen evidence", () 
   expect(phasePaintPoints(points, { t0: 1, t1: 2, width: 1000, kind: "phase", reference: 0 })).toEqual(points.slice(1, 3));
 });
 
+it('draws every survival-sized source point even at full-recording zoom',()=>{
+  const points=Array.from({length:37834},(_,i)=>({frame:i,pts:i/60,step:i%32,phase:0}));
+  expect(phasePaintPoints(points,{t0:0,t1:700,width:1000,kind:'row',reference:0})).toEqual(points);
+});
+
+it.each(['row','phase'] as const)('preserves occupied interior %s levels in a large overview, not just extremes',kind=>{
+  const points=Array.from({length:100000},(_,i)=>({frame:i,pts:i/1000,step:i%32,phase:(i%32)/4}));
+  const painted=phasePaintPoints(points,{t0:0,t1:100,width:100,kind,reference:0});
+  const firstColumn=painted.filter(p=>p.pts<2);
+  expect(new Set(firstColumn.map(p=>kind==='row'?p.step:p.phase)).size).toBe(32);
+  expect(painted.length).toBeLessThan(50*40);
+});
+
 it("finds all viewport evidence after a backwards canonical jump without reordering source", () => {
   const points = [10, 11, 12, 2, 3, 4, 13].map((pts, frame) => ({ frame, pts, phase: 0, step: frame }));
   const snapshot = [...points];

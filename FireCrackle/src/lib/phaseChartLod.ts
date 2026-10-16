@@ -13,9 +13,9 @@ interface PaintWindow {
 const cache = new WeakMap<ChartPoint[], Map<string, ChartPoint[]>>();
 const chronological = new WeakMap<ChartPoint[], boolean>();
 
-/** Only painting is thinned. Keep endpoints, vertical extrema, and both signed worst
- * deviations (plus the closest match) in each two-pixel time column. Full evidence
- * remains available to analysis, hit testing, and the next zoom level. */
+/** Ordinary clips draw every point. Very large overviews keep each occupied row or
+ * quarter-tick phase level per two-pixel column, plus endpoints and anomalies.
+ * Extrema alone erase the interior of a point cloud. Source evidence stays intact. */
 export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): ChartPoint[] {
   const { t0, t1, width, kind, reference, rulerPhase } = options;
   if (!(t1 > t0) || !(width > 0)) return [];
@@ -41,11 +41,11 @@ export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): Ch
   }
   const first = ordered ? bound(t0, false) : 0, last = ordered ? bound(t1, true) : source.length;
   let result: ChartPoint[];
-  if (last - first <= width * 2) {
+  if (last - first <= Math.max(50_000,width * 2)) {
     result = source.slice(first, last);
   } else {
     const columns = Math.max(1, Math.ceil(width / 2));
-    type Bucket = { first: number; last: number; low: number; high: number; negative: number; positive: number; near: number; yLow: number; yHigh: number; dLow: number; dHigh: number; dNear: number };
+    type Bucket = { first: number; last: number; low: number; high: number; negative: number; positive: number; near: number; yLow: number; yHigh: number; dLow: number; dHigh: number; dNear: number; levels:Map<number,number> };
     const buckets: Bucket[] = [];
     for (let i = first; i < last; i++) {
       const p = source[i];
@@ -54,8 +54,10 @@ export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): Ch
       const y = kind === "phase" ? relativePhase(p.phase, reference) : p.step;
       const d = rulerPhase === undefined ? 0 : relativePhase(p.phase, rulerPhase);
       const b = buckets[column];
-      if (!b) buckets[column] = { first: i, last: i, low: i, high: i, negative: i, positive: i, near: i, yLow: y, yHigh: y, dLow: d, dHigh: d, dNear: Math.abs(d) };
+      const level=Math.floor(y*4);
+      if (!b) buckets[column] = { first: i, last: i, low: i, high: i, negative: i, positive: i, near: i, yLow: y, yHigh: y, dLow: d, dHigh: d, dNear: Math.abs(d),levels:new Map([[level,i]]) };
       else {
+        if(!b.levels.has(level))b.levels.set(level,i);
         b.last = i;
         if (y < b.yLow) { b.low = i; b.yLow = y; }
         if (y > b.yHigh) { b.high = i; b.yHigh = y; }
@@ -64,7 +66,7 @@ export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): Ch
         if (Math.abs(d) < b.dNear) { b.near = i; b.dNear = Math.abs(d); }
       }
     }
-    result = buckets.flatMap(b => [...new Set([b.first, b.last, b.low, b.high, b.negative, b.positive, b.near])].sort((a, b) => a - b).map(i => source[i]));
+    result = buckets.flatMap(b => [...new Set([b.first, b.last, b.low, b.high, b.negative, b.positive, b.near,...b.levels.values()])].sort((a, b) => a - b).map(i => source[i]));
   }
   if (!entries) { entries = new Map(); cache.set(points, entries); }
   if (entries.size >= 4) entries.delete(entries.keys().next().value!);

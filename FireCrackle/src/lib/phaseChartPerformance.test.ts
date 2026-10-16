@@ -20,8 +20,10 @@ it("bounds dense ruler/point draw work and reads layout once, reusing the canvas
   drawPhaseChart(canvas as unknown as HTMLCanvasElement, {chart,kind:"row",currentFrame:0,fps:60,t0:0,t1:1000,highlighted:null,pixelRatio:1,yRange:[-57,88],ruler:{offset:0,tolerance:.5}});
   expect(heightReads).toBe(1);
   expect(widthWrites + heightWrites).toBe(0);
-  expect(dots).toBeLessThanOrEqual(3500);
-  expect(lines).toBeLessThan(14010); // At most two wrapped pieces per retained point, not per source frame.
+  // Retain the occupied 32-row cloud, rather than only a few extrema per time column.
+  expect(dots).toBeGreaterThanOrEqual(500*32);
+  expect(dots).toBeLessThanOrEqual(500*(32+7));
+  expect(lines).toBeLessThan(dots*2+10); // At most two wrapped pieces per retained point.
 });
 
 it("does not paint a dense guide across unknown clock intervals", () => {
