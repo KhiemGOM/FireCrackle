@@ -1,5 +1,98 @@
 # Conservative no-fire detector pilot
 
+## Connected orange/pale regions follow-up (2026-10-17)
+
+User proposed blobs with separate orange and white/pale regions and explicitly
+allows negligible fire to count as no fire. Implemented an offline deterministic
+prototype in `no_fire/colour_blobs.rs`, driven by `no_fire/blob_pilot.py`.
+No trained model, application integration or automatic label writes.
+
+The detector finds **two individually connected colour regions** (8-neighbour
+connectivity) that actually touch. Each region must contribute >=2 pixels and
+>=5% of their combined area. Scattered matching pixels elsewhere in the frame
+do not count as a pair. The main candidate cutoff tested was 16 combined pixels;
+4 and 64 were also reported. A stricter diagnostic requires colour-region
+centroids to differ by >=12% of the combined bounding-box diagonal, without a
+fixed direction. That extra condition can reject a pale core surrounded by an
+orange rim even though the two regions are visually distinct; it is not a
+necessary definition of a valid flame.
+
+Raw and conditionally unveiled branches are both checked: either may retain a
+frame for review. Colour bands are explicit and disjoint. The original pale
+band required R>=110, G/R>=0.65 and B/R>=0.35, with broad warm-neutral limits;
+the orange band uses R>=64, G/R in [0.23,0.88], B/R<=0.5 and R-B>=24. Pale takes
+precedence where bands overlap. A warmer variant permits yellow cores with
+G/R>=0.6 and R/G>=0.9, without a minimum blue fraction. This was motivated by
+visually obvious first-person flames whose translucent cores were yellow,
+not literal white. These are new fixed-band baselines, not the earlier sampled
+RGB lookup table; total-count and single-component baselines use the same bands
+for a fair comparison of the spatial rule.
+
+All four recordings were evaluated over their full duration at stride90,
+1920x1080 native resolution: **1,579 frames**, with 744 labelled no-fire and
+835 labelled fire. There are 831 non-negligible and four negligible fire
+frames under the configurable size proxy. A source counts as non-negligible
+when its recorded visible box is at least four screen pixels wide AND tall.
+This is a pragmatic box-footprint proxy, not an exact visible-flame pixel count.
+No fire samples are silently removed from results; negligible clears and larger
+misses have separate fields. The four tiny examples are too few to evaluate
+that size policy well.
+
+Hotbar items repeatedly produced convincing pairs: e.g. clip1 frame180's strongest
+pair occupied [832,1008]-[904,1070], inside the HUD. A diagnostic therefore masks
+the middle half of the bottom12% of the image and the right15% of the top18%
+(status icons). This is a fixed vanilla-HUD guess, not general UI segmentation.
+Actual fire in excluded regions remains in truth and counts as a miss.
+
+| Variant, cutoff16 | No-fire frames cleared /744 | Larger fire missed /831 |
+|---|---:|---:|
+| Total matching pixels, same bands | 0 | 0 |
+| Largest single-colour region, same bands | 0 | 0 |
+| Orange + literal pale pair, full frame | 19 (2.6%) | 0 |
+| Orange + yellow/pale pair, full frame | 19 (2.6%) | 0 |
+| Yellow/pale pair plus centroid separation, full frame | 20 (2.7%) | 0 |
+| Literal pale pair, HUD excluded | 79 (10.6%) | 14 |
+| Literal pale pair + separation, HUD excluded | 80 (10.8%) | 16 |
+| Yellow/pale pair, HUD excluded | 68 (9.1%) | 7 |
+| Yellow/pale pair + separation, HUD excluded | 68 (9.1%) | 8 |
+
+No variant in this table cleared any of the four negligible-fire frames: unrelated
+candidate regions kept them in review. Allowing tiny fire therefore does not
+explain away the reported misses. The literal pale rule missed obvious large
+first-person overlays (e.g. clip2 frames5850 and13500); yellow-core handling
+rescued those examples, but other large overlays remained misses. Distant/fogged
+fire was another failure. At cutoff4 the yellow/pale + separation/HUD rule cleared
+62 negatives and missed four larger fires; cutoff64 cleared82 and missed20.
+Increasing the blob-size cutoff is not a free gain in coverage.
+
+The two-region idea improves discrimination over counts and single-colour blobs.
+However, full-frame zero-miss results are partly propped up by false HUD
+candidates, and removing those exposes incomplete flame sensitivity. A useful
+next conservative safeguard is to retain strong orange-only blobs for review
+when a pale core is absent. This pilot does not justify automatic no-fire labels.
+
+The warmer band and HUD variant were developed after inspecting failures from
+the initial runs. These comparisons use familiar recordings and approximate
+capture-mod labels; they are **diagnostic results, not an untouched holdout or
+a guarantee of no missed fire**. Example frames with label boxes, per-frame
+measurements, frozen protocols and executable/source snapshots are local under
+`.board/fire-blob-support/`. Data, media and binaries remain outside version control.
+
+Reproduce either colour variant with local recordings and Rust installed:
+
+```powershell
+python fire-detection/bench/no_fire/blob_pilot.py .board/fire-blob-support/repro-literal --pale-mode literal
+python fire-detection/bench/no_fire/blob_pilot.py .board/fire-blob-support/repro-yellow --pale-mode yellow --min-fire-side 4
+rustc --edition 2021 --test fire-detection/bench/no_fire/colour_blobs.rs -o .board/fire-blob-support/blob-tests.exe
+.board/fire-blob-support/blob-tests.exe
+python -m unittest discover -s fire-detection/bench/no_fire -p test_blob_pilot.py
+```
+
+Only four native tests and one Python metrics test were run for this follow-up:
+connected/contact requirements, isolated pixels and single-colour rejection,
+colour-band distinction including yellow cores, HUD exclusion boundaries, and
+separate tiny/larger-fire accounting with raw/unveil review logic.
+
 ## Deterministic colour-support follow-up (2026-10-17)
 
 User superseded the learned-model approach: sample opaque fire texels from the
