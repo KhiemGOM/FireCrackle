@@ -27,12 +27,12 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}, points = [{ frame
 const RULER = { offset: 0, tolerance: 0.5 };
 
 it("uses canonical GUI ticks for the row ruler without drawing video-time ramps through breaks", () => {
-  const chart:PhaseChart={reference_clock:"jolt",points:[{frame:300,pts:5,step:8,phase:0,clock_tick:1000,clock_estimated:true}],runs:[],flags:[],tick_rate:20,window_ticks:1,reference_phase:0};
+  const chart:PhaseChart={reference_clock:"jolt",clock_segments:[{t0:4,t1:6,tick0:980,tick1:1020}],points:[{frame:300,pts:5,step:8,phase:0,clock_tick:1000,clock_estimated:true}],runs:[],flags:[],tick_rate:20,window_ticks:1,reference_phase:0};
   const f=fixture({kind:"row",chart,ruler:RULER});f.draw();
-  expect(f.calls("lineTo")).toContainEqual([502,rowToY(8,320)]);
+  expect(f.calls("lineTo")).toContainEqual([600,rowToY(28,320)]);
   expect(f.calls("lineTo")).not.toContainEqual([160,0]); // a video-clock ramp would wrap at 1.6 s
   const phase=fixture({chart});phase.draw();
-  expect(phase.calls("fillText").some(([text])=>text==="Jolt reference")).toBe(true);
+  expect(phase.calls("fillText").some(([text])=>text==="Corrected clock reference")).toBe(true);
 });
 
 describe("ruler on the timing chart", () => {

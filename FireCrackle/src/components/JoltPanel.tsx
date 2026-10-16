@@ -52,8 +52,10 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
       <div className="jolt-sessions" role="group" aria-label="Jolt game and screen">{sessions.map(([key,a])=><button key={key} disabled={pending} className={key===state.session?"on":""} aria-pressed={key===state.session} onClick={()=>void update({...state,session:key})}>Game {a.game} · screen {a.screen}</button>)}</div>
       <p>{state.data.name} · {anchors.length.toLocaleString()} resolved anchors · {sections} continuous sections{matched===null?"":` · ${matched.toLocaleString()} fire labels with a clock value`}{state.data.unresolved?` · ${state.data.unresolved} unresolved/conflicting entries excluded`:""}</p>
       {state.data.source&&<p className="dim">Report video: {state.data.source}</p>}
-      <p className="dim">Clock ticks are fitted between readings inside each imported continuous section. Fits never cross Jolt’s reported breaks or game/screen changes. Before the first reading, after the last, and across breaks the clock stays unknown. Hover fire points to distinguish observed and estimated ticks.</p>
-      <p className="dim">Imported clock evidence from <a href="https://splosh.icu/jolt" target="_blank" rel="noreferrer">Splosh JoltCracker</a> · jolt cracking by Dart and repeater64. Saved with this video project. Jolt corrects the fire plot’s clock; it is not a separate plotted signal. Cuts remain separate sections.</p>
+      <details className="phase-help"><summary>Clock coverage and credits</summary>
+        <p>Clock ticks are estimated between readings within each continuous section. No estimate crosses a reported break or extends beyond the outer readings.</p>
+        <p>Imported from <a href="https://splosh.icu/jolt" target="_blank" rel="noreferrer">Splosh JoltCracker</a> · jolt cracking by Dart and repeater64. Saved with this video project.</p>
+      </details>
     </>}
   </section>;
 }

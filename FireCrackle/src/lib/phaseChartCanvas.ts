@@ -25,6 +25,7 @@ export interface PhaseChartCanvasOptions {
   highlighted: FrameRange | null;
   pixelRatio: number;
   timeOf?: (frame: number) => number;
+  yRange?: [number,number];
   /** Stretches with no fire evidence, drawn behind everything else. */
   gaps?: GapBand[];
   /** A line for what a perfect clock would show, and each point's distance from it; off when absent. */
@@ -50,6 +51,10 @@ export const GAP_COLORS: Record<GapKind, { fill: string; edge: string; name: str
 export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseChartCanvasOptions): void {
   const { chart, kind, currentFrame, fps, t0, t1, highlighted, pixelRatio } = options;
   const timeOf = options.timeOf ?? ((frame: number) => frame / fps);
+  const yRange=options.yRange;
+  const axisY=(value:number)=>yRange ? canvas!.clientHeight*(yRange[1]-value)/(yRange[1]-yRange[0]) : 0;
+  const phaseY=(value:number,height:number)=>yRange?axisY(value):phaseToY(value,height);
+  const rowY=(value:number,height:number)=>yRange?axisY(value):rowToY(value,height);
   if (!canvas || !chart) return;
   const dpr = pixelRatio;
   const w = canvas.clientWidth;
@@ -104,13 +109,13 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   if (kind === "phase") {
     g.strokeStyle = COLORS.grid;
     g.fillStyle = COLORS.text;
-    for (const rel of [-16, -8, 0, 8, 16]) {
-      const y = phaseToY(rel, h);
+    for (const rel of yRange ? [yRange[0],(yRange[0]+yRange[1])/2,yRange[1]] : [-16, -8, 0, 8, 16]) {
+      const y = phaseY(rel, h);
       g.beginPath();
       g.moveTo(0, y);
       g.lineTo(w, y);
       g.stroke();
-      g.fillText(`${rel > 0 ? "+" : ""}${rel}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
+      g.fillText(`${rel > 0 ? "+" : ""}${Number(rel.toFixed(2))}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
     }
     // each run's arc as a band: the stretch a steady clock would stay in
     g.fillStyle = COLORS.band;
@@ -118,12 +123,12 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       const x0 = timeToX(timeOf(r.first_frame), t0, t1, w);
       const x1 = Math.max(timeToX(timeOf(r.last_frame), t0, t1, w), x0 + 1);
       const rel = relativePhase(r.center, ref);
-      const top = phaseToY(rel + r.width / 2, h);
-      const bottom = phaseToY(rel - r.width / 2, h);
+      const top = phaseY(rel + r.width / 2, h);
+      const bottom = phaseY(rel - r.width / 2, h);
       g.fillRect(x0, top, x1 - x0, Math.max(1, bottom - top));
     }
     if (chart.reference_phase != null) {
-      const y = phaseToY(0, h);
+      const y = phaseY(0, h);
       g.strokeStyle = "#4cc38a";
       g.setLineDash([6, 4]);
       g.beginPath();
@@ -137,10 +142,10 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.textAlign = "left";
     }
     if (ruler) {
-      const top = phaseToY(rulerRel + ruler.tolerance, h);
+      const top = phaseY(rulerRel + ruler.tolerance, h);
       g.fillStyle = "rgba(232,238,252,0.08)";
-      g.fillRect(0, top, w, phaseToY(rulerRel - ruler.tolerance, h) - top);
-      const y = phaseToY(rulerRel, h);
+      g.fillRect(0, top, w, phaseY(rulerRel - ruler.tolerance, h) - top);
+      const y = phaseY(rulerRel, h);
       g.strokeStyle = RULER_COLOR;
       g.setLineDash([2, 3]);
       g.beginPath();
@@ -159,13 +164,13 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   } else {
     g.strokeStyle = COLORS.grid;
     g.fillStyle = COLORS.text;
-    for (const row of [0, 8, 16, 24, 31]) {
-      const y = rowToY(row, h);
+    for (const row of yRange ? [yRange[0],(yRange[0]+yRange[1])/2,yRange[1]] : [0, 8, 16, 24, 31]) {
+      const y = rowY(row, h);
       g.beginPath();
       g.moveTo(0, y);
       g.lineTo(w, y);
       g.stroke();
-      g.fillText(`row ${row}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
+      g.fillText(`row ${Number(row.toFixed(2))}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
     }
     if (ruler) {
       // the ramps of the ideal clock: one row per tick, back to row 0 every 32 ticks
@@ -173,19 +178,19 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.setLineDash([2, 3]);
       g.beginPath();
       for (const r of chart.reference_clock === "jolt" ? [] : idealRamps(t0, t1, chart.tick_rate, rp)) {
-        g.moveTo(timeToX(r.t0, t0, t1, w), rowToY(r.step0, h));
-        g.lineTo(timeToX(r.t1, t0, t1, w), rowToY(r.step1, h));
+        g.moveTo(timeToX(r.t0, t0, t1, w), rowY(r.step0, h));
+        g.lineTo(timeToX(r.t1, t0, t1, w), rowY(r.step1, h));
       }
       if (chart.reference_clock === "jolt") for (const segment of chart.clock_segments ?? []) {
         const start = Math.max(t0, segment.t0), end = Math.min(t1, segment.t1);
         if (!(end > start)) continue;
         const rate = (segment.tick1 - segment.tick0) / (segment.t1 - segment.t0);
         if (rate === 0) {
-          const y = rowToY(((segment.tick0 - rp) % 32 + 32) % 32, h);
+          const y = rowY(((segment.tick0 - rp) % 32 + 32) % 32, h);
           g.moveTo(timeToX(start, t0, t1, w), y); g.lineTo(timeToX(end, t0, t1, w), y);
         } else for (const r of idealRamps(start - segment.t0, end - segment.t0, rate, rp - segment.tick0)) {
-          g.moveTo(timeToX(r.t0 + segment.t0, t0, t1, w), rowToY(r.step0, h));
-          g.lineTo(timeToX(r.t1 + segment.t0, t0, t1, w), rowToY(r.step1, h));
+          g.moveTo(timeToX(r.t0 + segment.t0, t0, t1, w), rowY(r.step0, h));
+          g.lineTo(timeToX(r.t1 + segment.t0, t0, t1, w), rowY(r.step1, h));
         }
       }
       g.stroke();
@@ -213,8 +218,8 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       for (const p of levels[k]) {
         const x = timeToX(p.pts, t0, t1, w);
         const d = level.get(p) ?? 0;
-        g.moveTo(x, kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h));
-        g.lineTo(x, kind === "phase" ? phaseToY(rulerRel, h) : rowToY(chart.reference_clock === "jolt" ? ((p.step + d) % 32 + 32) % 32 : p.step + d, h));
+        g.moveTo(x, kind === "phase" ? phaseY(relativePhase(p.phase, ref), h) : rowY(p.step, h));
+        g.lineTo(x, kind === "phase" ? phaseY(rulerRel, h) : rowY(chart.reference_clock === "jolt" ? ((p.step + d) % 32 + 32) % 32 : p.step + d, h));
       }
       g.stroke();
     }
@@ -222,7 +227,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.fillStyle = DEVIATION_COLORS[k];
       for (const p of levels[k]) {
         const x = timeToX(p.pts, t0, t1, w);
-        const y = kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h);
+        const y = kind === "phase" ? phaseY(relativePhase(p.phase, ref), h) : rowY(p.step, h);
         g.fillRect(x - 1, y - 1, 2.5, 2.5);
       }
     }
@@ -230,7 +235,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
     g.fillStyle = COLORS.dot;
     for (const p of visible) {
       const x = timeToX(p.pts, t0, t1, w);
-      const y = kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h);
+      const y = kind === "phase" ? phaseY(relativePhase(p.phase, ref), h) : rowY(p.step, h);
       g.fillRect(x - 1, y - 1, 2.5, 2.5);
     }
   }

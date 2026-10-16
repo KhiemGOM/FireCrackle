@@ -24,6 +24,11 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it("zooms the vertical scale without moving the point along time",()=>{
+    const {context,draw}=fixture({yRange:[-4,4]});draw();
+    expect(context.fillRect).toHaveBeenCalledWith(499,79,2.5,2.5);
+    expect(context.moveTo).toHaveBeenLastCalledWith(500,0);
+  });
   it("draws canonical sawtooth through fire-free intervals without connecting clock breaks",()=>{
     const {context,options,draw}=fixture({kind:"row",ruler:{offset:0,tolerance:1}});
     options.chart={points:[],runs:[],flags:[],tick_rate:20,window_ticks:2,reference_phase:0,reference_clock:"jolt",
