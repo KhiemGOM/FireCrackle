@@ -2,6 +2,7 @@ import { flagSpans, phaseToY, relativePhase, rowToY, timeToX, type ChartPoint, t
 import { chartReference, deviation, deviationLevel, idealRamps, rulerPhase, type DeviationLevel } from "./clockRuler";
 import type { GapKind } from "./evidenceGaps";
 import type { FrameRange } from "./timeline";
+import { denseRowRuler, phasePaintPoints } from "./phaseChartLod";
 
 const COLORS = { dot: "#4a90d9", band: "rgba(76,195,138,0.16)", grid: "#2a3142", text: "#8b96ab" };
 const RULER_COLOR = "#e8eefc";
@@ -62,18 +63,20 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   const { chart, kind, currentFrame, fps, t0, t1, highlighted, pixelRatio } = options;
   const timeOf = options.timeOf ?? ((frame: number) => frame / fps);
   const yRange=options.yRange;
-  const axisY=(value:number)=>yRange ? canvas!.clientHeight*(yRange[1]-value)/(yRange[1]-yRange[0]) : 0;
+  const axisY=(value:number)=>yRange ? h*(yRange[1]-value)/(yRange[1]-yRange[0]) : 0;
   const phaseY=(value:number,height:number)=>yRange?axisY(value):phaseToY(value,height);
   const rowY=(value:number,height:number)=>yRange?axisY(value):rowToY(value,height);
   if (!canvas || !chart) return;
   const dpr = pixelRatio;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
-  canvas.width = Math.max(1, Math.round(w * dpr));
-  canvas.height = Math.max(1, Math.round(h * dpr));
+  const backingWidth = Math.max(1, Math.round(w * dpr)), backingHeight = Math.max(1, Math.round(h * dpr));
+  if (canvas.width !== backingWidth) canvas.width = backingWidth;
+  if (canvas.height !== backingHeight) canvas.height = backingHeight;
   const g = canvas.getContext("2d");
   if (!g) return;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.lineWidth = 1;
   g.clearRect(0, 0, w, h);
   g.font = "11px system-ui, sans-serif";
   for(const gap of chart.clock_breaks ?? []) {
@@ -191,7 +194,17 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.strokeStyle = RULER_COLOR;
       g.setLineDash([2, 3]);
       g.beginPath();
-      for (const r of chart.reference_clock === "jolt" ? [] : idealRamps(t0, t1, chart.tick_rate, rp)) {
+      const densityBand = (start: number, end: number) => {
+        const x0 = Math.max(0, timeToX(start, t0, t1, w)), x1 = Math.min(w, timeToX(end, t0, t1, w));
+        const top = Math.max(0, rowY(32, h)), bottom = Math.min(h, rowY(0, h));
+        if (x1 > x0 && bottom > top) {
+          g.fillStyle = "rgba(232,238,252,0.10)";
+          g.fillRect(x0, top, x1 - x0, bottom - top);
+        }
+      };
+      const denseVideo = chart.reference_clock !== "jolt" && denseRowRuler(t0, t1, chart.tick_rate, w);
+      if (denseVideo) densityBand(t0, t1);
+      for (const r of chart.reference_clock === "jolt" || denseVideo ? [] : idealRamps(t0, t1, chart.tick_rate, rp)) {
         g.moveTo(timeToX(r.t0, t0, t1, w), rowY(r.step0, h));
         g.lineTo(timeToX(r.t1, t0, t1, w), rowY(r.step1, h));
       }
@@ -202,6 +215,8 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
         if (rate === 0) {
           const y = rowY(((segment.tick0 - rp) % 32 + 32) % 32, h);
           g.moveTo(timeToX(start, t0, t1, w), y); g.lineTo(timeToX(end, t0, t1, w), y);
+        } else if (denseRowRuler(t0, t1, rate, w)) {
+          densityBand(start, end);
         } else for (const r of idealRamps(start - segment.t0, end - segment.t0, rate, rp - segment.tick0)) {
           g.moveTo(timeToX(r.t0 + segment.t0, t0, t1, w), rowY(r.step0, h));
           g.lineTo(timeToX(r.t1 + segment.t0, t0, t1, w), rowY(r.step1, h));
@@ -216,7 +231,8 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.globalAlpha=1;
     }
   }
-  const visible = chart.points.filter((p) => p.pts >= t0 && p.pts <= t1 && (!ruler || Number.isFinite(p.phase)));
+  const visible = phasePaintPoints(chart.points, { t0, t1, width: w, kind, reference: ref, rulerPhase: ruler ? rp : undefined })
+    .filter(p => !ruler || Number.isFinite(p.phase));
   if (ruler) {
     // each point's distance from the ruler, as a stem to it, shaded by how far off it is
     const levels: Record<DeviationLevel, ChartPoint[]> = { ok: [], warn: [], bad: [] };
