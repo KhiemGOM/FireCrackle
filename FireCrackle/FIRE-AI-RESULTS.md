@@ -572,3 +572,125 @@ model directory. The six-case score selects the same frozen indices from each
 full Quad1 prediction array. The current trainer uses independent label ordering;
 the exact older training stream is preserved by the trainer at commit `cd4f8f3`.
 No dependency, upstream asset, real crop or model weight is bundled or committed.
+
+## Rejected matchers and ensemble complementarity
+
+The follow-up reuses the identical 310 Quad1 cases, 52 survival cases and 15
+reviewed survival cases. The newer boundary/grid/line methods are frozen from
+their earlier experiments. Archived Quad1 geometry-optimizer records are joined
+by exact ID with expected appearance and original quad equality checks; the
+other scores are rerun on native pixels. The older samplers and atlas-rarity
+scorer use their retained compiled snapshots, whose file hashes are saved in
+the new diagnostic. No new model is trained and no weights or thresholds are
+selected on these diagnostic labels.
+
+### Individual methods, exact first choice
+
+| Method | Quad1 | Survival |
+|---|---:|---:|
+|Current shared-gain colour|87/310|24/52|
+|Candidate-specific pixel boundaries, frozen lambda 4|92/310|28/52|
+|Old one-probe colour sampler|79/310|24/52|
+|Old independent-brightness four-probe colour|78/310|25/52|
+|Atlas-rarity weighted colour|83/310|24/52|
+|Old size/offset grid fitting|70/310|20/52|
+|Old per-sprite corner optimizer|66/310|21/52|
+|Current per-sprite corner optimizer|80/310|24/52|
+|Localized edge-grid fitting|84/310|25/52|
+|Edge fit plus supported patches|79/310|24/52|
+|Coherent line groups|71/310|18/52|
+|Paired small CNN|35/310|13/52|
+|ResNet-18|45/310|16/52|
+
+Every method gets 15/15 on the easier reviewed survival subset, so that subset
+does not distinguish these alternatives. The complete diagnostic counts
+abstentions as failures in the full denominator, rather than silently dropping
+them. Current colour produces a ranked result on 300/310 Quad1 cases; the CNNs
+always emit a class. No false-presence/no-fire accuracy is inferred here.
+
+The boundary scorer rescues seven Quad1 failures and loses two correct colour
+predictions. On survival it rescues four and loses none. Its survival block
+results improve **3/28 to 6/28** and entity results **21/24 to 22/24**; Quad1
+blocks improve only **4/129 to 6/129**. Other rejected methods sometimes rescue
+different cases: rarity rescues eight Quad1 failures but loses twelve current
+successes. Grouped-line fitting rescues none in either full dataset.
+
+### Fixed combinations, no fitted weights
+
+Top-one voting uses one vote per method and prefers current colour in a tie.
+Rank fusion sums `1/(60+rank)` over the top five from current colour, pixel
+boundaries and both CNNs, again with a stable colour tie preference. The k=60
+constant and combination definitions are fixed in the adapter; no sweep or
+best-weight selection was performed. Correlated classical variants are not
+independent experts, which limits what a large vote pool establishes.
+
+| Fixed rule | Quad1 | Survival |
+|---|---:|---:|
+|Current colour + both CNNs, majority|84/310|24/52|
+|Current colour + boundaries + ResNet, majority|88/310|25/52|
+|All eleven classical variants, plurality|88/310|25/52|
+|All thirteen methods, plurality|89/310|26/52|
+|Top-five reciprocal-rank fusion of four methods|85/310|27/52|
+|Use agreeing CNNs only when colour is not clear|86/310|24/52|
+
+None of these rules beats the boundary scorer on either full dataset. Requiring
+unanimous agreement of current colour and both CNNs is also unsafe: it makes
+47 predictions on Quad1, **22 wrong**, and 26 on survival, **16 wrong**. Agreement
+is not an accuracy certificate; models can agree on the same overlapping face.
+
+### Oracle ceilings and the next useful direction
+
+An oracle is allowed to use ground truth to pick whichever method happened to
+be correct. It is an upper bound on these saved candidate choices, **not an
+implemented ensemble or promised attainable score**:
+
+| Correct first choice exists in... | Quad1 | Survival |
+|---|---:|---:|
+|Current colour or ResNet|93/310|26/52|
+|Current colour or boundaries|94/310|28/52|
+|Any of eleven classical methods|104/310|29/52|
+|Any of all thirteen methods|111/310|30/52|
+
+Thus adding ResNet to the current top-one output can rescue at most **six**
+Quad1 cases and **two** survival cases, even with perfect selection. Across
+current colour, boundaries and both CNNs, the correct appearance occurs in the
+combined top-five lists for **136/310** and **31/52**. These limited pools leave
+many failures that reranking alone cannot fix.
+
+The most supported next experiment is to strengthen the candidate-specific
+boundary matcher and test geometry robustness, rather than rely on a majority
+vote. Its earlier rough-quad result remains **58/310 versus 59/310** for plain
+colour: the accurate-input gain does not justify changing the default rough
+matcher yet. A learned reranker remains possible, but these results do not
+validate one. It would need separate fitting data and a fresh recording for
+evaluation, with no video/Jolt-clock guesses as label features.
+
+There is also an evidence-quality problem to address before another architecture
+escalation: recorded visibility does not fully remove fire-over-fire overlap.
+Even the improved scorer gets very few block faces right. Explicit visible-texel
+or per-plane ownership masks would make a clean real training/evaluation set
+more informative; whether they improve accuracy is a proposed test, not a result.
+Earlier errors remain in all denominators above. The repeated Quad1 diagnostic
+and selected survival samples are not a new independent final holdout.
+
+### Reproduction and evidence
+
+```powershell
+# For each data/output pair: actual-quad1 -> ensemble/quad1;
+# .board/fire-ai/survival -> ensemble/survival;
+# .board/fire-ai/baseline-reviewed -> ensemble/reviewed.
+node FireCrackle/scripts/fire-ai/ensemble_eval.mjs DATA OUT
+# Quad1 grid/group records already exist; run frozen methods for the other pairs:
+node FireCrackle/scripts/edge-grid-eval.mjs DATA OUT/edge validation localized exact 1
+node FireCrackle/scripts/plane-group-eval.mjs DATA OUT/groups validation exact 1 strict
+& $py FireCrackle/scripts/fire-ai/diagnose_ensemble.py
+& $py -m unittest discover -s FireCrackle/scripts/fire-ai -p 'test_*.py'
+```
+
+Full predictions, rescues/lost successes, original corners, file/frame hashes,
+subgroups and abstentions are retained in ignored
+`.board/fire-ai/ensemble/diagnostic.json` and native score reports. Native frames,
+the three historical runtime snapshots and earlier saved predictions are needed
+to reproduce this local-data experiment. The research suite has **23 passing
+tests**, including ensemble ties, empty/abstaining rankings and rank-list limits.
+No production algorithm, automatic labeling rule or release package changed.
