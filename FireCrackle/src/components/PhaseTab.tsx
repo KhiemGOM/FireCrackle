@@ -17,6 +17,7 @@ import { FlagsPanel } from "./FlagsPanel";
 import { PhaseSourcePicker } from "./PhaseSourcePicker";
 import { JoltPanel } from "./JoltPanel";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, timeReference, type JoltState } from "../lib/jolt";
+import { ClockComparison } from "./ClockComparison";
 import { useWheel } from "../hooks/useWheel";
 import { fitViewport, pan, zoomAt, type Viewport, type FrameRange } from "../lib/timeline";
 import "./TimelineControls.css";
@@ -244,6 +245,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     <main className="phase-tab">
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
+        <ClockComparison chart={videoChart} state={jolt} />
         <JoltPanel backend={backend} videoKey={videoKey} state={jolt} onChange={changeClock} matched={jolt.clock === "jolt" ? chart?.points.length ?? 0 : null} t0={t0} t1={t1} onFocus={(time,openVideo)=>{
           const locateFrame = backend.joltFrame && videoKey ? backend.joltFrame(videoKey,time) : Promise.resolve(nearestPoint(chart?.points ?? [],time)?.frame ?? Math.round(time*fps));
           void locateFrame.then(frame=>openVideo ? onJump(frame) : focusRange({first:frame,last:frame})).catch(e=>setError(messageOf(e)));
