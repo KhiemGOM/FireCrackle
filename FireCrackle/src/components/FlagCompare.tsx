@@ -76,7 +76,8 @@ export function FlagCompare({ backend, chart, flag, fps, onOpen, onClose }: Prop
   const reference = chart.reference_phase ?? chart.runs[0]?.center ?? chart.points[0]?.phase ?? 0;
   const detail = chart.flag_details?.find((d) => d.frame === flag.frame && d.end_frame === flag.end_frame && d.kind === flag.kind);
   const text = flagText(flag.kind, detail?.explanation);
-  const shift = c.before && c.after ? relativePhase(c.after.phase, c.before.phase) : null;
+  const forwardJump = detail?.explanation.startsWith("forward_jump:");
+  const shift = !forwardJump && c.before && c.after ? relativePhase(c.after.phase, c.before.phase) : null;
   return createPortal(
     <dialog ref={dialog} className="flag-compare flag-video-dialog" aria-label="Flag video comparison"
       onCancel={(e) => { e.preventDefault(); onClose(); }}
@@ -93,6 +94,7 @@ export function FlagCompare({ backend, chart, flag, fps, onOpen, onClose }: Prop
           <span className="dim compare-where">
             frame {flag.frame}
             {flag.end_frame > flag.frame ? `–${flag.end_frame}` : ""}
+            {forwardJump ? ` · ${flag.phase_delta.toFixed(1)} ticks beyond the forward allowance` : ""}
             {shift !== null ? ` · timing offset changes ${shift > 0 ? "+" : ""}${shift.toFixed(1)} ticks across it` : ""}
           </span>
         </div>

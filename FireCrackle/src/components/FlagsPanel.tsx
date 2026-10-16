@@ -38,7 +38,7 @@ export function FlagsPanel({ flags, fps, current, onSeek,details=[],onHover,onSe
                   frame {f.frame}
                   {f.end_frame > f.frame ? `–${f.end_frame}` : ""} · {formatTimecode(f.frame / (fps || 1), fps)}
                 </span>
-                <span className="delta">{detail?.held_ticks!=null?`held ${detail.held_ticks.toFixed(1)} ticks · `:""}Δ {f.phase_delta > 0 ? "+" : ""}{f.phase_delta.toFixed(1)} ticks</span>
+                <span className="delta">{detail?.held_ticks!=null?`held ${detail.held_ticks.toFixed(1)} ticks · `:""}{detail?.explanation.startsWith("forward_jump:")?"excess":"Δ"} {f.phase_delta > 0 ? "+" : ""}{f.phase_delta.toFixed(1)} ticks</span>
               </button>
             </li>
           );

@@ -23,6 +23,13 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
 }
 function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
+it("opens fire-only events in the original video when canonical coordinates are unresolved",()=>{
+  hooks.values[5]={version:1,clock:"jolt",session:'["1","1"]',data:{name:"test",version:"2.3",source:"",unresolved:0,anchors:[{time:0,tick:0,game:"1",screen:"1",segment:"0"},{time:1,tick:20,game:"1",screen:"1",segment:"0"}]}};
+  const root=render(),viewport=hooks.values[6];
+  flags(root).props.onSelect(flag,false);
+  expect(jump).toHaveBeenCalledExactlyOnceWith(800);
+  expect(hooks.values[6]).toBe(viewport);
+});
 it('loads complete frame evidence before canonical correction, rather than a global 4000-point sample',async()=>{
  const phaseChart=vi.fn().mockResolvedValue({points:[],runs:[],flags:[],tick_rate:20,window_ticks:1});
  hooks.cursor=hooks.refCursor=0;hooks.effects=[];

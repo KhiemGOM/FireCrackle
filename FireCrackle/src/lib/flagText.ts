@@ -7,6 +7,7 @@ export function priorityHint(severity:Severity):string {
 }
 
 export function flagText(kind:FlagKind,explanation?:string):{name:string;hint:string} {
+  if(explanation?.startsWith("forward_jump:"))return {name:"Forward animation jump",hint:explanation.slice("forward_jump:".length).trim()};
   switch(explanation) {
     case "recovered_hold":return {name:"Held animation · recovered",hint:"The row held still, then observations returned to the original clock extrapolated through the hold. Separate odd labels remain flagged."};
     case "hold_with_mismatch":return {name:"Held animation · mismatch",hint:"The row held still and later observations retain a timing mismatch against the original clock. Lag, a reset, an edit or labels may explain it."};

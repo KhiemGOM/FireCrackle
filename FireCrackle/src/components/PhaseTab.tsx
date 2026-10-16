@@ -18,6 +18,7 @@ import { FlagsPanel } from "./FlagsPanel";
 import { PhaseSourcePicker } from "./PhaseSourcePicker";
 import { JoltPanel } from "./JoltPanel";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, timeReference, type JoltState } from "../lib/jolt";
+import { forwardTransitionChart } from "../lib/fireTransitions";
 import { PlotAxes } from "./PlotAxes";
 import type { AxisRange } from "../lib/plotAxes";
 import "./PhaseWorkspace.css";
@@ -107,7 +108,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     backend
       // Keep source evidence intact before clock conversion and viewport-only rendering reduction.
       .phaseChart(Math.max(1,view.frame_count),source)
-      .then((c) => !cancelled && (setChart(c), setError(null)))
+      .then((c) => !cancelled && (setChart(forwardTransitionChart(c)), setError(null)))
       .catch((e) => !cancelled && setError(messageOf(e)));
     return () => {
       cancelled = true;
@@ -162,6 +163,12 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   }, [chart, backend, fps, view.frame_count]);
 
   function focusRange(range: FrameRange, flag: Flag | null = null) {
+    // Fire-only events can fall outside resolved Jolt coverage. Open the video
+    // rather than inventing canonical coordinates across a clock break.
+    if (!Number.isFinite(timeOf(range.first)) || !Number.isFinite(timeOf(range.last))) {
+      onJump(range.first);
+      return;
+    }
     setViewMode("phase");
     setSelectedFlag(flag);
     setInspecting(false);

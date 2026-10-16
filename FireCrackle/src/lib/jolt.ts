@@ -1,4 +1,5 @@
-import { relativePhase, type ChartPoint, type PhaseChart } from "./chart";
+import { type ChartPoint, type PhaseChart } from "./chart";
+import { fireTransitions } from "./fireTransitions";
 
 export interface JoltAnchor { time:number; tick:number; game:string; screen:string; segment?:string }
 export interface JoltEvent { from:number; to:number; kind:string; game:string; screen:string; jump_seconds?:number }
@@ -109,8 +110,10 @@ export function joltPhase(chart:PhaseChart|null,reference:TimeReference):PhaseCh
     return t1>t0&&a&&b&&reference.sampleAt((t0+t1)/2)&&b.tick>=a.tick
       ? [{t0,t1,tick0:a.tick,tick1:b.tick}] : [];
   })};
-  const flags=points.filter(p=>baseline!==null&&Math.abs(relativePhase(p.phase,baseline))>chart.window_ticks).map(p=>({frame:p.frame,end_frame:p.frame,kind:"phase_outlier" as const,severity:"soft" as const,phase_delta:relativePhase(p.phase,baseline!)}));
-  return {...chart,reference_clock:"jolt",points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:flags.map(f=>({...f,clock_delta:f.phase_delta,held_ticks:null,explanation:"Fire differs from the first fire–Jolt phase. Between resolved readings the GUI clock is estimated within each imported continuous run. No fit bridges an imported break. Check labels, frame alignment, pauses and resource reloads."}))};
+  // Baseline disagreement remains chart information, never one review flag per frame.
+  // Use video time for local progression: interpolated GUI ticks can conceal a cut.
+  const {flags,details}=fireTransitions(chart.points,chart.tick_rate);
+  return {...chart,reference_clock:"jolt",points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:details};
 }
 
 /** Display fire on elapsed GUI time. Analysis and frame navigation retain the original video timestamps. */

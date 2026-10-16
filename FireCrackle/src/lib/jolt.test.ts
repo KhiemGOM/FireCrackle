@@ -4,6 +4,21 @@ import type { PhaseChart } from "./chart";
 
 const report={version:"2.3",source:"same.mp4",games:[{number:1,screen:1},{number:2,screen:2}],jolts:[{tick:999}, {}, {}, {}, {}],runs:[{game:1,points:[[1,100,0],[3,140,1]]},{game:1,points:[[5,300,2],[7,340,3]]},{game:2,points:[[4,50,4]]}],breaks:[{kind:"removed"},{kind:"screen"}]};
 const state=(data=parseJolt(JSON.stringify(report),"jolt.json")):JoltState=>({version:1,data,clock:"jolt",session:sessionOf(data.anchors[0])});
+it("keeps fire-only jump events even where Jolt cannot provide a canonical time",()=>{
+  const chart:PhaseChart={points:[{frame:240,pts:4,step:3,phase:0},{frame:241,pts:4+1/60,step:1,phase:0}],runs:[],flags:[],tick_rate:20,window_ticks:2};
+  const result=joltPhase(chart,timeReference(state()))!;
+  expect(result.points).toEqual([]);
+  expect(result.flags).toMatchObject([{frame:241,severity:"hard"}]);
+});
+it("detects a local +30 jump despite a smooth interpolated Jolt clock, without per-frame offset spam",()=>{
+  const ref=timeReference(state(parseJolt(JSON.stringify({anchors:[{time:0,tick:0},{time:20,tick:400}]}),"sparse")));
+  const chart:PhaseChart={points:Array.from({length:600},(_,frame)=>({frame,pts:frame/60,step:(3+Math.floor(frame/3)+(frame>=1?30:0))%32,phase:0})),runs:[],flags:[],tick_rate:20,window_ticks:2};
+  const result=joltPhase(chart,ref)!;
+  expect(result.flags).toHaveLength(1);
+  expect(result.flags[0]).toMatchObject({frame:1,end_frame:1,severity:"hard",phase_delta:28});
+  expect(result.points[1].clock_estimated).toBe(true);
+  expect(result.reference_phase).toBe(29);
+});
 it("retains independent ruler coverage without fire and never bridges a clock break",()=>{
   const chart:PhaseChart={points:[],runs:[],flags:[],tick_rate:20,window_ticks:2};
   expect(joltPhase(chart,timeReference(state()))!.clock_segments).toEqual([
@@ -37,7 +52,7 @@ it("does not force nominal FPS or add a sheet-specific half-cycle to sprite step
   const result=joltPhase(chart,ref)!;
   expect(result.points[0].phase).toBe(0);expect(result.points[0].clock_estimated).toBe(false);
   expect(result.points[1].phase).toBe(0);expect(result.points[1].clock_estimated).toBe(true);
-  expect(result.flags).toHaveLength(1);expect(chart.points[0].phase).toBe(7);
+  expect(result.flags).toHaveLength(0);expect(result.points[2].phase).not.toBe(0);expect(chart.points[0].phase).toBe(7);
 });
 it("keeps fire/Jolt steady through a joint clock jump but splits the unknown break",()=>{
   const chart:PhaseChart={points:[{frame:60,pts:1,step:4,phase:16},{frame:180,pts:3,step:12,phase:16},{frame:240,pts:4,step:0,phase:16},{frame:300,pts:5,step:12,phase:24}],runs:[],flags:[],tick_rate:20,window_ticks:2};
