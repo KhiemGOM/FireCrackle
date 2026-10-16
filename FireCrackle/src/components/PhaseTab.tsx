@@ -19,7 +19,7 @@ import { PhaseSourcePicker } from "./PhaseSourcePicker";
 import { JoltPanel } from "./JoltPanel";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, timeReference, type JoltState } from "../lib/jolt";
 import { forwardTransitionChart } from "../lib/fireTransitions";
-import { reviewChart } from "../lib/reviewFlags";
+import { reviewChart,displayClockAt } from "../lib/reviewFlags";
 import { ChartLegend } from "./ChartLegend";
 import { PlotAxes } from "./PlotAxes";
 import type { AxisRange } from "../lib/plotAxes";
@@ -67,9 +67,10 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const reference = useMemo(() => timeReference(jolt), [jolt]);
   const unified = useMemo(() => reviewChart(videoChart,jolt,fps),[videoChart,jolt.data,jolt.session,fps]);
   const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(unified, reference), reference) : unified, [unified, reference, jolt.clock]);
-  const originTick = useMemo(()=>reference.tickAt(reference.sampleTimes[0]) ?? 0,[reference]);
+  const displayPoints = useMemo(()=>(chart?.display_points??chart?.points??[]).slice().sort((a,b)=>a.pts-b.pts),[chart]);
+  const originTick = useMemo(()=>chart?.clock_origin_tick ?? reference.tickAt(reference.sampleTimes[0]) ?? 0,[chart,reference]);
   const axisKey = `${videoKey ?? ""}:${jolt.clock}:${jolt.session}`;
-  const total = useMemo(()=>chart?.corrected_time ? Math.max(1, Math.ceil(Math.max((chart.clock_segments ?? []).reduce((end,s)=>Math.max(end,s.t1),0), chart.points.reduce((end,p)=>Math.max(end,p.pts),0)) * fps) + 1) : Math.max(view.frame_count, 1),[chart,fps,view.frame_count]);
+  const total = useMemo(()=>chart?.corrected_time ? Math.max(1, Math.ceil(Math.max((chart.clock_segments ?? []).reduce((end,s)=>Math.max(end,s.t1),0), displayPoints.reduce((end,p)=>Math.max(end,p.pts),0), ((displayClockAt(reference,Math.max(0,(view.frame_count-1)/fps))?.tick??originTick)-originTick)/20) * fps) + 1) : Math.max(view.frame_count, 1),[chart,displayPoints,reference,originTick,fps,view.frame_count]);
   // A fixed logical width keeps the two charts on exactly the same time range.
   const logicalWidth = 1000;
   const [viewport, setViewport] = useState(() => readTimelineView(axisKey, "phase", total, logicalWidth));
@@ -90,12 +91,12 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
-  const pendingFocus = useRef<FrameRange|null>(null);
+
   const joltFocusRange = useMemo<AxisRange|null>(()=>selectedRange?[selectedRange.first/fps,selectedRange.last/fps]:null,[selectedRange,fps]);
   const highlighted = hoverFlag ? { first: hoverFlag.frame, last: hoverFlag.end_frame } : selectedRange;
   const t0 = viewport.start / fps;
   const t1 = (viewport.start + logicalWidth / viewport.pxPerFrame) / fps;
-  useEffect(() => { const focus=pendingFocus.current;pendingFocus.current=null;setViewport(focus?focusChartRange(focus,total,logicalWidth,fps):readTimelineView(axisKey, "phase", total, logicalWidth)); }, [axisKey, total]);
+  useEffect(() => setViewport(readTimelineView(axisKey, "phase", total, logicalWidth)), [axisKey, total]);
   useEffect(() => { writeTimelineView(axisKey, "phase", total, logicalWidth, viewport); }, [axisKey, total, viewport]);
   const zoomChart = (factor: number, anchor = logicalWidth / 2) =>
     setViewport((v) => zoomAt(v, anchor, factor, 32, logicalWidth, total));
@@ -120,12 +121,12 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     };
   }, [backend, version, source, videoKey, view.frame_count]);
 
-  const pointTimes = useMemo(()=>new Map(chart?.points.map(p=>[p.frame,p.pts]) ?? []),[chart]);
+  const pointTimes = useMemo(()=>new Map(displayPoints.map(p=>[p.frame,p.pts])),[displayPoints]);
   const timeOf = (frame: number) => {
     if(!chart?.corrected_time)return frame/fps;
     const known=pointTimes.get(frame);
     if(known!==undefined)return known;
-    const tick=reference.tickAt(frame/fps);
+    const tick=displayClockAt(reference,frame/fps)?.tick??null;
     return tick===null ? NaN : (tick-originTick)/20;
   };
   /** Points within this many ticks of the ruler count as on time: half the width of a steady run's arc. */
@@ -168,18 +169,15 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   }, [chart, backend, fps, view.frame_count]);
 
   function focusRange(range: FrameRange, flag: Flag | null = null) {
-    // Keep plain selection in charts. Use video time when exact canonical time
-    // is unknown, preserving the flag and applying focus after the axis changes.
-    if (viewMode!=="jolt" && (!Number.isFinite(timeOf(range.first)) || !Number.isFinite(timeOf(range.last)))) {
-      pendingFocus.current=range;
-      setJolt(value=>({...value,clock:"video"}));
-    }
-    if(viewMode!=="jolt")setViewMode("phase");
+    // Selection never changes the clock or chart view. Missing-clock positions
+    // are display estimates, identified separately from independent evidence.
     setSelectedFlag(flag);
     setInspecting(false);
     setSelectedRange(range);
     setHoverFlag(null);
-    const first=timeOf(range.first),last=timeOf(range.last);
+    const index=flag?chart?.flags.findIndex(f=>f===flag||(f.frame===flag.frame&&f.end_frame===flag.end_frame&&f.kind===flag.kind))??-1:-1;
+    const position=index>=0?chart?.flag_positions?.[index]:undefined;
+    const first=position?.t0??timeOf(range.first),last=position?.t1??timeOf(range.last);
     if(Number.isFinite(first)&&Number.isFinite(last))setViewport(focusChartRange({first:first*fps,last:last*fps},total,logicalWidth,fps));
     phaseRef.current?.scrollIntoView({block:"nearest",behavior:"smooth"});
   }
@@ -191,7 +189,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     const spans = flagSpans(chart.flags, timeOf, t0, t1, r.width,4,chart.flag_positions);
     const flagIdx = hitFlag(spans, x);
     const t = xToTime(x, t0, t1, r.width);
-    const nearest = nearestPoint(chart.points, t);
+    const nearest = nearestPoint(displayPoints, t);
     const point = nearest && nearest.pts >= t0 && nearest.pts <= t1 ? nearest : null;
     return { flagIdx, point, t };
   }
@@ -219,7 +217,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       const offset = relativePhase(p.phase, reference);
       const sources=(chart!.label_sources?.[p.frame]??[]).map(s=>LABEL_SOURCE_NAMES[s]).join(" + ");
       const fromRuler = rulerOn ? deviation(p.phase, rulerAt) : null;
-      setHover(`frame ${p.frame} · ${formatTimecode(p.video_pts ?? p.pts, fps)} · row ${p.step} · timing offset ${offset > 0 ? "+" : ""}${offset.toFixed(2)} ticks${p.clock_tick===undefined?"":` · corrected elapsed ${p.pts.toFixed(3)} s (${p.clock_estimated?"estimated between anchors":"observed"})`}${fromRuler === null ? "" : ` · ${fromRuler > 0 ? "+" : ""}${fromRuler.toFixed(2)} from the ruler (${fromRuler > 0 ? "lagging" : fromRuler < 0 ? "ahead" : "on time"})`}${sources?` · ${sources}`:""}`);
+      setHover(`frame ${p.frame} · ${formatTimecode(p.video_pts ?? p.pts, fps)} · row ${p.step} · timing offset ${offset > 0 ? "+" : ""}${offset.toFixed(2)} ticks${p.clock_tick===undefined?"":` · corrected elapsed ${p.pts.toFixed(3)} s (${p.clock_fallback?"DISPLAY ESTIMATE · Jolt missing":p.clock_estimated?"estimated between anchors":"observed"})`}${fromRuler === null ? "" : ` · ${fromRuler > 0 ? "+" : ""}${fromRuler.toFixed(2)} from the ruler (${fromRuler > 0 ? "lagging" : fromRuler < 0 ? "ahead" : "on time"})`}${sources?` · ${sources}`:""}`);
     } else {
       const frame = Math.round(hit.t * fps);
       const inGap = gaps.find((g) => frame >= g.first && frame <= g.last);
@@ -301,7 +299,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             {jolt.clock === "jolt" ? "Jolt supplies canonical time. Timing offset = canonical tick − fire step, relative to the starting offset. Dashed ruler sections between readings are estimates; reported clock breaks stay disconnected." : `Zero = the reference ${chart?.tick_rate ?? 20} Hz animation clock.`} Source filter controls the evidence shown. Red/amber = review priority.
           </span>
         </div>
-        {chart && chart.points.length === 0 ? (
+        {chart && displayPoints.length === 0 ? (
           <div className="empty big-empty">{jolt.clock === "jolt" ? "No fire labels within a resolved Jolt section for this game and source. Choose another source/game or label frames inside a section." : "No fire labels for this source. Choose another source, run the first-person tool, or choose a sprite and confirm it in Label. Time guesses are excluded from the default evidence."}</div>
         ) : (
           <>

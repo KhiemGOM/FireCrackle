@@ -1,5 +1,5 @@
 import type { Flag } from "./api";
-import type { PhaseChart, FlagDetail } from "./chart";
+import {relativePhase,type PhaseChart,type FlagDetail} from "./chart";
 import {sessionOf, type JoltState, type TimeReference} from "./jolt";
 
 /** One review list: local fire events plus imported Jolt events, regardless of display clock.
@@ -20,21 +20,55 @@ export function reviewChart(chart:PhaseChart|null,state:JoltState,fps:number):Ph
   return {...chart,review_flags:true,flags:entries.map(e=>e.flag),flag_details:entries.map(e=>e.detail??({...e.flag,clock_delta:e.flag.phase_delta,held_ticks:null,explanation:''})),flag_positions:entries.map(e=>e.position)};
 }
 
-/** Project review intervals using observed bounds only. A missing sample is shown
- * across its bracketing clock interval; it must never become an interpolated fact.
- */
-export function canonicalFlagPositions(positions:NonNullable<PhaseChart['flag_positions']>,reference:TimeReference,origin:number):NonNullable<PhaseChart['flag_positions']> {
+/** Display-only clock placement. This never changes TimeReference.sampleAt or
+ * supplies evidence to flagging, agreement statistics or clock fitting. */
+export function displayClockAt(reference:TimeReference,time:number,rate=20):{tick:number;estimated:boolean;fallback:boolean}|null {
+  const known=reference.sampleAt(time);
+  if(known)return {...known,fallback:false};
+  if(!Number.isFinite(time)||!reference.sampleTimes.length)return null;
   const times=reference.sampleTimes;
-  function bounds(time:number):{lo:number;hi:number;uncertain:boolean} {
-    const sample=reference.sampleAt(time);
-    if(sample)return {lo:sample.tick,hi:sample.tick,uncertain:false};
-    let lo=0,hi=times.length;
-    while(lo<hi){const mid=(lo+hi)>>>1;if(times[mid]<time)lo=mid+1;else hi=mid;}
-    const before=reference.sampleAt(times[Math.max(0,lo-1)]),after=reference.sampleAt(times[Math.min(times.length-1,lo)]);
-    const a=before?.tick??after?.tick??origin,b=after?.tick??before?.tick??origin;
-    return {lo:Math.min(a,b),hi:Math.max(a,b),uncertain:true};
+  let lo=0,hi=times.length;
+  while(lo<hi){const mid=(lo+hi)>>>1;if(times[mid]<time)lo=mid+1;else hi=mid;}
+  const before=lo>0?reference.sampleAt(times[lo-1]):null,after=lo<times.length?reference.sampleAt(times[lo]):null;
+  let tick:number;
+  if(before&&after&&after.tick>=before.tick&&times[lo]>times[lo-1])tick=before.tick+(time-times[lo-1])/(times[lo]-times[lo-1])*(after.tick-before.tick);
+  else if(before)tick=before.tick+(time-times[lo-1])*rate;
+  else if(after)tick=after.tick+(time-times[lo])*rate;
+  else return null;
+  return {tick,estimated:true,fallback:true};
+}
+
+/** Estimated display positions retain the known video location of a fire event,
+ * instead of expanding a one-frame jump over the entire unresolved clock span. */
+export function canonicalFlagPositions(positions:NonNullable<PhaseChart['flag_positions']>,reference:TimeReference,origin:number):NonNullable<PhaseChart['flag_positions']> {
+  return positions.map(p=>{const a=displayClockAt(reference,p.t0),b=displayClockAt(reference,p.t1);return {t0:((a?.tick??origin)-origin)/20,t1:((b?.tick??origin)-origin)/20,uncertain:!!p.uncertain||!!a?.fallback||!!b?.fallback};});
+}
+
+/** Two continuations, never a fit across the break. Their full clock separation
+ * is retained even when the phase drawing wraps modulo 32. */
+export function clockGapGuides(chart:PhaseChart,reference:TimeReference,origin:number):NonNullable<PhaseChart['gap_guides']> {
+ const out:NonNullable<PhaseChart['gap_guides']>=[],points=chart.points;
+ const baseline=chart.reference_phase??points[0]?.phase??0,rate=chart.tick_rate;
+ for(let i=1;i<reference.sampleTimes.length;i++){
+  const from=reference.sampleTimes[i-1],to=reference.sampleTimes[i];
+  if(!(to>from)||reference.sampleAt((from+to)/2)!==null)continue;
+  const a=reference.sampleAt(from),b=reference.sampleAt(to);
+  if(!a||!b)continue;
+  let lo=0,hi=points.length;
+  while(lo<hi){const mid=(lo+hi)>>>1;if(points[mid].pts<=from)lo=mid+1;else hi=mid;}
+  const left=points[lo-1];lo=0;hi=points.length;
+  while(lo<hi){const mid=(lo+hi)>>>1;if(points[mid].pts<to)lo=mid+1;else hi=mid;}
+  const right=points[lo];
+  if(!left||!right)continue;
+  const before:{time:number;value:number}[]=[],after:{time:number;value:number}[]=[];
+  for(let j=0;j<=64;j++){
+   const t=from+(to-from)*j/64,tick=a.tick+(b.tick-a.tick)*j/64,time=(tick-origin)/20;
+   before.push({time,value:relativePhase(tick-(a.tick+rate*(t-from))+left.phase,baseline)});
+   after.push({time,value:relativePhase(tick-(b.tick+rate*(t-to))+right.phase,baseline)});
   }
-  return positions.map(p=>{const a=bounds(p.t0),b=bounds(p.t1);return {t0:(Math.min(a.lo,b.lo)-origin)/20,t1:(Math.max(a.hi,b.hi)-origin)/20,uncertain:!!p.uncertain||a.uncertain||b.uncertain};});
+  out.push({t0:(a.tick-origin)/20,t1:(b.tick-origin)/20,shift_ticks:b.tick-a.tick-rate*(to-from),before,after});
+ }
+ return out;
 }
 
 export function joltCursorText(state:JoltState,chart:PhaseChart|null,time:number|null,phasePlot:boolean,value?:number):string {

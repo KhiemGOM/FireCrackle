@@ -18,6 +18,8 @@ export interface ChartPoint {
   /** Observed canonical clock tick, present only at resolved Jolt anchors. */
   clock_tick?: number;
   clock_estimated?: boolean;
+  /** Display-only projection where the independent Jolt clock is unavailable. */
+  clock_fallback?: boolean;
   frame: number;
   pts: number;
   /** The animation index, shared by both sheets. */
@@ -35,6 +37,10 @@ export interface ChartRun {
 }
 
 export interface PhaseChart {
+  /** Includes display-only estimates. Never use for detection, fitting or agreement statistics. */
+  display_points?: ChartPoint[];
+  clock_origin_tick?: number;
+  gap_guides?: {t0:number;t1:number;shift_ticks:number;before:{time:number;value:number}[];after:{time:number;value:number}[]}[];
   /** Review events shared by every chart clock/view, rather than re-detected on paired points. */
   review_flags?: boolean;
   /** Display bounds per flag. Uncertain bounds locate an unresolved clock interval, not an inferred tick. */

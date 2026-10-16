@@ -237,8 +237,20 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.globalAlpha=1;
     }
   }
-  const visible = phasePaintPoints(chart.points, { t0, t1, width: w, kind, reference: ref, rulerPhase: ruler ? rp : undefined })
-    .filter(p => !ruler || Number.isFinite(p.phase));
+  if(kind==='phase')for(const guide of chart.gap_guides??[]){
+    const a=timeToX(guide.t0,t0,t1,w),b=timeToX(guide.t1,t0,t1,w);
+    if(Math.max(a,b)<0||Math.min(a,b)>w)continue;
+    g.setLineDash([6,4]);g.lineWidth=1.5;
+    for(const [color,trace] of [['#55d8ed',guide.before],['#f2ba79',guide.after]] as const){
+      g.strokeStyle=color;g.beginPath();let last:number|undefined;
+      for(const p of trace){const x=timeToX(p.time,t0,t1,w),y=phaseY(p.value,h);if(last===undefined||Math.abs(p.value-last)>16)g.moveTo(x,y);else g.lineTo(x,y);last=p.value;}
+      g.stroke();
+    }
+    g.setLineDash([]);g.lineWidth=1;g.fillStyle='#dce2ed';
+    if(Math.abs(b-a)>150)g.fillText(`Clock continuation Δ ${guide.shift_ticks>=0?'+':''}${guide.shift_ticks.toFixed(1)} ticks (estimate)`,Math.max(6,Math.min(a,b)+8),25);
+  }
+  const display = phasePaintPoints(chart.display_points??chart.points, { t0, t1, width: w, kind, reference: ref, rulerPhase: ruler ? rp : undefined });
+  const visible = display.filter(p => !p.clock_fallback && (!ruler || Number.isFinite(p.phase)));
   if (ruler) {
     // each point's distance from the ruler, as a stem to it, shaded by how far off it is
     const levels: Record<DeviationLevel, ChartPoint[]> = { ok: [], warn: [], bad: [] };
@@ -280,6 +292,10 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.fillRect(x - 1, y - 1, 2.5, 2.5);
     }
   }
+  // These are real sprite observations with display-only clock placement, not
+  // independent timing evidence. Never colour them as ruler successes/failures.
+  g.fillStyle='#a8b2c4';
+  for(const p of display)if(p.clock_fallback){const x=timeToX(p.pts,t0,t1,w),y=kind==='phase'?phaseY(relativePhase(p.phase,ref),h):rowY(p.step,h);g.fillRect(x-1.5,y-.75,3,1.5);}
   // where the Label tab currently is
   const cx = timeToX(timeOf(currentFrame), t0, t1, w);
   g.strokeStyle = "#f08a24";

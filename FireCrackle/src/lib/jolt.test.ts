@@ -4,6 +4,27 @@ import type { PhaseChart } from "./chart";
 
 const report={version:"2.3",source:"same.mp4",games:[{number:1,screen:1},{number:2,screen:2}],jolts:[{tick:999}, {}, {}, {}, {}],runs:[{game:1,points:[[1,100,0],[3,140,1]]},{game:1,points:[[5,300,2],[7,340,3]]},{game:2,points:[[4,50,4]]}],breaks:[{kind:"removed"},{kind:"screen"}]};
 const state=(data=parseJolt(JSON.stringify(report),"jolt.json")):JoltState=>({version:1,data,clock:"jolt",session:sessionOf(data.anchors[0])});
+it.each([0,40])('shows real fire through missing Jolt clock spans and two continuations with a %i-tick difference, without adding analysis evidence',jump=>{
+ const data=parseJolt(JSON.stringify({anchors:[{time:0,tick:100,segment:'a'},{time:1,tick:120,segment:'a'},{time:4,tick:180+jump,segment:'b'},{time:5,tick:200+jump,segment:'b'}]}),'gap');
+ const ref=timeReference(state(data));
+ const chart:PhaseChart={points:[{frame:60,pts:1,step:24,phase:0},{frame:120,pts:2,step:12,phase:0},{frame:240,pts:4,step:(180+jump)%32,phase:0}],runs:[],flags:[],tick_rate:20,window_ticks:2};
+ const paired=joltPhase(chart,ref)!,display=correctedJoltChart(paired,ref)!;
+ expect(paired.points).toHaveLength(2);expect(display.points).toHaveLength(2);expect(display.display_points).toHaveLength(3);
+ expect(display.display_points!.find(p=>p.frame===120)).toMatchObject({clock_fallback:true,clock_estimated:true});
+ expect(ref.sampleAt(2)).toBeNull();expect(display.flags).toEqual(paired.flags);
+ expect(display.gap_guides).toHaveLength(1);
+ expect(display.gap_guides![0].shift_ticks).toBe(jump);
+ expect(display.gap_guides![0].before[0].value).toBe(0);
+ expect(display.gap_guides![0].after[64].value).toBe(0);
+ if(!jump)expect(display.gap_guides![0].before).toEqual(display.gap_guides![0].after);
+});
+it('keeps fire before the first Jolt reading inside the display viewport',()=>{
+ const ref=timeReference(state());
+ const chart:PhaseChart={points:[{frame:0,pts:0,step:0,phase:0},{frame:60,pts:1,step:4,phase:0}],runs:[],flags:[],tick_rate:20,window_ticks:2};
+ const result=correctedJoltChart(joltPhase(chart,ref),ref)!;
+ expect(result.display_points![0].pts).toBe(0);expect(result.display_points![0].clock_fallback).toBe(true);
+ expect(result.clock_origin_tick).toBe(80);expect(result.points).toHaveLength(1);
+});
 it("keeps fire-only jump events even where Jolt cannot provide a canonical time",()=>{
   const chart:PhaseChart={points:[{frame:240,pts:4,step:3,phase:0},{frame:241,pts:4+1/60,step:1,phase:0}],runs:[],flags:[],tick_rate:20,window_ticks:2};
   const result=joltPhase(chart,timeReference(state()))!;

@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {canonicalFlagPositions,joltCursorText,reviewChart} from './reviewFlags';
+import {canonicalFlagPositions,joltCursorText,reviewChart,displayClockAt} from './reviewFlags';
 import {correctedJoltChart,joltPhase,timeReference,type JoltState} from './jolt';
 import type {PhaseChart} from './chart';
 import {flagSpans} from './chart';
@@ -14,14 +14,20 @@ it('keeps one source-labelled review list across video/canonical clocks includin
  const corrected=correctedJoltChart(joltPhase(combined,timeReference(state)),timeReference(state))!;
  expect(corrected.flags).toEqual(combined.flags);
  expect(corrected.points).toEqual([]);
- expect(corrected.flag_positions).toEqual([{t0:1,t1:6,uncertain:true},{t0:1,t1:6,uncertain:true}]);
+ expect(corrected.flag_positions![0]).toEqual({t0:1,t1:6,uncertain:true});
+ expect(corrected.flag_positions![1].t0).toBeCloseTo(2.694444);
+ expect(corrected.flag_positions![1].t1).toBeCloseTo(2.694444);
+ expect(corrected.flag_positions![1].uncertain).toBe(true);
  const spans=flagSpans(corrected.flags,()=>NaN,0,10,1000,4,corrected.flag_positions);
- expect(spans.map(s=>[s.x0,s.x1])).toEqual([[100,600],[100,600]]);
+ expect([spans[0].x0,spans[0].x1]).toEqual([100,600]);
+ expect(spans[1].x1-spans[1].x0).toBe(4);
 });
-it('does not invent ticks inside a break or turn a missing sample into an exact point',()=>{
+it('offers a labelled display estimate without adding ticks to the independent evidence clock',()=>{
  const reference=timeReference(state);
  expect(reference.sampleAt(2)).toBeNull();
- expect(canonicalFlagPositions([{t0:.5,t1:.5},{t0:2,t1:2}],reference,100)).toEqual([{t0:.5,t1:.5,uncertain:false},{t0:1,t1:6,uncertain:true}]);
+ expect(canonicalFlagPositions([{t0:.5,t1:.5},{t0:2,t1:2}],reference,100)[0]).toEqual({t0:.5,t1:.5,uncertain:false});
+ expect(displayClockAt(reference,2)).toMatchObject({fallback:true,estimated:true});
+ expect(reference.sampleAt(2)).toBeNull();
 });
 it('excludes another game report and preserves the selected label-source fire evidence',()=>{
  expect(reviewChart(chart,{...state,session:'["2","1"]'},60)!.flags).toHaveLength(1);

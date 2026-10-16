@@ -24,6 +24,16 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it('draws display-only fire in grey, without colouring it as independent ruler evidence',()=>{
+    const {context,options,draw}=fixture({ruler:{offset:0,tolerance:1}});
+    options.chart!.points=[];
+    options.chart!.display_points=[{frame:300,pts:5,step:3,phase:10,clock_fallback:true}];
+    const paint:Array<{style:unknown;w:number}>=[];
+    context.fillRect.mockImplementation((...args:any[])=>paint.push({style:(context as any).fillStyle,w:args[2]}));
+    draw();
+    expect(paint.some(p=>p.style==='#a8b2c4'&&p.w===3)).toBe(true);
+    expect(paint.some(p=>p.w===2.5)).toBe(false);
+  });
   it.each(['row','phase'] as const)('fades only the %s ruler, keeping observations opaque',kind=>{
     const {context,draw}=fixture({kind,ruler:{offset:0,tolerance:1,opacity:.2}});
     const strokes:number[]=[],dots:number[]=[];

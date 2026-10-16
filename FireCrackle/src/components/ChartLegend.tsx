@@ -4,7 +4,7 @@ export function ChartLegend({kind,canonical=false,ruler=false}:{kind:'phase'|'ro
     <span><i className="band red"/>Hard review event</span><span><i className="band amber"/>Soft review event</span>
     <span><i className="band violet"/>Jolt report flag · separate from hard/soft fire flags</span>
     <span><i className="band uncertain"/>Dashed bounds = uncertain event location</span>
-    {canonical&&<span><i className="band amber"/>Yellow gap = unresolved Jolt clock; no fire timing plotted</span>}
+    {canonical&&<><span><i className="band amber"/>Yellow = Jolt missing; grey fire points use display estimates only</span><span><i className="line dashed" style={{borderColor:'#55d8ed'}}/>Before-side continuation</span><span><i className="line dashed" style={{borderColor:'#f2ba79'}}/>After-side continuation · Δ is a clock estimate, not proof of a splice</span></>}
     {(kind==='phase'||kind==='row')&&!canonical&&<span><i className="band gray"/>Shaded/dashed gaps = missing fire evidence</span>}
     {ruler&&<span><i className="line white"/>Perfect-clock ruler · green / amber / red = distance from ruler</span>}
   </div>;

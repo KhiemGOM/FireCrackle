@@ -30,16 +30,18 @@ it("plain flag selection keeps Jolt + Fire open and focuses its shared video tim
   const jolt=all(root,e=>typeof e.type==='function'&&e.props.focusRange!==undefined)[0];
   expect(jolt.props.focusRange).toEqual([800/60,820/60]);
 });
-it("keeps fire-only selection in charts, switches to video time and applies focus when canonical time is unresolved",()=>{
+it("keeps canonical time selected and zooms to a fire event inside unresolved Jolt coverage",()=>{
   hooks.values[5]={version:1,clock:"jolt",session:'["1","1"]',data:{name:"test",version:"2.3",source:"",unresolved:0,anchors:[{time:0,tick:0,game:"1",screen:"1",segment:"0"},{time:1,tick:20,game:"1",screen:"1",segment:"0"}]}};
-  const root=render(),viewport=hooks.values[6];
+  const root=render();
   flags(root).props.onSelect(flag,false);
   expect(jump).not.toHaveBeenCalled();
-  expect(hooks.values[5].clock).toBe('video');
-  expect(hooks.values[6]).toBe(viewport);
-  render();hooks.effects[0]();
-  expect(hooks.values[6].start).toBeLessThan(800);
-  expect(hooks.values[6].start+1000/hooks.values[6].pxPerFrame).toBeGreaterThan(820);
+  expect(hooks.values[5].clock).toBe('jolt');
+  expect(hooks.values[6].start).toBeLessThanOrEqual(800);
+  expect(hooks.values[6].start+1000/hooks.values[6].pxPerFrame).toBeGreaterThanOrEqual(820);
+});
+it('preserves the Sprites view when selecting a flag',()=>{
+  hooks.values[13]='row';const root=render();flags(root).props.onSelect(flag,false);
+  expect(hooks.values[13]).toBe('row');expect(jump).not.toHaveBeenCalled();
 });
 it('loads complete frame evidence before canonical correction, rather than a global 4000-point sample',async()=>{
  const phaseChart=vi.fn().mockResolvedValue({points:[],runs:[],flags:[],tick_rate:20,window_ticks:1});

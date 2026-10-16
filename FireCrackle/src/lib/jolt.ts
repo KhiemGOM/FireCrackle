@@ -1,6 +1,6 @@
 import { type ChartPoint, type PhaseChart } from "./chart";
 import { fireTransitions } from "./fireTransitions";
-import { canonicalFlagPositions } from "./reviewFlags";
+import { canonicalFlagPositions,displayClockAt,clockGapGuides } from "./reviewFlags";
 
 export interface JoltAnchor { time:number; tick:number; game:string; screen:string; segment?:string }
 export interface JoltEvent { from:number; to:number; kind:string; game:string; screen:string; jump_seconds?:number }
@@ -114,16 +114,21 @@ export function joltPhase(chart:PhaseChart|null,reference:TimeReference):PhaseCh
   // Baseline disagreement remains chart information, never one review flag per frame.
   // Use video time for local progression: interpolated GUI ticks can conceal a cut.
   const {flags,details}=chart.review_flags?{flags:chart.flags,details:chart.flag_details??[]}:fireTransitions(chart.points,chart.tick_rate);
-  return {...chart,reference_clock:"jolt",points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:details};
+  return {...chart,reference_clock:"jolt",points,display_points:chart.points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(chart.points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:details};
 }
 
 /** Display fire on elapsed GUI time. Analysis and frame navigation retain the original video timestamps. */
 export function correctedJoltChart(chart:PhaseChart|null,reference:TimeReference):PhaseChart|null {
   if(!chart||!reference.sampleTimes.length)return chart;
-  const origin=reference.tickAt(reference.sampleTimes[0]);
-  if(origin===null)return chart;
+  const firstTick=reference.tickAt(reference.sampleTimes[0]);
+  if(firstTick===null)return chart;
+  const projected=(chart.display_points??chart.points).flatMap(p=>{const sample=displayClockAt(reference,p.pts,chart.tick_rate);return sample?[{p,sample}]:[];});
+  const origin=projected.reduce((low,p)=>Math.min(low,p.sample.tick),firstTick);
   const elapsed=(tick:number)=>(tick-origin)/20;
   return {...chart,corrected_time:true,
+    clock_origin_tick:origin,
+    display_points:projected.map(({p,sample})=>({...p,video_pts:p.pts,pts:elapsed(sample.tick),clock_tick:sample.tick,clock_estimated:sample.estimated,clock_fallback:sample.fallback,phase:wrap(sample.tick-p.step)})),
+    gap_guides:clockGapGuides(chart,reference,origin),
     flag_positions:chart.flag_positions?canonicalFlagPositions(chart.flag_positions,reference,origin):undefined,
     clock_breaks:(chart.clock_segments??[]).slice(1).flatMap((s,i)=>{
       const before=chart.clock_segments![i];
