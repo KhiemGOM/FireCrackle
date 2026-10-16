@@ -24,6 +24,20 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it("draws canonical sawtooth through fire-free intervals without connecting clock breaks",()=>{
+    const {context,options,draw}=fixture({kind:"row",ruler:{offset:0,tolerance:1}});
+    options.chart={points:[],runs:[],flags:[],tick_rate:20,window_ticks:2,reference_phase:0,reference_clock:"jolt",
+      clock_segments:[{t0:1,t1:3,tick0:0,tick1:40},{t0:7,t1:9,tick0:64,tick1:64}]};
+    draw();
+    expect(context.moveTo).toHaveBeenCalledWith(100,320);
+    expect(context.lineTo).toHaveBeenCalledWith(260,320-32/31*320);
+    expect(context.moveTo).toHaveBeenCalledWith(260,320);
+    expect(context.lineTo).toHaveBeenCalledWith(300,320-8/31*320);
+    expect(context.moveTo).toHaveBeenCalledWith(700,320);
+    expect(context.lineTo).toHaveBeenCalledWith(900,320);
+    // Exclude the final playhead stroke; it is independent of ruler continuity.
+    expect(context.lineTo.mock.calls.slice(5,-1).some(([x])=>x>300.001&&x<700)).toBe(false);
+  });
   it("scales the backing store while keeping points and playhead in CSS pixels", () => {
     const { canvas, context, draw } = fixture({ pixelRatio: 2 });
     draw();

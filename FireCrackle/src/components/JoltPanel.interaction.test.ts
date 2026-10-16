@@ -41,9 +41,8 @@ it("stale project loads never leak into a newly opened video",async()=>{
   resolve(JSON.stringify(state));await Promise.resolve();await Promise.resolve();
   expect(change).toHaveBeenCalledTimes(1); // the deliberate EMPTY reset only
 });
-it("plain clicks focus the linked charts; Ctrl-click opens the video",()=>{
-  const root=render({}),dot=all(root,e=>e.type==="circle")[0];
-  dot.props.onClick({ctrlKey:false});dot.props.onClick({ctrlKey:true});
-  expect(focus.mock.calls).toEqual([[1,false],[1,true]]);
-  expect(dot.props.onMouseEnter).toBeUndefined();
+it("uses Jolt as a time reference without a separate plotted signal",()=>{
+  const root=render({});
+  expect(all(root,e=>e.type==="svg")).toHaveLength(0);
+  expect(all(root,e=>e.type==="button"&&e.props.children==="Corrected time (Jolt)")).toHaveLength(1);
 });

@@ -1,9 +1,16 @@
 import { expect, it } from "vitest";
-import { EMPTY_JOLT, joltPhase, localJoltKey, parseJolt, plotAnchors, restoreJolt, sessionOf, timeReference, type JoltAnchor, type JoltState } from "./jolt";
+import { EMPTY_JOLT, correctedJoltChart, joltPhase, localJoltKey, parseJolt, plotAnchors, restoreJolt, sessionOf, timeReference, type JoltAnchor, type JoltState } from "./jolt";
 import type { PhaseChart } from "./chart";
 
 const report={version:"2.3",source:"same.mp4",games:[{number:1,screen:1},{number:2,screen:2}],jolts:[{tick:999}, {}, {}, {}, {}],runs:[{game:1,points:[[1,100,0],[3,140,1]]},{game:1,points:[[5,300,2],[7,340,3]]},{game:2,points:[[4,50,4]]}],breaks:[{kind:"removed"},{kind:"screen"}]};
 const state=(data=parseJolt(JSON.stringify(report),"jolt.json")):JoltState=>({version:1,data,clock:"jolt",session:sessionOf(data.anchors[0])});
+it("retains independent ruler coverage without fire and never bridges a clock break",()=>{
+  const chart:PhaseChart={points:[],runs:[],flags:[],tick_rate:20,window_ticks:2};
+  expect(joltPhase(chart,timeReference(state()))!.clock_segments).toEqual([
+    {t0:1,t1:3,tick0:100,tick1:140},
+    {t0:5,t1:7,tick0:300,tick1:340},
+  ]);
+});
 it("imports accepted run readings and section identities, never raw candidate ticks",()=>{
   const data=state().data!;
   expect(data.anchors.map(a=>a.tick)).toEqual([100,140,50,300,340]);
@@ -56,4 +63,14 @@ it("bounds plotted SVG samples while retaining local extrema and exact canonical
   const plotted=plotAnchors(anchors);
   expect(plotted.length).toBeLessThanOrEqual(4000);expect(plotted).toContain(anchors[12345]);
   expect(plotted[0]).toBe(anchors[0]);expect(plotted[plotted.length-1]).toBe(anchors[anchors.length-1]);
+});
+
+it("subtracts the GUI origin for corrected elapsed time without losing video timestamps",()=>{
+  const ref=timeReference(state());
+  const base:PhaseChart={points:[{frame:120,pts:2,step:23,phase:0},{frame:360,pts:6,step:31,phase:0}],runs:[],flags:[],tick_rate:20,window_ticks:2};
+  const measured=joltPhase(base,ref)!;
+  const result=correctedJoltChart(measured,ref)!;
+  expect(result.points.map(p=>[p.frame,p.pts,p.video_pts,p.phase])).toEqual([[120,1,2,1],[360,11,6,1]]);
+  expect(result.clock_segments).toEqual([{t0:0,t1:2,tick0:100,tick1:140},{t0:10,t1:12,tick0:300,tick1:340}]);
+  expect(base.points[0].pts).toBe(2);
 });

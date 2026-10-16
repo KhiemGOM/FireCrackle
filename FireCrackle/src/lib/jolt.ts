@@ -96,8 +96,30 @@ export function joltPhase(chart:PhaseChart|null,reference:TimeReference):PhaseCh
     if(sample)points.push({...p,clock_tick:sample.tick,clock_estimated:sample.estimated,phase:wrap(sample.tick-p.step)});
   }
   const baseline=points[0]?.phase??null;
+  chart={...chart,clock_segments:reference.sampleTimes.slice(1).flatMap((t1,i)=>{
+    const t0=reference.sampleTimes[i],a=reference.sampleAt(t0),b=reference.sampleAt(t1);
+    // Endpoints alone cannot establish continuity: both sides of a break have readings.
+    return t1>t0&&a&&b&&reference.sampleAt((t0+t1)/2)&&b.tick>=a.tick
+      ? [{t0,t1,tick0:a.tick,tick1:b.tick}] : [];
+  })};
   const flags=points.filter(p=>baseline!==null&&Math.abs(relativePhase(p.phase,baseline))>chart.window_ticks).map(p=>({frame:p.frame,end_frame:p.frame,kind:"phase_outlier" as const,severity:"soft" as const,phase_delta:relativePhase(p.phase,baseline!)}));
   return {...chart,reference_clock:"jolt",points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:flags.map(f=>({...f,clock_delta:f.phase_delta,held_ticks:null,explanation:"Fire differs from the first fire–Jolt phase. Between resolved readings the GUI clock is estimated within each imported continuous run. No fit bridges an imported break. Check labels, frame alignment, pauses and resource reloads."}))};
+}
+
+/** Display fire on elapsed GUI time. Analysis and frame navigation retain the original video timestamps. */
+export function correctedJoltChart(chart:PhaseChart|null,reference:TimeReference):PhaseChart|null {
+  if(!chart||!reference.sampleTimes.length)return chart;
+  const origin=reference.tickAt(reference.sampleTimes[0]);
+  if(origin===null)return chart;
+  const elapsed=(tick:number)=>(tick-origin)/20;
+  return {...chart,corrected_time:true,
+    clock_breaks:(chart.clock_segments??[]).slice(1).flatMap((s,i)=>{
+      const before=chart.clock_segments![i];
+      return s.t0>before.t1 ? [{t0:elapsed(before.tick1),t1:elapsed(s.tick0)}] : [];
+    }),
+    points:chart.points.map(p=>({...p,video_pts:p.pts,pts:elapsed(p.clock_tick!)})),
+    clock_segments:(chart.clock_segments??[]).map(s=>({...s,t0:elapsed(s.tick0),t1:elapsed(s.tick1)})),
+  };
 }
 
 /** Bound SVG work without losing local clock jumps: keep each bin's endpoints and offset extrema. */

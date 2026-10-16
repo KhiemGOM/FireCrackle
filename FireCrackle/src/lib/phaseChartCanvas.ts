@@ -24,6 +24,7 @@ export interface PhaseChartCanvasOptions {
   t1: number;
   highlighted: FrameRange | null;
   pixelRatio: number;
+  timeOf?: (frame: number) => number;
   /** Stretches with no fire evidence, drawn behind everything else. */
   gaps?: GapBand[];
   /** A line for what a perfect clock would show, and each point's distance from it; off when absent. */
@@ -48,7 +49,7 @@ export const GAP_COLORS: Record<GapKind, { fill: string; edge: string; name: str
  */
 export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseChartCanvasOptions): void {
   const { chart, kind, currentFrame, fps, t0, t1, highlighted, pixelRatio } = options;
-  const timeOf = (frame: number) => frame / fps;
+  const timeOf = options.timeOf ?? ((frame: number) => frame / fps);
   if (!canvas || !chart) return;
   const dpr = pixelRatio;
   const w = canvas.clientWidth;
@@ -60,6 +61,12 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
   g.font = "11px system-ui, sans-serif";
+  for(const gap of chart.clock_breaks ?? []) {
+    const x0=Math.max(0,timeToX(gap.t0,t0,t1,w)),x1=Math.min(w,timeToX(gap.t1,t0,t1,w));
+    if(x1<x0)continue;
+    g.fillStyle="rgba(245,197,66,0.16)";
+    g.fillRect(x0,0,Math.max(2,x1-x0),h);
+  }
   // stretches with no evidence: the furthest back, so everything else reads on top of them
   for (const gap of options.gaps ?? []) {
     const x0 = Math.max(0, timeToX(timeOf(gap.first), t0, t1, w));
@@ -126,7 +133,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.setLineDash([]);
       g.fillStyle = "#4cc38a";
       g.textAlign = "right";
-      g.fillText(chart.reference_clock === "jolt" ? "Jolt reference" : `${chart.tick_rate} Hz reference`, w - 6, Math.max(11, y - 5));
+      g.fillText(chart.reference_clock === "jolt" ? "Corrected clock reference" : `${chart.tick_rate} Hz reference`, w - 6, Math.max(11, y - 5));
       g.textAlign = "left";
     }
     if (ruler) {
@@ -137,8 +144,11 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.strokeStyle = RULER_COLOR;
       g.setLineDash([2, 3]);
       g.beginPath();
-      g.moveTo(0, y);
-      g.lineTo(w, y);
+      const coverage=chart.reference_clock==="jolt" ? chart.clock_segments??[] : [{t0,t1}];
+      for(const segment of coverage){
+        const x0=Math.max(0,timeToX(segment.t0,t0,t1,w)),x1=Math.min(w,timeToX(segment.t1,t0,t1,w));
+        if(x1>x0){g.moveTo(x0,y);g.lineTo(x1,y);}
+      }
       g.stroke();
       g.setLineDash([]);
       g.fillStyle = RULER_COLOR;
@@ -166,10 +176,17 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
         g.moveTo(timeToX(r.t0, t0, t1, w), rowToY(r.step0, h));
         g.lineTo(timeToX(r.t1, t0, t1, w), rowToY(r.step1, h));
       }
-      if (chart.reference_clock === "jolt") for (const p of chart.points) {
-        if (p.clock_tick === undefined || p.pts < t0 || p.pts > t1) continue;
-        const x = timeToX(p.pts, t0, t1, w), y = rowToY(((p.clock_tick - rp) % 32 + 32) % 32, h);
-        g.moveTo(x - 2, y); g.lineTo(x + 2, y);
+      if (chart.reference_clock === "jolt") for (const segment of chart.clock_segments ?? []) {
+        const start = Math.max(t0, segment.t0), end = Math.min(t1, segment.t1);
+        if (!(end > start)) continue;
+        const rate = (segment.tick1 - segment.tick0) / (segment.t1 - segment.t0);
+        if (rate === 0) {
+          const y = rowToY(((segment.tick0 - rp) % 32 + 32) % 32, h);
+          g.moveTo(timeToX(start, t0, t1, w), y); g.lineTo(timeToX(end, t0, t1, w), y);
+        } else for (const r of idealRamps(start - segment.t0, end - segment.t0, rate, rp - segment.tick0)) {
+          g.moveTo(timeToX(r.t0 + segment.t0, t0, t1, w), rowToY(r.step0, h));
+          g.lineTo(timeToX(r.t1 + segment.t0, t0, t1, w), rowToY(r.step1, h));
+        }
       }
       g.stroke();
       g.setLineDash([]);

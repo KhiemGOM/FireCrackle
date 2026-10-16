@@ -21,12 +21,12 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
 }
 function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
-beforeEach(()=>{jump.mockClear();hooks.refs=[];hooks.values=[{points:[{frame:800,pts:800/60,phase:0,step:1}],runs:[],flags:[flag],tick_rate:20,window_ticks:1},null,null,null,null,{start:0,pxPerFrame:5}];});
+beforeEach(()=>{jump.mockClear();hooks.refs=[];hooks.values=[{points:[{frame:800,pts:800/60,phase:0,step:1}],runs:[],flags:[flag],tick_rate:20,window_ticks:1},null,null,null,null,{version:1,data:null,clock:"video",session:""},{start:0,pxPerFrame:5}];});
 afterEach(()=>vi.unstubAllGlobals());
 
 it("draws a visible highlight on both canvases for the hovered flag",()=>{
   hooks.values[3]=flag;
-  hooks.values[5]={start:0,pxPerFrame:1};
+  hooks.values[6]={start:0,pxPerFrame:1};
   render();
   vi.stubGlobal("window",{devicePixelRatio:1});
   vi.stubGlobal("ResizeObserver",class {observe(){} disconnect(){}});
@@ -42,11 +42,11 @@ it("draws a visible highlight on both canvases for the hovered flag",()=>{
 });
 
 it("hovering an offscreen flag never moves or zooms either chart",()=>{
-  let root=render();const original=hooks.values[5];
+  let root=render();const original=hooks.values[6];
   const rangeLabel=(node:Element)=>all(node,e=>e.props.className==="timeline-controls")[0].props.children[3].props.children;
   const label=rangeLabel(root);
   flags(root).props.onHover(flag);root=render();
-  expect(hooks.values[5]).toBe(original);
+  expect(hooks.values[6]).toBe(original);
   expect(all(root,e=>e.props.className==="chart-hover")[0].props.children).toContain("Flag frame 800–820");
   expect(rangeLabel(root)).toEqual(label);
   flags(root).props.onHover(null);root=render();
@@ -57,9 +57,19 @@ it("hovering an offscreen flag never moves or zooms either chart",()=>{
 it("plain flag selection focuses charts and only Ctrl selection opens video",()=>{
   let root=render();flags(root).props.onSelect(flag,false);root=render();
   expect(jump).not.toHaveBeenCalled();
-  expect(hooks.values[5].start).toBeLessThan(800);
-  expect(hooks.values[5].start+1000/hooks.values[5].pxPerFrame).toBeGreaterThan(820);
+  expect(hooks.values[6].start).toBeLessThan(800);
+  expect(hooks.values[6].start+1000/hooks.values[6].pxPerFrame).toBeGreaterThan(820);
   expect(flags(root).props.current).toBe(800);
+  flags(root).props.onSelect(flag,true);
+  expect(jump).toHaveBeenCalledExactlyOnceWith(800);
+});
+
+it("focuses flags in corrected seconds while Ctrl-click keeps the original video frame",()=>{
+  hooks.values[5]={version:1,clock:"jolt",session:'["1","1"]',data:{name:"test",version:"2.3",source:"",unresolved:0,anchors:[{time:10,tick:100,game:"1",screen:"1",segment:"0"},{time:20,tick:300,game:"1",screen:"1",segment:"0"}]}};
+  let root=render();flags(root).props.onSelect(flag,false);root=render();
+  const viewport=hooks.values[6],correctedFrame=(800/60-10)*60;
+  expect(viewport.start).toBeLessThan(correctedFrame);
+  expect(viewport.start+1000/viewport.pxPerFrame).toBeGreaterThan(correctedFrame);
   flags(root).props.onSelect(flag,true);
   expect(jump).toHaveBeenCalledExactlyOnceWith(800);
 });
@@ -79,18 +89,18 @@ it("plain chart clicks stay in Phase and Ctrl-click opens the flag frame",()=>{
   let root=render();
   const event=(ctrlKey:boolean)=>({button:0,pointerId:1,clientX:810,ctrlKey,preventDefault:vi.fn(),currentTarget:{setPointerCapture:vi.fn(),getBoundingClientRect:()=>({left:0,width:1000})}});
   // Initially zoomed away; display the full clip for this pointer test.
-  hooks.values[5]={start:0,pxPerFrame:1};root=render();
+  hooks.values[6]={start:0,pxPerFrame:1};root=render();
   let canvas=all(root,e=>e.type==="canvas")[0];
   canvas.props.onPointerDown(event(false));canvas.props.onPointerUp(event(false));
   expect(jump).not.toHaveBeenCalled();
-  hooks.values[5]={start:0,pxPerFrame:1};root=render();canvas=all(root,e=>e.type==="canvas")[0];
+  hooks.values[6]={start:0,pxPerFrame:1};root=render();canvas=all(root,e=>e.type==="canvas")[0];
   canvas.props.onPointerDown(event(true));canvas.props.onPointerUp(event(true));
   expect(jump).toHaveBeenCalledExactlyOnceWith(800);
 });
 
 it("suppresses native dragging and pans either linked chart without selecting a point",()=>{
   for(const index of [0,1]) {
-    hooks.values[5]={start:100,pxPerFrame:5};
+    hooks.values[6]={start:100,pxPerFrame:5};
     const root=render(),canvas=all(root,e=>e.type==="canvas")[index];
     const event=(clientX:number,button=0)=>({clientX,button,pointerId:7,preventDefault:vi.fn(),currentTarget:{setPointerCapture:vi.fn(),getBoundingClientRect:()=>({left:0,width:1000})}});
     const down=event(100);
@@ -98,11 +108,11 @@ it("suppresses native dragging and pans either linked chart without selecting a 
     expect(down.preventDefault).toHaveBeenCalledOnce();
     expect(down.currentTarget.setPointerCapture).toHaveBeenCalledExactlyOnceWith(7);
     canvas.props.onPointerMove(event(150));
-    expect(hooks.values[5]).toEqual({start:90,pxPerFrame:5});
+    expect(hooks.values[6]).toEqual({start:90,pxPerFrame:5});
     canvas.props.onPointerUp(event(150));
     expect(hooks.values[4]).toBeNull();
     canvas.props.onPointerMove(event(300));
-    expect(hooks.values[5]).toEqual({start:90,pxPerFrame:5});
+    expect(hooks.values[6]).toEqual({start:90,pxPerFrame:5});
     expect(canvas.props.draggable).toBe(false);
     const nativeDrag={preventDefault:vi.fn()};
     canvas.props.onDragStart(nativeDrag);
@@ -112,19 +122,19 @@ it("suppresses native dragging and pans either linked chart without selecting a 
 });
 
 it("clears cancelled captures and ignores non-primary chart drags",()=>{
-  hooks.values[5]={start:100,pxPerFrame:5};
+  hooks.values[6]={start:100,pxPerFrame:5};
   const canvas=all(render(),e=>e.type==="canvas")[0];
   const event={clientX:100,button:0,pointerId:7,preventDefault:vi.fn(),currentTarget:{setPointerCapture:vi.fn(),getBoundingClientRect:()=>({left:0,width:1000})}};
   for(const end of ['onPointerCancel','onLostPointerCapture']) {
     canvas.props.onPointerDown(event);canvas.props[end]();
     canvas.props.onPointerMove({...event,clientX:150});canvas.props.onPointerUp(event);
-    expect(hooks.values[5]).toEqual({start:100,pxPerFrame:5});
+    expect(hooks.values[6]).toEqual({start:100,pxPerFrame:5});
     expect(hooks.values[4]).toBeNull();
   }
   const right={...event,button:2,preventDefault:vi.fn(),currentTarget:{...event.currentTarget,setPointerCapture:vi.fn()}};
   canvas.props.onPointerDown(right);canvas.props.onPointerMove({...right,clientX:200});
   expect(right.preventDefault).not.toHaveBeenCalled();
   expect(right.currentTarget.setPointerCapture).not.toHaveBeenCalled();
-  expect(hooks.values[5]).toEqual({start:100,pxPerFrame:5});
+  expect(hooks.values[6]).toEqual({start:100,pxPerFrame:5});
   expect(jump).not.toHaveBeenCalled();
 });
