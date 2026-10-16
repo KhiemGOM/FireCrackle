@@ -21,6 +21,17 @@ jobs:
           node --test scripts/check-repository.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/check-repository.mjs
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: FireCrackle/.release-cache
+          key: ffmpeg-${{ hashFiles('FireCrackle/release/runtime-lock.json') }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            FireCrackle/src-tauri
+            FireCrackle/crates/studio_core
+            fire-detection/core
+          shared-key: ci-windows
       - name: Prepare pinned video tools
         run: |
           ./FireCrackle/scripts/prepare-runtime.ps1

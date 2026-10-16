@@ -51,6 +51,15 @@ jobs:
           rustup toolchain install stable --profile minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup default stable
+      # Dependencies are restored, not recompiled (the main branch keeps the cache warm; see rust-cache-warm.yml).
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: FireCrackle/src-tauri
+          shared-key: release-windows
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: FireCrackle/.release-cache
+          key: ffmpeg-${{ hashFiles('FireCrackle/release/runtime-lock.json') }}
       - name: Build and package
         run: ./scripts/release.ps1 -Installer -CleanInstall
       - name: Upload tester downloads
@@ -87,6 +96,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils ffmpeg xvfb dbus-x11
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: FireCrackle/src-tauri
+          shared-key: release-linux
       - name: Build, test and verify Linux packages
         run: bash scripts/release-linux.sh
       - name: Upload Linux tester downloads

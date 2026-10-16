@@ -3,7 +3,7 @@ param([string]$ArchivePath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $project = Split-Path $PSScriptRoot -Parent
-foreach ($name in @('release.ps1', 'prepare-runtime.ps1', 'release.test.ps1', 'release-archive.ps1')) {
+foreach ($name in @('release.ps1', 'prepare-runtime.ps1', 'release.test.ps1', 'release-archive.ps1', 'retry.ps1')) {
     $parseErrors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $name), [ref]$null, [ref]$parseErrors)
     if ($parseErrors.Count) { throw "$name parse errors: $parseErrors" }
@@ -19,6 +19,23 @@ try {
     $ErrorActionPreference = 'Stop'
     if ($LASTEXITCODE -eq 0 -or "$message" -notmatch 'Tag must be') { throw 'Mismatched release tag was not rejected.' }
 } finally { $env:GITHUB_REF = $previousRef }
+# Downloads are retried: a transient "service unavailable" must not cost a whole release run.
+. (Join-Path $PSScriptRoot 'retry.ps1')
+$script:tries = 0
+$value = Invoke-WithRetry -Attempts 4 -DelaySeconds 0 -Action { $script:tries++; if ($script:tries -lt 3) { throw "503 try $script:tries" }; 'ok' }
+if ($value -ne 'ok' -or $script:tries -ne 3) { throw "Retry did not succeed on the third attempt (tries=$script:tries, value=$value)." }
+$script:tries = 0
+try { Invoke-WithRetry -Attempts 3 -DelaySeconds 0 -Action { $script:tries++; throw "still down $script:tries" }; throw 'Retry swallowed a permanent failure.' }
+catch { if ("$_" -notmatch 'still down 3' -or $script:tries -ne 3) { throw "Retry gave up wrongly: tries=$script:tries message=$_" } }
+$script:tries = 0
+$null = Invoke-WithRetry -Attempts 3 -DelaySeconds 0 -Action { $script:tries++ }
+if ($script:tries -ne 1) { throw 'A first-try success was run more than once.' }
+$delays = New-Object System.Collections.Generic.List[double]
+try { Invoke-WithRetry -Attempts 4 -DelaySeconds 2 -Sleep { param($seconds) $delays.Add($seconds) } -Action { throw 'down' } } catch { }
+if (($delays -join ',') -ne '2,4,8') { throw "Backoff should double between attempts, got: $($delays -join ',')" }
+try { Invoke-WithRetry -Attempts 0 -DelaySeconds 0 -Action { 1 } ; throw 'Zero attempts was accepted.' } catch { if ("$_" -notmatch 'Attempts') { throw "Unexpected error for zero attempts: $_" } }
+$runtimeScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'prepare-runtime.ps1') -Raw
+if ($runtimeScript -notmatch 'Invoke-WithRetry' -or $runtimeScript -notmatch 'retry\.ps1') { throw 'prepare-runtime.ps1 must download FFmpeg through Invoke-WithRetry.' }
 . (Join-Path $PSScriptRoot 'release-archive.ps1')
 $fixture = Join-Path $project ".release-cache/zip-tests/$([guid]::NewGuid().ToString('N'))"
 $fixtureStage = Join-Path $fixture 'Example'

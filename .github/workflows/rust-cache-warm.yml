@@ -1,0 +1,92 @@
+name: Warm Rust cache
+# A branch can only restore caches made by itself or by the default branch, so each new release branch would start cold.
+# This keeps the release dependency caches (and the pinned FFmpeg package) fresh on main: when the lockfiles change,
+# and weekly, because GitHub drops caches that have not been used for 7 days.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/Cargo.lock'
+      - 'FireCrackle/release/runtime-lock.json'
+      - '.github/workflows/rust-cache-warm.yml'
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rust-cache-warm-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/FireCrackle/src-tauri/target
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: FireCrackle
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: FireCrackle/package-lock.json
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: FireCrackle/src-tauri
+          shared-key: release-windows
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: FireCrackle/.release-cache
+          key: ffmpeg-${{ hashFiles('FireCrackle/release/runtime-lock.json') }}
+      - name: Download the pinned FFmpeg package into the cache
+        run: ./scripts/prepare-runtime.ps1
+      - name: Build the dependencies the release restores
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path crates/studio_core/Cargo.toml --lib --tests --no-run
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run tauri -- build --config src-tauri/tauri.release.conf.json --no-bundle
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
+    defaults:
+      run:
+        working-directory: FireCrackle
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: FireCrackle/package-lock.json
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: FireCrackle/src-tauri
+          shared-key: release-linux
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils ffmpeg xvfb dbus-x11
+      - name: Build the dependencies the release restores
+        run: |
+          npm ci
+          for manifest in crates/studio_core/Cargo.toml ../fire-detection/core/Cargo.toml; do
+            cargo test --manifest-path "$manifest" --no-run
+          done
+          cargo test --manifest-path src-tauri/Cargo.toml --lib --no-run
+          npm run tauri -- build --config src-tauri/tauri.linux.conf.json --no-bundle

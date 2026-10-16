@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -Force
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Archive/Microsoft.PowerShell.Archive.psd1') -Force
 $project = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'retry.ps1')
 $lock = Get-Content -LiteralPath (Join-Path $project 'release/runtime-lock.json') -Raw | ConvertFrom-Json
 $cache = Join-Path $project '.release-cache'
 $archive = Join-Path $cache "ffmpeg-$($lock.version).zip"
@@ -14,7 +15,11 @@ New-Item -ItemType Directory -Path $cache -Force | Out-Null
 if (!(Test-Path -LiteralPath $archive)) {
     Write-Host "Downloading pinned FFmpeg $($lock.version)..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $lock.url -OutFile "$archive.partial" -UseBasicParsing
+    # A "service unavailable" from the host must not cost a whole release run: retry with a growing wait.
+    Invoke-WithRetry -Attempts 4 -DelaySeconds 10 -Action {
+        Remove-Item -LiteralPath "$archive.partial" -Force -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri $lock.url -OutFile "$archive.partial" -UseBasicParsing
+    }
     Move-Item -LiteralPath "$archive.partial" -Destination $archive -Force
 }
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $lock.sha256) {

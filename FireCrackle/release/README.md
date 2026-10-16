@@ -23,7 +23,26 @@ For build-only testing, dispatch **FireCrackle release** manually with **Publish
 off (the default); choose one or both platforms. A `v*` tag also builds and
 publishes both, so do not tag unfinished work. Tags must match the source version.
 
-If a build fails, fix the release branch and run the workflow again. If upload
+Before anything is pushed, `prepare_release.py` runs `cargo fmt --check` on the three
+Rust crates the CI checks. A failure stops the cut before the branch is pushed and
+removes the workspace and branch it just made, so fix `main` and run it again. Add
+`--clippy` to also run the stricter lint check (slower: it compiles), or
+`--skip-preflight` to skip the checks.
+
+Builds restore compiled Rust dependencies and the pinned FFmpeg package from a cache
+instead of recompiling them. A new release branch can only read caches made by `main`,
+which the **Warm Rust cache** workflow keeps fresh (when a lockfile changes, and
+weekly). If a cut is the first after a toolchain update, expect one slower run.
+
+**Do not start a new run to retry a failure.** Re-run only what failed, which keeps
+the platform that already passed (its artifacts are reused by publishing):
+
+```powershell
+gh run list --workflow firecrackle-release.yml --limit 5
+gh run rerun <run-id> --failed
+```
+
+If a build fails otherwise, fix the release branch and run the workflow again. If upload
 fails, inspect the draft and rerun the failed publish job; publication retries
 verify the same commit and bytes. Once published, assets are immutable: fixes
 need a new version. A draft targeting a different commit is deliberately rejected;

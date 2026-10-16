@@ -11,8 +11,46 @@ FILES = ["package.json", "package-lock.json", "src-tauri/tauri.conf.json",
          "src-tauri/Cargo.toml", "src-tauri/Cargo.lock"]
 
 
+# The crates the CI checks, so the CI cannot fail on something this cut could have caught in seconds.
+RUST_CRATES = ["FireCrackle/src-tauri", "FireCrackle/crates/studio_core", "fire-detection/core"]
+
+
 def run(*args, cwd=ROOT):
     return subprocess.run(args, cwd=cwd, check=True, text=True, capture_output=True).stdout.strip()
+
+
+def run_command(argv, cwd):
+    """Run a check without raising: (exit code, combined output)."""
+    done = subprocess.run(argv, cwd=cwd, text=True, capture_output=True)
+    return done.returncode, (done.stdout or "") + (done.stderr or "")
+
+
+def preflight_commands(clippy=False):
+    """(crate, argv) for every check made before pushing. Formatting is instant; clippy compiles, so it is opt-in."""
+    commands = [(crate, ["cargo", "fmt", "--manifest-path", f"{crate}/Cargo.toml", "--", "--check"]) for crate in RUST_CRATES]
+    if clippy:
+        commands += [(crate, ["cargo", "clippy", "--manifest-path", f"{crate}/Cargo.toml", "--all-targets",
+                              "--no-deps", "--", "-D", "warnings"]) for crate in RUST_CRATES]
+    return commands
+
+
+def run_preflight(root, runner=None, clippy=False):
+    """Check the frozen release before it is pushed. Raises one RuntimeError naming every failing check."""
+    runner = runner or run_command
+    failures = []
+    done = []
+    for crate, argv in preflight_commands(clippy):
+        try:
+            code, output = runner(argv, root)
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Cannot run the pre-push checks: {exc} was not found. Install the Rust toolchain "
+                               "(cargo, rustfmt) or pass --skip-preflight.") from exc
+        if code != 0:
+            failures.append(f"{crate}: {' '.join(argv)}\n{output.strip()[:2000]}")
+        done.append(f"{crate}: {argv[1]}")
+    if failures:
+        raise RuntimeError("Pre-push checks failed; nothing was pushed.\n\n" + "\n\n".join(failures))
+    return done
 
 
 def bump_version(root, version):
@@ -47,6 +85,8 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--source", default="main", help="Committed branch/ref to freeze; dirty changes are excluded")
     parser.add_argument("--repo", default=None)
+    parser.add_argument("--clippy", action="store_true", help="Also run clippy (-D warnings) before pushing; slower")
+    parser.add_argument("--skip-preflight", action="store_true", help="Push without the local formatting checks")
     args = parser.parse_args()
     if not re.fullmatch(VERSION, args.version) or args.source.startswith("-"):
         parser.error("Invalid version or source ref")
@@ -68,6 +108,17 @@ def main():
     dirty = run("git", "diff", "--cached", "--name-only", cwd=target)
     if dirty:
         run("git", "commit", "-m", f"Prepare FireCrackle v{args.version}", cwd=target)
+    if not args.skip_preflight:
+        try:
+            run_preflight(target, clippy=args.clippy)
+        except RuntimeError:
+            # Nothing was pushed: drop the workspace and branch made a moment ago so the cut can simply be retried.
+            for cleanup in (("git", "worktree", "remove", "--force", str(target)), ("git", "branch", "-D", branch)):
+                try:
+                    run(*cleanup)
+                except subprocess.CalledProcessError:
+                    pass
+            raise
     run("git", "push", "-u", "origin", branch, cwd=target)
     run("gh", "workflow", "run", "firecrackle-release.yml", "--repo", repo, "--ref", branch,
         "-f", "platform=all", "-f", "publish=true", cwd=target)
