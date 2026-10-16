@@ -1,8 +1,19 @@
-import { flagSpans, phaseToY, relativePhase, rowToY, timeToX, type PhaseChart } from "./chart";
+import { flagSpans, phaseToY, relativePhase, rowToY, timeToX, type ChartPoint, type PhaseChart } from "./chart";
+import { chartReference, deviation, deviationLevel, idealRamps, rulerPhase, type DeviationLevel } from "./clockRuler";
 import type { GapKind } from "./evidenceGaps";
 import type { FrameRange } from "./timeline";
 
 const COLORS = { dot: "#4a90d9", band: "rgba(76,195,138,0.16)", grid: "#2a3142", text: "#8b96ab" };
+const RULER_COLOR = "#e8eefc";
+
+/** Dots and stems when the ruler is on: inside the tolerance, up to twice it, beyond. */
+export const DEVIATION_COLORS: Record<DeviationLevel, string> = { ok: "#4cc38a", warn: "#f5c542", bad: "#ff4d4f" };
+
+/** The perfect-clock ruler: `offset` ticks from the chart's reference phase, `tolerance` ticks either side counted as on time. */
+export interface RulerOptions {
+  offset: number;
+  tolerance: number;
+}
 
 export interface PhaseChartCanvasOptions {
   chart: PhaseChart | null;
@@ -15,6 +26,8 @@ export interface PhaseChartCanvasOptions {
   pixelRatio: number;
   /** Stretches with no fire evidence, drawn behind everything else. */
   gaps?: GapBand[];
+  /** A line for what a perfect clock would show, and each point's distance from it; off when absent. */
+  ruler?: RulerOptions | null;
 }
 
 export interface GapBand {
@@ -76,7 +89,11 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
     g.fillStyle = chart.flags[i].severity === "hard" ? "rgba(255,77,79,0.28)" : "rgba(245,197,66,0.22)";
     g.fillRect(s.x0, 0, s.x1 - s.x0, h);
   }
-  const ref = chart.reference_phase ?? chart.runs[0]?.center ?? chart.points[0]?.phase ?? 0;
+  const ref = chartReference(chart);
+  const ruler = options.ruler ?? null;
+  const rp = ruler ? rulerPhase(ref, ruler.offset) : 0;
+  const rulerRel = ruler ? relativePhase(rp, ref) : 0;
+  const rulerText = `perfect clock ${rulerRel > 0 ? "+" : ""}${Number(rulerRel.toFixed(2))}`;
   if (kind === "phase") {
     g.strokeStyle = COLORS.grid;
     g.fillStyle = COLORS.text;
@@ -109,7 +126,24 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.setLineDash([]);
       g.fillStyle = "#4cc38a";
       g.textAlign = "right";
-      g.fillText(`${chart.tick_rate} Hz reference`, w - 6, Math.max(11, y - 5));
+      g.fillText(chart.reference_clock === "jolt" ? "Jolt reference" : `${chart.tick_rate} Hz reference`, w - 6, Math.max(11, y - 5));
+      g.textAlign = "left";
+    }
+    if (ruler) {
+      const top = phaseToY(rulerRel + ruler.tolerance, h);
+      g.fillStyle = "rgba(232,238,252,0.08)";
+      g.fillRect(0, top, w, phaseToY(rulerRel - ruler.tolerance, h) - top);
+      const y = phaseToY(rulerRel, h);
+      g.strokeStyle = RULER_COLOR;
+      g.setLineDash([2, 3]);
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(w, y);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = RULER_COLOR;
+      g.textAlign = "right";
+      g.fillText(rulerText, w - 6, Math.min(h - 3, y + 13));
       g.textAlign = "left";
     }
   } else {
@@ -123,13 +157,65 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.stroke();
       g.fillText(`row ${row}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
     }
+    if (ruler) {
+      // the ramps of the ideal clock: one row per tick, back to row 0 every 32 ticks
+      g.strokeStyle = RULER_COLOR;
+      g.setLineDash([2, 3]);
+      g.beginPath();
+      for (const r of chart.reference_clock === "jolt" ? [] : idealRamps(t0, t1, chart.tick_rate, rp)) {
+        g.moveTo(timeToX(r.t0, t0, t1, w), rowToY(r.step0, h));
+        g.lineTo(timeToX(r.t1, t0, t1, w), rowToY(r.step1, h));
+      }
+      if (chart.reference_clock === "jolt") for (const p of chart.points) {
+        if (p.clock_tick === undefined || p.pts < t0 || p.pts > t1) continue;
+        const x = timeToX(p.pts, t0, t1, w), y = rowToY(((p.clock_tick - rp) % 32 + 32) % 32, h);
+        g.moveTo(x - 2, y); g.lineTo(x + 2, y);
+      }
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = RULER_COLOR;
+      g.textAlign = "right";
+      g.fillText(rulerText, w - 6, 13);
+      g.textAlign = "left";
+    }
   }
-  g.fillStyle = COLORS.dot;
-  for (const p of chart.points) {
-    if (p.pts < t0 || p.pts > t1) continue;
-    const x = timeToX(p.pts, t0, t1, w);
-    const y = kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h);
-    g.fillRect(x - 1, y - 1, 2.5, 2.5);
+  const visible = chart.points.filter((p) => p.pts >= t0 && p.pts <= t1 && (!ruler || Number.isFinite(p.phase)));
+  if (ruler) {
+    // each point's distance from the ruler, as a stem to it, shaded by how far off it is
+    const levels: Record<DeviationLevel, ChartPoint[]> = { ok: [], warn: [], bad: [] };
+    const level = new Map<ChartPoint, number>();
+    for (const p of visible) {
+      const d = deviation(p.phase, rp);
+      level.set(p, d);
+      levels[deviationLevel(d, ruler.tolerance)].push(p);
+    }
+    g.lineWidth = 1;
+    for (const k of ["ok", "warn", "bad"] as const) {
+      g.strokeStyle = DEVIATION_COLORS[k];
+      g.beginPath();
+      for (const p of levels[k]) {
+        const x = timeToX(p.pts, t0, t1, w);
+        const d = level.get(p) ?? 0;
+        g.moveTo(x, kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h));
+        g.lineTo(x, kind === "phase" ? phaseToY(rulerRel, h) : rowToY(chart.reference_clock === "jolt" ? ((p.step + d) % 32 + 32) % 32 : p.step + d, h));
+      }
+      g.stroke();
+    }
+    for (const k of ["ok", "warn", "bad"] as const) {
+      g.fillStyle = DEVIATION_COLORS[k];
+      for (const p of levels[k]) {
+        const x = timeToX(p.pts, t0, t1, w);
+        const y = kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h);
+        g.fillRect(x - 1, y - 1, 2.5, 2.5);
+      }
+    }
+  } else {
+    g.fillStyle = COLORS.dot;
+    for (const p of visible) {
+      const x = timeToX(p.pts, t0, t1, w);
+      const y = kind === "phase" ? phaseToY(relativePhase(p.phase, ref), h) : rowToY(p.step, h);
+      g.fillRect(x - 1, y - 1, 2.5, 2.5);
+    }
   }
   // where the Label tab currently is
   const cx = timeToX(timeOf(currentFrame), t0, t1, w);

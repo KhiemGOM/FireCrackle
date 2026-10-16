@@ -6,6 +6,7 @@ vi.mock("react",async original=>({...await original<typeof import("react")>(),
   useState:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]=typeof initial==="function"?initial():initial;return [hooks.values[i],(next:any)=>{hooks.values[i]=typeof next==="function"?next(hooks.values[i]):next;}];},
   useRef:(initial:any)=>hooks.refs[hooks.refCursor++]??={current:initial},
   useEffect:(fn:()=>any)=>{hooks.effects.push(fn);},
+  useMemo:(fn:()=>any)=>fn(),
 }));
 vi.mock("../hooks/useWheel",()=>({useWheel:()=>{}}));
 import { PhaseTab } from "./PhaseTab";

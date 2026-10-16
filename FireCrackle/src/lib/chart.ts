@@ -13,6 +13,9 @@ const CIRCLE = 32;
 const HALF = CIRCLE / 2;
 
 export interface ChartPoint {
+  /** Observed canonical clock tick, present only at resolved Jolt anchors. */
+  clock_tick?: number;
+  clock_estimated?: boolean;
   frame: number;
   pts: number;
   /** The animation index, shared by both sheets. */
@@ -30,6 +33,7 @@ export interface ChartRun {
 }
 
 export interface PhaseChart {
+  reference_clock?: "video" | "jolt";
   label_sources?:Record<number,LabelSource[]>;
   points: ChartPoint[];
   runs: ChartRun[];

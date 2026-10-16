@@ -12,6 +12,7 @@ use tauri::ipc::Response;
 mod comparison_proof;
 mod compression;
 mod external_tools;
+mod jolt;
 mod pov;
 mod url_import;
 
@@ -222,6 +223,60 @@ async fn flags(state: State<'_, AppState>) -> Result<Vec<Flag>, String> {
 }
 
 #[tauri::command]
+async fn jolt_read(
+    state: State<'_, AppState>,
+    video_path: String,
+) -> Result<Option<String>, String> {
+    run(state.ws.clone(), move |w| {
+        let project = w.automation_project();
+        if project.video_path != video_path {
+            return Err("The open video changed. Reopen its Phase tab.".into());
+        }
+        jolt::read(Path::new(&project.video_path))
+    })
+    .await
+}
+#[tauri::command]
+async fn jolt_write(
+    state: State<'_, AppState>,
+    video_path: String,
+    data: String,
+) -> Result<(), String> {
+    run(state.ws.clone(), move |w| {
+        let project = w.automation_project();
+        if project.video_path != video_path {
+            return Err("The open video changed. Import into its own Phase tab.".into());
+        }
+        jolt::write(Path::new(&project.video_path), &data)
+    })
+    .await
+}
+#[tauri::command]
+async fn jolt_frame(
+    state: State<'_, AppState>,
+    video_path: String,
+    time: f64,
+) -> Result<u32, String> {
+    run(state.ws.clone(), move |w| {
+        let project = w.automation_project();
+        if project.video_path != video_path || !time.is_finite() || time < 0. {
+            return Err("Invalid Jolt video timestamp".into());
+        }
+        let i = project.frames.partition_point(|f| f.pts < time);
+        let index = if i == 0 {
+            0
+        } else if i >= project.frames.len()
+            || time - project.frames[i - 1].pts <= project.frames[i].pts - time
+        {
+            i - 1
+        } else {
+            i
+        };
+        u32::try_from(index).map_err(err)
+    })
+    .await
+}
+#[tauri::command]
 async fn phase_chart(
     state: State<'_, AppState>,
     max_points: usize,
@@ -314,6 +369,9 @@ pub fn run_app() {
             timeline,
             flags,
             phase_chart,
+            jolt_read,
+            jolt_write,
+            jolt_frame,
             thumbs_start,
             thumbs_status,
             thumb_nearest,

@@ -1,0 +1,9 @@
+.jolt-panel { padding:12px;border:1px solid #2a3142;border-radius:8px;background:#161b24;display:flex;flex-direction:column;gap:9px;margin-bottom:12px; }
+.jolt-controls,.jolt-sessions,.jolt-switch { display:flex;gap:7px;align-items:center;flex-wrap:wrap; }
+.jolt-panel p { margin:0;font-size:12px;line-height:1.5; }
+.jolt-chart-title { display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;font-size:12px; }
+.jolt-chart { display:block;width:100%;max-height:220px;background:#10141c;border-radius:5px; }
+.jolt-chart text { fill:#a7b4cb;font-size:11px; }
+.jolt-chart circle { cursor:pointer; }
+.jolt-chart circle:hover,.jolt-chart circle:focus { fill:#f08a24;stroke:#fff;stroke-width:1.5;outline:none; }
+.jolt-panel a { color:#50e1ff; }
