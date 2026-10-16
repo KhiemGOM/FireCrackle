@@ -54,6 +54,21 @@ it("keeps every corner unchanged when geometry adjustment is disabled",()=> {
   const exact=matchFireQuad(image,atlas,q,{refineGeometry:false});
   expect(exact.candidates[0]).toMatchObject({sheet:1,row:23,mirrored:true});
 });
+it("uses the flat texel brightness pattern rather than giving every texel its own gain",()=> {
+  const atlas:[Uint8ClampedArray,Uint8ClampedArray]=[new Uint8ClampedArray(16*512*4),new Uint8ClampedArray(16*512*4)];
+  for(const sheet of atlas)for(let i=0;i<sheet.length;i+=4)sheet.set([160,80,16,255],i);
+  // Both patterns have exactly the same chromaticity at every position. Only
+  // the correct row can explain the bright/dim blocks with one lighting gain.
+  for(let y=0;y<16;y++)for(let x=0;x<16;x++){
+    const r=(x+y)%2?80:240;
+    atlas[1].set([r,r/2,r/10,255],((7*16+y)*16+x)*4);
+  }
+  const image=frame(atlas[1],7,false);
+  for(let i=0;i<image.data.length;i+=4)for(let c=0;c<3;c++)image.data[i+c]*=.7;
+  const result=matchFireQuad(image,atlas,q,{refineGeometry:false});
+  expect(result.candidates[0]).toMatchObject({sheet:1,row:7,mirrored:false});
+  expect(result.status).toBe("clear");
+});
 it("filters appearances before scoring, including mirrored edges and a single survivor",()=> {
   const atlas=sheets();
   for(let y=0;y<16;y++) {

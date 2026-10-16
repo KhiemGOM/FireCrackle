@@ -67,10 +67,15 @@ function templates(sheets:[Uint8ClampedArray,Uint8ClampedArray]):Template[] {
  * revealing another sample must not dilute evidence already collected.
  */
 function similarity(observed:Samples,model:Template):{score:number;support:number;maskSamples:number;regions:number} {
-  let votes=0,maskSamples=0,support=0;
+  let maskSamples=0,support=0;
+  // A texel is a flat colour: lighting can scale the whole face, but cannot
+  // independently turn every expected texel into an arbitrary brightness.
+  // Maximize a fixed bank of additive, nonnegative gain hypotheses. A newly
+  // revealed sample can add evidence, never dilute an existing hypothesis.
+  const histogram=new Float64Array(96),hits=new Float64Array(256*observed.probes),bins=new Int16Array(256*observed.probes);
   const regions=new Set<number>();
   for(let cell=0;cell<256;cell++) {
-    let masked=false,matched=false;
+    let masked=false;
     for(let sub=0;sub<observed.probes;sub++) {
       const i=cell*observed.probes+sub;
       if(!observed.valid[i]||!observed.fire[i])continue;
@@ -80,10 +85,25 @@ function similarity(observed:Samples,model:Template):{score:number;support:numbe
       const dg=Math.abs(observed.rgb[a+1]/r-model.rgb[t+1]/R);
       const db=Math.abs(observed.rgb[a+2]/r-model.rgb[t+2]/R);
       if(dg>0.06||db>0.10)continue;
-      votes+=(1-0.5*(dg/0.06+db/0.10))*observed.weights[i]/observed.probes;
-      matched=true;
+      const bin=Math.round((Math.log2(r/R)+5)*12);
+      if(bin<0||bin>=histogram.length)continue;
+      const vote=(1-0.5*(dg/0.06+db/0.10))*observed.weights[i]/observed.probes;
+      histogram[bin]+=vote;hits[i]=vote;bins[i]=bin;
     }
     if(masked)maskSamples++;
+  }
+  const adjacentWeight=1-(1/12)/0.12;
+  let votes=0,bestBin=12;
+  for(let bin=12;bin<=76;bin++){
+    const value=histogram[bin]+adjacentWeight*(histogram[bin-1]+histogram[bin+1]);
+    if(value>votes){votes=value;bestBin=bin;}
+  }
+  for(let cell=0;cell<256;cell++){
+    let matched=false;
+    for(let sub=0;sub<observed.probes;sub++){
+      const i=cell*observed.probes+sub;
+      if(hits[i]>0&&Math.abs(bins[i]-bestBin)<=1)matched=true;
+    }
     if(matched){support++;regions.add(Math.floor((cell%16)/4)+4*Math.floor(cell/64));}
   }
   return {score:votes/256,support,maskSamples,regions:regions.size};
