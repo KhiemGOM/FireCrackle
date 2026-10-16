@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton } from "./Icon";
+import { JoltChart } from "./JoltChart";
 import { LABEL_SOURCE_NAMES, type Backend, type View, type Flag, type LabelSource } from "../lib/api";
 import {
   flagSpans,
@@ -77,7 +78,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [rulerOn, setRulerOn] = useState(false);
   const [rulerOffset, setRulerOffset] = useState(0);
   const [rulerMatch, setRulerMatch] = useState<{ offset: number; text: string } | null>(null);
-  const [viewMode,setViewMode]=useState<"phase"|"row">("phase");
+  const [viewMode,setViewMode]=useState<"phase"|"row"|"jolt">("phase");
   const [fullscreen,setFullscreen]=useState(false);
   const [phaseRange,setPhaseRange]=useState<AxisRange|undefined>(undefined);
   const [rowRange,setRowRange]=useState<AxisRange|undefined>(undefined);
@@ -272,15 +273,16 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       <div className="phase-plots">
       <div className="phase-topbar">
         <div className="phase-view-tabs" role="tablist" aria-label="Phase views">
-          {([["phase","Timing"],["row","Sprites"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
+          {([["phase","Timing"],["row","Sprites"],["jolt","Jolt"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
         </div>
-        <span className="dim">{jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
+        <span className="dim">{viewMode==="jolt"?"Video time → recovered GUI ticks":jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
         <button className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
+        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt}/></div>
 
-        <div>
+        <div hidden={viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>
           <span className="panel-title">{jolt.clock === "jolt" ? "Fire timing offset (canonical time)" : "Animation timing offset (ticks)"}</span>
           <span className="dim">
@@ -317,7 +319,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </details>
             <div hidden={viewMode!=="phase"}>
             {controls("timing offset")}
-            <PlotAxes x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /></PlotAxes>
+            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /></PlotAxes>
             </div>
             <div className="chart-head" hidden={viewMode!=="row"}>
               <span className="panel-title">Sprite row against time</span>
@@ -325,7 +327,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </div>
             <div hidden={viewMode!=="row"}>
             {controls("sprite row")}
-            <PlotAxes x={[t0,t1]} y={rowRange??[0,31]} onX={axisX} onY={setRowRange} resetX={resetX} resetY={()=>setRowRange(undefined)}><canvas ref={rowRef} className="chart row" {...chartEvents} /></PlotAxes>
+            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={rowRange??[0,31]} onX={axisX} onY={setRowRange} resetX={resetX} resetY={()=>setRowRange(undefined)}><canvas ref={rowRef} className="chart row" {...chartEvents} /></PlotAxes>
             </div>
           </>
         )}

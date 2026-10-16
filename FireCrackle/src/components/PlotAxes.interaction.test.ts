@@ -13,3 +13,12 @@ it('routes each drag and reset to its own axis only',()=>{
  y.onDoubleClick();expect(resetY).toHaveBeenCalledOnce();expect(resetX).not.toHaveBeenCalled();
  x.onDoubleClick();expect(resetX).toHaveBeenCalledOnce();
 });
+it('shows five numeric positions and updates them through the clock formatter',()=>{
+ const formatX=vi.fn((n:number)=>`${6200+n*20}`);
+ const root=PlotAxes({children:null,x:[0,100],y:[-16,16],onX:vi.fn(),onY:vi.fn(),resetX:vi.fn(),resetY:vi.fn(),formatX});
+ const axis=(root.props.children as any[])[2];
+ const ticks=axis.props.children[0].props.children;
+ expect(ticks.map((t:any)=>t.props.children)).toEqual(['6200','6700','7200','7700','8200']);
+ expect(formatX.mock.calls.map(([n])=>n)).toEqual([0,25,50,75,100]);
+ expect(ticks.map((t:any)=>t.props.style.left)).toEqual(['0%','25%','50%','75%','100%']);
+});

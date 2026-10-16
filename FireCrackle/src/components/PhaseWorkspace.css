@@ -11,13 +11,21 @@
 .phase-workspace .ruler-match,.phase-workspace .ruler-stats,.phase-workspace .ruler-key {display:none;}
 .phase-workspace .chart-head {justify-content:space-between;min-height:20px;}
 .phase-workspace .chart-head .dim {display:none;}
-.plot-axes {display:grid;grid-template-columns:30px minmax(0,1fr);grid-template-rows:minmax(140px,1fr) 25px;width:100%;height:440px;min-height:180px;}
+.plot-axes {display:grid;grid-template-columns:30px minmax(0,1fr);grid-template-rows:minmax(140px,1fr) 46px;width:100%;height:440px;min-height:180px;}
 .plot-axis-body {grid-column:2;grid-row:1;min-width:0;min-height:0;}
 .plot-axis-body .chart,.plot-axis-body>svg {height:100%!important;width:100%;}
 .plot-axis-y,.plot-axis-x {display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:11px;touch-action:none;user-select:none;border:1px solid transparent;border-radius:5px;}
 .plot-axis-y {grid-column:1;grid-row:1;writing-mode:vertical-rl;cursor:ns-resize;}
-.plot-axis-x {grid-column:2;grid-row:2;gap:12px;cursor:ew-resize;}
-.plot-axis-x span {opacity:.6;}
+.plot-axis-x {grid-column:2;grid-row:2;cursor:ew-resize;position:relative;align-items:flex-end;padding-bottom:3px;}
+.plot-x-ticks {position:absolute;inset:0 0 auto;height:25px;pointer-events:none;color:var(--text);font-variant-numeric:tabular-nums;}
+.plot-x-ticks span {position:absolute;top:6px;transform:translateX(-50%);white-space:nowrap;}
+.plot-x-ticks span::before {content:'';position:absolute;top:-6px;left:50%;height:4px;border-left:1px solid var(--dim);}
+.plot-x-ticks span:first-child {transform:none;}
+.plot-x-ticks span:first-child::before {left:0;}
+.plot-x-ticks span:last-child {transform:translateX(-100%);}
+.plot-x-ticks span:last-child::before {left:100%;}
+.plot-x-hint {opacity:.6;pointer-events:none;}
+.jolt-timeline .plot-x-ticks {left:55px;right:15px;}
 .plot-axis-y:hover,.plot-axis-x:hover,.plot-axis-y:focus-visible,.plot-axis-x:focus-visible {background:var(--panel2);border-color:var(--blue);color:var(--text);outline:none;}
 .phase-workspace .comparison-view .plot-axes {height:260px;}
 .comparison-toolbar {display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;}
@@ -56,4 +64,5 @@
 .phase-clockbar .jolt-report-details[open] {flex-basis:100%;}
 @media(max-width:900px){.phase-layout{grid-template-columns:minmax(0,1fr) 260px;}.phase-sidebar{padding-left:8px;}.phase-source-control{width:100%;}}
 @media(max-width:600px){.phase-layout{grid-template-columns:minmax(0,1fr) 200px;gap:6px;}.phase-sidebar .flags li button{padding:6px;}.phase-sidebar .flags .where{overflow:hidden;text-overflow:ellipsis;}.flag-video-dialog .compare-grid{grid-auto-flow:row;}}
-@media(max-width:650px){.plot-axes {height:340px;}.phase-workspace.fullscreen .plot-axes {height:calc(100dvh - 290px);}.phase-workspace .timeline-controls span{font-size:11px;}.plot-axis-x span{display:none;}}
+@media(max-width:900px){.plot-x-ticks span:nth-child(2),.plot-x-ticks span:nth-child(4){display:none;}}
+@media(max-width:650px){.plot-axes {height:340px;}.phase-workspace.fullscreen .plot-axes {height:calc(100dvh - 290px);}.phase-workspace .timeline-controls span{font-size:11px;}.plot-x-hint{display:none;}}

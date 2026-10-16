@@ -37,7 +37,7 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
   const sections=useMemo(()=>new Set(anchors.map(a=>a.segment??"0")).size,[anchors]);
   return <section className="jolt-panel" aria-label="Jolt time reference">
     <div className="jolt-controls">
-      <strong>X axis</strong>
+      <strong>Fire X axis</strong>
       <div className="jolt-switch" role="group" aria-label="Phase time reference">
         <button aria-pressed={state.clock==="video"} className={state.clock==="video"?"on":""} disabled={pending} onClick={()=>void update({...state,clock:"video"})}>Video time</button>
         <button aria-pressed={state.clock==="jolt"} className={state.clock==="jolt"?"on":""} disabled={pending||!state.data} onClick={()=>void update({...state,clock:"jolt"})}>Canonical time (Jolt ticks)</button>
