@@ -355,10 +355,28 @@ No ImageNet, small-pilot or survival-fine-tuned weights were used to initialize 
 |---|---:|---:|---:|
 |Survival, full 52 screened candidates, exact|8/52|15/52|24/52|
 |Survival, full 52, top three|15/52|16/52|26/52|
-|Later visually reviewed survival subset, exact|13/15|14/15|not rerun on this subset|
+|Later visually reviewed survival subset, exact|13/15|14/15|15/15|
 |Quad1, full 310 cases, exact|31/310|26/310|87/310|
 |Quad1, full 310, top three|45/310|45/310|102/310|
-|Quad1, label-consistency screen only, exact|5/6|6/6|not rerun on this subset|
+|Quad1, label-consistency screen only, exact|5/6|6/6|6/6|
+
+The missing baseline cells were measured without tuning: the production colour
+matcher ranked the exact appearance first on **15/15 reviewed survival cases**
+(12 entity, 3 block), with all 15 marked clear and no errors on this subset.
+The matcher took 0.446 seconds total, including native RGB-to-RGBA conversion
+but excluding video decode and module compilation. The adapter verifies the
+joined-label hash, case order, labels, and pixel-identical rectified AI crops.
+For the six-case Quad1 subset, it selects the exact IDs from the existing full
+310-case measurement and verifies unchanged geometry, labels and all five
+matcher module hashes: **6/6 first, 6/6 top-three, all six clear**.
+These two small, screened subsets do not establish general reliability; the
+broader baseline still has wrong clear results (17/32 on survival, 20/61 on Quad1).
+Evidence is saved in `.board/fire-ai/baseline-reviewed/summary.json` and the
+per-case `reviewed-baseline-fixed-validation.json`. Reproduce with:
+
+```powershell
+& $py FireCrackle/scripts/fire-ai/measure_baseline.py
+```
 
 These remain development diagnostics with the limitations described above.
 In particular, the six-case subset is tiny and label-assisted, and the full sets
