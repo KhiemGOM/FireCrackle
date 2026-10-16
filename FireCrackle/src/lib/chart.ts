@@ -35,6 +35,10 @@ export interface ChartRun {
 }
 
 export interface PhaseChart {
+  /** Review events shared by every chart clock/view, rather than re-detected on paired points. */
+  review_flags?: boolean;
+  /** Display bounds per flag. Uncertain bounds locate an unresolved clock interval, not an inferred tick. */
+  flag_positions?: {t0:number;t1:number;uncertain?:boolean}[];
   corrected_time?: boolean;
   clock_breaks?: { t0: number; t1: number }[];
   /** Independent clock coverage, including intervals without visible fire. Never crosses a reported break. */
@@ -119,10 +123,11 @@ export function flagSpans(
   t1: number,
   width: number,
   minWidth = 4,
+  positions?: PhaseChart["flag_positions"],
 ): FlagSpan[] {
   return flags.map((f, index) => {
-    const a = timeToX(timeOf(f.frame), t0, t1, width);
-    const b = timeToX(timeOf(f.end_frame), t0, t1, width);
+    const a = timeToX(positions?.[index]?.t0 ?? timeOf(f.frame), t0, t1, width);
+    const b = timeToX(positions?.[index]?.t1 ?? timeOf(f.end_frame), t0, t1, width);
     const x0 = Math.min(a, b);
     const x1 = Math.max(a, b, x0 + minWidth);
     return { index, x0, x1 };

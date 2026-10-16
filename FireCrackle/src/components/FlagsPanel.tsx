@@ -18,16 +18,17 @@ export function FlagsPanel({ flags, fps, current, onSeek,details=[],onHover,onSe
   return (
     <div className="flags">
       <div className="panel-title">
-        Phase flags <span className="count">{flags.length}</span>
+        Review flags <span className="count">{flags.length}</span>
       </div>
       {flags.length === 0 && <div className="empty">Nothing suspicious in the labelled frames.</div>}
       <ul>
-        {flags.map((f) => {
+        {flags.map((f,index) => {
           const inside = current >= f.frame && current <= f.end_frame;
-          const detail=details.find(d=>d.frame===f.frame&&d.end_frame===f.end_frame&&d.kind===f.kind);
+          const indexed=details[index];
+          const detail=indexed?.frame===f.frame&&indexed?.end_frame===f.end_frame&&indexed?.kind===f.kind?indexed:details.find(d=>d.frame===f.frame&&d.end_frame===f.end_frame&&d.kind===f.kind);
           const text=flagText(f.kind,detail?.explanation);
           return (
-            <li key={`${f.frame}-${f.kind}`} className={inside ? "inside" : ""}>
+            <li key={`${f.frame}-${f.kind}-${index}`} className={inside ? "inside" : ""}>
               <button onClick={(e) => onSelect ? onSelect(f, e.ctrlKey) : onSeek(f.frame)}
                 onMouseEnter={() => onHover?.(f)} onMouseLeave={() => onHover?.(null)}
                 onFocus={() => onHover?.(f)} onBlur={() => onHover?.(null)}

@@ -110,9 +110,14 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
     }
   }
   // flags next, behind the dots
-  for (const [i, s] of flagSpans(chart.flags, timeOf, t0, t1, w).entries()) {
+  for (const [i, s] of flagSpans(chart.flags, timeOf, t0, t1, w,4,chart.flag_positions).entries()) {
+    if(!Number.isFinite(s.x0)||!Number.isFinite(s.x1))continue;
     g.fillStyle = chart.flags[i].severity === "hard" ? "rgba(255,77,79,0.28)" : "rgba(245,197,66,0.22)";
     g.fillRect(s.x0, 0, s.x1 - s.x0, h);
+    if(chart.flag_positions?.[i]?.uncertain){
+      g.strokeStyle=chart.flags[i].severity==='hard'?'#ff4d4f':'#f5c542';
+      g.setLineDash([5,4]);g.strokeRect(s.x0,1,Math.max(2,s.x1-s.x0),h-2);g.setLineDash([]);
+    }
   }
   const ref = chartReference(chart);
   const ruler = options.ruler ?? null;

@@ -19,6 +19,8 @@ import { PhaseSourcePicker } from "./PhaseSourcePicker";
 import { JoltPanel } from "./JoltPanel";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, timeReference, type JoltState } from "../lib/jolt";
 import { forwardTransitionChart } from "../lib/fireTransitions";
+import { reviewChart } from "../lib/reviewFlags";
+import { ChartLegend } from "./ChartLegend";
 import { PlotAxes } from "./PlotAxes";
 import type { AxisRange } from "../lib/plotAxes";
 import "./PhaseWorkspace.css";
@@ -63,7 +65,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const fps = view.fps || 1;
   const [jolt, setJolt] = useState<JoltState>(() => ({...EMPTY_JOLT}));
   const reference = useMemo(() => timeReference(jolt), [jolt]);
-  const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(videoChart, reference), reference) : videoChart, [videoChart, reference, jolt.clock]);
+  const unified = useMemo(() => reviewChart(videoChart,jolt,fps),[videoChart,jolt.data,jolt.session,fps]);
+  const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(unified, reference), reference) : unified, [unified, reference, jolt.clock]);
   const originTick = useMemo(()=>reference.tickAt(reference.sampleTimes[0]) ?? 0,[reference]);
   const axisKey = `${videoKey ?? ""}:${jolt.clock}:${jolt.session}`;
   const total = useMemo(()=>chart?.corrected_time ? Math.max(1, Math.ceil(Math.max((chart.clock_segments ?? []).reduce((end,s)=>Math.max(end,s.t1),0), chart.points.reduce((end,p)=>Math.max(end,p.pts),0)) * fps) + 1) : Math.max(view.frame_count, 1),[chart,fps,view.frame_count]);
@@ -87,10 +90,12 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
+  const pendingFocus = useRef<FrameRange|null>(null);
+  const joltFocusRange = useMemo<AxisRange|null>(()=>selectedRange?[selectedRange.first/fps,selectedRange.last/fps]:null,[selectedRange,fps]);
   const highlighted = hoverFlag ? { first: hoverFlag.frame, last: hoverFlag.end_frame } : selectedRange;
   const t0 = viewport.start / fps;
   const t1 = (viewport.start + logicalWidth / viewport.pxPerFrame) / fps;
-  useEffect(() => setViewport(readTimelineView(axisKey, "phase", total, logicalWidth)), [axisKey, total]);
+  useEffect(() => { const focus=pendingFocus.current;pendingFocus.current=null;setViewport(focus?focusChartRange(focus,total,logicalWidth,fps):readTimelineView(axisKey, "phase", total, logicalWidth)); }, [axisKey, total]);
   useEffect(() => { writeTimelineView(axisKey, "phase", total, logicalWidth, viewport); }, [axisKey, total, viewport]);
   const zoomChart = (factor: number, anchor = logicalWidth / 2) =>
     setViewport((v) => zoomAt(v, anchor, factor, 32, logicalWidth, total));
@@ -163,13 +168,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   }, [chart, backend, fps, view.frame_count]);
 
   function focusRange(range: FrameRange, flag: Flag | null = null) {
-    // Fire-only events can fall outside resolved Jolt coverage. Open the video
-    // rather than inventing canonical coordinates across a clock break.
-    if (!Number.isFinite(timeOf(range.first)) || !Number.isFinite(timeOf(range.last))) {
-      onJump(range.first);
-      return;
+    // Keep plain selection in charts. Use video time when exact canonical time
+    // is unknown, preserving the flag and applying focus after the axis changes.
+    if (viewMode!=="jolt" && (!Number.isFinite(timeOf(range.first)) || !Number.isFinite(timeOf(range.last)))) {
+      pendingFocus.current=range;
+      setJolt(value=>({...value,clock:"video"}));
     }
-    setViewMode("phase");
+    if(viewMode!=="jolt")setViewMode("phase");
     setSelectedFlag(flag);
     setInspecting(false);
     setSelectedRange(range);
@@ -183,7 +188,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     if (!chart) return null;
     const r = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - r.left;
-    const spans = flagSpans(chart.flags, timeOf, t0, t1, r.width);
+    const spans = flagSpans(chart.flags, timeOf, t0, t1, r.width,4,chart.flag_positions);
     const flagIdx = hitFlag(spans, x);
     const t = xToTime(x, t0, t1, r.width);
     const nearest = nearestPoint(chart.points, t);
@@ -287,7 +292,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} chart={videoChart}/></div>
+        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} chart={unified} focusRange={joltFocusRange}/></div>
 
         <div hidden={viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>
@@ -327,6 +332,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </details>
             <div hidden={viewMode!=="phase"}>
             {controls("timing offset")}
+            <ChartLegend kind="phase" canonical={!!chart?.corrected_time} ruler={rulerOn}/>
             <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /></PlotAxes>
             </div>
             <div className="chart-head" hidden={viewMode!=="row"}>
@@ -335,6 +341,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </div>
             <div hidden={viewMode!=="row"}>
             {controls("sprite row")}
+            <ChartLegend kind="row" canonical={!!chart?.corrected_time} ruler={rulerOn}/>
             <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={rowRange??[0,31]} onX={axisX} onY={setRowRange} resetX={resetX} resetY={()=>setRowRange(undefined)}><canvas ref={rowRef} className="chart row" {...chartEvents} /></PlotAxes>
             </div>
           </>
@@ -368,13 +375,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       </div>
       <aside className="phase-sidebar" aria-label="Phase flags sidebar">
       <p className="dim sidebar-hint">Click to locate · Ctrl+click to open in Label</p>
-      <FlagsPanel flags={chart?.flags ?? []} details={chart?.flag_details} fps={fps} current={selectedRange?.first ?? view.current} onSeek={onJump}
+      <FlagsPanel flags={unified?.flags ?? []} details={unified?.flag_details} fps={fps} current={selectedRange?.first ?? view.current} onSeek={onJump}
         onHover={setHoverFlag} onSelect={(flag,openVideo) => openVideo ? onJump(flag.frame) : focusRange({first:flag.frame,last:flag.end_frame}, flag)} />
       {selectedFlag && <button className="inspect-video" onClick={()=>setInspecting(true)}>Inspect video around selected flag</button>}
       </aside>
       </div>
-        {chart && inspecting && selectedFlag && chart.flags.some((f) => f.frame === selectedFlag.frame && f.kind === selectedFlag.kind) && (
-          <FlagCompare backend={backend} chart={chart} flag={selectedFlag} fps={fps} onOpen={onJump} onClose={() => setInspecting(false)} />
+        {unified && inspecting && selectedFlag && unified.flags.some((f) => f.frame === selectedFlag.frame && f.kind === selectedFlag.kind) && (
+          <FlagCompare backend={backend} chart={unified} flag={selectedFlag} fps={fps} onOpen={onJump} onClose={() => setInspecting(false)} />
         )}
     </main>
   );

@@ -1,5 +1,6 @@
 import { type ChartPoint, type PhaseChart } from "./chart";
 import { fireTransitions } from "./fireTransitions";
+import { canonicalFlagPositions } from "./reviewFlags";
 
 export interface JoltAnchor { time:number; tick:number; game:string; screen:string; segment?:string }
 export interface JoltEvent { from:number; to:number; kind:string; game:string; screen:string; jump_seconds?:number }
@@ -112,7 +113,7 @@ export function joltPhase(chart:PhaseChart|null,reference:TimeReference):PhaseCh
   })};
   // Baseline disagreement remains chart information, never one review flag per frame.
   // Use video time for local progression: interpolated GUI ticks can conceal a cut.
-  const {flags,details}=fireTransitions(chart.points,chart.tick_rate);
+  const {flags,details}=chart.review_flags?{flags:chart.flags,details:chart.flag_details??[]}:fireTransitions(chart.points,chart.tick_rate);
   return {...chart,reference_clock:"jolt",points,runs:[],flags,reference_phase:baseline,clock_residuals:[],lag_intervals:[],label_sources:Object.fromEntries(points.map(p=>[p.frame,chart.label_sources?.[p.frame]??[]])),flag_details:details};
 }
 
@@ -123,6 +124,7 @@ export function correctedJoltChart(chart:PhaseChart|null,reference:TimeReference
   if(origin===null)return chart;
   const elapsed=(tick:number)=>(tick-origin)/20;
   return {...chart,corrected_time:true,
+    flag_positions:chart.flag_positions?canonicalFlagPositions(chart.flag_positions,reference,origin):undefined,
     clock_breaks:(chart.clock_segments??[]).slice(1).flatMap((s,i)=>{
       const before=chart.clock_segments![i];
       return s.t0>before.t1 ? [{t0:elapsed(before.tick1),t1:elapsed(s.tick0)}] : [];

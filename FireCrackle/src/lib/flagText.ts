@@ -7,6 +7,8 @@ export function priorityHint(severity:Severity):string {
 }
 
 export function flagText(kind:FlagKind,explanation?:string):{name:string;hint:string} {
+  if(explanation?.startsWith("jolt_removed:"))return {name:"Jolt · reported cut interval",hint:explanation.slice("jolt_removed:".length).trim()};
+  if(explanation?.startsWith("jolt_stalled:"))return {name:"Jolt · reported clock stall",hint:explanation.slice("jolt_stalled:".length).trim()};
   if(explanation?.startsWith("forward_jump:"))return {name:"Forward animation jump",hint:explanation.slice("forward_jump:".length).trim()};
   switch(explanation) {
     case "recovered_hold":return {name:"Held animation · recovered",hint:"The row held still, then observations returned to the original clock extrapolated through the hold. Separate odd labels remain flagged."};

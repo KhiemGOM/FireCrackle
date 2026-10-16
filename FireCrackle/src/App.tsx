@@ -237,7 +237,7 @@ export default function App() {
         <nav className="tabs" aria-label="Workspace tabs">
           <button className={tab !== "images" && (!view || home) ? "on" : ""} onClick={() => { setTab("label"); setHome(true); }}><Icon name="home" /> Home</button>
           <button className={tab === "label" && view && !home ? "on" : ""} disabled={!view} onClick={() => { setTab("label"); setHome(false); }}><Icon name="label" /> Label</button>
-          <button className={tab === "phase" && !home ? "on" : ""} disabled={!view} onClick={() => { setTab("phase"); setHome(false); }}><Icon name="chart" /> Phase{view && view.flag_count > 0 && <span className="count">{view.flag_count}</span>}</button>
+          <button className={tab === "phase" && !home ? "on" : ""} disabled={!view} onClick={() => { setTab("phase"); setHome(false); }}><Icon name="chart" /> Phase</button>
           <button className={tab === "images" ? "on" : ""} onClick={() => { setTab("images"); setShowKeys(false); }}><Icon name="folder" /> Images</button>
         </nav>
         <div className="top-actions">

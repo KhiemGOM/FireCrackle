@@ -1,6 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 const hooks=vi.hoisted(()=>({values:[] as any[],cursor:0}));
-vi.mock('react',async original=>({...await original<typeof import('react')>(),useMemo:(fn:()=>any)=>fn(),useState:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]=initial;return [hooks.values[i],(n:any)=>hooks.values[i]=n];}}));
+vi.mock('react',async original=>({...await original<typeof import('react')>(),useEffect:()=>{},useMemo:(fn:()=>any)=>fn(),useState:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]=initial;return [hooks.values[i],(n:any)=>hooks.values[i]=n];}}));
 import {JoltChart} from './JoltChart';
 import {ComparisonPlot} from './ComparisonPlot';
 import {EMPTY_JOLT,type JoltState} from '../lib/jolt';

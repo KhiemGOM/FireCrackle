@@ -9,7 +9,7 @@ export default defineConfig(() => ({
   plugins: [react()],
 
   // unit tests for the pure logic in src/lib (no DOM needed)
-  test: { include: ["src/**/*.test.ts"], environment: "node" },
+  test: { include: ["src/**/*.test.ts", "src/**/*.test.tsx"], environment: "node" },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
