@@ -28,6 +28,15 @@ it("includes both viewport boundaries and does not draw offscreen evidence", () 
   expect(phasePaintPoints(points, { t0: 1, t1: 2, width: 1000, kind: "phase", reference: 0 })).toEqual(points.slice(1, 3));
 });
 
+it("finds all viewport evidence after a backwards canonical jump without reordering source", () => {
+  const points = [10, 11, 12, 2, 3, 4, 13].map((pts, frame) => ({ frame, pts, phase: 0, step: frame }));
+  const snapshot = [...points];
+  const options = { t0: 3, t1: 11, width: 1000, kind: "row" as const, reference: 0 };
+  expect(phasePaintPoints(points, options)).toEqual([points[0], points[1], points[4], points[5]]);
+  expect(points).toEqual(snapshot);
+  expect(phasePaintPoints(points, { ...options, t0: 12, t1: 13 })).toEqual([points[2], points[6]]);
+});
+
 it("keeps exact flat clock holds and invalid viewports out of density mode", () => {
   expect(denseRowRuler(0, 100000, 0, 1000)).toBe(false);
   expect(denseRowRuler(1, 1, 20, 1000)).toBe(false);

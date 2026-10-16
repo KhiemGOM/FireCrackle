@@ -11,6 +11,7 @@ interface PaintWindow {
   kind: "phase" | "row"; reference: number; rulerPhase?: number;
 }
 const cache = new WeakMap<ChartPoint[], Map<string, ChartPoint[]>>();
+const chronological = new WeakMap<ChartPoint[], boolean>();
 
 /** Only painting is thinned. Keep endpoints, vertical extrema, and both signed worst
  * deviations (plus the closest match) in each two-pixel time column. Full evidence
@@ -22,25 +23,32 @@ export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): Ch
   let entries = cache.get(points);
   const previous = entries?.get(key);
   if (previous) return previous;
+  let ordered = chronological.get(points);
+  if (ordered === undefined) {
+    ordered = points.every((p, i) => Number.isFinite(p.pts) && (i === 0 || p.pts >= points[i - 1].pts));
+    chronological.set(points, ordered);
+  }
+  // Canonical clock jumps can reverse display time while video/frame order stays intact.
+  const source = ordered ? points : points.filter(p => p.pts >= t0 && p.pts <= t1);
   function bound(time: number, after: boolean) {
-    let lo = 0, hi = points.length;
+    let lo = 0, hi = source.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if (points[mid].pts < time || (after && points[mid].pts === time)) lo = mid + 1;
+      if (source[mid].pts < time || (after && source[mid].pts === time)) lo = mid + 1;
       else hi = mid;
     }
     return lo;
   }
-  const first = bound(t0, false), last = bound(t1, true);
+  const first = ordered ? bound(t0, false) : 0, last = ordered ? bound(t1, true) : source.length;
   let result: ChartPoint[];
   if (last - first <= width * 2) {
-    result = points.slice(first, last);
+    result = source.slice(first, last);
   } else {
     const columns = Math.max(1, Math.ceil(width / 2));
     type Bucket = { first: number; last: number; low: number; high: number; negative: number; positive: number; near: number; yLow: number; yHigh: number; dLow: number; dHigh: number; dNear: number };
     const buckets: Bucket[] = [];
     for (let i = first; i < last; i++) {
-      const p = points[i];
+      const p = source[i];
       if (!Number.isFinite(p.phase) && rulerPhase !== undefined) continue;
       const column = Math.min(columns - 1, Math.floor((p.pts - t0) * columns / (t1 - t0)));
       const y = kind === "phase" ? relativePhase(p.phase, reference) : p.step;
@@ -56,7 +64,7 @@ export function phasePaintPoints(points: ChartPoint[], options: PaintWindow): Ch
         if (Math.abs(d) < b.dNear) { b.near = i; b.dNear = Math.abs(d); }
       }
     }
-    result = buckets.flatMap(b => [...new Set([b.first, b.last, b.low, b.high, b.negative, b.positive, b.near])].sort((a, b) => a - b).map(i => points[i]));
+    result = buckets.flatMap(b => [...new Set([b.first, b.last, b.low, b.high, b.negative, b.positive, b.near])].sort((a, b) => a - b).map(i => source[i]));
   }
   if (!entries) { entries = new Map(); cache.set(points, entries); }
   if (entries.size >= 4) entries.delete(entries.keys().next().value!);
