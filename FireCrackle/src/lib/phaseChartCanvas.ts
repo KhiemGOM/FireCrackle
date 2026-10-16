@@ -21,6 +21,8 @@ export const DEVIATION_COLORS: Record<DeviationLevel, string> = { ok: "#4cc38a",
 export interface RulerOptions {
   offset: number;
   tolerance: number;
+  /** Guide only; observed points and their deviation stems stay fully visible. */
+  opacity?: number;
 }
 
 export interface PhaseChartCanvasOptions {
@@ -111,6 +113,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   }
   const ref = chartReference(chart);
   const ruler = options.ruler ?? null;
+  const rulerOpacity=Math.max(0,Math.min(1,ruler?.opacity??0.35));
   const rp = ruler ? rulerPhase(ref, ruler.offset) : 0;
   const rulerRel = ruler ? relativePhase(rp, ref) : 0;
   const rulerText = `perfect clock ${rulerRel > 0 ? "+" : ""}${Number(rulerRel.toFixed(2))}`;
@@ -150,6 +153,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.textAlign = "left";
     }
     if (ruler) {
+      g.globalAlpha=rulerOpacity;
       const top = phaseY(rulerRel + ruler.tolerance, h);
       g.fillStyle = "rgba(232,238,252,0.08)";
       g.fillRect(0, top, w, phaseY(rulerRel - ruler.tolerance, h) - top);
@@ -168,6 +172,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.textAlign = "right";
       g.fillText(rulerText, w - 6, Math.min(h - 3, y + 13));
       g.textAlign = "left";
+      g.globalAlpha=1;
     }
   } else {
     g.strokeStyle = COLORS.grid;
@@ -181,6 +186,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.fillText(`row ${Number(row.toFixed(2))}`, 4, Math.min(h - 3, Math.max(11, y - 2)));
     }
     if (ruler) {
+      g.globalAlpha=rulerOpacity;
       // the ramps of the ideal clock: one row per tick, back to row 0 every 32 ticks
       g.strokeStyle = RULER_COLOR;
       g.setLineDash([2, 3]);
@@ -207,6 +213,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       g.textAlign = "right";
       g.fillText(rulerText, w - 6, 13);
       g.textAlign = "left";
+      g.globalAlpha=1;
     }
   }
   const visible = chart.points.filter((p) => p.pts >= t0 && p.pts <= t1 && (!ruler || Number.isFinite(p.phase)));

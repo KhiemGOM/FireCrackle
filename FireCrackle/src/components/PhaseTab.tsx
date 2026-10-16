@@ -83,6 +83,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [phaseRange,setPhaseRange]=useState<AxisRange|undefined>(undefined);
   const [rowRange,setRowRange]=useState<AxisRange|undefined>(undefined);
   const [inspecting,setInspecting]=useState(false);
+  const [rulerOpacity,setRulerOpacity]=useState(0.35);
   function changeClock(next:JoltState) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
@@ -124,7 +125,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   };
   /** Points within this many ticks of the ruler count as on time: half the width of a steady run's arc. */
   const tolerance = Math.max(0.05, (chart?.window_ticks ?? 1) / 2);
-  const ruler = rulerOn && chart ? { offset: rulerOffset, tolerance } : null;
+  const ruler = rulerOn && chart ? { offset: rulerOffset, tolerance, opacity:rulerOpacity } : null;
   const rulerAt = chart ? rulerPhase(chartReference(chart), rulerOffset) : 0;
   const rulerStats = chart && rulerOn ? deviationStats(chart.points, rulerAt, tolerance) : null; // at most MAX_POINTS points
 
@@ -140,7 +141,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     if (phaseRef.current) ro.observe(phaseRef.current);
     if (rowRef.current) ro.observe(rowRef.current);
     return () => ro.disconnect();
-  }, [chart, gaps, view.current, t0, t1, highlighted?.first, highlighted?.last, rulerOn, rulerOffset, tolerance, phaseRange, rowRange, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chart, gaps, view.current, t0, t1, highlighted?.first, highlighted?.last, rulerOn, rulerOffset, rulerOpacity, tolerance, phaseRange, rowRange, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // stretches with no fire evidence: found from the frames that have evidence, classified by their labels
   useEffect(() => {
@@ -306,6 +307,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
                 setRulerMatch({ offset, text: `Best match: ${offset > 0 ? "+" : ""}${offset} ticks · ${m.inliers} of ${m.count} frames fit (rms ${m.rmse.toFixed(2)}); the rest are treated as outliers` });
               }}>Find best match</button>
               {rulerOn && <>
+                <label>Opacity <input type="range" aria-label="Ruler opacity" min={0} max={1} step={0.05} value={rulerOpacity} onChange={e=>setRulerOpacity(e.target.valueAsNumber)} /> {Math.round(rulerOpacity*100)}%</label>
                 <label>Offset <input type="range" aria-label="Ruler offset slider" min={-16} max={16} step={0.05} value={rulerOffset} onChange={(e) => setRulerOffset(e.target.valueAsNumber)} />
                   <input type="number" aria-label="Ruler offset in ticks" min={-16} max={16} step={0.05} value={Number(rulerOffset.toFixed(2))} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && setRulerOffset(Math.max(-16, Math.min(16, e.target.valueAsNumber)))} /> ticks</label>
                 <IconButton icon="reset" label="Reset ruler offset to the reference clock" disabled={rulerOffset === 0} onClick={() => setRulerOffset(0)} />

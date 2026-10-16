@@ -24,6 +24,15 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it.each(['row','phase'] as const)('fades only the %s ruler, keeping observations opaque',kind=>{
+    const {context,draw}=fixture({kind,ruler:{offset:0,tolerance:1,opacity:.2}});
+    const strokes:number[]=[],dots:number[]=[];
+    context.stroke.mockImplementation(()=>{strokes.push((context as any).globalAlpha??1);});
+    context.fillRect.mockImplementation((...args:any[])=>{if(args[2]===2.5)dots.push((context as any).globalAlpha??1);});
+    draw();
+    expect(strokes).toContain(.2);expect(dots).toEqual([1]);
+    expect((context as any).globalAlpha).toBe(1);
+  });
   it.each(['video','jolt'] as const)('splits a short sprite deviation at the 32→0 seam with the %s clock',clock=>{
     const {context,options,draw}=fixture({kind:'row',ruler:{offset:0,tolerance:1},yRange:[0,32]});
     options.chart={points:[{frame:300,pts:5,step:31.8,phase:.4}],runs:[],flags:[],tick_rate:20,window_ticks:1,reference_phase:0,reference_clock:clock};
