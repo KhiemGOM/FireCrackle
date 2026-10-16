@@ -2,7 +2,7 @@
 
 FireCrackle is a desktop app for matching Minecraft fire animations to video frames, with Windows x64 and Linux x86_64 packaging. This repository also contains the detector, recording mod and research tools used to evaluate it.
 
-**Version 0.1.0 is an experimental analysis tool.** A timing flag is a reason to inspect the footage, not proof of an edit. Automatic labels are distinguished from human checks; recording stalls, game lag and model mismatches can all affect the result.
+**Version 0.1.1 is an experimental analysis tool.** A timing flag is a reason to inspect the footage, not proof of an edit. Automatic labels are distinguished from human checks; recording stalls, game lag and model mismatches can all affect the result.
 
 - [Download builds](https://github.com/KhiemGOM/FireCrackle/releases)
 - [App development and packaging](FireCrackle/README.md)
@@ -44,12 +44,12 @@ Minecraft game source, decompiled classes, game JARs, Yarn mapping artifacts and
 
 Original project code is MIT-licensed. That grant does not relicense third-party software, Minecraft assets or user recordings.
 
-## Preparing a source snapshot
+## Source history
 
-The private development history contains old generated research data and historical game-code excerpts that have been removed from the current tree. **Do not publish that history.** After all source changes are committed, run:
+This repository is public. Its early history, from before the clean-up, still contains old generated research data and historical game-code excerpts that have been removed from the current tree; the current files contain neither. The history has not been rewritten. If a separate history without them is wanted, commit all source changes and run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-source-snapshot.ps1
 ```
 
-This checks the source boundary and creates a one-commit `codex/clean-source-snapshot` branch with the same current files and no parent history. It does not switch your checkout, erase history, push anything or change repository visibility. Existing branches are never overwritten. Any future publication still needs the owner's decision and the asset-rights review in the third-party notices.
+This checks the source boundary and creates a one-commit `codex/clean-source-snapshot` branch with the same current files and no parent history. It does not switch your checkout, erase history, push anything or change repository visibility. Existing branches are never overwritten. Using the snapshot as the public history would still need the owner's decision and the asset-rights review in the third-party notices.

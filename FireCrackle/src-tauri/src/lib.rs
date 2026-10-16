@@ -379,6 +379,12 @@ pub fn run_app() {
             settings_describe,
             settings_set
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            use tauri::Manager;
+            if let tauri::RunEvent::Exit = event {
+                app.state::<AppState>().links.shutdown();
+            }
+        });
 }

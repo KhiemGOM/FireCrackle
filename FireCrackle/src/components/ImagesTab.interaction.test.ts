@@ -77,3 +77,27 @@ it("pastes a clipboard photo into the gallery and only handles paste in the acti
   const hidden = Object.assign(new Event("paste", { cancelable: true }), { clipboardData: { files: [image], items: [] } });
   window.dispatchEvent(hidden); expect(hidden.defaultPrevented).toBe(false);
 });
+it("accepts pasted photos once saved photos finish restoring without remounting the paste listener", async () => {
+  vi.stubGlobal("indexedDB", {});
+  let restore!: (value: unknown) => void;
+  gallery.load.mockReturnValue(new Promise(resolve => { restore = resolve; }));
+  gallery.save.mockResolvedValue(undefined);
+  render();
+  hooks.effects.find(effect => effect.toString().includes("loadGallery"))!();
+  hooks.effects.find(effect => effect.toString().includes("const paste"))!();
+  restore({ images: [], index: 0, checks: {} });
+  await Promise.resolve(); render();
+  const image = { name: "clipboard.png", type: "image/png", size: 30, lastModified: 2 };
+  const event = Object.assign(new Event("paste", { cancelable: true }), { clipboardData: { files: [image], items: [] } });
+  window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
+  const root = render(); expect(all(root, element => element.type === VideoPane)[0].props.stillImage.name).toBe("clipboard.png");
+});
+it("leaves pastes into text fields alone", () => {
+  render(); hooks.effects.find(effect => effect.toString().includes("const paste"))!();
+  const field = new EventTarget(); Object.assign(field, { tagName: "INPUT" });
+  const image = { name: "clipboard.png", type: "image/png", size: 30, lastModified: 2 };
+  const event = Object.assign(new Event("paste", { cancelable: true }), { clipboardData: { files: [image], items: [] } });
+  Object.defineProperty(event, "target", { value: field });
+  window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false);
+  expect(all(render(), element => element.type === VideoPane)).toHaveLength(0);
+});

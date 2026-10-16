@@ -198,9 +198,14 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     }
     const hit = locate(e);
     if (!hit) return;
+    // A gap has no evidence under the cursor, so its nearest point is an edge that belongs to the gap's text.
+    const frame = Math.round(hit.t * fps);
+    const inGap = gaps.find((g) => frame >= g.first && frame <= g.last);
     if (hit.flagIdx !== null) {
       const f = chart!.flags[hit.flagIdx];
       setHover(`${f.severity} flag · frame ${f.frame}${f.end_frame > f.frame ? `–${f.end_frame}` : ""} · Δ ${f.phase_delta.toFixed(1)} ticks · click to focus · Ctrl+click to open video`);
+    } else if (inGap) {
+      setHover(inGap.text);
     } else if (hit.point) {
       const p = hit.point;
       const reference = chart!.reference_phase ?? chart!.runs[0]?.center ?? chart!.points[0]?.phase ?? 0;
@@ -209,9 +214,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       const fromRuler = rulerOn ? deviation(p.phase, rulerAt) : null;
       setHover(`frame ${p.frame} · ${formatTimecode(p.video_pts ?? p.pts, fps)} · row ${p.step} · timing offset ${offset > 0 ? "+" : ""}${offset.toFixed(2)} ticks${p.clock_tick===undefined?"":` · corrected elapsed ${p.pts.toFixed(3)} s (${p.clock_estimated?"estimated between anchors":"observed"})`}${fromRuler === null ? "" : ` · ${fromRuler > 0 ? "+" : ""}${fromRuler.toFixed(2)} from the ruler (${fromRuler > 0 ? "lagging" : fromRuler < 0 ? "ahead" : "on time"})`}${sources?` · ${sources}`:""}`);
     } else {
-      const frame = Math.round(hit.t * fps);
-      const inGap = gaps.find((g) => frame >= g.first && frame <= g.last);
-      setHover(inGap ? inGap.text : null);
+      setHover(null);
     }
   }
 

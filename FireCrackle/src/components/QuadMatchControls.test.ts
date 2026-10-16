@@ -65,7 +65,7 @@ it("leaves ambiguous matches untouched until a candidate is explicitly clicked",
   pending.get("frame-a")!.onload?.();await settle();expect(preview).not.toHaveBeenCalled();
   const candidates=buttons(render("frame-a",preview));
   expect(candidates[1].props.children).toBe(1);
-  expect(candidates[1].props["aria-label"]).toContain("sheet 1 · row 12 · mirrored");
+  expect(candidates[1].props["aria-label"]).toContain("row 12 · sheet 1 · mirrored");
   expect(candidates[1].props.title).toBeUndefined();
   expect(candidates[candidates.length-1].props.title).toBeUndefined();
   expect(candidates[1].props.onMouseEnter).toBeTypeOf("function");

@@ -88,7 +88,7 @@ it("visually filters exact outermost counts while keeping every cell and click w
   const matching = ui.cells.filter(e => !e.props.className.includes("edge-filter-miss"));
   expect(matching).toHaveLength(1);
   expect(matching[0].props.title).toContain("Edge pixels: left 3 · right 7");
-  const dimmed = ui.cells.find(e => e.props["aria-label"].startsWith("sheet 1, row 0, normal"))!;
+  const dimmed = ui.cells.find(e => e.props["aria-label"].startsWith("row 0, sheet 1, normal"))!;
   expect(dimmed.props.className).toContain("edge-filter-miss");
   expect(dimmed.props.className).toContain("atlas-candidate");
   expect(dimmed.props.disabled).toBeUndefined();

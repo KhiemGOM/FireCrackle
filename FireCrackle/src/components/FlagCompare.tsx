@@ -53,7 +53,7 @@ function Side({ title, point, reference, fps, backend, onOpen }: { title: string
         {point && (
           <span
             className="compare-sprite"
-            title={`Animation index ${point.step}: sheet 1, row ${row}`}
+            title={`Animation index ${point.step}: row ${row}, sheet 1`}
             style={{ backgroundImage: `url(${fire1})`, backgroundSize: "48px 1536px", backgroundPosition: `0 -${row * 48}px` }}
           />
         )}

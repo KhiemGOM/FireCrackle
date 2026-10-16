@@ -17,7 +17,7 @@ const secrets = [
 export function inspectTrackedFile(path, bytes, content = '') {
   const problems = [];
   const p = path.replaceAll('\\', '/');
-  if (/(^|\/)(?:node_modules|target|dist|build|\.gradle|\.board|\.claude|\.codex|\.agents|\.venv|__pycache__|releases|\.release-cache|\.release-worktrees)(\/|$)/.test(p)) problems.push('generated/local tooling directory');
+  if (/(^|\/)(?:node_modules|target|dist|build|__pycache__|releases|\.(gradle|board|claude|codex|agents|venv|release-(cache|worktrees)))(\/|$)/.test(p)) problems.push('generated/local tooling directory');
   if (/(?:^|\/)\.env(?:\..+)?$/.test(p) && !p.endsWith('.env.example')) problems.push('local environment file');
   if (/\.firecrackle(?:\/|$)/.test(p) || p.startsWith('fire-detection/data/joined/')) problems.push('private/generated video data');
   if (/\.(?:mp4|mkv|mov|avi|webm|exe|dll|zip|rar|7z|appimage|deb|rpm|tgz|tar\.gz|pem|key|class|tiny|mapping)$/i.test(p)) problems.push('binary, credential or upstream mapping artifact');

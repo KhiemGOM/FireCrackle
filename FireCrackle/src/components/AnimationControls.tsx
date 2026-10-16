@@ -35,7 +35,7 @@ export function AnimationControls({ current, edges, filter, frame, stopToken, di
   }
   const index = pool.findIndex(sprite => appearanceId(sprite.sheet, sprite.row, sprite.mirrored) === appearanceId(current.sheet, current.row, current.mirrored));
   const waiting = onlyFiltered && filter && (filter.left !== null || filter.right !== null) && !edges;
-  const details = `${waiting ? "Reading edge counts" : pool.length ? "Loop every eligible sprite" : "No sprites pass the filters"}\nPreview: sheet ${current.sheet}, row ${current.row}, ${current.mirrored ? "mirrored" : "normal"}\n${onlyFiltered ? "Uses edge filters and manual exclusions" : "All 128 appearances, ignoring filters"}\nPreview only. Use the displayed preview as candidate, then Confirm/Enter to label.`;
+  const details = `${waiting ? "Reading edge counts" : pool.length ? "Loop every eligible sprite" : "No sprites pass the filters"}\nPreview: row ${current.row}, sheet ${current.sheet}, ${current.mirrored ? "mirrored" : "normal"}\n${onlyFiltered ? "Uses edge filters and manual exclusions" : "All 128 appearances, ignoring filters"}\nPreview only. Use the displayed preview as candidate, then Confirm/Enter to label.`;
   return <div className="animation-controls" aria-label="Sprite animation controls">
     <IconButton icon={playing ? "pause" : "play"} label={playing ? "Pause sprite animation" : "Play sprite animation"} disabled={disabled || !pool.length} onClick={() => { if (!playing) onStart?.(); setPlaying(!playing); }}>{playing ? "Pause" : "Play"}</IconButton>
     <IconButton icon="left" label="Previous animation appearance" disabled={disabled || !pool.length} onClick={() => step(-1)} />
