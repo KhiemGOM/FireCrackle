@@ -3,7 +3,7 @@ import {sessionOf,type JoltState} from '../lib/jolt';
 import type {Trace} from '../lib/clockComparison';
 import type {AxisRange} from '../lib/plotAxes';
 import {formatTime} from '../lib/timeline';
-import {discreteCursor} from './ChartCursor';
+import {createFrameCursor} from './ChartCursor';
 import {ComparisonPlot} from './ComparisonPlot';
 import {PlotAxes} from './PlotAxes';
 import {IconButton} from './Icon';
@@ -45,8 +45,9 @@ export function JoltChart({state,chart=null,focusRange=null,onOpenTime,fps=60}:{
  const zoomAt=(factor:number,time:number)=>{const f=Math.max(.1,Math.min(10,factor));setRange([time+(lo-time)/f,time+(hi-time)/f]);};
  const phaseY=phaseVertical??[-16,16];
  const frameRate=Number.isFinite(fps)&&fps>0?fps:60;
- const snapTime=(time:number)=>discreteCursor(time,frameRate).time;
- const cursorLabel=(time:number)=>discreteCursor(time,frameRate).label;
+ const frameCursor=createFrameCursor(frameRate);
+ const snapTime=(time:number)=>frameCursor(time).time;
+ const cursorLabel=(time:number)=>frameCursor(time).label;
  return <section className="jolt-timeline" aria-label="Jolt + Fire">
   <div className="timeline-controls">
    <IconButton icon="zoomOut" label="Zoom out Jolt timeline" onClick={()=>zoom(1/1.5)}/>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton } from "./Icon";
 import { JoltChart } from "./JoltChart";
-import {ChartCursor,discreteCursor} from "./ChartCursor";
+import {ChartCursor,createFrameCursor} from "./ChartCursor";
 import { LABEL_SOURCE_NAMES, type Backend, type View, type Flag, type LabelSource } from "../lib/api";
 import {
   flagSpans,
@@ -131,6 +131,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     const tick=displayClockAt(reference,frame/fps)?.tick??null;
     return tick===null ? NaN : (tick-originTick)/20;
   };
+  const cursorAt=useMemo(()=>createFrameCursor(fps,view.frame_count,chart?.corrected_time?timeOf:undefined),[chart,reference,originTick,fps,view.frame_count]);
   /** Points within this many ticks of the ruler count as on time: half the width of a steady run's arc. */
   const tolerance = Math.max(0.05, (chart?.window_ticks ?? 1) / 2);
   const ruler = rulerOn && chart ? { offset: rulerOffset, tolerance, opacity:rulerOpacity } : null;
@@ -190,10 +191,11 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     const x = e.clientX - r.left;
     const spans = flagSpans(chart.flags, timeOf, t0, t1, r.width,4,chart.flag_positions);
     const flagIdx = hitFlag(spans, x);
-    const t = discreteCursor(xToTime(x, t0, t1, r.width),fps,chart.corrected_time?originTick:undefined).time;
+    const cursor=cursorAt(xToTime(x, t0, t1, r.width));
+    const t=cursor.time;
     const nearest = nearestPoint(displayPoints, t);
     const point = nearest && nearest.pts >= t0 && nearest.pts <= t1 ? nearest : null;
-    return { flagIdx, point, t };
+    return { flagIdx, point, t, cursor };
   }
 
   function onMove(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -210,7 +212,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     }
     const hit = locate(e);
     if (!hit) return;
-    setChartCursor(discreteCursor(hit.t,fps,chart?.corrected_time?originTick:undefined));
+    setChartCursor(hit.cursor);
     if (hit.flagIdx !== null) {
       const f = chart!.flags[hit.flagIdx];
       setHover(`${f.severity} flag · frame ${f.frame}${f.end_frame > f.frame ? `–${f.end_frame}` : ""} · Δ ${f.phase_delta.toFixed(1)} ticks · click to focus · Ctrl+click to open video`);
