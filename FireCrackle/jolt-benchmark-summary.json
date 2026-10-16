@@ -1,0 +1,1224 @@
+{
+  "seed": 20261016,
+  "jolt_sha256": "60180931a2c1036d6253729d553df691235cbfe8a6ccd64c24cc3d7593dfe34c",
+  "scope": "Only accepted hunger/heart observations; only fire-visible observations enter phase analysis. Creative footage is not scored. Compare noise within each observed section, not across clip2's creative-mode gap. No full-video coverage claim.",
+  "clock_fit": "Production timeReference interpolation inside original Jolt runs. Held-out reading removed before fitting. No ground-truth client ticks used to fit either clock.",
+  "limitations": [
+    "Sparse bar observations: cut localisation is an interval, not an exact frame.",
+    "Video checker uses production phase_v2; current Jolt UI flags use its separate first-pair residual rule. Flag counts are not a controlled same-algorithm comparison or a false-positive rate.",
+    "Clip2's 83-tick GUI/client change crosses visible creative mode (frame at 103 s verified); excluded as a lag-performance case. Global residuals/flags retained only to document current UI behaviour.",
+    "Ground-truth client ticks identify differential clock changes; they are not assumed identical to GUI ticks.",
+    "Nine real cut windows are a small demonstration, not a generalised detection-rate estimate."
+  ],
+  "results": [
+    {
+      "name": "clip1",
+      "kind": "original",
+      "total_frames": 32626,
+      "readable_fraction": 0.2837,
+      "observed_gui_anchors": 54,
+      "fire_visible_anchors": 31,
+      "section_count": 1,
+      "video_phase": {
+        "count": 31,
+        "center": 10.943870967741923,
+        "p50": 0.2838709677420681,
+        "p90": 0.39612903225822294,
+        "p99": 0.9541290322580336,
+        "max": 1.0561290322580774,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 31,
+        "center": 19,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            14
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 30,
+        "jolt_abs_p50": 0.1705918492730234,
+        "jolt_abs_p99": 1.2414000000001035,
+        "video_abs_p50": 0.1600000000005366,
+        "video_abs_p99": 1.2414000000001035
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 31,
+            "center": 10.943870967741923,
+            "p50": 0.2838709677420681,
+            "p90": 0.39612903225822294,
+            "p99": 0.9541290322580336,
+            "max": 1.0561290322580774,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 31,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "clip2",
+      "kind": "original",
+      "total_frames": 19553,
+      "readable_fraction": 0.4075,
+      "observed_gui_anchors": 23,
+      "fire_visible_anchors": 17,
+      "section_count": 2,
+      "video_phase": {
+        "count": 17,
+        "center": 3.5282352941176782,
+        "p50": 0.1882352941175327,
+        "p90": 0.8343529411765189,
+        "p99": 1.0895999999998434,
+        "max": 1.1317647058821763,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 17,
+        "center": 26,
+        "p50": 0,
+        "p90": 13,
+        "p99": 13,
+        "max": 13,
+        "over_two_ticks": 4
+      },
+      "app_jolt_flags": 13,
+      "production_video_flags": 0,
+      "breaks": [
+        {
+          "from": 97.5,
+          "to": 110.867,
+          "since": 97.5,
+          "kind": "stalled",
+          "game": 1,
+          "jump_seconds": -4.217
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            622
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            705
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 13,
+        "jolt_abs_p50": 0.36713478023011703,
+        "jolt_abs_p99": 0.9649074975657275,
+        "video_abs_p50": 0.31999999999970896,
+        "video_abs_p99": 1
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 4,
+            "center": 3.080000000000041,
+            "p50": 0.25,
+            "p90": 0.5320000000000165,
+            "p99": 0.5752000000000385,
+            "max": 0.5800000000000409,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 4,
+            "center": 13,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 13,
+            "center": 3.6661538461538683,
+            "p50": 0.3261538461537228,
+            "p90": 0.6043076923077666,
+            "p99": 0.9554461538460208,
+            "max": 0.9938461538459862,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 13,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "clip3",
+      "kind": "original",
+      "total_frames": 7094,
+      "readable_fraction": 0.2807,
+      "observed_gui_anchors": 6,
+      "fire_visible_anchors": 6,
+      "section_count": 1,
+      "video_phase": {
+        "count": 6,
+        "center": 21.280000000000015,
+        "p50": 0.17000000000007276,
+        "p90": 0.3300000000000409,
+        "p99": 0.37500000000006395,
+        "max": 0.3800000000000665,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 8,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            215
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 4,
+        "jolt_abs_p50": 0.164828017144373,
+        "jolt_abs_p99": 0.19011417804424127,
+        "video_abs_p50": 0.16000000000008185,
+        "video_abs_p99": 0.33939999999970494
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 6,
+            "center": 21.280000000000015,
+            "p50": 0.17000000000007276,
+            "p90": 0.3300000000000409,
+            "p99": 0.37500000000006395,
+            "max": 0.3800000000000665,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 6,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "clip1-cut1",
+      "kind": "cut",
+      "total_frames": 4800,
+      "readable_fraction": 0.4425,
+      "observed_gui_anchors": 10,
+      "fire_visible_anchors": 6,
+      "section_count": 1,
+      "video_phase": {
+        "count": 6,
+        "center": 16.336666666666673,
+        "p50": 0.3366666666666731,
+        "p90": 0.6733333333333391,
+        "p99": 0.9703333333333569,
+        "max": 1.0033333333333587,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 19,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            14
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 5,
+        "jolt_abs_p50": 0.1379126324616209,
+        "jolt_abs_p99": 1.300095026716126,
+        "video_abs_p50": 0,
+        "video_abs_p99": 1.3136000000001422
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 6,
+            "center": 16.336666666666673,
+            "p50": 0.3366666666666731,
+            "p90": 0.6733333333333391,
+            "p99": 0.9703333333333569,
+            "max": 1.0033333333333587,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 6,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.14999999999999858,
+      "cut_time": 40,
+      "jolt_detected_cut": false,
+      "accepted_gui_readings_on_both_sides": false,
+      "jolt_cut_brackets": [],
+      "video_new_flag_at_cut": false,
+      "fire_phase_shift_mod32": 2.9999999999999716
+    },
+    {
+      "name": "clip1-cut2",
+      "kind": "cut",
+      "total_frames": 4800,
+      "readable_fraction": 0.6723,
+      "observed_gui_anchors": 18,
+      "fire_visible_anchors": 10,
+      "section_count": 2,
+      "video_phase": {
+        "count": 10,
+        "center": 18.611428571428547,
+        "p50": 0.2914285714286109,
+        "p90": 12.7085714285714,
+        "p99": 12.708571428571492,
+        "max": 12.708571428571503,
+        "over_two_ticks": 3
+      },
+      "jolt_phase": {
+        "count": 10,
+        "center": 19,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 1,
+      "breaks": [
+        {
+          "from": 37.566,
+          "to": 41.816,
+          "since": 37.566,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 0.65
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            14
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            14
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 9,
+        "jolt_abs_p50": 0.2726040804036529,
+        "jolt_abs_p99": 0.4947777913365644,
+        "video_abs_p50": 0.3400000000001455,
+        "video_abs_p99": 0.6528000000002794
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 3,
+            "center": 31.31999999999998,
+            "p50": 4.263256414560601e-14,
+            "p90": 6.536993168992921e-14,
+            "p99": 7.048583938740194e-14,
+            "max": 7.105427357601002e-14,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 3,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 7,
+            "center": 18.611428571428547,
+            "p50": 0.048571428571534625,
+            "p90": 0.33028571428574766,
+            "p99": 0.3827428571428822,
+            "max": 0.38857142857145277,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 7,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.6500000000000057,
+      "cut_time": 40,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 37.566,
+          "to": 41.816,
+          "removed_estimate": 0.65
+        }
+      ],
+      "video_new_flag_at_cut": true,
+      "fire_phase_shift_mod32": 13.000000000000114
+    },
+    {
+      "name": "clip1-cut3",
+      "kind": "cut",
+      "total_frames": 4800,
+      "readable_fraction": 0.9571,
+      "observed_gui_anchors": 28,
+      "fire_visible_anchors": 18,
+      "section_count": 2,
+      "video_phase": {
+        "count": 18,
+        "center": 23.924444444444447,
+        "p50": 0.264444444444365,
+        "p90": 0.4155555555555054,
+        "p99": 0.41555555555567936,
+        "max": 0.4155555555556987,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 18,
+        "center": 19,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [
+        {
+          "from": 39.317,
+          "to": 40.15,
+          "since": 39.317,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 1.617
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            14
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            14
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 14,
+        "jolt_abs_p50": 0.17057472070018775,
+        "jolt_abs_p99": 0.5116727763843301,
+        "video_abs_p50": 0.17000000000007276,
+        "video_abs_p99": 0.6358000000002719
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 8,
+            "center": 23.830000000000013,
+            "p50": 0.1700000000000017,
+            "p90": 0.27200000000003677,
+            "p99": 0.486200000000021,
+            "max": 0.5100000000000193,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 8,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 10,
+            "center": 24,
+            "p50": 0,
+            "p90": 0.3400000000001455,
+            "p99": 0.3400000000001455,
+            "max": 0.3400000000001455,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 10,
+            "center": 19,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 1.6000000000000227,
+      "cut_time": 40,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 39.317,
+          "to": 40.15,
+          "removed_estimate": 1.617
+        }
+      ],
+      "video_new_flag_at_cut": false,
+      "fire_phase_shift_mod32": 4.547473508864641e-13
+    },
+    {
+      "name": "clip2-cut1",
+      "kind": "cut",
+      "total_frames": 4799,
+      "readable_fraction": 0.9166,
+      "observed_gui_anchors": 19,
+      "fire_visible_anchors": 13,
+      "section_count": 2,
+      "video_phase": {
+        "count": 13,
+        "center": 8.867692307692295,
+        "p50": 1.5476923076923583,
+        "p90": 1.8676923076922947,
+        "p99": 2.3997538461538834,
+        "max": 2.472307692307737,
+        "over_two_ticks": 1
+      },
+      "jolt_phase": {
+        "count": 13,
+        "center": 26,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 1,
+      "breaks": [
+        {
+          "from": 37.45,
+          "to": 40.65,
+          "since": 37.45,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 0.2
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            705
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            705
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 10,
+        "jolt_abs_p50": 0.3309528519619107,
+        "jolt_abs_p99": 0.9585217391304424,
+        "video_abs_p50": 0.3200000000001637,
+        "video_abs_p99": 0.9711999999999853
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 6,
+            "center": 10.613333333333365,
+            "p50": 0.27333333333333343,
+            "p90": 0.5,
+            "p99": 0.704,
+            "max": 0.7266666666666666,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 6,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 7,
+            "center": 7.371428571428524,
+            "p50": 0.05142857142858759,
+            "p90": 0.6022857142856796,
+            "p99": 0.9139428571428388,
+            "max": 0.9485714285714124,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 7,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.1670000000000016,
+      "cut_time": 39.983000000000004,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 37.45,
+          "to": 40.65,
+          "removed_estimate": 0.2
+        }
+      ],
+      "video_new_flag_at_cut": true,
+      "fire_phase_shift_mod32": 3.340000000000032
+    },
+    {
+      "name": "clip2-cut2",
+      "kind": "cut",
+      "total_frames": 4800,
+      "readable_fraction": 0.5687,
+      "observed_gui_anchors": 11,
+      "fire_visible_anchors": 6,
+      "section_count": 2,
+      "video_phase": {
+        "count": 6,
+        "center": 24.420000000000073,
+        "p50": 0.160000000000025,
+        "p90": 12.919999999999902,
+        "p99": 12.919999999999954,
+        "max": 12.919999999999959,
+        "over_two_ticks": 2
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 26,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 1,
+      "breaks": [
+        {
+          "from": 35.95,
+          "to": 40.317,
+          "since": 35.95,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 0.683
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            705
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            705
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 3,
+        "jolt_abs_p50": 0.3671347802296623,
+        "jolt_abs_p99": 0.46180866508867435,
+        "video_abs_p50": 0.3200000000001637,
+        "video_abs_p99": 0.6531999999998607
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 2,
+            "center": 5.339999999999975,
+            "p50": 5.684341886080802e-14,
+            "p90": 5.684341886080802e-14,
+            "p99": 5.684341886080802e-14,
+            "max": 5.684341886080802e-14,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 2,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 4,
+            "center": 24.420000000000073,
+            "p50": 0.08000000000004093,
+            "p90": 0.19200000000001866,
+            "p99": 0.23520000000001,
+            "max": 0.2400000000000091,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 4,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.6500000000000057,
+      "cut_time": 40,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 35.95,
+          "to": 40.317,
+          "removed_estimate": 0.683
+        }
+      ],
+      "video_new_flag_at_cut": true,
+      "fire_phase_shift_mod32": 13.000000000000114
+    },
+    {
+      "name": "clip2-cut3",
+      "kind": "cut",
+      "total_frames": 4800,
+      "readable_fraction": 0.6112,
+      "observed_gui_anchors": 9,
+      "fire_visible_anchors": 4,
+      "section_count": 1,
+      "video_phase": {
+        "count": 4,
+        "center": 7.759999999999991,
+        "p50": 0.08000000000004093,
+        "p90": 0.1920000000000528,
+        "p99": 0.23520000000001343,
+        "max": 0.2400000000000091,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 4,
+        "center": 26,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            705
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 3,
+        "jolt_abs_p50": 0.4637407851878379,
+        "jolt_abs_p99": 0.6560748157036141,
+        "video_abs_p50": 0.6599999999998545,
+        "video_abs_p99": 0.6599999999998545
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 4,
+            "center": 7.759999999999991,
+            "p50": 0.08000000000004093,
+            "p90": 0.1920000000000528,
+            "p99": 0.23520000000001343,
+            "max": 0.2400000000000091,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 4,
+            "center": 26,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 1.5999999999999943,
+      "cut_time": 40,
+      "jolt_detected_cut": false,
+      "accepted_gui_readings_on_both_sides": false,
+      "jolt_cut_brackets": [],
+      "video_new_flag_at_cut": false,
+      "fire_phase_shift_mod32": 1.1368683772161603e-13
+    },
+    {
+      "name": "clip3-cut1",
+      "kind": "cut",
+      "total_frames": 1324,
+      "readable_fraction": 1,
+      "observed_gui_anchors": 6,
+      "fire_visible_anchors": 6,
+      "section_count": 2,
+      "video_phase": {
+        "count": 6,
+        "center": 19.620000000000005,
+        "p50": 1.8299999999999699,
+        "p90": 1.9899999999999949,
+        "p99": 2.034999999999992,
+        "max": 2.039999999999992,
+        "over_two_ticks": 1
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 8,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 1,
+      "breaks": [
+        {
+          "from": 10.767,
+          "to": 13.901,
+          "since": 10.767,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 0.166
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            215
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            215
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 2,
+        "jolt_abs_p50": 0.16482801714460038,
+        "jolt_abs_p99": 0.1704430006285884,
+        "video_abs_p50": 0.3300000000001546,
+        "video_abs_p99": 0.3398000000001457
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 3,
+            "center": 21.44666666666666,
+            "p50": 0.10666666666668334,
+            "p90": 0.19200000000000728,
+            "p99": 0.21120000000000516,
+            "max": 0.21333333333333826,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 3,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 3,
+            "center": 17.79333333333335,
+            "p50": 0.11333333333334394,
+            "p90": 0.20399999999997365,
+            "p99": 0.2243999999999653,
+            "max": 0.22666666666663104,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 3,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.16599999999999682,
+      "cut_time": 13.867000000000004,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 10.767,
+          "to": 13.901,
+          "removed_estimate": 0.166
+        }
+      ],
+      "video_new_flag_at_cut": true,
+      "fire_phase_shift_mod32": 3.3199999999999363
+    },
+    {
+      "name": "clip3-cut2",
+      "kind": "cut",
+      "total_frames": 1294,
+      "readable_fraction": 1,
+      "observed_gui_anchors": 6,
+      "fire_visible_anchors": 6,
+      "section_count": 2,
+      "video_phase": {
+        "count": 6,
+        "center": 21.42,
+        "p50": 0.1600000000000108,
+        "p90": 13.760000000000005,
+        "p99": 13.76000000000003,
+        "max": 13.760000000000034,
+        "over_two_ticks": 2
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 8,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 1,
+      "breaks": [
+        {
+          "from": 14.067,
+          "to": 15.983,
+          "since": 14.067,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 0.684
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            215
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            215
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 2,
+        "jolt_abs_p50": 0.07954922108046958,
+        "jolt_abs_p99": 0.15750745773932975,
+        "video_abs_p50": 0.16000000000008185,
+        "video_abs_p99": 0.31680000000016206
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 4,
+            "center": 21.42,
+            "p50": 0.0800000000000125,
+            "p90": 0.19200000000000444,
+            "p99": 0.2351999999999958,
+            "max": 0.23999999999999488,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 4,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 2,
+            "center": 7.659999999999997,
+            "p50": 2.842170943040401e-14,
+            "p90": 2.842170943040401e-14,
+            "p99": 2.842170943040401e-14,
+            "max": 2.842170943040401e-14,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 2,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 0.6670000000000016,
+      "cut_time": 15.450000000000003,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 14.067,
+          "to": 15.983,
+          "removed_estimate": 0.684
+        }
+      ],
+      "video_new_flag_at_cut": true,
+      "fire_phase_shift_mod32": 13.340000000000032
+    },
+    {
+      "name": "clip3-cut3",
+      "kind": "cut",
+      "total_frames": 1238,
+      "readable_fraction": 1,
+      "observed_gui_anchors": 6,
+      "fire_visible_anchors": 6,
+      "section_count": 2,
+      "video_phase": {
+        "count": 6,
+        "center": 21.28,
+        "p50": 0.1700000000000017,
+        "p90": 0.3299999999999983,
+        "p99": 0.3749999999999958,
+        "max": 0.37999999999999545,
+        "over_two_ticks": 0
+      },
+      "jolt_phase": {
+        "count": 6,
+        "center": 8,
+        "p50": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_two_ticks": 0
+      },
+      "app_jolt_flags": 0,
+      "production_video_flags": 0,
+      "breaks": [
+        {
+          "from": 10.767,
+          "to": 12.467,
+          "since": 10.767,
+          "kind": "removed",
+          "game": 1,
+          "jump_seconds": 1.6
+        }
+      ],
+      "client_gui_offsets_by_section": [
+        {
+          "section": 0,
+          "offsets": [
+            215
+          ]
+        },
+        {
+          "section": 1,
+          "offsets": [
+            215
+          ]
+        }
+      ],
+      "held_out": {
+        "count": 2,
+        "jolt_abs_p50": 0.16482801714460038,
+        "jolt_abs_p99": 0.1704430006285884,
+        "video_abs_p50": 0.3300000000001546,
+        "video_abs_p99": 0.3398000000001457
+      },
+      "within_section": [
+        {
+          "section": 0,
+          "video_phase": {
+            "count": 3,
+            "center": 21.44666666666666,
+            "p50": 0.10666666666668334,
+            "p90": 0.19200000000000728,
+            "p99": 0.21120000000000516,
+            "max": 0.21333333333333826,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 3,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        },
+        {
+          "section": 1,
+          "video_phase": {
+            "count": 3,
+            "center": 21.11333333333333,
+            "p50": 0.11333333333332973,
+            "p90": 0.2040000000000049,
+            "p99": 0.22440000000000682,
+            "max": 0.22666666666667368,
+            "over_two_ticks": 0
+          },
+          "jolt_phase": {
+            "count": 3,
+            "center": 8,
+            "p50": 0,
+            "p90": 0,
+            "p99": 0,
+            "max": 0,
+            "over_two_ticks": 0
+          }
+        }
+      ],
+      "removed_seconds": 1.6000000000000085,
+      "cut_time": 11.599999999999994,
+      "jolt_detected_cut": true,
+      "accepted_gui_readings_on_both_sides": true,
+      "jolt_cut_brackets": [
+        {
+          "from": 10.767,
+          "to": 12.467,
+          "removed_estimate": 1.6
+        }
+      ],
+      "video_new_flag_at_cut": false,
+      "fire_phase_shift_mod32": 1.7053025658242404e-13
+    }
+  ]
+}
