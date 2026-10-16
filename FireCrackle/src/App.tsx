@@ -13,6 +13,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
 import { VideoPane, type VideoPreviewHandle } from "./components/VideoPane";
+import { VideoNotes } from "./components/VideoNotes";
 import { selectAtlasCell, atlasSprite, type PreviewSprite } from "./lib/firePreview";
 import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, spriteText, type CandidateDraft } from "./lib/labelCandidate";
 import { isFire } from "./lib/grid";
@@ -241,7 +242,7 @@ export default function App() {
         </nav>
         <div className="top-actions">
           <IconButton icon="folder" label={ws.opening ? "Opening video…" : "Open video"} onClick={() => void chooseVideo()} disabled={ws.opening} />
-          <button onClick={() => { setPlayback(STOPPED); setShowLink(true); }} disabled={ws.opening}>Open link</button>
+          <IconButton icon="link" label="Open link" title="Open a video from a URL" onClick={() => { setPlayback(STOPPED); setShowLink(true); }} disabled={ws.opening} />
           {view && (
             <div className={`video-top-actions${tab === "images" ? " inactive" : ""}`} inert={tab === "images"} aria-hidden={tab === "images"}>
               <IconButton icon="save" label="Save labels" onClick={() => void ws.save()} disabled={backend.mock || ws.opening} title="Save labels · Ctrl+S · autosave is also on" />
@@ -277,16 +278,7 @@ export default function App() {
       )}
       {tab !== "images" && view?.save_error && <div className="banner error">⚠ {view.save_error}</div>}
       {tab !== "images" && view && view.warnings.length > 0 && (
-        <details className="banner warn">
-          <summary>
-            {view.warnings.length} note{view.warnings.length > 1 ? "s" : ""} about this video
-          </summary>
-          <ul>
-            {view.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </details>
+        <VideoNotes key={JSON.stringify([ws.videoPath, view.warnings])} videoPath={ws.videoPath} warnings={view.warnings} />
       )}
 
       {tab === "images" ? null : !view || home ? (

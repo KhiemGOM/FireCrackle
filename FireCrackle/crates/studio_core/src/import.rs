@@ -3,22 +3,99 @@
 use crate::config::{IndexConfig, Settings};
 use crate::index::{build_index, parse_packets, FrameIndex, IndexError};
 use crate::project::{fingerprint, Project, VideoMeta};
-use std::ffi::OsString;
+use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
-/// Ubuntu 22.04's FFmpeg 4.4 predates `-fps_mode`; both spellings preserve every frame.
-pub const PASSTHROUGH_ARGS: [&str; 2] = if cfg!(target_os = "linux") {
-    ["-vsync", "0"]
-} else {
-    ["-fps_mode", "passthrough"]
-};
+/// Detect the installed tool, not the OS: old Linux packages predate `-fps_mode`,
+/// while newer FFmpeg builds have removed `-vsync`. Probe once per executable.
+fn modern_frame_sync(ffmpeg: &OsStr) -> bool {
+    static CACHE: OnceLock<Mutex<HashMap<OsString, bool>>> = OnceLock::new();
+    let mut cache = CACHE
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(&modern) = cache.get(ffmpeg) {
+        return modern;
+    }
+    let Ok(help) = crate::proc::hidden_command(ffmpeg)
+        .args(["-hide_banner", "-h", "full"])
+        .output()
+    else {
+        return true; // Let the actual operation report a missing/unusable executable.
+    };
+    if !help.status.success() {
+        return true;
+    }
+    let modern = supports_fps_mode(&String::from_utf8_lossy(&help.stdout))
+        || supports_fps_mode(&String::from_utf8_lossy(&help.stderr));
+    cache.insert(ffmpeg.to_os_string(), modern);
+    modern
+}
+
+fn supports_fps_mode(help: &str) -> bool {
+    help.lines().any(|line| {
+        line.split_whitespace().next().is_some_and(|option| {
+            option == "-fps_mode"
+                || option.starts_with("-fps_mode:")
+                || option.starts_with("-fps_mode[")
+        })
+    })
+}
+
+fn sync_args(modern: bool, variable: bool) -> [&'static str; 2] {
+    match (modern, variable) {
+        (true, false) => ["-fps_mode", "passthrough"],
+        (true, true) => ["-fps_mode", "vfr"],
+        (false, false) => ["-vsync", "0"],
+        (false, true) => ["-vsync", "2"],
+    }
+}
+
+/// Preserve every decoded frame, using the installed FFmpeg's supported option.
+pub fn passthrough_args(ffmpeg: &OsStr) -> [&'static str; 2] {
+    sync_args(modern_frame_sync(ffmpeg), false)
+}
 
 /// Preserve selected timestamps without duplicating frames after a selection filter.
-pub const VARIABLE_FRAME_RATE_ARGS: [&str; 2] = if cfg!(target_os = "linux") {
-    ["-vsync", "2"]
-} else {
-    ["-fps_mode", "vfr"]
-};
+pub fn variable_frame_rate_args(ffmpeg: &OsStr) -> [&'static str; 2] {
+    sync_args(modern_frame_sync(ffmpeg), true)
+}
+
+#[cfg(test)]
+mod frame_sync_tests {
+    use super::*;
+
+    #[test]
+    fn supports_legacy_and_modern_help_without_os_assumptions() {
+        for help in [
+            "-fps_mode mode set frame rate mode",
+            "  -fps_mode[:stream_specifier] mode",
+        ] {
+            assert!(supports_fps_mode(help));
+            assert_eq!(
+                sync_args(supports_fps_mode(help), false),
+                ["-fps_mode", "passthrough"]
+            );
+            assert_eq!(
+                sync_args(supports_fps_mode(help), true),
+                ["-fps_mode", "vfr"]
+            );
+        }
+        let old_help =
+            "-vsync sync_method video sync method\n-other description mentioning -fps_mode";
+        assert!(!supports_fps_mode(old_help));
+        assert_eq!(
+            sync_args(supports_fps_mode(old_help), false),
+            ["-vsync", "0"]
+        );
+        assert_eq!(
+            sync_args(supports_fps_mode(old_help), true),
+            ["-vsync", "2"]
+        );
+    }
+}
 
 /// Video tools shipped next to the app, with PATH fallback for development.
 #[derive(Clone, Debug)]

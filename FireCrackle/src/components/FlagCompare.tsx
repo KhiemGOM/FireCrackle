@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import fire1 from "../assets/fire_1.png";
 import type { Backend, Flag } from "../lib/api";
 import { relativePhase, type ChartPoint, type PhaseChart } from "../lib/chart";
@@ -6,16 +7,6 @@ import { compareFrames, describePoint, spriteRowOf } from "../lib/flagCompare";
 import { flagText, priorityHint } from "../lib/flagText";
 import { IconButton } from "./Icon";
 import "./FlagCompare.css";
-
-const OPEN_KEY = "firecrackle.flagCompare.open";
-
-function loadOpen(): boolean {
-  try {
-    return localStorage.getItem(OPEN_KEY) !== "0";
-  } catch {
-    return true; // storage blocked: just stay open
-  }
-}
 
 interface Props {
   backend: Backend;
@@ -75,26 +66,27 @@ function Side({ title, point, reference, fps, backend, onOpen }: { title: string
 
 /** Before and after a flag: the evidence frames on each side, each with the sprite it was matched to. */
 export function FlagCompare({ backend, chart, flag, fps, onOpen, onClose }: Props) {
-  const [open, setOpen] = useState(loadOpen);
-  const toggle = () =>
-    setOpen((o) => {
-      try {
-        localStorage.setItem(OPEN_KEY, o ? "0" : "1");
-      } catch {
-        /* not remembered */
-      }
-      return !o;
-    });
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
   const c = useMemo(() => compareFrames(chart.points, flag), [chart.points, flag]);
   const reference = chart.reference_phase ?? chart.runs[0]?.center ?? chart.points[0]?.phase ?? 0;
   const detail = chart.flag_details?.find((d) => d.frame === flag.frame && d.end_frame === flag.end_frame && d.kind === flag.kind);
   const text = flagText(flag.kind, detail?.explanation);
   const shift = c.before && c.after ? relativePhase(c.after.phase, c.before.phase) : null;
-  return (
-    <section className={`flag-compare${open ? "" : " collapsed"}`} aria-label="Flag comparison">
+  return createPortal(
+    <dialog ref={dialog} className="flag-compare flag-video-dialog" aria-label="Flag video comparison"
+      onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose();
+      }}>
       <div className="compare-head">
-        <button type="button" className="compare-toggle" aria-expanded={open} aria-controls="flag-compare-body" onClick={toggle} title={open ? "Collapse the comparison" : "Expand the comparison"}>
-          <span className="compare-chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <div className="compare-toggle">
           <span className="compare-heading">Compare around flag</span>
           <span className={`sev ${flag.severity}`} title={priorityHint(flag.severity)}>{flag.severity}</span>
           <b>{text.name}</b>
@@ -103,10 +95,9 @@ export function FlagCompare({ backend, chart, flag, fps, onOpen, onClose }: Prop
             {flag.end_frame > flag.frame ? `–${flag.end_frame}` : ""}
             {shift !== null ? ` · timing offset changes ${shift > 0 ? "+" : ""}${shift.toFixed(1)} ticks across it` : ""}
           </span>
-        </button>
-        <IconButton icon="reset" label="Close comparison" onClick={onClose} />
+        </div>
+        <button type="button" className="close-video" onClick={onClose} autoFocus aria-label="Close video comparison">× Close</button>
       </div>
-      {open && (
         <div id="flag-compare-body">
           <p className="dim compare-note">{text.hint} {priorityHint(flag.severity)} Frames shown are the nearest fire evidence on each side, not necessarily adjacent frames.</p>
           <div className="compare-grid">
@@ -115,7 +106,6 @@ export function FlagCompare({ backend, chart, flag, fps, onOpen, onClose }: Prop
             <Side title="After" point={c.after} reference={reference} fps={fps} backend={backend} onOpen={onOpen} />
           </div>
         </div>
-      )}
-    </section>
+    </dialog>, document.body
   );
 }

@@ -87,6 +87,9 @@ export interface Backend {
   flags(): Promise<Flag[]>;
   /** The phase series (at most `maxPoints` points), runs and flags for the Phase tab. */
   phaseChart(maxPoints: number,source?:"independent"|LabelSource): Promise<PhaseChart>;
+  joltRead?(videoPath:string): Promise<string|null>;
+  joltWrite?(videoPath:string,data:string): Promise<void>;
+  joltFrame?(videoPath:string,time:number): Promise<number>;
   /** Start (or find already made) the timeline thumbnails; they are generated in the background. */
   thumbsStart(): Promise<ThumbStatus>;
   thumbsStatus(): Promise<ThumbStatus>;
@@ -164,6 +167,9 @@ export async function createBackend(): Promise<Backend> {
     timeline: (start, end, buckets) => invoke<Bucket[]>("timeline", { start, end, buckets }),
     flags: () => invoke<Flag[]>("flags"),
     phaseChart: (maxPoints,source) => invoke<PhaseChart>("phase_chart", { maxPoints,source }),
+    joltRead: (videoPath) => invoke<string|null>("jolt_read",{videoPath}),
+    joltWrite: (videoPath,data) => invoke<void>("jolt_write",{videoPath,data}),
+    joltFrame: (videoPath,time) => invoke<number>("jolt_frame",{videoPath,time}),
     thumbsStart: () => invoke<ThumbStatus>("thumbs_start"),
     thumbsStatus: () => invoke<ThumbStatus>("thumbs_status"),
     thumbNearest: (frames) => invoke<Array<number | null>>("thumb_nearest", { frames }),

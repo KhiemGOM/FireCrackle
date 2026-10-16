@@ -3,3 +3,14 @@
 .timeline-controls .icon { width: 16px; height: 16px; }
 .timeline-controls span { color: var(--dim); }
 .phase-tab .chart { touch-action: none; }
+
+.ruler-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12px; }
+.ruler-bar input[type="range"] { width: 220px; vertical-align: middle; }
+.ruler-bar input[type="number"] { width: 70px; }
+.ruler-stats { color: var(--text); font-variant-numeric: tabular-nums; }
+.ruler-key { color: var(--dim); }
+.ruler-key i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: middle; }
+.ruler-key i.ok { background: #4cc38a; }
+.ruler-key i.warn { background: #f5c542; }
+.ruler-key i.bad { background: #ff4d4f; }
+.ruler-match { color: #4cc38a; }

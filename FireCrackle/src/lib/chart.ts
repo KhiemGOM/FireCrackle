@@ -13,6 +13,11 @@ const CIRCLE = 32;
 const HALF = CIRCLE / 2;
 
 export interface ChartPoint {
+  /** Original video timestamp when the display axis uses corrected elapsed time. */
+  video_pts?: number;
+  /** Observed canonical clock tick, present only at resolved Jolt anchors. */
+  clock_tick?: number;
+  clock_estimated?: boolean;
   frame: number;
   pts: number;
   /** The animation index, shared by both sheets. */
@@ -30,6 +35,11 @@ export interface ChartRun {
 }
 
 export interface PhaseChart {
+  corrected_time?: boolean;
+  clock_breaks?: { t0: number; t1: number }[];
+  /** Independent clock coverage, including intervals without visible fire. Never crosses a reported break. */
+  clock_segments?: { t0: number; t1: number; tick0: number; tick1: number }[];
+  reference_clock?: "video" | "jolt";
   label_sources?:Record<number,LabelSource[]>;
   points: ChartPoint[];
   runs: ChartRun[];

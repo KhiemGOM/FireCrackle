@@ -14,7 +14,16 @@ New-Item -ItemType Directory -Path $cache -Force | Out-Null
 if (!(Test-Path -LiteralPath $archive)) {
     Write-Host "Downloading pinned FFmpeg $($lock.version)..."
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $lock.url -OutFile "$archive.partial" -UseBasicParsing
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $lock.url -OutFile "$archive.partial" -UseBasicParsing
+            break
+        } catch {
+            if ($attempt -eq 3) { throw }
+            Write-Warning "Pinned FFmpeg download failed; retrying ($attempt/3)."
+            Start-Sleep -Seconds 5
+        }
+    }
     Move-Item -LiteralPath "$archive.partial" -Destination $archive -Force
 }
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $lock.sha256) {
