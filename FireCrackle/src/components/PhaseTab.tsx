@@ -78,12 +78,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [rulerOn, setRulerOn] = useState(false);
   const [rulerOffset, setRulerOffset] = useState(0);
   const [rulerMatch, setRulerMatch] = useState<{ offset: number; text: string } | null>(null);
-  const [viewMode,setViewMode]=useState<"phase"|"row"|"compare"|"flags">("phase");
+  const [viewMode,setViewMode]=useState<"phase"|"row"|"compare">("phase");
   const [fullscreen,setFullscreen]=useState(false);
   const [phaseRange,setPhaseRange]=useState<AxisRange|undefined>(undefined);
   const [rowRange,setRowRange]=useState<AxisRange|undefined>(undefined);
+  const [inspecting,setInspecting]=useState(false);
   function changeClock(next:JoltState) {
-    setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setRulerMatch(null);
+    setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null);
   }
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
   const highlighted = hoverFlag ? { first: hoverFlag.frame, last: hoverFlag.end_frame } : selectedRange;
@@ -163,6 +164,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   function focusRange(range: FrameRange, flag: Flag | null = null) {
     setViewMode("phase");
     setSelectedFlag(flag);
+    setInspecting(false);
     setSelectedRange(range);
     setHoverFlag(null);
     const first=timeOf(range.first),last=timeOf(range.last);
@@ -252,33 +254,35 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
 
   useEffect(()=>{
     if(!fullscreen)return;
-    const escape=(e:KeyboardEvent)=>{if(e.key==="Escape"){e.preventDefault();e.stopPropagation();setFullscreen(false);}};
+    const escape=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!inspecting){e.preventDefault();e.stopPropagation();setFullscreen(false);}};
     window.addEventListener("keydown",escape,true);
     return ()=>window.removeEventListener("keydown",escape,true);
-  },[fullscreen]);
+  },[fullscreen,inspecting]);
   const axisX=(range:AxisRange)=>setViewport(clampViewport({start:range[0]*fps,pxPerFrame:logicalWidth/((range[1]-range[0])*fps)},logicalWidth,total));
   const resetX=()=>setViewport(fitViewport(total,logicalWidth));
   return (
     <main className={`phase-tab phase-workspace ${fullscreen?"fullscreen":""}`}>
-      <div className="phase-topbar">
-        <div className="phase-view-tabs" role="tablist" aria-label="Phase views">
-          {([["phase","Timing"],["row","Sprites"],["compare","Compare"],["flags",`Flags ${chart?.flags.length??0}`]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
-        </div>
-        <span className="dim">{viewMode==="compare"?"Video time":jolt.clock==="jolt"?"Corrected time":"Video time"}</span>
-        <button onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen}>{fullscreen?"Exit fullscreen":"Fullscreen"}</button>
-      </div>
-      {error && <div className="banner error">{error}</div>}
-      <section className="chart-area">
-        <div hidden={viewMode!=="compare"}><ClockComparison chart={videoChart} state={jolt} embedded /></div>
-        <details className="phase-config"><summary>Clock & label source</summary>
+        <header className="phase-clockbar">
         <JoltPanel backend={backend} videoKey={videoKey} state={jolt} onChange={changeClock} matched={jolt.clock === "jolt" ? chart?.points.length ?? 0 : null} t0={t0} t1={t1} onFocus={(time,openVideo)=>{
           const locateFrame = backend.joltFrame && videoKey ? backend.joltFrame(videoKey,time) : Promise.resolve(nearestPoint(chart?.points ?? [],time)?.frame ?? Math.round(time*fps));
           void locateFrame.then(frame=>openVideo ? onJump(frame) : focusRange({first:frame,last:frame})).catch(e=>setError(messageOf(e)));
         }} />
-        <PhaseSourcePicker value={source} onChange={value=>{setSource(value);setChart(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);}} />
-        <p className="phase-help">Tool labels are not human reviewed unless both sources are recorded. Time guesses are excluded from independent evidence.</p>
-        </details>
-        <div hidden={viewMode==="compare"||viewMode==="flags"}>
+        <div className="phase-source-control"><PhaseSourcePicker value={source} onChange={value=>{setSource(value);setChart(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);}} /></div>
+        </header>
+      <div className="phase-layout">
+      <div className="phase-plots">
+      <div className="phase-topbar">
+        <div className="phase-view-tabs" role="tablist" aria-label="Phase views">
+          {([["phase","Timing"],["row","Sprites"],["compare","Compare"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
+        </div>
+        <span className="dim">{viewMode==="compare"?"Video time":jolt.clock==="jolt"?"Corrected time":"Video time"}</span>
+        <button className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
+      </div>
+      {error && <div className="banner error">{error}</div>}
+      <section className="chart-area">
+        <div hidden={viewMode!=="compare"}><ClockComparison chart={videoChart} state={jolt} embedded /></div>
+
+        <div hidden={viewMode==="compare"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>
           <span className="panel-title">{jolt.clock === "jolt" ? "Fire timing offset (corrected time)" : "Animation timing offset (ticks)"}</span>
           <span className="dim">
@@ -350,13 +354,20 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </ul>
           </details>
         )}
-        {chart && selectedFlag && chart.flags.some((f) => f.frame === selectedFlag.frame && f.kind === selectedFlag.kind) && (
-          <FlagCompare backend={backend} chart={chart} flag={selectedFlag} fps={fps} onOpen={onJump} onClose={() => setSelectedFlag(null)} />
-        )}
+
         </div>
       </section>
-      <div hidden={viewMode!=="flags"}><FlagsPanel flags={chart?.flags ?? []} details={chart?.flag_details} fps={fps} current={selectedRange?.first ?? view.current} onSeek={onJump}
-        onHover={setHoverFlag} onSelect={(flag,openVideo) => openVideo ? onJump(flag.frame) : focusRange({first:flag.frame,last:flag.end_frame}, flag)} /></div>
+      </div>
+      <aside className="phase-sidebar" aria-label="Phase flags sidebar">
+      <p className="dim sidebar-hint">Click to locate · Ctrl+click to open in Label</p>
+      <FlagsPanel flags={chart?.flags ?? []} details={chart?.flag_details} fps={fps} current={selectedRange?.first ?? view.current} onSeek={onJump}
+        onHover={setHoverFlag} onSelect={(flag,openVideo) => openVideo ? onJump(flag.frame) : focusRange({first:flag.frame,last:flag.end_frame}, flag)} />
+      {selectedFlag && <button className="inspect-video" onClick={()=>setInspecting(true)}>Inspect video around selected flag</button>}
+      </aside>
+      </div>
+        {chart && inspecting && selectedFlag && chart.flags.some((f) => f.frame === selectedFlag.frame && f.kind === selectedFlag.kind) && (
+          <FlagCompare backend={backend} chart={chart} flag={selectedFlag} fps={fps} onOpen={onJump} onClose={() => setInspecting(false)} />
+        )}
     </main>
   );
 }

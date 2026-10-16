@@ -1,13 +1,11 @@
 .phase-workspace { gap:12px; }
 .phase-workspace.fullscreen {position:fixed;inset:0;z-index:500;background:var(--bg);padding:14px;}
-.phase-workspace .phase-topbar {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:-12px;background:var(--bg);z-index:5;padding:8px 0;}
+.phase-workspace .phase-topbar {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--bg);z-index:5;padding:0 0 10px;flex-shrink:0;}
 .phase-view-tabs {display:flex;gap:5px;flex-wrap:wrap;}
 .phase-view-tabs [aria-selected=true] {border-color:var(--accent);color:var(--accent);background:#292014;}
 .phase-workspace .chart-area {flex:1;min-height:0;}
 .phase-workspace [hidden] {display:none!important;}
-.phase-workspace .phase-config {border:1px solid var(--line);border-radius:7px;padding:8px 12px;}
 .phase-workspace summary {cursor:pointer;color:var(--dim);font-size:12px;}
-.phase-workspace .phase-config[open] summary {margin-bottom:12px;}
 .phase-workspace .phase-help {font-size:12px;color:var(--dim);line-height:1.6;}
 .phase-workspace .ruler-bar {gap:10px;padding:6px 0;}
 .phase-workspace .ruler-match,.phase-workspace .ruler-stats,.phase-workspace .ruler-key {display:none;}
@@ -21,11 +19,41 @@
 .plot-axis-x {grid-column:2;grid-row:2;gap:12px;cursor:ew-resize;}
 .plot-axis-x span {opacity:.6;}
 .plot-axis-y:hover,.plot-axis-x:hover,.plot-axis-y:focus-visible,.plot-axis-x:focus-visible {background:var(--panel2);border-color:var(--blue);color:var(--text);outline:none;}
-.phase-workspace.fullscreen .plot-axes {height:calc(100dvh - 240px);}
 .phase-workspace .comparison-view .plot-axes {height:260px;}
-.phase-workspace.fullscreen .comparison-view.single .plot-axes {height:calc(100dvh - 230px);}
 .comparison-toolbar {display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;}
 .comparison-toolbar input[type=number] {width:80px;}
 .phase-workspace .jolt-panel {margin:0;padding:8px;}
 .phase-workspace .jolt-panel p {font-size:11px;}
+.phase-clockbar {background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:8px 12px;flex-shrink:0;}
+.phase-clockbar .jolt-panel {flex:1;min-width:0;border:0;padding:0;background:transparent;}
+.phase-clockbar .jolt-panel p {margin:5px 0;}
+.phase-source-control {align-self:flex-start;}
+.phase-source-control p {display:none;}
+.phase-layout {display:grid;grid-template-columns:minmax(0,1fr) clamp(250px,23vw,320px);gap:12px;flex:1;min-height:0;}
+.phase-plots {min-width:0;overflow:auto;display:flex;flex-direction:column;}
+.phase-sidebar {border-left:1px solid var(--line);padding-left:12px;display:flex;flex-direction:column;min-height:0;gap:10px;}
+.phase-sidebar .flags {flex:1;min-height:0;overflow:hidden;border:0;padding:0;background:transparent;}
+.phase-sidebar .flags .panel-title {padding:0 0 10px;order:-2;}
+.phase-sidebar .sidebar-hint {font-size:11px;margin:0;order:1;}
+.phase-sidebar .flags li button {min-width:0;grid-template-columns:44px minmax(0,1fr);gap:5px 8px;padding:10px;margin:0 0 6px;border-radius:7px;}
+.phase-sidebar .flags .kind {overflow:hidden;text-overflow:ellipsis;}
+.phase-sidebar .flags .where {grid-column:1 / -1;font-size:11px;}
+.phase-sidebar .flags .delta {grid-column:1 / -1;font-size:11px;}
+.phase-sidebar .inspect-video {width:100%;}
+.phase-workspace .chart-area {overflow:visible;}
+.phase-workspace .plot-axes {height:max(280px,calc(100dvh - 430px));}
+.phase-workspace.fullscreen .plot-axes {height:calc(100dvh - 290px);}
+.phase-workspace.fullscreen .comparison-view.single .plot-axes {height:calc(100dvh - 300px);}
+.flag-video-dialog {color:var(--text);width:min(1250px,92vw);max-height:88dvh;overflow:auto;padding:18px;border:1px solid var(--line);box-shadow:0 24px 100px #000a;}
+.flag-video-dialog::backdrop {background:#070a10ba;backdrop-filter:blur(3px);}
+.flag-video-dialog .compare-toggle {padding:0;flex-wrap:wrap;}
+.flag-video-dialog .compare-head {position:sticky;top:-18px;padding:10px 0;background:var(--panel);z-index:1;}
+.flag-video-dialog .close-video {flex-shrink:0;}
+.phase-clockbar .jolt-panel {display:flex;flex-direction:row;align-items:center;gap:8px 16px;flex-wrap:wrap;}
+.phase-clockbar .jolt-controls {gap:6px;}
+.phase-clockbar .jolt-sessions {margin:0;}
+.phase-clockbar .jolt-report-details {font-size:11px;}
+.phase-clockbar .jolt-report-details[open] {flex-basis:100%;}
+@media(max-width:900px){.phase-layout{grid-template-columns:minmax(0,1fr) 260px;}.phase-sidebar{padding-left:8px;}.phase-source-control{width:100%;}}
+@media(max-width:600px){.phase-layout{grid-template-columns:minmax(0,1fr) 200px;gap:6px;}.phase-sidebar .flags li button{padding:6px;}.phase-sidebar .flags .where{overflow:hidden;text-overflow:ellipsis;}.flag-video-dialog .compare-grid{grid-auto-flow:row;}}
 @media(max-width:650px){.plot-axes {height:340px;}.phase-workspace.fullscreen .plot-axes {height:calc(100dvh - 290px);}.phase-workspace .timeline-controls span{font-size:11px;}.plot-axis-x span{display:none;}}

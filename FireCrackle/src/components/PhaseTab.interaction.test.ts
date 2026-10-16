@@ -11,6 +11,7 @@ vi.mock("react",async original=>({...await original<typeof import("react")>(),
 vi.mock("../hooks/useWheel",()=>({useWheel:()=>{}}));
 import { PhaseTab } from "./PhaseTab";
 import { FlagsPanel } from "./FlagsPanel";
+import { FlagCompare } from "./FlagCompare";
 type Element=ReactElement<Record<string,any>>;
 const flag:Flag={frame:800,end_frame:820,severity:"hard",kind:"phase_shift",phase_delta:5};
 const jump=vi.fn();
@@ -23,6 +24,19 @@ function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTa
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
 beforeEach(()=>{jump.mockClear();hooks.refs=[];hooks.values=[{points:[{frame:800,pts:800/60,phase:0,step:1}],runs:[],flags:[flag],tick_rate:20,window_ticks:1},null,null,null,null,{version:1,data:null,clock:"video",session:""},{start:0,pxPerFrame:5}];});
 afterEach(()=>vi.unstubAllGlobals());
+
+it("keeps flag selection in the chart and opens and closes video inspection separately",()=>{
+  let root=render();flags(root).props.onSelect(flag,false);root=render();
+  expect(all(root,e=>e.type===FlagCompare)).toHaveLength(0);
+  all(root,e=>e.props.className==="inspect-video")[0].props.onClick();root=render();
+  const popup=all(root,e=>e.type===FlagCompare)[0];
+  expect(popup.props.flag).toEqual(flag);
+  const viewport=hooks.values[6];popup.props.onClose();root=render();
+  expect(all(root,e=>e.type===FlagCompare)).toHaveLength(0);
+  expect(hooks.values[6]).toBe(viewport);
+  expect(flags(root).props.current).toBe(800);
+  expect(jump).not.toHaveBeenCalled();
+});
 
 it("draws a visible highlight on both canvases for the hovered flag",()=>{
   hooks.values[3]=flag;

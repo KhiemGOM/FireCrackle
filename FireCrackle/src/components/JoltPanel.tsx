@@ -44,17 +44,17 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
       </div>
       <button disabled={pending||!videoKey} onClick={()=>input.current?.click()}>Import Jolt report…</button>
       <input ref={input} type="file" accept=".json,.html,.htm" hidden aria-label="Jolt report file" onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void importFile(file);}}/>
-      {state.data&&<button disabled={pending} onClick={()=>void update({...EMPTY_JOLT})}>Remove Jolt data</button>}
       {pending&&<span role="status">Loading / saving Jolt data…</span>}
     </div>
     {error&&<p role="alert">{error}</p>}
     {!state.data?<p className="dim">Optional: import Splosh JoltCracker’s JSON export or HTML report for this same video. Fire labels stay unchanged.</p>:<>
       <div className="jolt-sessions" role="group" aria-label="Jolt game and screen">{sessions.map(([key,a])=><button key={key} disabled={pending} className={key===state.session?"on":""} aria-pressed={key===state.session} onClick={()=>void update({...state,session:key})}>Game {a.game} · screen {a.screen}</button>)}</div>
-      <p>{state.data.name} · {anchors.length.toLocaleString()} resolved anchors · {sections} continuous sections{matched===null?"":` · ${matched.toLocaleString()} fire labels with a clock value`}{state.data.unresolved?` · ${state.data.unresolved} unresolved/conflicting entries excluded`:""}</p>
-      {state.data.source&&<p className="dim">Report video: {state.data.source}</p>}
-      <details className="phase-help"><summary>Clock coverage and credits</summary>
+      <details className="phase-help jolt-report-details"><summary>{anchors.length.toLocaleString()} anchors · {sections} sections · report details</summary>
+        <p>{state.data.name}{matched===null?"":` · ${matched.toLocaleString()} fire labels with a clock value`}{state.data.unresolved?` · ${state.data.unresolved} unresolved/conflicting entries excluded`:""}</p>
+        {state.data.source&&<p className="dim">Report video: {state.data.source}</p>}
         <p>Clock ticks are estimated between readings within each continuous section. No estimate crosses a reported break or extends beyond the outer readings.</p>
         <p>Imported from <a href="https://splosh.icu/jolt" target="_blank" rel="noreferrer">Splosh JoltCracker</a> · jolt cracking by Dart and repeater64. Saved with this video project.</p>
+        <button disabled={pending} onClick={()=>void update({...EMPTY_JOLT})}>Remove Jolt data</button>
       </details>
     </>}
   </section>;
