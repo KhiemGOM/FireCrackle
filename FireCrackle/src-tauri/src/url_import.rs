@@ -39,6 +39,20 @@ fn validate_url(url: &str) -> Result<String, String> {
     }
     Ok(parsed.to_string())
 }
+/// canonicalize() gives verbatim \\?\ paths on Windows; Python/FFmpeg handle the ordinary form more reliably.
+fn plain_path(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    path
+}
 impl Jobs {
     pub fn status(&self) -> Result<Option<Status>, String> {
         Ok(self
@@ -65,19 +79,30 @@ impl Jobs {
         }
         Ok(())
     }
+    /// The hidden yt-dlp child would outlive the app, so cancel it on exit and give the worker time to kill it.
+    pub fn shutdown(&self) {
+        let running = |s: &Status| s.state == "running";
+        let Some(id) = self.status().ok().flatten().filter(running).map(|s| s.id) else {
+            return;
+        };
+        let _ = self.cancel(id);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < deadline
+            && self
+                .status()
+                .ok()
+                .flatten()
+                .is_some_and(|s| s.id == id && running(&s))
+        {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
     pub fn start(&self, url: String, folder: PathBuf) -> Result<Status, String> {
         let url = validate_url(&url)?;
         let folder = folder
             .canonicalize()
             .map_err(|_| "Choose an existing download folder")?;
-        // Python/FFmpeg normalize ordinary Windows paths more reliably than verbatim \\?\ paths.
-        #[cfg(windows)]
-        let folder = PathBuf::from(
-            folder
-                .to_string_lossy()
-                .strip_prefix(r"\\?\")
-                .unwrap_or(&folder.to_string_lossy()),
-        );
+        let folder = plain_path(folder);
         if !folder.is_dir() {
             return Err("Choose an existing download folder".into());
         }
@@ -269,7 +294,8 @@ impl Jobs {
             if !actual.starts_with(&owned) || !actual.is_file() {
                 return Err("Downloader returned an unexpected file path".into());
             }
-            Ok(actual)
+            // Projects are keyed by path, so return the spelling the file picker would give.
+            Ok(plain_path(actual))
         })();
         if result.is_err() {
             // Only remove the directory this job just created inside the chosen folder.
@@ -310,5 +336,45 @@ mod tests {
             .is_err()
         );
         assert!(jobs.status().unwrap().is_none());
+    }
+    #[test]
+    fn shutdown_cancels_a_running_download_and_waits_for_it() {
+        let jobs = Jobs::default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let running = Status {
+            id: 9,
+            state: "running".into(),
+            message: String::new(),
+            path: None,
+            error: None,
+        };
+        *jobs.inner.lock().unwrap() = Some((running, cancel.clone()));
+        let worker = jobs.clone();
+        std::thread::spawn(move || {
+            while !cancel.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+            worker.inner.lock().unwrap().as_mut().unwrap().0.state = "cancelled".into();
+        });
+        jobs.shutdown();
+        assert_eq!(jobs.status().unwrap().unwrap().state, "cancelled");
+        Jobs::default().shutdown();
+    }
+    #[cfg(windows)]
+    #[test]
+    fn verbatim_prefixes_are_removed_without_breaking_network_paths() {
+        assert_eq!(
+            plain_path(PathBuf::from(r"\\?\C:\videos\a.mkv")),
+            PathBuf::from(r"C:\videos\a.mkv")
+        );
+        assert_eq!(
+            plain_path(PathBuf::from(r"\\?\UNC\server\share\a.mkv")),
+            PathBuf::from(r"\\server\share\a.mkv")
+        );
+        assert_eq!(
+            plain_path(PathBuf::from(r"D:\videos")),
+            PathBuf::from(r"D:\videos")
+        );
     }
 }

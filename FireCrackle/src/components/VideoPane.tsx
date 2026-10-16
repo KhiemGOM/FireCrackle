@@ -36,7 +36,7 @@ export function describeLabel(label: Label): string {
   if (label === "no_fire") return "no fire";
   if (label === "skip") return "skipped";
   const { sheet, row, mirrored } = label.fire;
-  return `sheet ${sheet} · row ${row} · ${mirrored ? "mirrored" : "normal"}`;
+  return `row ${row} · sheet ${sheet} · ${mirrored ? "mirrored" : "normal"}`;
 }
 
 function labelClass(label: Label): string {

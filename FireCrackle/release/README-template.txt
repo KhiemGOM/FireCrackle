@@ -17,7 +17,7 @@ Quick keys: Left/Right = video frames; Up/Down = animation phases;
 R = flip; T = switch sheet; E = preview opacity; Enter = confirm candidate;
 Ctrl+S = save. Use the keyboard icon for the full list.
 
-This is an unsigned 0.1.0 test build; Windows may show an unrecognized-app warning.
+This is an unsigned {{VERSION}} test build; Windows may show an unrecognized-app warning.
 When reporting a bug, include the version, reproduction steps and a screenshot.
 Share a short video/label export only if you want others to see that content.
 

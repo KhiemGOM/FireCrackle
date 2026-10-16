@@ -1,4 +1,4 @@
-import type { ProjectEntry } from "../lib/projects";
+import { projectKey, type ProjectEntry } from "../lib/projects";
 import { Icon, IconButton } from "./Icon";
 import "./ProjectsHome.css";
 
@@ -43,7 +43,7 @@ export function ProjectsHome({ projects, current, opening, mock, path, onPath, o
       ) : (
         <ul className="projects-list" aria-label="Projects">
           {projects.map((p) => {
-            const isCurrent = p.videoPath === current;
+            const isCurrent = !!current && projectKey(p.videoPath) === projectKey(current);
             const share = p.frameCount > 0 ? Math.min(1, p.labelled / p.frameCount) : 0;
             return (
               <li key={p.videoPath} className={`project-card${isCurrent ? " current" : ""}`}>

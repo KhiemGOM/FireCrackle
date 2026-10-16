@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiAction } from "../lib/actions";
 import type { Backend, Flag, SettingInfo, View } from "../lib/api";
-import { openSession, readSession, writeSession } from "../lib/sessionRestore";
-import { readProjects, recordProject, removeProject, seedFromSession, writeProjects, type ProjectEntry } from "../lib/projects";
+import { openSession, readSession, SESSION_STORAGE_KEY, writeSession } from "../lib/sessionRestore";
+import {
+  PROJECTS_STORAGE_KEY, projectKey, readProjects, recordProject, removeProject, savedFrame, seedFromSession, writeProjects,
+  type ProjectEntry,
+} from "../lib/projects";
 
 /** Actions that change labels: after them the timeline lanes and the flag list must be refreshed. */
 const MUTATING = new Set<UiAction["type"]>([
@@ -32,7 +35,9 @@ export function messageOf(e: unknown): string {
 /** The saved project list; the old single "last video" becomes the first project once. */
 function loadProjects(): ProjectEntry[] {
   try {
-    return seedFromSession(readProjects(localStorage), readSession(localStorage), Date.now());
+    // An empty stored list means every project was forgotten, so only seed when no list was ever written.
+    if (localStorage.getItem(PROJECTS_STORAGE_KEY) !== null) return readProjects(localStorage);
+    return seedFromSession([], readSession(localStorage), Date.now());
   } catch {
     return [];
   }
@@ -58,7 +63,7 @@ export interface WorkspaceState {
   applyAutomation: (id:number) => Promise<void>;
   /** True while an action is in flight (playback skips ticks instead of queueing them). */
   busy: React.MutableRefObject<boolean>;
-  /** True when the video opened. */
+  /** True when the video opened. Without a frame, a known project resumes where it was left. */
   open: (path: string, frame?: number) => Promise<boolean>;
   act: (a: UiAction) => Promise<void>;
   setSetting: (key: string, value: number) => Promise<string | null>;
@@ -109,6 +114,8 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
     try {
       const next = removeProject(projectsRef.current, path);
       writeProjects(localStorage, next);
+      const session = readSession(localStorage);
+      if (session && projectKey(session.videoPath) === projectKey(path)) localStorage.removeItem(SESSION_STORAGE_KEY);
       projectsRef.current = next;
       setProjects(next);
     } catch (e) {
@@ -117,7 +124,7 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
   }, []);
 
   const open = useCallback(
-    async (path: string, frame = 0): Promise<boolean> => {
+    async (path: string, frame?: number): Promise<boolean> => {
       if (!backend) return false;
       if (busy.current) return false;
       busy.current = true;
@@ -127,7 +134,7 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
           const previous = await backend.act({ type: "flushTyped" });
           if (previous.save_error) throw new Error(previous.save_error);
         }
-        const v = await openSession(backend, { videoPath: path, frame });
+        const v = await openSession(backend, { videoPath: path, frame: frame ?? savedFrame(projectsRef.current, path) });
         videoPath.current = path;
         setView(v);
         setError(null);
@@ -155,8 +162,8 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
       try {
         const launchPath = await backend.startupVideo?.();
         const remembered = readSession(localStorage);
-        const saved = launchPath && launchPath !== remembered?.videoPath ? { videoPath: launchPath, frame: 0 } : remembered;
-        if (saved) await open(saved.videoPath, saved.frame);
+        if (launchPath) await open(launchPath);
+        else if (remembered) await open(remembered.videoPath, remembered.frame);
       } catch (e) {
         setError(`Could not restore the last session: ${messageOf(e)}. You can open a video manually.`);
       } finally {

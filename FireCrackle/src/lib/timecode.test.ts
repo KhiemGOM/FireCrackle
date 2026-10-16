@@ -27,9 +27,14 @@ describe("formatTimecode", () => {
     expect(formatTimecode(360000, 60)).toBe("100:00:00|00");
   });
 
-  it("uses the nearest whole frame rate for fractional rates (59.94 -> 60, 29.97 -> 30)", () => {
+  it("rounds fractional rates up to a whole frame rate (59.94 -> 60, 29.97 -> 30)", () => {
     expect(formatTimecode(1 + 59 / 60, 59.94)).toBe("00:00:01|59");
     expect(formatTimecode(1 + 29 / 30, 29.97)).toBe("00:00:01|29");
+  });
+
+  it("keeps neighbouring frames apart when the average rate is below the capture rate", () => {
+    expect(formatTimecode(30 / 60, 59.4)).not.toBe(formatTimecode(31 / 60, 59.4));
+    expect(formatTimecode(15 / 30, 30.4)).not.toBe(formatTimecode(16 / 30, 30.4));
   });
 
   it("never prints a negative or non-numeric time", () => {
