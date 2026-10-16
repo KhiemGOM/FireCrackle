@@ -242,7 +242,7 @@ export default function App() {
         </nav>
         <div className="top-actions">
           <IconButton icon="folder" label={ws.opening ? "Opening video…" : "Open video"} onClick={() => void chooseVideo()} disabled={ws.opening} />
-          <button onClick={() => { setPlayback(STOPPED); setShowLink(true); }} disabled={ws.opening}>Open link</button>
+          <IconButton icon="link" label="Open link" title="Open a video from a URL" onClick={() => { setPlayback(STOPPED); setShowLink(true); }} disabled={ws.opening} />
           {view && (
             <div className={`video-top-actions${tab === "images" ? " inactive" : ""}`} inert={tab === "images"} aria-hidden={tab === "images"}>
               <IconButton icon="save" label="Save labels" onClick={() => void ws.save()} disabled={backend.mock || ws.opening} title="Save labels · Ctrl+S · autosave is also on" />

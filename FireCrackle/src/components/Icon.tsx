@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 const shapes = {
   filter: <path d="M3 4h18l-7 8v7l-4 2v-9Z" />,
+  link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
   folder: <><path d="M3 7V5h6l2 2h10v12H3Z" /><path d="M3 11h18" /></>,
   home: <><path d="m3 11 9-8 9 8M5 10v11h14V10M10 21v-6h4v6" /></>,
   save: <><path d="M4 3h13l3 3v15H4Z" /><path d="M8 3v6h8V3M8 21v-8h8v8" /></>,
