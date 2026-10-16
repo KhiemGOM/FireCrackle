@@ -1,5 +1,5 @@
 //! Read-only benchmark adapter: run the shipped video-time checker on exactly the scored Jolt frames.
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use studio_core::{config::Settings, label::Label, phase::FrameObs, phase_v2};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
