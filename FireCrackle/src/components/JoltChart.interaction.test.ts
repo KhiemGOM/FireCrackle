@@ -5,7 +5,7 @@ import {JoltChart} from './JoltChart';
 import {ComparisonPlot} from './ComparisonPlot';
 import {EMPTY_JOLT,type JoltState} from '../lib/jolt';
 function all(node:any,type:any):any[]{if(Array.isArray(node))return node.flatMap(n=>all(n,type));if(!node||typeof node!=='object'||!node.props)return [];return [...(node.type===type?[node]:[]),...all(node.props.children,type)];}
-function render(state:JoltState){hooks.cursor=0;return JoltChart({state});}
+function render(state:JoltState,onOpenTime?:(time:number)=>void){hooks.cursor=0;return JoltChart({state,onOpenTime});}
 beforeEach(()=>{hooks.values=[];});
 it('never fabricates a GUI timeline when Jolt is absent',()=>{expect(all(render(EMPTY_JOLT),ComparisonPlot)).toHaveLength(0);});
 it('draws only recovered ticks, preserves clock breaks and allows two-axis pan',()=>{
@@ -27,4 +27,12 @@ it('draws only recovered ticks, preserves clock breaks and allows two-axis pan',
  expect(all(render(state),ComparisonPlot)[0].props.lo).toBe(0);
  expect(all(render(state),ComparisonPlot)[0].props.bottom).toBe(90);
  expect(all(render(state),ComparisonPlot)[1].props.bottom).toBe(-2);
+});
+
+it('passes the Label navigation callback to both Jolt + Fire plots',()=>{
+ const onOpenTime=vi.fn();
+ const state:JoltState={version:1,clock:'jolt',session:'["1","1"]',data:{name:'test',source:'',version:'1',unresolved:0,anchors:[{time:0,tick:100,game:'1',screen:'1'}]}};
+ const plots=all(render(state,onOpenTime),ComparisonPlot);
+ for(const plot of plots){expect(plot.props.onOpenTime).toBe(onOpenTime);plot.props.onOpenTime(396.025);}
+ expect(onOpenTime).toHaveBeenCalledTimes(2);
 });

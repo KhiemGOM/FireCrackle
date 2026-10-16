@@ -201,3 +201,12 @@ it("can drag horizontally even when the entire recording is already visible",()=
   canvas.props.onPointerDown(event(100));canvas.props.onPointerMove(event(200));
   expect(hooks.values[6]).toEqual({start:-100,pxPerFrame:1});
 });
+
+it('opens the clicked video time from Jolt + Fire even with canonical X selected',async()=>{
+ hooks.values[5]={version:1,clock:'jolt',session:'["1","1"]',data:null};
+ hooks.values[13]='jolt';
+ const root=render();
+ const jolt=all(root,e=>typeof e.type==='function'&&e.props.focusRange!==undefined)[0];
+ jolt.props.onOpenTime(8.5);await Promise.resolve();
+ expect(jump).toHaveBeenCalledExactlyOnceWith(510);
+});
