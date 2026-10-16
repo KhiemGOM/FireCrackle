@@ -13,6 +13,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
 import { VideoPane, type VideoPreviewHandle } from "./components/VideoPane";
+import { VideoNotes } from "./components/VideoNotes";
 import { selectAtlasCell, atlasSprite, type PreviewSprite } from "./lib/firePreview";
 import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, spriteText, type CandidateDraft } from "./lib/labelCandidate";
 import { isFire } from "./lib/grid";
@@ -277,16 +278,7 @@ export default function App() {
       )}
       {tab !== "images" && view?.save_error && <div className="banner error">⚠ {view.save_error}</div>}
       {tab !== "images" && view && view.warnings.length > 0 && (
-        <details className="banner warn">
-          <summary>
-            {view.warnings.length} note{view.warnings.length > 1 ? "s" : ""} about this video
-          </summary>
-          <ul>
-            {view.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </details>
+        <VideoNotes key={JSON.stringify([ws.videoPath, view.warnings])} videoPath={ws.videoPath} warnings={view.warnings} />
       )}
 
       {tab === "images" ? null : !view || home ? (
