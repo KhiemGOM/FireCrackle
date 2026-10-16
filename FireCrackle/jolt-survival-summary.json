@@ -1,0 +1,698 @@
+{
+  "meta": {
+    "video": "2026-10-16 18-23-42.mkv",
+    "video_sha256": "69159829c28019affc47e35b923bca34ad9841ce96600a8dbe7511e6e545f90a",
+    "joined_sha256": "801c753dcfde61b09778eef3d8cfa55e340a7a967d6bf6090c6d5d6ce9184c9c",
+    "frames": 82686,
+    "duration": 1378.133,
+    "tick_mismatches": 0,
+    "fire_frames": 37834,
+    "truth_phase_histogram": {
+      "30": 82686
+    },
+    "capture_holds": [
+      {
+        "first_frame": 51895,
+        "last_frame": 52094,
+        "start": 864.917,
+        "end": 868.233,
+        "seconds": 3.3159999999999172,
+        "client_ticks_before": 23917,
+        "client_tick_jump_after": 0,
+        "fire_frames": 200
+      },
+      {
+        "first_frame": 81712,
+        "last_frame": 81822,
+        "start": 1361.867,
+        "end": 1363.7,
+        "seconds": 1.8330000000000837,
+        "client_ticks_before": 33799,
+        "client_tick_jump_after": 0,
+        "fire_frames": 0
+      },
+      {
+        "first_frame": 0,
+        "last_frame": 36,
+        "start": 0,
+        "end": 0.6,
+        "seconds": 0.6,
+        "client_ticks_before": 6605,
+        "client_tick_jump_after": 25,
+        "fire_frames": 0
+      }
+    ],
+    "nominal_tick_drift": -75.65999999999985
+  },
+  "scanner": {
+    "version": "2.3",
+    "readable_fraction": 0.9831,
+    "resolved_anchors": 575,
+    "sections": [
+      {
+        "readings": 302,
+        "first": 2.467,
+        "last": 863.9
+      },
+      {
+        "readings": 273,
+        "first": 869.35,
+        "last": 1358.133
+      }
+    ],
+    "breaks": [
+      {
+        "from": 863.9,
+        "to": 869.35,
+        "since": 863.9,
+        "kind": "stalled",
+        "game": 1,
+        "jump_seconds": -2.85
+      }
+    ],
+    "client_minus_gui_offsets": [
+      445
+    ],
+    "exact_observed_phase_values": [
+      1
+    ],
+    "unique_timestamps": 571,
+    "unresolved_readings": 12
+  },
+  "coverage": {
+    "fire_frames": 37834,
+    "paired_fire_frames": 36846,
+    "paired_fraction": 0.9738859227150183,
+    "observed_fire_anchors": 267,
+    "uncovered_fire_frames": 988
+  },
+  "phase": {
+    "video_full": {
+      "center": 3.466468671392633,
+      "count": 37834,
+      "median": 0.19353132860744893,
+      "p90": 0.8735313286075126,
+      "p99": 11.806468671392778,
+      "max": 15.873531328607513,
+      "over_one": 3659,
+      "over_two": 2929
+    },
+    "video_paired": {
+      "center": 3.466046071858358,
+      "count": 36846,
+      "median": 0.1939539281414966,
+      "p90": 0.8739539281417876,
+      "p99": 7.313046071860919,
+      "max": 7.806046071862141,
+      "over_one": 2724,
+      "over_two": 2010
+    },
+    "jolt_paired": {
+      "center": 1.3374257030738903,
+      "count": 36846,
+      "median": 0.3225742969259642,
+      "p90": 0.6774257030740358,
+      "p99": 1.3160347472192588,
+      "max": 4.754513519177422,
+      "over_one": 1176,
+      "over_two": 48
+    },
+    "current_jolt_ui_flagged_frames": 49
+  },
+  "unwrapped_clock_error": {
+    "video_paired": {
+      "count": 36846,
+      "median": 0.31999999999970896,
+      "p90": 1,
+      "p99": 57.659999999999854,
+      "max": 59.65999999999622,
+      "over_one": 2724,
+      "over_two": 2010
+    },
+    "jolt_paired": {
+      "count": 36846,
+      "median": 0.3400000000001455,
+      "p90": 0.9539295392942222,
+      "p99": 1.6064970800212068,
+      "max": 5.0919392222513125,
+      "over_one": 1765,
+      "over_two": 95
+    }
+  },
+  "held_out_clock_error": {
+    "jolt": {
+      "count": 567,
+      "median": 0.1379310344818805,
+      "p90": 0.48834484530598277,
+      "p99": 0.9078470199288902,
+      "max": 1.3400000000001455,
+      "over_one": 2,
+      "over_two": 0
+    },
+    "video": {
+      "count": 567,
+      "median": 0,
+      "p90": 0.3400000000016007,
+      "p99": 1,
+      "max": 1.680000000000291,
+      "over_one": 5,
+      "over_two": 0
+    }
+  },
+  "holds": [
+    {
+      "first_frame": 51895,
+      "last_frame": 52094,
+      "start": 864.917,
+      "end": 868.233,
+      "seconds": 3.3159999999999172,
+      "client_ticks_before": 23917,
+      "client_tick_jump_after": 0,
+      "fire_frames": 200,
+      "paired_fire_during_hold": 0,
+      "bracket": {
+        "before": {
+          "time": 863.9,
+          "tick": 23452,
+          "frame": 51834,
+          "fire": true,
+          "offset": 445,
+          "phase": 1
+        },
+        "after": {
+          "time": 869.35,
+          "tick": 23504,
+          "frame": 52161,
+          "fire": false,
+          "offset": 445,
+          "phase": 1
+        },
+        "gui_ticks": 52,
+        "client_ticks": 52,
+        "nominal_video_ticks": 109.00000000000091,
+        "phase_delta": 0
+      },
+      "first_paired_fire_after": {
+        "frame": 52798,
+        "time": 879.967,
+        "gui_phase": 1.6495987772250373
+      },
+      "first_observed_fire_after": {
+        "time": 884.967,
+        "tick": 23816,
+        "frame": 53098,
+        "fire": true,
+        "offset": 445,
+        "phase": 1
+      },
+      "pre_phase": {
+        "center": 1.3682566927455824,
+        "count": 436,
+        "median": 0.36501753019183525,
+        "p90": 0.8270343873846286,
+        "p99": 1.324020838791783,
+        "max": 1.9692816638852477,
+        "over_one": 19,
+        "over_two": 0
+      },
+      "post_phase": {
+        "center": 0,
+        "count": 0,
+        "median": null,
+        "p90": null,
+        "p99": null,
+        "max": null,
+        "over_one": 0,
+        "over_two": 0
+      }
+    },
+    {
+      "first_frame": 81712,
+      "last_frame": 81822,
+      "start": 1361.867,
+      "end": 1363.7,
+      "seconds": 1.8330000000000837,
+      "client_ticks_before": 33799,
+      "client_tick_jump_after": 0,
+      "fire_frames": 0,
+      "paired_fire_during_hold": 0,
+      "bracket": null,
+      "first_paired_fire_after": null,
+      "first_observed_fire_after": null,
+      "pre_phase": {
+        "center": 1.3181555083938292,
+        "count": 1,
+        "median": 0,
+        "p90": 0,
+        "p99": 0,
+        "max": 0,
+        "over_one": 0,
+        "over_two": 0
+      },
+      "post_phase": {
+        "center": 0,
+        "count": 0,
+        "median": null,
+        "p90": null,
+        "p99": null,
+        "max": null,
+        "over_one": 0,
+        "over_two": 0
+      }
+    },
+    {
+      "first_frame": 0,
+      "last_frame": 36,
+      "start": 0,
+      "end": 0.6,
+      "seconds": 0.6,
+      "client_ticks_before": 6605,
+      "client_tick_jump_after": 25,
+      "fire_frames": 0,
+      "paired_fire_during_hold": 0,
+      "bracket": null,
+      "first_paired_fire_after": {
+        "frame": 149,
+        "time": 2.483,
+        "gui_phase": 1.319999999999709
+      },
+      "first_observed_fire_after": {
+        "time": 167.1,
+        "tick": 9516,
+        "frame": 10026,
+        "fire": true,
+        "offset": 445,
+        "phase": 1
+      },
+      "pre_phase": {
+        "center": 0,
+        "count": 0,
+        "median": null,
+        "p90": null,
+        "p99": null,
+        "max": null,
+        "over_one": 0,
+        "over_two": 0
+      },
+      "post_phase": {
+        "center": 0.9936986301368478,
+        "count": 73,
+        "median": 0.3263013698628612,
+        "p90": 0.3336986301369933,
+        "p99": 0.6736986301371388,
+        "max": 0.6736986301371388,
+        "over_one": 0,
+        "over_two": 0
+      }
+    }
+  ],
+  "production_same_checker": [
+    {
+      "flags": [
+        {
+          "end_frame": 19142,
+          "frame": 18588,
+          "kind": "phase_excursion",
+          "phase_delta": -1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27162,
+          "frame": 27117,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27890,
+          "frame": 27445,
+          "kind": "phase_excursion",
+          "phase_delta": -1.1700000000000728,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27942,
+          "frame": 27898,
+          "kind": "phase_excursion",
+          "phase_delta": -1.5,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27972,
+          "frame": 27964,
+          "kind": "phase_excursion",
+          "phase_delta": 3,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 28688,
+          "frame": 27986,
+          "kind": "phase_excursion",
+          "phase_delta": -1.3400000000001455,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 35696,
+          "frame": 35682,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 48771,
+          "frame": 48762,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49544,
+          "frame": 49410,
+          "kind": "phase_excursion",
+          "phase_delta": 1.8400000000001455,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49667,
+          "frame": 49648,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 50810,
+          "frame": 50795,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 51245,
+          "frame": 51109,
+          "kind": "phase_excursion",
+          "phase_delta": -1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 51990,
+          "frame": 51900,
+          "kind": "phase_excursion",
+          "phase_delta": -15.659999999999854,
+          "severity": "hard"
+        },
+        {
+          "end_frame": 51945,
+          "frame": 51945,
+          "kind": "phase_shift",
+          "phase_delta": 8.333338002690098,
+          "severity": "hard"
+        },
+        {
+          "end_frame": 52088,
+          "frame": 51998,
+          "kind": "phase_excursion",
+          "phase_delta": -15.680000000000291,
+          "severity": "hard"
+        },
+        {
+          "end_frame": 52035,
+          "frame": 52035,
+          "kind": "phase_shift",
+          "phase_delta": 8.666661997311124,
+          "severity": "hard"
+        },
+        {
+          "end_frame": 52798,
+          "frame": 52798,
+          "kind": "phase_shift",
+          "phase_delta": -8.170000000000073,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 80365,
+          "frame": 80358,
+          "kind": "phase_excursion",
+          "phase_delta": 1.3400000000019645,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 82681,
+          "frame": 81825,
+          "kind": "phase_excursion",
+          "phase_delta": -4.8400000000001455,
+          "severity": "soft"
+        }
+      ],
+      "name": "video_full",
+      "points": 37834
+    },
+    {
+      "flags": [
+        {
+          "end_frame": 19142,
+          "frame": 18588,
+          "kind": "phase_excursion",
+          "phase_delta": -1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27162,
+          "frame": 27117,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27890,
+          "frame": 27445,
+          "kind": "phase_excursion",
+          "phase_delta": -1.1700000000000728,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27942,
+          "frame": 27898,
+          "kind": "phase_excursion",
+          "phase_delta": -1.5,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27972,
+          "frame": 27964,
+          "kind": "phase_excursion",
+          "phase_delta": 3,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 28688,
+          "frame": 27986,
+          "kind": "phase_excursion",
+          "phase_delta": -1.3400000000001455,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 35696,
+          "frame": 35682,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 48771,
+          "frame": 48762,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49544,
+          "frame": 49410,
+          "kind": "phase_excursion",
+          "phase_delta": 1.8400000000001455,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49667,
+          "frame": 49648,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 50810,
+          "frame": 50795,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 51245,
+          "frame": 51109,
+          "kind": "phase_excursion",
+          "phase_delta": -1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 52798,
+          "frame": 52798,
+          "kind": "phase_shift",
+          "phase_delta": -6.8400000000001455,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 80365,
+          "frame": 80358,
+          "kind": "phase_excursion",
+          "phase_delta": 1.3400000000019645,
+          "severity": "soft"
+        }
+      ],
+      "name": "video_paired",
+      "points": 36846
+    },
+    {
+      "flags": [
+        {
+          "end_frame": 19142,
+          "frame": 18588,
+          "kind": "phase_excursion",
+          "phase_delta": -1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 22115,
+          "frame": 22110,
+          "kind": "phase_excursion",
+          "phase_delta": 1.060555785980796,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27162,
+          "frame": 27117,
+          "kind": "phase_excursion",
+          "phase_delta": 1,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27441,
+          "frame": 27382,
+          "kind": "phase_excursion",
+          "phase_delta": -1.1108294930854754,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27897,
+          "frame": 27891,
+          "kind": "phase_excursion",
+          "phase_delta": 1.6948235900081272,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 27985,
+          "frame": 27939,
+          "kind": "phase_excursion",
+          "phase_delta": 4.072237960340317,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 34490,
+          "frame": 34481,
+          "kind": "phase_excursion",
+          "phase_delta": 1.0671141711300152,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 35696,
+          "frame": 35696,
+          "kind": "phase_shift",
+          "phase_delta": -1.0115237885038368,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 40908,
+          "frame": 40898,
+          "kind": "phase_excursion",
+          "phase_delta": 1.0618832653453865,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 48771,
+          "frame": 48761,
+          "kind": "phase_excursion",
+          "phase_delta": 1.3155579710128222,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49413,
+          "frame": 49410,
+          "kind": "phase_excursion",
+          "phase_delta": 1.7021074615531688,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 49679,
+          "frame": 49668,
+          "kind": "phase_excursion",
+          "phase_delta": -1.0356761415750952,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 51098,
+          "frame": 50811,
+          "kind": "phase_excursion",
+          "phase_delta": -1.3026612982394,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 53056,
+          "frame": 51520,
+          "kind": "phase_excursion",
+          "phase_delta": -1.1827234187840077,
+          "severity": "soft"
+        },
+        {
+          "end_frame": 80365,
+          "frame": 80358,
+          "kind": "phase_excursion",
+          "phase_delta": 1.3400000000001455,
+          "severity": "soft"
+        }
+      ],
+      "name": "jolt_paired",
+      "points": 36846
+    }
+  ],
+  "limits": [
+    "Same-checker native comparison uses canonical ticks/20 as a benchmark time coordinate; it is not the current frontend Jolt per-point flag rule.",
+    "No interpolation crosses imported breaks; missing coverage during a hold is not treated as successful per-frame correction.",
+    "Counter offset measured from the first accepted reading is used only to judge errors, never to construct the clock.",
+    "This is one held-out survival/LAN recording, not a generalisation guarantee."
+  ],
+  "worst_interpolation": [
+    {
+      "frame": 27972,
+      "time": 466.2,
+      "error": 5.0919392222513125
+    },
+    {
+      "frame": 27971,
+      "time": 466.183,
+      "error": 4.750450682462542
+    },
+    {
+      "frame": 27970,
+      "time": 466.167,
+      "error": 4.4290497038364265
+    },
+    {
+      "frame": 27969,
+      "time": 466.15,
+      "error": 4.087561164047656
+    },
+    {
+      "frame": 27968,
+      "time": 466.133,
+      "error": 3.746072624258886
+    }
+  ]
+}
