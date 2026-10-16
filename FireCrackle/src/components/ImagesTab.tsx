@@ -32,6 +32,8 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(typeof indexedDB !== "undefined");
+  // The paste listener outlives the render that attached it, so it reads this rather than `restoring`.
+  const restoringNow = useRef(restoring); restoringNow.current = restoring;
   const [storageError, setStorageError] = useState<string | null>(null);
   const galleryLoaded = useRef(false);
   useEffect(() => {
@@ -89,6 +91,8 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   useEffect(() => {
     if (!active) return;
     const paste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target?.tagName ?? "")) return;
       const files = clipboardPhotos(event.clipboardData);
       if (files.length) { event.preventDefault(); add(files); }
     };
@@ -111,7 +115,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   }
 
   function add(files: File[]) {
-    if (restoring) return;
+    if (restoringNow.current) return;
     try {
       const previousCount = currentImages.current.length;
       const result = appendImages(currentImages.current, files);

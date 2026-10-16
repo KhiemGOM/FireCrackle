@@ -57,3 +57,10 @@ it("does not create a pivot when Shift started outside the video", () => {
   send("pointermove", { clientX: 250, clientY: 190 }); send("keydown", { key: "Shift", repeat: true });
   expect(render()).toBeNull();
 });
+it("ignores Shift while typing in a text field", () => {
+  send("pointermove", { clientX: 250, clientY: 190 });
+  const typing = Object.assign(new Event("keydown"), { key: "Shift" });
+  Object.defineProperty(typing, "target", { value: { tagName: "INPUT" } });
+  window.dispatchEvent(typing);
+  expect(render()).toBeNull();
+});

@@ -127,3 +127,13 @@ it("clears cancelled captures and ignores non-primary chart drags",()=>{
   expect(hooks.values[5]).toEqual({start:100,pxPerFrame:5});
   expect(jump).not.toHaveBeenCalled();
 });
+
+it("explains a gap when hovering inside it even though evidence is visible on both sides",()=>{
+  hooks.values[0]={points:[{frame:100,pts:100/60,phase:0,step:1},{frame:900,pts:900/60,phase:0,step:1}],runs:[],flags:[],tick_rate:20,window_ticks:1};
+  hooks.values[5]={start:0,pxPerFrame:1};
+  hooks.values[8]=[{first:101,last:899,kind:"none",text:"No fire evidence for 13.3 s"}];
+  const root=render();
+  const canvas=all(root,e=>e.type==="canvas"&&!!e.props.onPointerMove)[0];
+  canvas.props.onPointerMove({clientX:500,currentTarget:{getBoundingClientRect:()=>({left:0,width:1000})}});
+  expect(hooks.values[2]).toBe("No fire evidence for 13.3 s");
+});
