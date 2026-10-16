@@ -363,11 +363,8 @@ pub fn generate(
         "-i",
     ])
     .arg(video)
-    .args([
-        crate::import::PASSTHROUGH_ARGS[0],
-        crate::import::PASSTHROUGH_ARGS[1],
-        "-vf",
-    ])
+    .args(crate::import::passthrough_args(&tools.ffmpeg))
+    .arg("-vf")
     .arg(filter)
     .args(["-f", "image2pipe", "-c:v", "mjpeg", "-q:v"])
     .arg(plan.quality.to_string())

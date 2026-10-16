@@ -126,15 +126,9 @@ pub fn encode(
         .args([
             "-vf",
             &format!("select=eq(mod(n\\,3)\\,1),crop={width}:{height}:0:0:exact=1"),
-            studio_core::import::VARIABLE_FRAME_RATE_ARGS[0],
-            studio_core::import::VARIABLE_FRAME_RATE_ARGS[1],
-            "-frames:v",
-            "32",
-            "-start_number",
-            "0",
-            "-threads",
-            "2",
         ])
+        .args(studio_core::import::variable_frame_rate_args(ffmpeg))
+        .args(["-frames:v", "32", "-start_number", "0", "-threads", "2"])
         .arg(dir.0.join("out%02d.png")))?;
     let mut packed = Vec::new();
     for row in 0..32 {

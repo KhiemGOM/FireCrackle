@@ -208,11 +208,8 @@ pub fn decode_job(
     };
     cmd.arg("-i")
         .arg(video)
-        .args([
-            crate::import::PASSTHROUGH_ARGS[0],
-            crate::import::PASSTHROUGH_ARGS[1],
-            "-frames:v",
-        ])
+        .args(crate::import::passthrough_args(&tools.ffmpeg))
+        .arg("-frames:v")
         .arg(job.decode_count.to_string())
         .arg("-vf")
         .arg(format!("scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width))

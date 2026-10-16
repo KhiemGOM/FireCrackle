@@ -177,17 +177,9 @@ fn scan(
     command
         .args(["-nostdin", "-v", "error", "-i"])
         .arg(&project.video_path)
-        .args([
-            "-map",
-            "0:v:0",
-            studio_core::import::PASSTHROUGH_ARGS[0],
-            studio_core::import::PASSTHROUGH_ARGS[1],
-            "-pix_fmt",
-            "rgb24",
-            "-f",
-            "rawvideo",
-            "-",
-        ])
+        .args(["-map", "0:v:0"])
+        .args(studio_core::import::passthrough_args(&tools.ffmpeg))
+        .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
