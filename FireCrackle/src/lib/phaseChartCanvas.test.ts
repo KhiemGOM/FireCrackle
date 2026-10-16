@@ -24,6 +24,32 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it.each(['video','jolt'] as const)('splits a short sprite deviation at the 32→0 seam with the %s clock',clock=>{
+    const {context,options,draw}=fixture({kind:'row',ruler:{offset:0,tolerance:1},yRange:[0,32]});
+    options.chart={points:[{frame:300,pts:5,step:31.8,phase:.4}],runs:[],flags:[],tick_rate:20,window_ticks:1,reference_phase:0,reference_clock:clock};
+    draw();
+    const moves=context.moveTo.mock.calls,lines=context.lineTo.mock.calls;
+    expect(moves.some(([x,y])=>x===500&&Math.abs(y-2)<1e-8)).toBe(true);
+    expect(moves).toContainEqual([500,320]);
+    // The two pieces total 0.4 ticks (4 px), rather than a nearly full-height line.
+    const stemEnds=lines.slice(-3,-1);
+    expect(stemEnds[0]).toEqual([500,0]);expect(stemEnds[1][0]).toBe(500);expect(stemEnds[1][1]).toBeCloseTo(318);
+  });
+  it('splits signed phase stems at +16/−16 instead of drawing a 32-tick error',()=>{
+    const {context,options,draw}=fixture({ruler:{offset:-15.8,tolerance:1},yRange:[-16,16]});
+    options.chart!.points=[{frame:300,pts:5,step:0,phase:15.8}];
+    draw();
+    expect(context.lineTo.mock.calls.slice(-3,-1)[0]).toEqual([500,0]);
+    expect(context.lineTo.mock.calls.slice(-3,-1)[1][1]).toBeCloseTo(318);
+  });
+  it('also splits a negative sprite deviation through 0→32',()=>{
+    const {context,options,draw}=fixture({kind:'row',ruler:{offset:0,tolerance:1},yRange:[0,32]});
+    options.chart!.points=[{frame:300,pts:5,step:0,phase:31.8}];
+    draw();
+    expect(context.moveTo.mock.calls.slice(-3,-1)).toEqual([[500,320],[500,0]]);
+    expect(context.lineTo.mock.calls.slice(-3,-1)[0]).toEqual([500,320]);
+    expect(context.lineTo.mock.calls.slice(-3,-1)[1][1]).toBeCloseTo(2);
+  });
   it("zooms the vertical scale without moving the point along time",()=>{
     const {context,draw}=fixture({yRange:[-4,4]});draw();
     expect(context.fillRect).toHaveBeenCalledWith(499,79,2.5,2.5);

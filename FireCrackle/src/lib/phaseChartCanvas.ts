@@ -6,6 +6,14 @@ import type { FrameRange } from "./timeline";
 const COLORS = { dot: "#4a90d9", band: "rgba(76,195,138,0.16)", grid: "#2a3142", text: "#8b96ab" };
 const RULER_COLOR = "#e8eefc";
 
+/** A short circular displacement must not become a line across the whole displayed cycle. */
+function wrappedStem(start:number,delta:number,min:number):[number,number][] {
+  const max=min+32,end=start+delta;
+  if(end>max)return [[start,max],[min,end-32]];
+  if(end<min)return [[start,min],[max,end+32]];
+  return [[start,end]];
+}
+
 /** Dots and stems when the ruler is on: inside the tolerance, up to twice it, beyond. */
 export const DEVIATION_COLORS: Record<DeviationLevel, string> = { ok: "#4cc38a", warn: "#f5c542", bad: "#ff4d4f" };
 
@@ -218,8 +226,12 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
       for (const p of levels[k]) {
         const x = timeToX(p.pts, t0, t1, w);
         const d = level.get(p) ?? 0;
-        g.moveTo(x, kind === "phase" ? phaseY(relativePhase(p.phase, ref), h) : rowY(p.step, h));
-        g.lineTo(x, kind === "phase" ? phaseY(rulerRel, h) : rowY(chart.reference_clock === "jolt" ? ((p.step + d) % 32 + 32) % 32 : p.step + d, h));
+        const start=kind === "phase" ? relativePhase(p.phase,ref) : p.step;
+        const y=kind === "phase" ? phaseY : rowY;
+        for(const [from,to] of wrappedStem(start,kind === "phase" ? -d : d,kind === "phase" ? -16 : 0)){
+          g.moveTo(x,y(from,h));
+          g.lineTo(x,y(to,h));
+        }
       }
       g.stroke();
     }
