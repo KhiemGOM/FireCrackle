@@ -30,8 +30,6 @@ import { bridgeStatus, findEvidenceGaps, gapKind, gapText, type EvidenceGap, typ
 import { FlagCompare } from "./FlagCompare";
 import { bestRulerMatch, chartReference, deviation, deviationStats, rulerPhase } from "../lib/clockRuler";
 
-/** Most points the backend sends: a bit more than the pixels a wide window has. */
-const MAX_POINTS = 4000;
 /** Stretches without fire evidence at least this long are drawn and explained. */
 const MIN_GAP_SECONDS = 2;
 /** Gaps beyond this many are drawn as unlabelled, so a sparse recording does not cost one request each. */
@@ -65,9 +63,9 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [jolt, setJolt] = useState<JoltState>(() => ({...EMPTY_JOLT}));
   const reference = useMemo(() => timeReference(jolt), [jolt]);
   const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(videoChart, reference), reference) : videoChart, [videoChart, reference, jolt.clock]);
-  const originTick = reference.tickAt(reference.sampleTimes[0]) ?? 0;
+  const originTick = useMemo(()=>reference.tickAt(reference.sampleTimes[0]) ?? 0,[reference]);
   const axisKey = `${videoKey ?? ""}:${jolt.clock}:${jolt.session}`;
-  const total = chart?.corrected_time ? Math.max(1, Math.ceil(Math.max((chart.clock_segments ?? []).reduce((end,s)=>Math.max(end,s.t1),0), chart.points.reduce((end,p)=>Math.max(end,p.pts),0)) * fps) + 1) : Math.max(view.frame_count, 1);
+  const total = useMemo(()=>chart?.corrected_time ? Math.max(1, Math.ceil(Math.max((chart.clock_segments ?? []).reduce((end,s)=>Math.max(end,s.t1),0), chart.points.reduce((end,p)=>Math.max(end,p.pts),0)) * fps) + 1) : Math.max(view.frame_count, 1),[chart,fps,view.frame_count]);
   // A fixed logical width keeps the two charts on exactly the same time range.
   const logicalWidth = 1000;
   const [viewport, setViewport] = useState(() => readTimelineView(axisKey, "phase", total, logicalWidth));
@@ -107,13 +105,14 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   useEffect(() => {
     let cancelled = false;
     backend
-      .phaseChart(MAX_POINTS,source)
+      // Keep source evidence intact before clock conversion and viewport-only rendering reduction.
+      .phaseChart(Math.max(1,view.frame_count),source)
       .then((c) => !cancelled && (setChart(c), setError(null)))
       .catch((e) => !cancelled && setError(messageOf(e)));
     return () => {
       cancelled = true;
     };
-  }, [backend, version, source, videoKey]);
+  }, [backend, version, source, videoKey, view.frame_count]);
 
   const pointTimes = useMemo(()=>new Map(chart?.points.map(p=>[p.frame,p.pts]) ?? []),[chart]);
   const timeOf = (frame: number) => {
@@ -127,7 +126,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const tolerance = Math.max(0.05, (chart?.window_ticks ?? 1) / 2);
   const ruler = rulerOn && chart ? { offset: rulerOffset, tolerance, opacity:rulerOpacity } : null;
   const rulerAt = chart ? rulerPhase(chartReference(chart), rulerOffset) : 0;
-  const rulerStats = chart && rulerOn ? deviationStats(chart.points, rulerAt, tolerance) : null; // at most MAX_POINTS points
+  const rulerStats = useMemo(()=>chart && rulerOn ? deviationStats(chart.points, rulerAt, tolerance) : null,[chart,rulerOn,rulerAt,tolerance]);
 
 
   useEffect(() => {

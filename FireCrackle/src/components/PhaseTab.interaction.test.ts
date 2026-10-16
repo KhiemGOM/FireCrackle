@@ -23,6 +23,14 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
 }
 function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
+it('loads complete frame evidence before canonical correction, rather than a global 4000-point sample',async()=>{
+ const phaseChart=vi.fn().mockResolvedValue({points:[],runs:[],flags:[],tick_rate:20,window_ticks:1});
+ hooks.cursor=hooks.refCursor=0;hooks.effects=[];
+ PhaseTab({backend:{phaseChart} as unknown as Backend,view:{fps:60,frame_count:82686,current:0} as View,version:0,onJump:jump});
+ const clean=hooks.effects[2]();
+ expect(phaseChart).toHaveBeenCalledWith(82686,'independent');
+ clean();await Promise.resolve();
+});
 beforeEach(()=>{jump.mockClear();hooks.refs=[];hooks.values=[{points:[{frame:800,pts:800/60,phase:0,step:1}],runs:[],flags:[flag],tick_rate:20,window_ticks:1},null,null,null,null,{version:1,data:null,clock:"video",session:""},{start:0,pxPerFrame:5}];});
 afterEach(()=>vi.unstubAllGlobals());
 
