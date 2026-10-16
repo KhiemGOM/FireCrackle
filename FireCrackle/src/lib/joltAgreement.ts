@@ -1,6 +1,7 @@
 import {relativePhase,type PhaseChart} from './chart';
 import {joltPhase,sessionOf,timeReference,type JoltState} from './jolt';
 import type {Trace} from './clockComparison';
+import {FLAG_COLORS} from './flagAppearance';
 
 export interface ClockMarker {time:number;end?:number;label:string;color:string;dashed?:boolean}
 
@@ -8,7 +9,7 @@ export interface ClockMarker {time:number;end?:number;label:string;color:string;
 export function joltMarkers(state:JoltState):ClockMarker[]{
  const anchors=(state.data?.anchors??[]).filter(a=>sessionOf(a)===state.session);
  const events=(state.data?.events??[]).filter(e=>JSON.stringify([e.game,e.screen])===state.session);
- const markers:ClockMarker[]=events.map(e=>({time:e.from,end:e.to,label:e.kind==='removed'?'Reported cut':e.kind==='stalled'?'Reported clock stall':`Reported ${e.kind}`,color:e.kind==='removed'?'#f16b72':'#e4bf59',dashed:e.kind!=='removed'}));
+ const markers:ClockMarker[]=events.map(e=>({time:e.from,end:e.to,label:e.kind==='removed'?'Reported cut':e.kind==='stalled'?'Reported clock stall':`Reported ${e.kind}`,color:FLAG_COLORS.jolt.color,dashed:true}));
  for(let i=1;i<anchors.length;i++){
   const a=anchors[i-1],b=anchors[i];
   if(a.segment!==b.segment&&!events.some(e=>e.from<=b.time&&e.to>=a.time))markers.push({time:a.time,end:b.time,label:'Clock section break · cause unspecified',color:'#e4bf59',dashed:true});

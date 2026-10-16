@@ -12,7 +12,7 @@ export function reviewChart(chart:PhaseChart|null,state:JoltState,fps:number):Ph
   for(const event of state.data?.events??[]){
     if(JSON.stringify([event.game,event.screen])!==state.session||!['removed','stalled'].includes(event.kind))continue;
     const frame=Math.max(0,Math.round(event.from*fps)),end_frame=Math.max(frame,Math.round(event.to*fps));
-    const flag:Flag={frame,end_frame,kind:'phase_excursion',severity:event.kind==='removed'?'hard':'soft',phase_delta:(event.jump_seconds??0)*20};
+    const flag:Flag={frame,end_frame,kind:'jolt_report',severity:'jolt',phase_delta:(event.jump_seconds??0)*20};
     const detail:FlagDetail={...flag,clock_delta:flag.phase_delta,held_ticks:null,explanation:`jolt_${event.kind}: Jolt reports ${event.kind==='removed'?'missing footage':'a clock stall'} between video ${event.from.toFixed(3)} and ${event.to.toFixed(3)} seconds. The interval is bounded by readings; it does not establish the exact frame or the cause.`};
     entries.push({flag,detail,position:{t0:event.from,t1:event.to,uncertain:true}});
   }

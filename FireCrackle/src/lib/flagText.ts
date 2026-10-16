@@ -1,6 +1,7 @@
 import type { FlagKind,Severity } from "./api";
 
 export function priorityHint(severity:Severity):string {
+  if(severity==='jolt')return 'Imported Jolt report flag. This is a reported interval, separate from the fire checker’s hard/soft priority.';
   return severity==="hard"
     ? "Large timing discrepancy: inspect the footage. Lag or a capture hold can cause this too."
     : "Timing discrepancy or recovery: inspect if relevant; the cause is uncertain.";

@@ -11,6 +11,7 @@ import {fireJoltAgreement,joltMarkers} from '../lib/joltAgreement';
 import {ChartLegend} from './ChartLegend';
 import {joltCursorText} from '../lib/reviewFlags';
 import {flagText} from '../lib/flagText';
+import {FLAG_COLORS} from '../lib/flagAppearance';
 
 /** The imported Jolt timeline itself, separate from the fire plots' selected clock. */
 export function JoltChart({state,chart=null,focusRange=null}:{state:JoltState;chart?:PhaseChart|null;focusRange?:AxisRange|null}){
@@ -22,7 +23,7 @@ export function JoltChart({state,chart=null,focusRange=null}:{state:JoltState;ch
  const agreement=useMemo(()=>fireJoltAgreement(chart,state),[chart,state]);
  const markers=useMemo(()=>chart?.review_flags?[
   ...joltMarkers(state).filter(m=>m.label.includes('cause unspecified')),
-  ...chart.flags.map((f,i)=>({time:chart.flag_positions?.[i]?.t0??f.frame/60,end:chart.flag_positions?.[i]?.t1??f.end_frame/60,label:flagText(f.kind,chart.flag_details?.[i]?.explanation).name,color:f.severity==='hard'?'#ff4d4f':'#e4bf59',dashed:!!chart.flag_positions?.[i]?.uncertain}))
+  ...chart.flags.map((f,i)=>({time:chart.flag_positions?.[i]?.t0??f.frame/60,end:chart.flag_positions?.[i]?.t1??f.end_frame/60,label:flagText(f.kind,chart.flag_details?.[i]?.explanation).name,color:FLAG_COLORS[f.severity].color,dashed:!!chart.flag_positions?.[i]?.uncertain}))
  ]:joltMarkers(state),[state,chart]);
  const trace=useMemo(()=>{
   const runs:Trace=[];

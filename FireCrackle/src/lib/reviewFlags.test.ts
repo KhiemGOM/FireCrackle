@@ -8,6 +8,8 @@ const chart:PhaseChart={points:[{frame:120,pts:2,step:3,phase:0},{frame:121,pts:
 it('keeps one source-labelled review list across video/canonical clocks including fire in an unresolved span',()=>{
  const combined=reviewChart(chart,state,60)!;
  expect(combined.flags).toHaveLength(2);
+ expect(combined.flags[0]).toMatchObject({kind:'jolt_report',severity:'jolt'});
+ expect(combined.flags[1].severity).toBe('hard');
  expect(combined.flag_details!.map(d=>d.explanation.split(':')[0])).toEqual(['jolt_removed','forward_jump']);
  const corrected=correctedJoltChart(joltPhase(combined,timeReference(state)),timeReference(state))!;
  expect(corrected.flags).toEqual(combined.flags);

@@ -1,6 +1,10 @@
 import { describe,it,expect } from "vitest";
 import { flagText,priorityHint } from "./flagText";
 describe("phase evidence wording",()=>{
+  it('identifies report evidence separately from fire severity',()=>{
+    expect(priorityHint('jolt')).toContain('Imported Jolt report');
+    expect(priorityHint('jolt')).not.toContain('Large timing discrepancy');
+  });
   it("explains forward transition evidence instead of calling it baseline phase mismatch",()=>{
     expect(flagText("phase_shift","forward_jump: At least 30 forward ticks in one frame.")).toEqual({name:"Forward animation jump",hint:"At least 30 forward ticks in one frame."});
   });

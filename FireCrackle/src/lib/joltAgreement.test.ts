@@ -25,6 +25,6 @@ it('restores classified report breaks and keeps legacy section markers unclassif
  const raw={anchors:data.anchors,breaks:[{from:1,to:2,kind:'removed',game:1,jump_seconds:8}]};
  const imported={...state,data:parseJolt(JSON.stringify(raw),'report')};
  expect(restoreJolt(JSON.stringify(imported)).data?.events).toEqual(imported.data.events);
- expect(joltMarkers(imported)).toEqual([{time:1,end:2,label:'Reported cut',color:'#f16b72',dashed:false}]);
+ expect(joltMarkers(imported)).toEqual([{time:1,end:2,label:'Reported cut',color:'#bd8bff',dashed:true}]);
  expect(joltMarkers(state)[0].label).toContain('cause unspecified');
 });

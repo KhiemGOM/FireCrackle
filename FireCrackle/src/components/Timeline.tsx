@@ -19,6 +19,11 @@ import { useWheel } from "../hooks/useWheel";
 import { IconButton } from "./Icon";
 import "./TimelineControls.css";
 import { readTimelineView, writeTimelineView } from "../lib/viewState";
+import type { PhaseChart } from "../lib/chart";
+import { forwardTransitionChart } from "../lib/fireTransitions";
+import { reviewChart } from "../lib/reviewFlags";
+import { EMPTY_JOLT, restoreJolt } from "../lib/jolt";
+import { paintTimelineFlags } from "../lib/flagAppearance";
 
 const RULER_H = 26;
 const THUMB_Y = 30;
@@ -61,6 +66,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
   const [nearest, setNearest] = useState<{ key: string; frames: Array<number | null> }>({ key: "", frames: [] });
   const images = useRef(new Map<number, HTMLImageElement | "loading" | "failed">());
   const [imageTick, setImageTick] = useState(0);
+  const [review, setReview] = useState<PhaseChart|null>(null);
 
   const zoomFactor = settingValue(settings, "timeline.zoom_factor", 1.25);
   const maxPx = settingValue(settings, "timeline.max_px_per_frame", 32);
@@ -183,6 +189,19 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
     };
   }, [backend, nearest]);
 
+  // Use the same independent fire evidence and imported report as the chart tab.
+  // Refresh after labels change, not on every pan or zoom.
+  useEffect(() => {
+    let cancelled=false;
+    setReview(null);
+    const timer=setTimeout(()=>{
+      Promise.all([backend.phaseChart(Math.max(1,total),"independent"),videoKey&&backend.joltRead?backend.joltRead(videoKey):Promise.resolve(null)])
+        .then(([chart,text])=>{if(!cancelled)setReview(reviewChart(forwardTransitionChart(chart),text?restoreJolt(text):{...EMPTY_JOLT},view.fps||1));})
+        .catch(()=>undefined);
+    },80);
+    return ()=>{cancelled=true;clearTimeout(timer);};
+  },[backend,videoKey,total,version,view.fps]);
+
   // draw
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -268,11 +287,13 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         g.fillRect(x0, laneY, w, LANE_H);
         g.globalAlpha = 1;
       }
-      if (b.flag) {
+      if (!review && b.flag) {
         g.fillStyle = b.flag === "hard" ? COLORS.hard : COLORS.soft;
         g.fillRect(x0, flagY, w, 8);
       }
     });
+
+    if(review)paintTimelineFlags(g,review.flags,frame=>frameToX(vp,frame),flagY);
 
     // playhead
     const px = frameToX(vp, view.current) + vp.pxPerFrame / 2;
@@ -284,7 +305,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
     g.lineTo(px, 9);
     g.closePath();
     g.fill();
-  }, [vp, width, buckets, flags, view.current, view.fps, total, spacing, slots, nearest, imageTick, thumbStatus, showThumbs, thumbW, laneY, flagY, height]);
+  }, [vp, width, buckets, flags, review, view.current, view.fps, total, spacing, slots, nearest, imageTick, thumbStatus, showThumbs, thumbW, laneY, flagY, height]);
 
   // Consume timeline scrolling and Ctrl+zoom so neither scrolls/zooms the page.
   useWheel(canvasRef, (e) => {
@@ -330,6 +351,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         onPointerCancel={() => { drag.current = null; }}
         onLostPointerCapture={() => { drag.current = null; }}
       />
+      <div className="timeline-flag-key"><span style={{color:"#ff4d4f"}}>━ Hard fire flag</span> · <span style={{color:"#bd8bff"}}>━ Jolt report flag</span></div>
       <div className="timeline-hint">scroll: move timeline · Ctrl+scroll: zoom · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</div>
     </div>
   );
