@@ -1,8 +1,11 @@
-# Synthetic learned quad matcher: first pilot
+# Learned quad matcher experiments
 
 The small model learns the synthetic task and runs quickly, but **does not
 transfer reliably to the real clips**. Keep the application matcher unchanged.
 This is a research experiment, not an automatically accepted labeller.
+
+The experiments below preserve the small synthetic pilot, survival fine-tuning,
+and the subsequent large synthetic-only run on real no-fire backgrounds.
 
 ## Model and protocol
 
@@ -287,3 +290,131 @@ Reproduce the survival-training follow-up after preparing the first-pilot data:
 and exact FFmpeg command; `survival-curated/review.json` retains the applied audit;
 `survival-fit/freeze.json` records the checkpoint before the cross-recording test.
 No real-data checkpoint, native crops or decoded frames are committed.
+
+## Large synthetic-only run with real Minecraft backgrounds
+
+This follow-up starts a **fresh random model**, not the survival-fine-tuned
+checkpoint. The target sprites, labels, planes, perspectives and occluders are
+generated; no actual fire crop or real quad label is used for training.
+
+Background collection uses the original clip1 for training and clip2 for synthetic
+validation. Survival and quad1 do not supply backgrounds, fire pixels, poses,
+labels or clocks to training. Sampled frames must be synced and explicitly
+labelled fire-free, with no recorded sources throughout a ±60-frame guard window.
+Crop positions are independent of sprite labels. Source footage and per-crop
+hashes are retained locally.
+
+All 39 training and 37 validation full-frame previews were visually inspected.
+One training frame (2220) visibly contained fire despite its no-fire flag; it
+was excluded. Other exclusions remove open inventories/settings screens and
+large chat overlays. The explicit review is `scripts/fire-ai/background-review.json`.
+Remaining ordinary gameplay distractors include lava, portals, torches and
+non-burning blaze entities; this is no *target fire-plane* background collection,
+not a detector claiming that every orange/emissive pixel is absent.
+
+After review: **344 training patches from 32 clip1 frames**, and **230 validation
+patches from 27 clip2 frames**. Native source crops range from 160 to 480 pixels
+and are resized into 160×160 background tiles. Exact background crop hashes are
+disjoint across recordings. This is a limited background bank, not a million
+independent real scenes.
+
+The batched GPU renderer projects physical rectangles and samples native texels,
+then composites the fire onto these backgrounds before rectifying to 64×64.
+Augmentation includes brightness, mild fog/noise/blur, supplied-corner uncertainty,
+and foreground rectangles textured with another no-fire patch. The class cannot
+select either background. No real codec stage is added to training; the recorded
+background already has its original encoding, but the newly inserted fire does
+not. H.264 remains a separate stress test.
+
+MobileNet architecture/inference inputs stay unchanged. Training uses seed 71,
+AdamW learning rate 0.002, cosine decay, CUDA AMP and 128 balanced appearances per batch.
+Each batch uses a fresh render seed. GPU geometry/rendering remains float32;
+only model training uses mixed precision. The fixed budget is 16×512 batches
+(1,048,576 freshly generated composites, 8,192 per appearance). Log fields named
+`unique_training_examples` count fresh generation draws; exact image-hash
+uniqueness of all million outputs was not measured.
+
+The background change, data volume, random seed, augmentation implementation and
+AMP training change together. This is an end-to-end variant, not a controlled
+ablation proving which individual factor causes a difference. Renderer controls
+check native sprite sampling against the original NumPy implementation and
+rectification against pixel-centre coordinates (≤1 intensity level tolerance).
+
+The preset run completed in **378.16 seconds**, drawing all 1,048,576 composites
+from fresh generation seeds. The checkpoint selected solely on the 2,048-example
+synthetic validation set was epoch 12 (786,432 training draws at that point),
+with 2,047/2,048 exact matches. Later epochs were still run as preset; they did
+not surpass that selection score. Frozen checkpoint SHA-256, recorded before any
+real-crop evaluation:
+`021b01d2459070ffd8cc813e43d5598413d3c6c87610793a1d4452550361932f`.
+No ImageNet, small-pilot or survival-fine-tuned weights were used to initialize it.
+
+### Frozen results
+
+| Same real diagnostic data | Small synthetic-only | Large synthetic + real BG | Current colour matcher |
+|---|---:|---:|---:|
+|Survival, full 52 screened candidates, exact|8/52|15/52|24/52|
+|Survival, full 52, top three|15/52|16/52|26/52|
+|Later visually reviewed survival subset, exact|13/15|14/15|not rerun on this subset|
+|Quad1, full 310 cases, exact|31/310|26/310|87/310|
+|Quad1, full 310, top three|45/310|45/310|102/310|
+|Quad1, label-consistency screen only, exact|5/6|6/6|not rerun on this subset|
+
+These remain development diagnostics with the limitations described above.
+In particular, the six-case subset is tiny and label-assisted, and the full sets
+contain ambiguous/overlapped fire planes. The large model gets 0/28 exact block
+faces and 15/24 entity faces on survival; on quad1 it gets 2/129 block and 24/181
+entity faces. None of these values is a calibrated deployment accuracy estimate.
+
+A **new** 4,096-example synthetic test uses a third, disjoint render-seed range
+and clip2 background patches (not training backgrounds): 4,085/4,096 exact (99.7%),
+4,095/4,096 top-three. At raw softmax≥0.95, 3/4,046 above-threshold predictions
+are wrong. On 256 no-foreground controls sampled from the held-out real background
+bank, none exceeds 0.95 confidence (two exceed 0.8). The closed-set model still
+always emits a sprite class; **this does not establish a no-fire detector**.
+
+| Same old 32 synthetic animated shots | Small synthetic-only exact | Large real-BG synthetic exact |
+|---|---:|---:|
+|Uncompressed|1024/1024|1023/1024|
+|Actual H.264 CRF24|989/1024|927/1024|
+|Actual H.264 CRF32|723/1024|568/1024|
+
+Compression robustness regresses. At raw softmax≥0.95, the large model is wrong
+on 40/928 above-threshold CRF24 predictions and 114/533 CRF32 predictions. On the
+actual real crops the corresponding wrong/above-threshold counts are 29/45 for
+quad1 and 16/25 for survival. High softmax values still cannot authorize labels.
+
+**Conclusion:** the larger synthetic-only variant improves the survival
+diagnostic but worsens quad1 exact matching and codec robustness. It matches the
+survival-fine-tuned model's 14/15 on the small reviewed survival subset without
+using real fire for training. It is not a reliable replacement for the current
+matcher. Background realism and data volume alone have not resolved this task;
+the isolated-plane renderer still omits actual overlapping fire geometry, smoke,
+lighting and codec effects. These are candidates for future experiments, not
+proven explanations for every error. No retuning on these real results occurred,
+and no application or release files changed.
+
+### Reproduce the large run
+
+```powershell
+& $py FireCrackle/scripts/fire-ai/prepare_backgrounds.py .board/fire-ai/backgrounds --ffmpeg FireCrackle/src-tauri/runtime/ffmpeg.exe
+& $py FireCrackle/scripts/fire-ai/review_backgrounds.py .board/fire-ai/backgrounds FireCrackle/scripts/fire-ai/background-review.json .board/fire-ai/backgrounds-reviewed
+& $py FireCrackle/scripts/fire-ai/train_large.py .board/fire-ai/backgrounds-reviewed .board/fire-ai/large-bg --epochs 16 --steps 512
+& $py FireCrackle/scripts/fire-ai/test_large.py .board/fire-ai/large-bg/best.pt .board/fire-ai/backgrounds-reviewed .board/fire-ai/large-bg/synthetic-test
+# Copy each old evaluation NPZ to a separate large-bg/{dataset} directory first
+# to retain the older model's predictions, then use the unchanged evaluator:
+& $py FireCrackle/scripts/fire-ai/evaluate.py .board/fire-ai/large-bg/best.pt .board/fire-ai/large-bg/quad1
+& $py FireCrackle/scripts/fire-ai/evaluate.py .board/fire-ai/large-bg/best.pt .board/fire-ai/large-bg/survival
+& $py FireCrackle/scripts/fire-ai/evaluate.py .board/fire-ai/large-bg/best.pt .board/fire-ai/large-bg/curated-survival --names val
+& $py FireCrackle/scripts/fire-ai/evaluate.py .board/fire-ai/large-bg/best.pt .board/fire-ai/large-bg/codec --names uncompressed h264-crf24 h264-crf32
+```
+
+The new renderer/background controls bring the research suite to **19 passing
+tests**. They cover no-fire temporal guards, projection, native pixel equivalence,
+rectification coordinates, deterministic sample seeds and candidate-independent
+masking in addition to the earlier tests. Source, joined-label, video and crop
+hashes, background review, fixed render seeds, epoch history, checkpoint freeze,
+predictions and visual evidence are retained under ignored `.board/fire-ai/`.
+New video provenance hashes are in `large-bg/background-video-hashes.json`.
+As before, raw frames, upstream sprites, crops, model weights and dependencies
+are not committed or bundled into the app.

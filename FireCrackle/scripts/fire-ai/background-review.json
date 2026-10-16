@@ -1,0 +1,8 @@
+{
+  "reviewer": "Codex visual inspection of every extracted full-frame preview, not human checked",
+  "rule": "Exclude visible target fire despite a no-fire log flag, and open inventory/settings screens. Retain ordinary gameplay backgrounds including lava, portals, torches, and non-burning blaze entities as distractors.",
+  "excluded_frames": {
+    "train": [2220, 19860, 19980, 22500, 24660, 29580, 29700],
+    "val": [4020, 11340, 11820, 12300, 12420, 12540, 12660, 12900, 13020, 13140]
+  }
+}
