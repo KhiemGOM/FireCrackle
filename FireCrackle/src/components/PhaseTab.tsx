@@ -17,12 +17,11 @@ import { FlagsPanel } from "./FlagsPanel";
 import { PhaseSourcePicker } from "./PhaseSourcePicker";
 import { JoltPanel } from "./JoltPanel";
 import { EMPTY_JOLT, correctedJoltChart, joltPhase, timeReference, type JoltState } from "../lib/jolt";
-import { ClockComparison } from "./ClockComparison";
 import { PlotAxes } from "./PlotAxes";
 import type { AxisRange } from "../lib/plotAxes";
 import "./PhaseWorkspace.css";
 import { useWheel } from "../hooks/useWheel";
-import { clampViewport, fitViewport, pan, zoomAt, type Viewport, type FrameRange } from "../lib/timeline";
+import { clampViewport, fitViewport, zoomAt, type Viewport, type FrameRange } from "../lib/timeline";
 import "./TimelineControls.css";
 import { readTimelineView, writeTimelineView } from "../lib/viewState";
 import { drawPhaseChart, GAP_COLORS, type GapBand } from "../lib/phaseChartCanvas";
@@ -78,13 +77,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const [rulerOn, setRulerOn] = useState(false);
   const [rulerOffset, setRulerOffset] = useState(0);
   const [rulerMatch, setRulerMatch] = useState<{ offset: number; text: string } | null>(null);
-  const [viewMode,setViewMode]=useState<"phase"|"row"|"compare">("phase");
+  const [viewMode,setViewMode]=useState<"phase"|"row">("phase");
   const [fullscreen,setFullscreen]=useState(false);
   const [phaseRange,setPhaseRange]=useState<AxisRange|undefined>(undefined);
   const [rowRange,setRowRange]=useState<AxisRange|undefined>(undefined);
   const [inspecting,setInspecting]=useState(false);
   function changeClock(next:JoltState) {
-    setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null);
+    setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
   const highlighted = hoverFlag ? { first: hoverFlag.frame, last: hoverFlag.end_frame } : selectedRange;
@@ -191,7 +190,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       if (Math.abs(dx) > 4) d.moved = true;
       if (d.moved) {
         const width = e.currentTarget.getBoundingClientRect().width;
-        if (width > 0) setViewport(pan(d.viewport, dx / width * logicalWidth, logicalWidth, total));
+        if (width > 0) setViewport({...d.viewport,start:d.viewport.start-dx/width*logicalWidth/d.viewport.pxPerFrame});
         setHover(null);
         return;
       }
@@ -248,8 +247,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const controls = (name: string) => <div className="timeline-controls" aria-label={`${name} timeline zoom`}>
     <IconButton icon="zoomOut" label={`Zoom out ${name} timeline`} onClick={() => zoomChart(1 / 1.5)} />
     <IconButton icon="zoomIn" label={`Zoom in ${name} timeline`} onClick={() => zoomChart(1.5)} />
-    <IconButton icon="fit" label={`Fit entire ${name} timeline`} onClick={() => setViewport(fitViewport(total, logicalWidth))} />
-    <span>{formatTime(t0, 0.01)} – {formatTime(t1, 0.01)}{chart?.corrected_time ? " · corrected elapsed time" : " · video time"} · wheel to zoom · drag to pan · linked charts</span>
+    <IconButton icon="fit" label={`Fit entire ${name} timeline`} onClick={() => {setViewport(fitViewport(total, logicalWidth));setPhaseRange(undefined);setRowRange(undefined);}} />
+    <span>{chart?.corrected_time ? `${Number((originTick+20*t0).toFixed(2))} – ${Number((originTick+20*t1).toFixed(2))} · canonical ticks` : `${formatTime(t0, 0.01)} – ${formatTime(t1, 0.01)} · video time`} · wheel to zoom · drag to pan · linked charts</span>
   </div>;
 
   useEffect(()=>{
@@ -273,20 +272,19 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       <div className="phase-plots">
       <div className="phase-topbar">
         <div className="phase-view-tabs" role="tablist" aria-label="Phase views">
-          {([["phase","Timing"],["row","Sprites"],["compare","Compare"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
+          {([["phase","Timing"],["row","Sprites"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
         </div>
-        <span className="dim">{viewMode==="compare"?"Video time":jolt.clock==="jolt"?"Corrected time":"Video time"}</span>
+        <span className="dim">{jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
         <button className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        <div hidden={viewMode!=="compare"}><ClockComparison chart={videoChart} state={jolt} embedded /></div>
 
-        <div hidden={viewMode==="compare"}>
+        <div>
         <div className="chart-head" hidden={viewMode!=="phase"}>
-          <span className="panel-title">{jolt.clock === "jolt" ? "Fire timing offset (corrected time)" : "Animation timing offset (ticks)"}</span>
+          <span className="panel-title">{jolt.clock === "jolt" ? "Fire timing offset (canonical time)" : "Animation timing offset (ticks)"}</span>
           <span className="dim">
-            {jolt.clock === "jolt" ? "Jolt supplies elapsed time. Timing offset = GUI tick − fire step, relative to the starting offset. Dashed ruler sections between readings are estimates; reported clock breaks stay disconnected." : `Zero = the reference ${chart?.tick_rate ?? 20} Hz animation clock.`} Source filter controls the evidence shown. Red/amber = review priority.
+            {jolt.clock === "jolt" ? "Jolt supplies canonical time. Timing offset = canonical tick − fire step, relative to the starting offset. Dashed ruler sections between readings are estimates; reported clock breaks stay disconnected." : `Zero = the reference ${chart?.tick_rate ?? 20} Hz animation clock.`} Source filter controls the evidence shown. Red/amber = review priority.
           </span>
         </div>
         {chart && chart.points.length === 0 ? (
@@ -323,7 +321,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </div>
             <div className="chart-head" hidden={viewMode!=="row"}>
               <span className="panel-title">Sprite row against time</span>
-              <span className="dim">{jolt.clock === "jolt" ? "Fire rows against corrected elapsed time. The ruler continues through fire-free sections wherever the clock is known." : "the sawtooth you should see: 32 rows, one step per tick (about every 3rd frame at 60 fps)."}</span>
+              <span className="dim">{jolt.clock === "jolt" ? "Fire rows against canonical time. The ruler continues through fire-free sections wherever the clock is known." : "the sawtooth you should see: 32 rows, one step per tick (about every 3rd frame at 60 fps)."}</span>
             </div>
             <div hidden={viewMode!=="row"}>
             {controls("sprite row")}

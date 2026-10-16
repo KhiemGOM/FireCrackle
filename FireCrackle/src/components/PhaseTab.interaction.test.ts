@@ -12,6 +12,7 @@ vi.mock("../hooks/useWheel",()=>({useWheel:()=>{}}));
 import { PhaseTab } from "./PhaseTab";
 import { FlagsPanel } from "./FlagsPanel";
 import { FlagCompare } from "./FlagCompare";
+import { JoltPanel } from "./JoltPanel";
 type Element=ReactElement<Record<string,any>>;
 const flag:Flag={frame:800,end_frame:820,severity:"hard",kind:"phase_shift",phase_delta:5};
 const jump=vi.fn();
@@ -24,6 +25,18 @@ function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTa
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
 beforeEach(()=>{jump.mockClear();hooks.refs=[];hooks.values=[{points:[{frame:800,pts:800/60,phase:0,step:1}],runs:[],flags:[flag],tick_rate:20,window_ticks:1},null,null,null,null,{version:1,data:null,clock:"video",session:""},{start:0,pxPerFrame:5}];});
 afterEach(()=>vi.unstubAllGlobals());
+
+it("uses the same Timing/Sprites workspace for either X-axis source and Fit resets both axes",()=>{
+  let root=render();
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites']);
+  hooks.values[15]=[-4,4];hooks.values[16]=[-85,116];
+  root=render();
+  all(root,e=>e.props.label==="Fit entire timing offset timeline")[0].props.onClick();
+  expect(hooks.values[15]).toBeUndefined();expect(hooks.values[16]).toBeUndefined();
+  all(root,e=>e.type===JoltPanel)[0].props.onChange({version:1,clock:'jolt',data:null,session:''});
+  root=render();
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites']);
+});
 
 it("keeps flag selection in the chart and opens and closes video inspection separately",()=>{
   let root=render();flags(root).props.onSelect(flag,false);root=render();
@@ -151,4 +164,12 @@ it("clears cancelled captures and ignores non-primary chart drags",()=>{
   expect(right.currentTarget.setPointerCapture).not.toHaveBeenCalled();
   expect(hooks.values[6]).toEqual({start:100,pxPerFrame:5});
   expect(jump).not.toHaveBeenCalled();
+});
+
+it("can drag horizontally even when the entire recording is already visible",()=>{
+  hooks.values[6]={start:0,pxPerFrame:1};
+  const canvas=all(render(),e=>e.type==="canvas")[0];
+  const event=(clientX:number)=>({clientX,button:0,pointerId:9,preventDefault:vi.fn(),currentTarget:{setPointerCapture:vi.fn(),getBoundingClientRect:()=>({left:0,width:1000})}});
+  canvas.props.onPointerDown(event(100));canvas.props.onPointerMove(event(200));
+  expect(hooks.values[6]).toEqual({start:-100,pxPerFrame:1});
 });

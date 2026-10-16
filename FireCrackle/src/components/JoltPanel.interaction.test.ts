@@ -44,5 +44,5 @@ it("stale project loads never leak into a newly opened video",async()=>{
 it("uses Jolt as a time reference without a separate plotted signal",()=>{
   const root=render({});
   expect(all(root,e=>e.type==="svg")).toHaveLength(0);
-  expect(all(root,e=>e.type==="button"&&e.props.children==="Corrected time (Jolt)")).toHaveLength(1);
+  expect(all(root,e=>e.type==="button"&&e.props.children==="Canonical time (Jolt ticks)")).toHaveLength(1);
 });
