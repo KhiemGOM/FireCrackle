@@ -28,14 +28,14 @@ afterEach(()=>vi.unstubAllGlobals());
 
 it("uses the same Timing/Sprites workspace for either X-axis source and Fit resets both axes",()=>{
   let root=render();
-  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites','Jolt']);
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites','Jolt + Fire']);
   hooks.values[15]=[-4,4];hooks.values[16]=[-85,116];
   root=render();
   all(root,e=>e.props.label==="Fit entire timing offset timeline")[0].props.onClick();
   expect(hooks.values[15]).toBeUndefined();expect(hooks.values[16]).toBeUndefined();
   all(root,e=>e.type===JoltPanel)[0].props.onChange({version:1,clock:'jolt',data:null,session:''});
   root=render();
-  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites','Jolt']);
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Timing','Sprites','Jolt + Fire']);
 });
 
 it("keeps flag selection in the chart and opens and closes video inspection separately",()=>{

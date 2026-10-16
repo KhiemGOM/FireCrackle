@@ -25,7 +25,13 @@
 .plot-x-ticks span:last-child {transform:translateX(-100%);}
 .plot-x-ticks span:last-child::before {left:100%;}
 .plot-x-hint {opacity:.6;pointer-events:none;}
-.jolt-timeline .plot-x-ticks {left:55px;right:15px;}
+.jolt-timeline .plot-x-ticks {left:85px;right:15px;}
+.phase-workspace .jolt-timeline .plot-axes {height:max(245px,calc((100dvh - 400px)/2));}
+.phase-workspace.fullscreen .jolt-timeline .plot-axes {height:max(245px,calc((100dvh - 325px)/2));}
+.jolt-timeline .chart-head {gap:12px;flex-wrap:wrap;margin-top:5px;}
+.jolt-timeline .chart-head span,.jolt-chart-key {font-size:11px;color:var(--dim);}
+.jolt-chart-key {display:flex;gap:16px;flex-wrap:wrap;margin:4px 0 10px;}
+.jolt-reading {color:#c4ff38;}.jolt-observed {color:#50dba5;}.jolt-estimated {color:#75b8ff;}.jolt-cut {color:#f16b72;}.jolt-break {color:#e4bf59;}
 .plot-axis-y:hover,.plot-axis-x:hover,.plot-axis-y:focus-visible,.plot-axis-x:focus-visible {background:var(--panel2);border-color:var(--blue);color:var(--text);outline:none;}
 .phase-workspace .comparison-view .plot-axes {height:260px;}
 .comparison-toolbar {display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;}

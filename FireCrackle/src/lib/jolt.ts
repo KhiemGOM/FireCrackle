@@ -1,7 +1,8 @@
 import { relativePhase, type ChartPoint, type PhaseChart } from "./chart";
 
 export interface JoltAnchor { time:number; tick:number; game:string; screen:string; segment?:string }
-export interface JoltData { name:string; source:string; version:string; anchors:JoltAnchor[]; unresolved:number }
+export interface JoltEvent { from:number; to:number; kind:string; game:string; screen:string; jump_seconds?:number }
+export interface JoltData { name:string; source:string; version:string; anchors:JoltAnchor[]; unresolved:number; events?:JoltEvent[] }
 export interface JoltState { version:1; data:JoltData|null; clock:"video"|"jolt"; session:string }
 export const EMPTY_JOLT:JoltState={version:1,data:null,clock:"video",session:""};
 export const JOLT_LIMIT=200_000;
@@ -51,7 +52,13 @@ export function parseJolt(text:string,name:string):JoltData {
   }
   const anchors=[...byTime.values()].filter((a):a is JoltAnchor=>a!==null).sort((a,b)=>a.time-b.time||a.game.localeCompare(b.game));
   if(!anchors.length)throw Error("No resolved Jolt tick anchors were found. Ambiguous observations cannot be used as a clock.");
-  return {name:name.slice(0,180),source:typeof raw.source==="string"?raw.source.slice(0,500):"",version:String(raw.version??"unknown").slice(0,40),anchors,unresolved};
+  const events:JoltEvent[]=[];
+  for(const e of (Array.isArray(raw.events)?raw.events:Array.isArray(raw.breaks)?raw.breaks:[]).slice(0,JOLT_LIMIT)){
+    if(!e||!finite(e.from)||!finite(e.to)||e.from<0||e.to<e.from)continue;
+    const game=id(e.game,"1"),screen=id(e.screen,anchors.find(a=>a.game===game)?.screen??"1");
+    events.push({from:e.from,to:e.to,kind:typeof e.kind==="string"?e.kind.slice(0,80):"unknown",game,screen,...(finite(e.jump_seconds)?{jump_seconds:e.jump_seconds}:{})});
+  }
+  return {name:name.slice(0,180),source:typeof raw.source==="string"?raw.source.slice(0,500):"",version:String(raw.version??"unknown").slice(0,40),anchors,unresolved,...(events.length?{events}:{})};
 }
 
 export function restoreJolt(text:string|null):JoltState {
