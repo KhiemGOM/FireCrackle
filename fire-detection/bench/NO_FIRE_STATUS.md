@@ -1,5 +1,95 @@
 # Conservative no-fire detector pilot
 
+## Deterministic colour-support follow-up (2026-10-17)
+
+User superseded the learned-model approach: sample opaque fire texels from the
+known sprites and recorded quads, inspect contaminants, then test a simple
+colour-count gate. **The strict colour-only gate cleared no held-out no-fire frames.**
+
+`no_fire/colour_support.py` sampled 6,930 projected opaque texel centres from 229
+frames spanning quad1 and survival1 (one frame per second, up to 32 randomly
+selected centres per eligible frame, fixed seed 7103). Sampling uses the actual
+sprite alpha and UV-to-screen homography, recorded visibility >= 0.999, and a
+projected texel-size screen. Transparent sprite holes and quad backgrounds are
+not intentionally sampled. The logs do not retain per-pixel occlusion masks:
+smoke, other fire planes, held items and blaze bodies can still contaminate these
+candidate points. Older clip1/clip2 logs lack quad corners, so they are tests,
+not sources of per-texel colour truth.
+
+I inspected one marked representative from each of the 66 occupied coarse RGB
+groups in the quad1 fit sample. Thirty-seven representatives visibly landed on
+flame; their groups retained 753 fit points. Ambiguous/background, smoke, portal,
+blaze-body and hand/UI representatives were omitted. This is **colour-group
+screening, not a claim that every retained point was individually verified**.
+Review selections and contact sheets are kept locally under
+`.board/fire-color-support/`, outside version control.
+
+The retained fit colours ranged from RGB [128, 46, 0] to [255, 227, 233]. These
+componentwise bounds are not an RGB box classifier: arbitrary combinations of
+those channel values need not be fire colours. The largest distance to the
+nearest opaque original sprite-palette colour was **68/255**, measured as the
+largest absolute channel difference (Chebyshev RGB distance). Median was 17,
+95th percentile 39, and 99th percentile 54. The 37 individually reviewed
+representatives also had maximum 68. This is an empirical fit-sample maximum,
+**not an upper bound on every fire pixel in every recording**. Edges, distant
+fire, fog, portal effects and veils are not exhaustively represented.
+
+Two lookup tables were frozen from quad1 only, before held-out scoring: recorded
+RGB, and conditional-unveil RGB. Colours are quantized to eight-level bins,
+then expanded by one bin in each direction. This admits differences of up to
+15 channel levels depending on bin boundaries. The cleaned raw table occupies
+4.55% of the RGB cube. No threshold was fitted to the test recordings.
+
+Full-resolution 1920x1080 frames were scored every 90 frames (1.5 seconds),
+covering the complete duration of all four videos. Every pixel below the
+12-pixel sync-strip exclusion participates in the count; no thumbnail,
+morphological opening or minimum fire-size filter is used. Tiny/occluded labelled
+fires remain in the test denominator. Capture-mod fire/no-fire labels have
+known imperfections and are not exhaustive human verification.
+
+| Recording | Role | Frames | Fire | No fire | Cleared at <1 matching pixel | Missed fire |
+|---|---|---:|---:|---:|---:|---:|
+| clip1 | Held out | 363 | 230 | 133 | 0 | 0 |
+| clip2 | Held out | 218 | 138 | 80 | 0 | 0 |
+| survival1 | Held out | 919 | 417 | 502 | 0 | 0 |
+| quad1 | Fit-recording diagnostic | 79 | 50 | 29 | 0 | 0 |
+
+Both raw and conditional-unveil branches produced these results. Across the
+**1,500 held-out frames**, the strict absence gate cleared **0/715 no-fire
+frames**, with **0/785 labelled fire frames missed**. At cutoffs of 2, 4 or 16
+matching pixels, coverage was also zero. At <64 pixels it cleared one clip2
+no-fire frame, still with zero observed misses (1/715 = 0.14% coverage).
+The fewest matches in a held-out fire frame was 762, but these are whole-frame
+candidate-colour counts, **not 762 verified fire pixels**; background matches
+can hide failures of the fire-colour envelope.
+
+Keeping all unreviewed samples included near-black background/smoke colours and
+made the gate even less selective. That baseline also cleared nothing. A raw
+maximum from these contaminated samples is not a meaningful fire-colour bound.
+
+Conclusion: the proposed sampling is practical, but this first conservative
+colour-union/count rule is not useful for clearing footage. White/yellow/orange
+fire colours also occur throughout ordinary scenery. Zero observed misses here
+does not establish reliable fire-pixel coverage or justify a larger automatic
+clear threshold. Nothing was integrated into the app or used to write labels.
+
+Reproduction with local recordings/assets:
+
+```powershell
+python fire-detection/bench/no_fire/colour_support.py sample .board/fire-color-support
+python fire-detection/bench/no_fire/colour_support.py review .board/fire-color-support
+# Inspect fit-bin-review contact sheets; preserve explicit review selections.
+python fire-detection/bench/no_fire/colour_support.py evaluate .board/fire-color-support --reviewed-bins .board/fire-color-support/reviewed-bins.json --threads 6
+python -m unittest discover -s fire-detection/bench/no_fire -p test_colour_support.py
+```
+
+The review JSON supplies `accepted_rgb_bins_32` and `reviewed_positive_pixels`
+(indices in the saved pixel arrays); source and per-frame count artifacts remain
+local. Only the two targeted projection/UV and colour-support boundary tests
+were run for this follow-up.
+
+## Earlier learned-model pilot (superseded)
+
 2026-10-17. **Research result: none of these variants is ready to auto-clear frames.**
 The objective is useful—accept only easy no-fire frames, leave everything else for review—but the present models either
 abstain almost everywhere or clear real fire. Nothing was added to the desktop app or used to change saved labels.
