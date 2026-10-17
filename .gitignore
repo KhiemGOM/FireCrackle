@@ -58,3 +58,7 @@ fire-detection/data/joined/
 *.mapping
 *.jar
 !fire-detection/mod/gradle/wrapper/gradle-wrapper.jar
+
+# Built from the canonical Rust unveil source before frontend build/test/dev.
+FireCrackle/src/lib/veil.wasm
+FireCrackle/src/lib/veil.generated.ts

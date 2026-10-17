@@ -1,4 +1,7 @@
 //! Offline connected orange/pale-region experiment. No external dependencies.
+#[path = "../../core/src/veil.rs"]
+#[allow(dead_code)]
+mod shared_veil;
 use std::collections::HashSet;
 use std::io::{self, Read, Write};
 
@@ -139,33 +142,18 @@ fn evidence(mask: &[u8], w: usize, h: usize) -> Evidence {
 }
 
 fn veiled(rgb: &[u8], w: usize, h: usize) -> bool {
-    let mut hit = 0usize;
-    let mut total = 0usize;
-    for y in 12..h {
-        let alpha = (192. + (y as f64 + 0.5) * 16. / h as f64) / 255.;
-        let upper = (16. * alpha + 255. * (1. - alpha) + 2.).floor() as u8;
-        for x in (0..w / 5).chain(w - w / 5..w) {
-            let p = (y * w + x) * 3;
-            hit += rgb[p..p + 3].iter().all(|&c| c >= 11 && c <= upper) as usize;
-            total += 1;
-        }
-    }
-    total > 0 && hit as f64 / total as f64 >= 0.9
+    shared_veil::detect_veil(rgb, w, h, 12.min(h - 1)).expect("valid RGB frame")
 }
 
 fn mask(rgb: &[u8], w: usize, h: usize, undo: bool, yellow: bool) -> Vec<u8> {
     let mut result = vec![0u8; w * h];
     for y in 12..h {
-        let alpha = (192. + (y as f64 + 0.5) * 16. / h as f64) / 255.;
+        let (bias, inverse) = shared_veil::row_transform(y, h);
         for x in 0..w {
             let p = (y * w + x) * 3;
             let mut c = [rgb[p], rgb[p + 1], rgb[p + 2]];
             if undo {
-                c = c.map(|v| {
-                    ((v as f64 - 16. * alpha) / (1. - alpha))
-                        .round_ties_even()
-                        .clamp(0., 255.) as u8
-                });
+                c = c.map(|v| shared_veil::restore_channel(v, bias, inverse));
             }
             result[y * w + x] = classify(c, yellow);
         }

@@ -2,7 +2,27 @@
 //! The game draws fillGradient(0xC0101010 -> 0xD0101010): colour (16,16,16), alpha 192/255 at the top to 208/255 at the bottom.
 //! So every veiled pixel is >= 16*alpha (about 12) and <= 16*alpha + 255*(1 - alpha) (about 76 at the top, 60 at the bottom).
 
-use fire_core::veil::{detect_veil, A_BOTTOM, A_TOP};
+// Existing exhaustive tests specify the historical strict primitive. Production
+// GUI-aware regressions below exercise the shared normal entry point separately.
+use fire_core::veil::{detect_veil_strict as detect_veil, A_BOTTOM, A_TOP};
+
+#[test]
+fn shared_default_ignores_known_gui_panels_and_tooltips() {
+    let (w, h) = (100, 100);
+    let mut rgb = vec![20u8; w * h * 3];
+    for y in 0..h {
+        for x in (0..5).chain(95..100) {
+            let p = (y * w + x) * 3;
+            rgb[p..p + 3].copy_from_slice(&[16, 0, 16]);
+        }
+    }
+    assert!(!detect_veil(&rgb, w, h, 0).unwrap());
+    assert!(fire_core::veil::detect_veil(&rgb, w, h, 0).unwrap());
+    rgb.fill(139);
+    assert!(!fire_core::veil::detect_veil(&rgb, w, h, 0).unwrap());
+    rgb.fill(0);
+    assert!(!fire_core::veil::detect_veil(&rgb, w, h, 0).unwrap());
+}
 
 const W: usize = 320;
 const H: usize = 180;

@@ -142,23 +142,8 @@ pub fn unveil_rows(
     a_bottom: f64,
     c: [u8; 3],
 ) -> Result<Vec<u8>, String> {
-    check_dims(rgb.len(), 3, w, h, "frame")?;
-    for a in [a_top, a_bottom] {
-        if !(0.0..1.0).contains(&a) {
-            return Err(format!("veil alpha must be in 0..1 (exclusive of 1): {a}"));
-        }
-    }
-    let mut out = Vec::with_capacity(rgb.len());
-    for y in 0..h {
-        let a = a_top + (a_bottom - a_top) * (y as f64 + 0.5) / h as f64;
-        let inv = 1.0 / (1.0 - a);
-        for px in rgb[y * w * 3..(y + 1) * w * 3].as_chunks::<3>().0 {
-            for k in 0..3 {
-                let v = (px[k] as f64 - c[k] as f64 * a) * inv;
-                out.push(v.round().clamp(0.0, 255.0) as u8);
-            }
-        }
-    }
+    let mut out = rgb.to_vec();
+    crate::veil::unveil_in_place(&mut out, w, h, 3, a_top, a_bottom, c)?;
     Ok(out)
 }
 

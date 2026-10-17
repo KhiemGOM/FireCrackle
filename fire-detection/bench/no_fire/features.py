@@ -4,15 +4,8 @@ from PIL import Image
 
 
 def unveil(rgb):
-    h,w,_=rgb.shape
-    a=(192+(np.arange(h,dtype=np.float32)+.5)*16/h)/255
-    margin=max(1,int(w*.2));edges=np.concatenate((rgb[:,:margin],rgb[:,-margin:]),axis=1)
-    upper=np.floor(16*a+255*(1-a)+2)[:,None,None]
-    share=float(((edges>=np.ceil(16*192/255-2))&(edges<=upper)).all(axis=2)[max(1,int(h*.012)):].mean())
-    detected=share>=.9
-    if not detected:return rgb,False,share
-    corrected=np.clip(np.rint((rgb.astype(np.float32)-16*a[:,None,None])/(1-a[:,None,None])),0,255).astype(np.uint8)
-    return corrected,True,share
+    from veil_native import apply
+    return apply(rgb, y0=max(1, int(rgb.shape[0]*.012)))
 
 
 def branch(rgb):

@@ -4,6 +4,9 @@
   "version": "0.1.1",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-veil.mjs",
+    "prebuild": "node scripts/build-veil.mjs",
+    "pretest": "node scripts/build-veil.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

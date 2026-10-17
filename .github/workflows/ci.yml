@@ -36,6 +36,8 @@ jobs:
         run: |
           ./FireCrackle/scripts/prepare-runtime.ps1
           "$PWD/FireCrackle/src-tauri/runtime" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Shared unveil WebAssembly target
+        run: rustup target add wasm32-unknown-unknown
       - name: Frontend tests and production build
         working-directory: FireCrackle
         run: |

@@ -418,9 +418,7 @@ impl SilhouetteMatcher {
             .iter()
             .map(|&o| {
                 let y = o / 3 / w;
-                let a = crate::veil::A_TOP
-                    + (crate::veil::A_BOTTOM - crate::veil::A_TOP) * (y as f64 + 0.5) / h as f64;
-                (crate::veil::COLOUR * a, 1.0 / (1.0 - a))
+                crate::veil::row_transform(y, h)
             })
             .collect();
         Ok(SilhouetteMatcher {
@@ -465,9 +463,7 @@ impl SilhouetteMatcher {
         for (k, &o) in self.offsets.iter().enumerate() {
             let rgb = if veiled {
                 let (bias, inv) = self.veil_math[k];
-                std::array::from_fn(|i| {
-                    ((frame[o + i] as f64 - bias) * inv).round().clamp(0., 255.) as u8
-                })
+                std::array::from_fn(|i| crate::veil::restore_channel(frame[o + i], bias, inv))
             } else {
                 [frame[o], frame[o + 1], frame[o + 2]]
             };

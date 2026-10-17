@@ -207,7 +207,15 @@ fn main() {
         }
         let (mean_luma, dark) = mean_luma_and_dark(&frame, w, h, 30.0).unwrap_or_else(|e| die(e));
         let raw = features(&loose, &strict, &frame, w, h).unwrap_or_else(|e| die(e));
-        let unv = unveil_rows(&frame, w, h, 0.753, 0.816, [16, 16, 16]).unwrap_or_else(|e| die(e));
+        let unv = unveil_rows(
+            &frame,
+            w,
+            h,
+            fire_core::veil::A_TOP,
+            fire_core::veil::A_BOTTOM,
+            [fire_core::veil::COLOUR as u8; 3],
+        )
+        .unwrap_or_else(|e| die(e));
         let unv = features(&loose, &strict, &unv, w, h).unwrap_or_else(|e| die(e));
         writeln!(
             csv,
