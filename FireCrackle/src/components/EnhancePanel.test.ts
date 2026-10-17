@@ -158,7 +158,7 @@ describe("Enhance panel: the selected row's controls", () => {
   it("starts the manual values from the last automatic fit, and only when there is one", () => {
     const settings = { ...DEFAULT_POST, portal: "manual" as const };
     const without = panel(settings, "portal").root;
-    const useFit = (root: El) => all(root, e => e.type === "button" && text(e) === "Use last fit")[0];
+    const useFit = (root: El) => byLabel(root, "Use last fit");
     expect(useFit(without).props.disabled).toBe(true);
     const { root, onChange } = panel(settings, "portal", { portalFit: { phase: 20, opacity: 0.39 } });
     expect(useFit(root).props.disabled).toBe(false);
@@ -206,7 +206,7 @@ describe("Enhance panel: the selected row's controls", () => {
 
   it("resets only the tone controls from the tone row", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, veil: "auto", stages: tone({ gamma: 2, contrast: 40 }) }, "tone");
-    all(root, e => e.type === "button" && text(e) === "Reset tone")[0].props.onClick();
+    byLabel(root, "Reset tone").props.onClick();
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, veil: "auto", stages: tone({}) });
   });
 });
@@ -229,12 +229,12 @@ describe("Enhance panel: order controls and reset", () => {
 
   it("has a reset for everything", () => {
     const { root, onReset } = panel();
-    all(root, e => e.type === "button" && text(e) === "Reset effects")[0].props.onClick();
+    byLabel(root, "Reset effects").props.onClick();
     expect(onReset).toHaveBeenCalledOnce();
   });
 
   it("shows the key that toggles post-processing", () => {
-    expect(text(all(panel().root, e => e.props.className === "post-key"))).toContain("V");
+    expect(String(byLabel(panel().root, "Post-processing").props.title)).toContain("V");
   });
 });
 
@@ -256,7 +256,7 @@ describe("Enhance panel: the other effects", () => {
   it("explains that the fire view is a view aid, not detection", () => {
     const { root } = panel({ ...DEFAULT_POST, stages: stage("fire", { strength: 50 }) }, "fire");
     expect(byLabel(root, "Strength").props.value).toBe(50);
-    expect(text(row(root, "fire")).toLowerCase()).toContain("not a detector");
+    expect(String(within(row(root, "fire"), "Show Fire view controls").props.title).toLowerCase()).toContain("not a detector");
   });
 
   it("shows the channel view as a choice and changes it by number", () => {
@@ -275,7 +275,7 @@ describe("Enhance panel: the other effects", () => {
   it("resets only the selected effect's controls", () => {
     const settings = { ...DEFAULT_POST, stages: { ...stage("sharpen", { amount: 90 }), tone: { on: true, params: { ...DEFAULT_TONE, gamma: 2 } } } };
     const { root, onChange } = panel(settings, "sharpen");
-    all(root, e => e.type === "button" && text(e) === "Reset sharpen")[0].props.onClick();
+    byLabel(root, "Reset sharpen").props.onClick();
     expect(onChange).toHaveBeenCalledWith({ ...settings, stages: { ...settings.stages, sharpen: { on: true, params: { ...DEFAULT_POST.stages.sharpen.params } } } });
   });
 
@@ -329,6 +329,60 @@ describe("Enhance panel: denoise and deblur", () => {
   it("shows deblur's iterations and radius, and warns that it can ring on compressed footage", () => {
     const { root } = panel({ ...DEFAULT_POST, stages: stage("deblur", { iterations: 4, radius: 1.5 }) }, "deblur");
     expect([byLabel(root, "Iterations").props.value, byLabel(root, "Blur size").props.value]).toEqual([4, 1.5]);
-    expect(text(row(root, "deblur")).toLowerCase()).toContain("ring");
+    expect(String(within(row(root, "deblur"), "Show Deblur controls").props.title).toLowerCase()).toContain("ring");
+  });
+});
+
+describe("Enhance panel: icons and short text", () => {
+  const rowsWithControls: RowId[] = ["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels"];
+
+  it("has no help paragraphs: that text lives in tooltips", () => {
+    for (const id of rowsWithControls) {
+      const { root } = panel({ ...DEFAULT_POST, portal: id === "portal" ? "manual" : "off" }, id);
+      expect(all(root, e => e.props.className === "post-help"), id).toHaveLength(0);
+    }
+  });
+
+  it("gives every row a tooltip on its name that explains it (the effects that have help text)", () => {
+    const { root } = panel();
+    for (const id of ["veil", "portal", "denoise", "deblur", "sharpen", "fire"] as RowId[]) {
+      const title = String(within(row(root, id), `Show ${{ veil: "GUI veil", portal: "Portal", denoise: "Denoise", deblur: "Deblur", sharpen: "Sharpen", fire: "Fire view" }[id as "veil"]} controls`).props.title ?? "");
+      expect(title.length, id).toBeGreaterThan(20);
+    }
+  });
+
+  it("shows every switch as a toggle with no words, its state in aria-checked", () => {
+    const { root } = panel({ ...DEFAULT_POST, veil: "auto" });
+    for (const label of ["Post-processing", "GUI veil on/off", "Portal on/off", "Tone on/off"]) {
+      const sw = byLabel(root, label);
+      expect(sw.props.role).toBe("switch");
+      expect(text(sw), label).toBe("");
+    }
+    expect(byLabel(root, "GUI veil on/off").props["aria-checked"]).toBe(true);
+    expect(byLabel(root, "Portal on/off").props["aria-checked"]).toBe(false);
+  });
+
+  it("has icon-only buttons for reset and use-last-fit, each with a label and a tooltip", () => {
+    const { root } = panel({ ...DEFAULT_POST, portal: "manual" }, "portal");
+    for (const label of ["Reset effects", "Use last fit"]) {
+      const b = byLabel(root, label);
+      expect(text(b), label).toBe("");
+      expect(b.props.title).toBe(label);
+      expect(all(b, e => e.props.className === "icon").length + all(b, e => typeof e.type === "function").length, label).toBeGreaterThan(0);
+    }
+    expect(text(byLabel(panel({ ...DEFAULT_POST }, "tone").root, "Reset tone"))).toBe("");
+  });
+
+  it("has no heading, key hint or footer sentence", () => {
+    const { root } = panel();
+    expect(all(root, e => e.type === "strong")).toHaveLength(0);
+    expect(all(root, e => e.props.className === "post-key")).toHaveLength(0);
+    expect(text(root).toLowerCase()).not.toContain("viewing only");
+  });
+
+  it("labels the preset choice by an icon, not a word", () => {
+    const { root } = panel();
+    expect(byLabel(root, "Preset").props.title).toBe("Preset");
+    expect(text(all(root, e => e.props.className === "post-preset"))).not.toMatch(/^Preset/);
   });
 });
