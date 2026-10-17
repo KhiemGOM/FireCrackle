@@ -26,7 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Release safety regressions
-        run: python3 -m unittest discover -s FireCrackle/scripts -p 'test_*release.py'
+        run: |
+          python3 -m unittest discover -s FireCrackle/scripts -p 'test_*release.py'
+          python3 -m unittest discover -s FireCrackle/scripts -p 'test_*no_fire.py'
       - name: Check version and publication plan
         id: version
         run: python3 FireCrackle/scripts/publish_release.py validate --platform "${{ inputs.platform || 'all' }}" --publish "${{ github.event_name == 'push' || inputs.publish }}" --ref "$GITHUB_REF" >> "$GITHUB_OUTPUT"
