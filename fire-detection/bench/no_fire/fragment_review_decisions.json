@@ -1,0 +1,26 @@
+{
+  "reviewed_at": "2026-10-17",
+  "reviewer": "human owner",
+  "basis": "Owner selected exactly three gallery crops as inexcusable; all other ten reviewed false-clear cases are acceptable passes.",
+  "original_rule": "all:r4 < 2198",
+  "original_evaluation": {"correct_clears": 91, "fire_cleared": 13},
+  "reviewed_clear_outputs": {"total": 104, "acceptable": 101, "unacceptable": 3},
+  "unacceptable_cases": [
+    {"source": "clip1", "frame": 21330, "selected_crop": 1},
+    {"source": "survival1", "frame": 41850, "selected_crop": 1},
+    {"source": "clip1", "frame": 22950, "selected_crop": 2}
+  ],
+  "acceptable_cases": [
+    {"source": "clip1", "frame": 22230},
+    {"source": "clip1", "frame": 22860},
+    {"source": "clip1", "frame": 23040},
+    {"source": "clip1", "frame": 23310},
+    {"source": "quad1", "frame": 5310},
+    {"source": "quad1", "frame": 5760},
+    {"source": "survival1", "frame": 50760},
+    {"source": "survival1", "frame": 51840},
+    {"source": "survival1", "frame": 51930},
+    {"source": "survival1", "frame": 52020}
+  ],
+  "limits": "Explicit case review only, not a validated global readability policy or independent evaluation. Preserve original capture labels; do not use frame IDs as deployed detector exceptions. The three attached crops matched gallery PNG pixels exactly."
+}
