@@ -519,3 +519,47 @@ fn excluded_pixels_are_neutral_regardless_of_their_colours() {
         assert_eq!(x.presence.to_bits(), y.presence.to_bits());
     }
 }
+
+#[test]
+fn inspection_components_reproduce_canonical_scores_without_affecting_normal_calls() {
+    let (w, h) = (320, 180);
+    let m = SilhouetteMatcher::new(S1, w, h, 70.).unwrap();
+    let frame = render(7, w, h, background(w, h, 81), 1.);
+    let mut mask = vec![0; w * h];
+    for x in w / 3..2 * w / 3 {
+        for y in h / 2..h {
+            mask[y * w + x] = 1;
+        }
+    }
+    assert!(m.match_frame(&frame).unwrap().diagnostics.is_none());
+    for excluded in [None, Some(mask.as_slice())] {
+        let got = m.inspect_frame(&frame, excluded, false).unwrap();
+        let d = got.diagnostics.as_ref().unwrap();
+        let reference = match excluded {
+            Some(x) => m.match_frame_excluding(&frame, x, false).unwrap(),
+            None => m.match_frame(&frame).unwrap(),
+        };
+        assert_eq!(got.ranked_colour, reference.ranked_colour);
+        assert_eq!(
+            got.colour_evidence.to_bits(),
+            reference.colour_evidence.to_bits()
+        );
+        for (row, score) in &got.ranked_colour {
+            let i = *row as usize;
+            assert_eq!(
+                score.to_bits(),
+                (d.silhouette_z[i] + d.colour_weight * d.colour_z[i]).to_bits()
+            );
+        }
+        let i = got.ranked_colour[0].0 as usize;
+        let expected = if d.colour_used[i] >= 5 {
+            d.colour_sum[i] / d.colour_used[i] as f64
+        } else {
+            0.
+        };
+        assert_eq!(expected.to_bits(), got.colour_evidence.to_bits());
+        for row in 0..32 {
+            assert!(d.colour_used[row] <= d.colour_total[row]);
+        }
+    }
+}

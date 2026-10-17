@@ -269,6 +269,17 @@ pub struct SilhouetteMatcher {
     veil_math: Vec<(f64, f64)>,
 }
 
+/// Opt-in research diagnostics. No extra probe buffers are allocated by normal scans.
+#[derive(Debug, Clone)]
+pub struct MatchDiagnostics {
+    pub silhouette_z: Vec<f64>,
+    pub colour_z: Vec<f64>,
+    pub colour_sum: Vec<f64>,
+    pub colour_used: Vec<usize>,
+    pub colour_total: Vec<usize>,
+    pub colour_weight: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct SilhouetteResult {
     /// (row, agreement) best first; ties keep row order. Silhouette only.
@@ -280,6 +291,7 @@ pub struct SilhouetteResult {
     /// Best row's colour evidence in -1..1: (matching probes - mismatching probes) / probes the row expects opaque. Comparable
     /// across matchers built for different FOVs.
     pub colour_evidence: f64,
+    pub diagnostics: Option<Box<MatchDiagnostics>>,
 }
 
 const MIN_PROBES: usize = 200;
@@ -440,12 +452,12 @@ impl SilhouetteMatcher {
     }
 
     pub fn match_frame(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled::<false>(frame, false, None)
+        self.match_sampled::<false, false>(frame, false, None)
     }
 
     /// Exact equivalent to match_frame(unveil_rows(frame)), without a full-frame allocation/pass.
     pub fn match_frame_veiled(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled::<false>(frame, true, None)
+        self.match_sampled::<false, false>(frame, true, None)
     }
 
     /// Experimental exclusion mask: nonzero pixels contribute neither agreement nor disagreement.
@@ -459,10 +471,28 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h {
             return Err("exclusion mask dimensions do not match frame".into());
         }
-        self.match_sampled::<true>(frame, veiled, Some(excluded))
+        self.match_sampled::<true, false>(frame, veiled, Some(excluded))
     }
 
-    fn match_sampled<const MASKED: bool>(
+    /// Same canonical arithmetic, with per-row components for offline stage ablations.
+    pub fn inspect_frame(
+        &self,
+        frame: &[u8],
+        excluded: Option<&[u8]>,
+        veiled: bool,
+    ) -> Result<SilhouetteResult, String> {
+        match excluded {
+            Some(mask) => {
+                if mask.len() != self.w * self.h {
+                    return Err("exclusion mask dimensions do not match frame".into());
+                }
+                self.match_sampled::<true, true>(frame, veiled, Some(mask))
+            }
+            None => self.match_sampled::<false, true>(frame, veiled, None),
+        }
+    }
+
+    fn match_sampled<const MASKED: bool, const TRACE: bool>(
         &self,
         frame: &[u8],
         veiled: bool,
@@ -572,6 +602,11 @@ impl SilhouetteMatcher {
         let mut m = vec![0.0f64; ROWS];
         let mut valid = vec![false; ROWS];
         let mut evidence = vec![0.0f64; ROWS];
+        let mut used_counts = if TRACE {
+            vec![0usize; ROWS]
+        } else {
+            Vec::new()
+        };
         for row in 0..ROWS {
             let probes = &self.colour_probes[row];
             let count = if MASKED {
@@ -579,6 +614,9 @@ impl SilhouetteMatcher {
             } else {
                 probes.len()
             };
+            if TRACE {
+                used_counts[row] = count;
+            }
             if count < MIN_COLOUR_PROBES {
                 continue;
             }
@@ -607,6 +645,18 @@ impl SilhouetteMatcher {
             ranked_colour,
             presence: rate(on_warm, on) - rate(off_warm, off),
             colour_evidence,
+            diagnostics: if TRACE {
+                Some(Box::new(MatchDiagnostics {
+                    silhouette_z: z_sil,
+                    colour_z: z_col,
+                    colour_sum: m,
+                    colour_used: used_counts,
+                    colour_total: self.colour_probes.iter().map(Vec::len).collect(),
+                    colour_weight: COLOUR_WEIGHT,
+                }))
+            } else {
+                None
+            },
         })
     }
 }
