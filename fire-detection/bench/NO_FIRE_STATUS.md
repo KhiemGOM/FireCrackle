@@ -1,5 +1,76 @@
 # Conservative no-fire detector pilot
 
+## Orange-only local evidence and automatic GUI unveil (2026-10-17)
+
+User requested ignoring white/pale pixels entirely. New offline `no_fire/orange_only.rs`
+uses the orange band independently: R>=64, G/R in[0.23,0.88], B/R<=0.5, R-B>=24.
+There is no white-core requirement, pale-priority classification or orange/white pair.
+Scores are total orange count, largest8-connected orange component, and maximum orange
+count in overlapping24/48/96px windows. A texture ablation counts only orange pixels
+touching another orange pixel with red-channel contrast>=24; white neighbours do not count.
+Half-window stride includes the right/bottom boundary. Raw and conditionally unveiled
+scores combine by maximum, so either branch can retain review.
+
+The practical width24 training truth remains fixed. Clip2 provides zero-observed-FP
+calibration thresholds before the other recordings are evaluated. Sixteen predefined
+score/scope ablations are reported; selecting a winner among these afterwards remains
+exploratory. The initial full run covers1,579 native1920x1080 frames across all four
+recordings at stride90; evaluation excludes clip2 and has1,361 frames,606 meaningful
+fire and755 clear-eligible targets. No trained model or application label writes.
+
+**Automatic unveil correction:** the previous20%-wide side-strip test was present,
+but bright status-effect panels contaminated its samples and caused actual menu frames
+to fail. Added an OR fallback using10% outer strips. The tooltip in clip1 frame900
+still caused a failure; known GUI neutral tones(85/139/198/255 with6-level channel
+tolerance) and tooltip fill(16,0,16 with8-level tolerance) now abstain from the veil
+judgment. These colours contribute **nothing to fire evidence**. True black remains
+negative veil evidence. GUI-neutral detection requires at least50% of sampled pixels
+to remain judged background and at least90% of that background in the legal veil range;
+an all-grey/white screen cannot establish a veil on its own.
+
+Real menu regression frames630/720/810/900/990/1080 are all now automatically unveiled.
+For frame630, largest orange component grows1,647->65,485px; for frame900,
+1,439->71,028px. Both stay review. Existing detections and raw evidence are retained.
+The narrower and GUI-neutral reruns keep the **original thresholds unchanged**, so this
+tests the fix without raising thresholds after examining evaluation errors. This fix
+is in the offline orange-only experiment; the peer-owned app veil implementation is untouched.
+
+Reproduction, preserving each experiment:
+
+```powershell
+rustc --edition 2021 --test fire-detection/bench/no_fire/orange_only.rs -o .board/no-fire-orange/orange_tests.exe
+python -m unittest discover -s fire-detection/bench/no_fire -p test_orange_pilot.py
+# Fresh pixel run with current GUI-aware automatic unveil:
+python fire-detection/bench/no_fire/orange_pilot.py .board/no-fire-orange-fresh
+# Patch the original20%-detector cached run with current automatic unveil,
+# retaining its original calibration thresholds:
+python fire-detection/bench/no_fire/orange_pilot.py .board/no-fire-orange-gui `
+  --patch-auto-from .board/no-fire-orange `
+  --thresholds-from .board/no-fire-orange/frozen-thresholds.json
+```
+
+Local outputs preserve the initial run, narrow fallback in `autoveil/`, GUI-neutral
+fallback in `gui-auto/`, per-frame scores and error cases. Visual review includes
+menu-darkened fire, small distant flames and particle-occluded burning entities.
+
+Final orange-only evaluation after GUI-neutral automatic unveil, with the original
+thresholds frozen (same1,361 evaluation frames and width24 target):
+
+| Candidate | TP | FP |
+| --- | ---: | ---: |
+| Largest orange component, original detector | 110 | 21 |
+| Largest orange component, corrected automatic unveil | 100 | 13 |
+| Maximum orange count in24px windows, corrected auto | 24 | 0 |
+| Orange-to-orange contrast in96px windows, HUD excluded | 28 | 0 |
+| Earlier guarded orange/pale baseline, previous detector | 25 | 0 |
+
+The predeclared largest-component primary is unsafe. The24px local-count ablation
+is close to the previous candidate without any pale/white evidence; the best observed
+zero-FP orange ablation clears28(3.7%) of755 eligible frames, only three more than
+the earlier25. Selection among16 variants is exploratory, not independent validation.
+The corrected auto pass was checked on all1,579 rows: every evidence score is >= its
+original value, and no new false clear can arise from this augmentation at fixed thresholds.
+
 ## Connected orange/pale regions follow-up (2026-10-17)
 
 User proposed blobs with separate orange and white/pale regions and explicitly
@@ -392,3 +463,4 @@ Ignored `.board/no-fire-pilot/` contains decoded-feature NPZs, provenance manife
 `report.json`, `clustering-report.json`, `legacy-report.json`, calibration previews and false-clear contact sheets.
 Raw images, labels, assets, models and video are not committed or bundled. Application source and the other model's
 known-quad files are untouched.
+
