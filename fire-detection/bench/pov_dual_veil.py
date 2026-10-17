@@ -113,9 +113,25 @@ def analyze(name, path, screens=False):
     branches = [[decision(m) for m in r['screen_modes' if screens else 'modes']] for r in scored]
     base_rows = np.array([previous[r['n']][0] for r in scored])
     base_accept = np.array([previous[r['n']][1] for r in scored])
+    auto_differences=[]
     for r, bs in zip(scored, original_branches):
         auto = bs[int(r['auto'])]
-        assert (auto['row'], auto['accepted']) == previous[r['n']], (name, r['n'], 'auto branch parity')
+        if path.parent.name=='pov-dual-veil-v2':
+            assert auto['row']==previous[r['n']][0],(name,r['n'],'unmasked row changed')
+            if (auto['row'],auto['accepted'])!=previous[r['n']]:auto_differences.append(r['n'])
+        else:
+            assert (auto['row'], auto['accepted']) == previous[r['n']], (name, r['n'], 'auto branch parity')
+    previous_best_hash=None
+    if path.parent.name=='pov-dual-veil-v2':
+        parent=ROOT/'.board/pov-dual-veil'/f'{name}.jsonl'
+        parent_records={r['n']:r for r in map(json.loads,parent.open())}
+        previous_best_hash=sha(parent)
+        reference=[]
+        for r in scored:
+            old=parent_records[r['n']]
+            both=abs(old['share']-old['threshold'])<=.03+1e-12
+            reference.append(combine([decision(m) for m in old['screen_modes']],old['auto'],both,'max_evidence'))
+        base_rows=np.array([x[0] for x in reference]);base_accept=np.array([x[1] for x in reference])
     results = []
     for width in WIDTHS:
         dual = [width is None or abs(r['share'] - r['threshold']) <= width + 1e-12 for r in scored]
@@ -140,6 +156,8 @@ def analyze(name, path, screens=False):
     screen_auto_rows=np.array([bs[int(r['auto'])]['row'] for r,bs in zip(scored,branches)])
     screen_auto_accept=np.array([bs[int(r['auto'])]['accepted'] for r,bs in zip(scored,branches)])
     return {'frames': len(scored), 'positive': int((tr >= 0).sum()), 'auto_parity': len(scored),
+        'previous_best_cache_sha256':previous_best_hash,
+        'auto_acceptance_changes_from_historical_gui':auto_differences,
         'baseline': metrics(tr, base_rows, base_accept, (base_rows, base_accept)),
         'same_mask_auto':metrics(tr,screen_auto_rows,screen_auto_accept,(base_rows,base_accept)),
         'screen_detected_frames':sum(r['screen_pixels']>0 for r in records),
@@ -147,11 +165,15 @@ def analyze(name, path, screens=False):
 
 
 def main():
+    global OUT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sources', nargs='+', default=list(SOURCES))
     parser.add_argument('--limit', type=int)
     parser.add_argument('--reuse', action='store_true')
-    args = parser.parse_args(); OUT.mkdir(parents=True, exist_ok=True)
+    parser.add_argument('--cache-version',default='v1',choices=['v1','v2'])
+    args = parser.parse_args()
+    if args.cache_version=='v2':OUT=ROOT/'.board/pov-dual-veil-v2'
+    OUT.mkdir(parents=True, exist_ok=True)
     sources = {}; screen_sources={}
     for name in args.sources:
         suffix = f'-pilot{args.limit}' if args.limit else ''

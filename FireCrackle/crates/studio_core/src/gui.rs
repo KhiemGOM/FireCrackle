@@ -92,6 +92,10 @@ static INVENTORY: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../fire-detection/data/assets/gui/inventory.rgba"
 ));
+static FONT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/ascii.rgba"
+));
 
 /// Runs the shared mask with the vanilla textures built into the binary.
 pub struct GuiAnalyzer {
@@ -101,7 +105,8 @@ pub struct GuiAnalyzer {
 
 impl GuiAnalyzer {
     pub fn new() -> Result<GuiAnalyzer, String> {
-        let tex = GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?;
+        let tex = GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
+            .with_extras(None, Some(FONT.to_vec()))?;
         Ok(GuiAnalyzer {
             tex,
             opts: GuiOptions::default(),

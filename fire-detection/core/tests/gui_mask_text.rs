@@ -276,6 +276,60 @@ fn titles_and_subtitles_are_found_with_their_scaled_shadows() {
     assert!(recall(&s, &m, PieceId::Title) > 0.95);
 }
 
+#[test]
+fn orange_fire_edges_at_subtitle_height_are_not_subtitles() {
+    let mut s = shot(&HudState::default(), 10416);
+    let fit = GuiFit::framebuffer(1280, 720, 3, 1.);
+    let half = fit.scaled_width as i32 / 2;
+    let y = fit.scaled_height as i32 / 2 + 10;
+    let scale = fit.scale;
+    // Four broad flame-like horizontal edges, deliberately symmetric about
+    // the subtitle anchor and paired with a quarter-colour edge below.
+    for start in [half - 80, half - 40, half + 20, half + 60] {
+        for gx in (start..start + 20).step_by(2) {
+            for (dx, dy, c) in [(2, 2, [50u8, 30, 6]), (0, 0, [200u8, 120, 24])] {
+                for py in ((y + dy) as f64 * scale) as usize..((y + dy + 2) as f64 * scale) as usize
+                {
+                    for px in
+                        ((gx + dx) as f64 * scale) as usize..((gx + dx + 2) as f64 * scale) as usize
+                    {
+                        s.frame[(py * s.w + px) * 3..(py * s.w + px) * 3 + 3].copy_from_slice(&c);
+                    }
+                }
+            }
+        }
+    }
+    let mask = detect(&s);
+    assert!(hits(&mask, PieceId::Subtitle).is_empty());
+}
+
+#[test]
+fn actual_orange_glyphs_are_still_titles_and_subtitles() {
+    let mut s = shot(
+        &HudState {
+            title: Some("Victory!".into()),
+            subtitle: Some("Level 7".into()),
+            ..HudState::default()
+        },
+        10417,
+    );
+    for i in 0..s.w * s.h {
+        if [PieceId::Title as u8, PieceId::Subtitle as u8].contains(&s.truth.piece[i])
+            && s.truth.class[i] == PixelClass::Opaque as u8
+        {
+            let c = if s.frame[i * 3] > 128 {
+                [240, 100, 20]
+            } else {
+                [60, 25, 5]
+            };
+            s.frame[i * 3..i * 3 + 3].copy_from_slice(&c);
+        }
+    }
+    let m = detect(&s);
+    assert_eq!(hits(&m, PieceId::Title).len(), 1);
+    assert_eq!(hits(&m, PieceId::Subtitle).len(), 1);
+}
+
 // ================================================================ XP number
 
 #[test]

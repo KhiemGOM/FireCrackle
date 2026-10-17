@@ -46,6 +46,8 @@ pub struct GuiTextures {
     pub bars: Option<Texture>,
     /// `textures/font/ascii.png` (16x16 glyphs of 8x8), when present: needed only to compose synthetic text.
     pub font: Option<Texture>,
+    /// Optional local recipe-book sheet; used only by opt-in screen masks.
+    pub recipe_book: Option<Texture>,
 }
 
 impl GuiTextures {
@@ -74,6 +76,7 @@ impl GuiTextures {
             inventory: t("inventory", inventory)?,
             bars: None,
             font: None,
+            recipe_book: None,
         })
     }
 
@@ -106,7 +109,21 @@ impl GuiTextures {
         Ok(self)
     }
 
-    /// `widgets.rgba`, `icons.rgba` and `inventory.rgba` from a folder.
+    pub fn with_recipe_book(mut self, rgba: Option<Vec<u8>>) -> Result<Self, String> {
+        if let Some(rgba) = rgba {
+            if rgba.len() != 256 * 256 * 4 {
+                return Err("recipe book must be 256x256 RGBA".into());
+            }
+            self.recipe_book = Some(Texture {
+                width: 256,
+                height: 256,
+                rgba,
+            });
+        }
+        Ok(self)
+    }
+
+    /// Required HUD sheets and optional local extras from a folder.
     pub fn load(dir: &Path) -> Result<GuiTextures, String> {
         let read = |n: &str| {
             std::fs::read(dir.join(n)).map_err(|e| format!("{}: {e}", dir.join(n).display()))
@@ -116,7 +133,8 @@ impl GuiTextures {
             read("icons.rgba")?,
             read("inventory.rgba")?,
         )?
-        .with_extras(read("bars.rgba").ok(), read("ascii.rgba").ok())
+        .with_extras(read("bars.rgba").ok(), read("ascii.rgba").ok())?
+        .with_recipe_book(read("recipe_book.rgba").ok())
     }
 
     fn sheet(&self, s: Sheet) -> Option<&Texture> {
@@ -183,6 +201,7 @@ pub enum PieceId {
     /// Opt-in screen exclusion; dynamic contents are unknown, not fire evidence.
     InventoryPanel = 24,
     MenuButton = 25,
+    RecipeBookPanel = 26,
 }
 
 #[repr(u8)]
@@ -1750,7 +1769,16 @@ pub fn detect_gui(
             text: None,
         });
     }
-    detect_text(frame, w, h, &fit, opts, boss_found, &mut mask);
+    detect_text(
+        frame,
+        w,
+        h,
+        &fit,
+        opts,
+        boss_found,
+        tex.font.as_ref(),
+        &mut mask,
+    );
     match tex.font.as_ref() {
         Some(font) => {
             detect_action_bar(frame, w, h, &fit, opts, font, &mut mask);
@@ -2549,6 +2577,7 @@ fn detect_text(
     fit: &GuiFit,
     o: &GuiOptions,
     boss_bars: usize,
+    font: Option<&Texture>,
     mask: &mut GuiMask,
 ) {
     let (sw, sh) = (fit.scaled_width as i32, fit.scaled_height as i32);
@@ -2598,8 +2627,17 @@ fn detect_text(
     ] {
         let x0 = (sw / 2).rem_euclid(unit);
         let hits = scan_text(frame, w, h, fit, o, x0, sw, y0, unit);
+        // A legal anchor and a quarter-colour edge are not enough: flame
+        // plateaus can mimic a centered shadowed line. Require glyph-height
+        // support on at least four separate text rows before masking it.
+        // Ambiguous low-height punctuation alone is left unknown/unmasked.
+        let supported_rows: std::collections::BTreeSet<_> = hits.iter().map(|p| p.1).collect();
         if hits.len() >= o.text_min_hits
+            && supported_rows.len() >= 4
             && (centre(&hits, unit) - half).abs() <= 2.0 * unit as f64 + 2.0
+            && font.is_some_and(|font| {
+                centred_scaled_glyphs(frame, w, h, fit, o, font, &hits, x0, y0, unit)
+            })
         {
             let px = line_pixels(frame, w, h, fit, o, &hits, y0, unit);
             accept_line(mask, fit, o, piece, 0, &px, unit, None, hits.len());
@@ -2720,6 +2758,61 @@ struct GlyphCols {
     ch: char,
     cols: Vec<u8>,
     ink: u32,
+}
+
+/// A plausible screen location plus shadow pairs must still read as actual
+/// font glyphs. Orange block edges may otherwise occupy the subtitle band.
+#[allow(clippy::too_many_arguments)]
+fn centred_scaled_glyphs(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    font: &Texture,
+    hits: &[TextHit],
+    x0: i32,
+    y0: i32,
+    unit: i32,
+) -> bool {
+    let sw = fit.scaled_width as i32;
+    let colour: [f64; 3] = std::array::from_fn(|k| {
+        let mut values: Vec<_> = hits.iter().map(|p| p.2[k]).collect();
+        values.sort_by(f64::total_cmp);
+        values[values.len() / 2]
+    });
+    let tol = o.action_bar_color_tolerance;
+    let ink: Vec<u16> = (x0..sw)
+        .step_by(unit as usize)
+        .map(|x| {
+            (0..10).fold(0u16, |bits, r| {
+                let yes = gui_px(frame, w, h, fit, x, y0 + (r - 1) * unit, unit).is_some_and(|a| {
+                    (luma3(a) - luma3(colour)).abs() <= tol
+                        && (0..3).all(|k| (a[k] - colour[k]).abs() <= 3. * tol)
+                });
+                if yes {
+                    bits | (1 << r)
+                } else {
+                    bits
+                }
+            })
+        })
+        .collect();
+    let half = (sw / 2 - x0) / unit;
+    let first = (hits.iter().map(|p| p.0).min().unwrap_or(x0) - x0) / unit;
+    let glyphs = glyph_columns(font);
+    for start in (first - 1).max(1)..=(first + 1).min(half - 1) {
+        if let Some(p) = parse_centred(&ink, half, start, &glyphs, o.action_bar_glyph_cost) {
+            let count = p.glyphs.iter().filter(|&&g| glyphs[g].ch != ' ').count();
+            if count >= 2
+                && p.ink >= 20
+                && p.mismatch as f64 / p.ink as f64 <= o.action_bar_max_mismatch
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn glyph_columns(font: &Texture) -> Vec<GlyphCols> {

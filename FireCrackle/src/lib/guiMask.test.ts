@@ -47,6 +47,9 @@ describe("overlayRgba", () => {
 });
 
 describe("maskStatus", () => {
+  it("identifies title and subtitle masks instead of hiding their source", () => {
+    expect(maskStatus(reply({ pieces: [{ piece: "Title", count: 1 }, { piece: "Subtitle", count: 1 }] }))).toContain("Title · Subtitle");
+  });
   it("states the scale and the pieces found, without the unknown-content boxes", () => {
     const s = maskStatus(reply());
     expect(s).toContain("4.50");

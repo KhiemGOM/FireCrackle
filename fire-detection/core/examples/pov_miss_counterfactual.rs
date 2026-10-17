@@ -43,13 +43,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             add_screen_masks(&frame, w, h, &textures, &mut gui)?;
         }
-        let screen_pixels = gui.piece.iter().filter(|&&p| p == 24 || p == 25).count();
+        let screen_pixels = gui
+            .piece
+            .iter()
+            .filter(|&&p| [24, 25, 26].contains(&p))
+            .count();
+        let screen_hits = gui
+            .hits
+            .iter()
+            .filter(|p| [24, 25, 26].contains(&(p.piece as u8)))
+            .map(|p| {
+                format!(
+                    "[{},{},{},{},{},{}]",
+                    p.piece as u8, p.x, p.y, p.w, p.h, p.score
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
         let mask: Vec<u8> = gui
             .class
             .iter()
             .zip(&gui.piece)
             .map(|(&c, &p)| {
-                u8::from(gui.reliable && (c == 1 || c == 2 || [4, 5, 11, 24, 25].contains(&p)))
+                u8::from(gui.reliable && (c == 1 || c == 2 || [4, 5, 11, 24, 25, 26].contains(&p)))
             })
             .collect();
         let mut modes = Vec::new();
@@ -73,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         writeln!(
             output,
-            "{{\"index\":{index},\"auto\":{auto},\"gui_reliable\":{},\"screen_pixels\":{screen_pixels},\"modes\":[{}]}}",
+            "{{\"index\":{index},\"auto\":{auto},\"gui_reliable\":{},\"screen_pixels\":{screen_pixels},\"screen_hits\":[{screen_hits}],\"modes\":[{}]}}",
             gui.reliable,
             modes.join(",")
         )?;

@@ -53,6 +53,8 @@ const NAMES: Record<string, string> = {
   Food: "Food",
   Air: "Air",
   EffectIcon: "Effect icon",
+  Title: "Title",
+  Subtitle: "Subtitle",
 };
 
 /** One line for the panel: the scale and the pieces found, or why nothing was found. */

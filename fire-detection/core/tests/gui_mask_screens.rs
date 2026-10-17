@@ -143,3 +143,94 @@ fn no_confirmed_texture_or_scale_means_no_screen_mask() {
     assert!(mask.hits.is_empty());
     assert!(add_screen_masks(&frame[..frame.len() - 1], w, h, &tex, &mut mask).is_err());
 }
+
+#[test]
+fn options_grid_below_initial_gap_is_confirmed() {
+    let tex = textures();
+    let (mut frame, mut mask, fit, w, h) = setup(1);
+    let x = fit.scaled_width as i32 / 2 - 155;
+    let y = fit.scaled_height as i32 / 6 + 42;
+    for row in 0..2 {
+        for dx in [0, 160] {
+            button(&mut frame, w, h, fit, &tex, x + dx, y + row * 24, 150);
+        }
+    }
+    add_screen_masks(&frame, w, h, &tex, &mut mask).unwrap();
+    assert_eq!(
+        mask.hits
+            .iter()
+            .filter(|p| p.piece == PieceId::MenuButton)
+            .count(),
+        4
+    );
+}
+
+#[test]
+fn one_occluded_inventory_edge_is_allowed_but_two_are_not() {
+    let tex = textures();
+    for damage in [1, 2] {
+        let (mut frame, mut mask, fit, w, h) = setup(1);
+        let x = (fit.scaled_width as i32 - 176) / 2;
+        let y = (fit.scaled_height as i32 - 166) / 2;
+        draw(&mut frame, w, h, fit, x, y, 176, 166, |u, v| {
+            texel(&tex.inventory, u, v)
+        });
+        draw(&mut frame, w, h, fit, x + 170, y, 6, 166, |_, _| {
+            [240, 15, 90, 255]
+        });
+        if damage == 2 {
+            draw(&mut frame, w, h, fit, x, y + 160, 176, 6, |_, _| {
+                [240, 15, 90, 255]
+            });
+        }
+        add_screen_masks(&frame, w, h, &tex, &mut mask).unwrap();
+        assert_eq!(
+            mask.hits.iter().any(|p| p.piece == PieceId::InventoryPanel),
+            damage == 1
+        );
+    }
+}
+
+#[test]
+fn recipe_book_needs_its_own_texture_confirmation() {
+    let tex = textures();
+    let Some(recipe) = tex.recipe_book.as_ref() else {
+        return;
+    };
+    let (mut frame, mut mask, fit, w, h) = setup(1);
+    let x = (fit.scaled_width as i32 - 176) / 2 + 77;
+    let y = (fit.scaled_height as i32 - 166) / 2;
+    draw(&mut frame, w, h, fit, x, y, 176, 166, |u, v| {
+        texel(&tex.inventory, u, v)
+    });
+    add_screen_masks(&frame, w, h, &tex, &mut mask).unwrap();
+    assert!(!mask
+        .hits
+        .iter()
+        .any(|p| p.piece == PieceId::RecipeBookPanel));
+    draw(&mut frame, w, h, fit, x - 149, y, 147, 166, |u, v| {
+        texel(recipe, u, v)
+    });
+    add_screen_masks(&frame, w, h, &tex, &mut mask).unwrap();
+    assert!(mask
+        .hits
+        .iter()
+        .any(|p| p.piece == PieceId::RecipeBookPanel));
+    let mut missing = tex.clone();
+    missing.recipe_book = None;
+    mask.hits.clear();
+    add_screen_masks(&frame, w, h, &missing, &mut mask).unwrap();
+    assert!(!mask
+        .hits
+        .iter()
+        .any(|p| p.piece == PieceId::RecipeBookPanel));
+}
+
+#[test]
+fn invalid_optional_recipe_or_mask_storage_is_rejected() {
+    let tex = textures();
+    assert!(tex.clone().with_recipe_book(Some(vec![0; 8])).is_err());
+    let (frame, mut mask, _, w, h) = setup(1);
+    mask.class.pop();
+    assert!(add_screen_masks(&frame, w, h, &tex, &mut mask).is_err());
+}

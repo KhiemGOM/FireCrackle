@@ -152,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let screen_ms = t.elapsed().as_secs_f64() * 1000.;
             let mut screen_pixels = 0;
             for (i, &piece) in gui.piece.iter().enumerate() {
-                if piece == 24 || piece == 25 {
+                if [24, 25, 26].contains(&piece) {
                     masks[0][i] = 1;
                     masks[1][i] = 1;
                     screen_pixels += 1;
@@ -161,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let screen_hits: Vec<_> = gui
                 .hits
                 .iter()
-                .filter(|hit| [24, 25].contains(&(hit.piece as u8)))
+                .filter(|hit| [24, 25, 26].contains(&(hit.piece as u8)))
                 .map(|hit| {
                     format!(
                         "[{},{},{},{},{},{}]",

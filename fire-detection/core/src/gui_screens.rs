@@ -62,9 +62,71 @@ fn mark(
     });
 }
 
+fn panel_confirmation(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    points: &[(i32, i32, [u8; 4])],
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    occlusion: bool,
+) -> Option<f64> {
+    let full = confirmed(frame, w, h, fit, points, x, y);
+    if full >= 0.90 {
+        return Some(full);
+    }
+    if !occlusion {
+        return None;
+    }
+    // A tooltip may cover one border. Require six of eight half-edges on
+    // at least three sides, a majority of all samples and intact separators.
+    let mut passed = 0;
+    let mut sides = 0;
+    for edge in 0..4 {
+        let mut side = false;
+        for half in 0..2 {
+            let part: Vec<_> = points
+                .iter()
+                .copied()
+                .filter(|&(u, v, _)| {
+                    let (on, coordinate, extent) = match edge {
+                        0 => (u < 5, v, height),
+                        1 => (u >= width - 5, v, height),
+                        2 => (v < 5, u, width),
+                        _ => (v >= height - 5, u, width),
+                    };
+                    on && ((coordinate >= extent / 2) == (half == 1))
+                })
+                .collect();
+            if confirmed(frame, w, h, fit, &part, x, y) >= 0.90 {
+                passed += 1;
+                side = true;
+            }
+        }
+        sides += usize::from(side);
+    }
+    let separators: Vec<_> = points
+        .iter()
+        .copied()
+        .filter(|&(u, v, _)| u >= 5 && u < width - 5 && v >= 5 && v < height - 5)
+        .collect();
+    if full >= 0.70
+        && passed >= 6
+        && sides >= 3
+        && confirmed(frame, w, h, fit, &separators, x, y) >= 0.80
+    {
+        Some(full)
+    } else {
+        None
+    }
+}
+
 /// Extend an already detected GUI with texture-confirmed vanilla inventory and
 /// pause/options buttons. Does not run automatically in `detect_gui` yet.
-/// Callers excluding screen pieces must treat IDs24/25 as neutral regardless of
+/// Callers excluding screen pieces must treat IDs24/25/26 as neutral regardless of
 /// class. Unconfirmed geometry is never painted; full-screen tint is untouched.
 pub fn add_screen_masks(
     frame: &[u8],
@@ -73,7 +135,14 @@ pub fn add_screen_masks(
     tex: &GuiTextures,
     mask: &mut GuiMask,
 ) -> Result<(), String> {
-    if w == 0 || h == 0 || frame.len() != w * h * 3 || mask.width != w || mask.height != h {
+    if w == 0
+        || h == 0
+        || w.checked_mul(h).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        || mask.width != w
+        || mask.height != h
+        || mask.piece.len() != w * h
+        || mask.class.len() != w * h
+    {
         return Err("screen mask dimensions do not match RGB frame".into());
     }
     let Some(fit) = mask.fit else {
@@ -111,14 +180,17 @@ pub fn add_screen_masks(
             for oy in -1..=1 {
                 let x = (sw - 176) / 2 + dx + ox;
                 let y = (sh - 166) / 2 + oy;
-                let score = confirmed(frame, w, h, &fit, &panel, x, y);
-                if score > best.0 {
-                    best = (score, x, y);
+                if let Some(score) =
+                    panel_confirmation(frame, w, h, &fit, &panel, x, y, 176, 166, true)
+                {
+                    if score > best.0 {
+                        best = (score, x, y);
+                    }
                 }
             }
         }
     }
-    if best.0 >= 0.90 {
+    if best.0 > 0.0 {
         mark(
             mask,
             &fit,
@@ -129,6 +201,44 @@ pub fn add_screen_masks(
             166,
             best.0,
         );
+        if let Some(recipe) = tex.recipe_book.as_ref() {
+            let mut border = Vec::new();
+            for v in 0..166 {
+                for u in 0..147 {
+                    if (u < 5 || u >= 142 || v < 5 || v >= 161) && (u + v) % 2 == 0 {
+                        let c = recipe.texel(u as i64, v as i64);
+                        if c[3] == 255 {
+                            border.push((u, v, c));
+                        }
+                    }
+                }
+            }
+            let mut rb = (0., 0, 0);
+            // Wide-layout recipe book sits two pixels left of the shifted
+            // inventory. Require its own texture evidence, never just state.
+            for ox in -1..=1 {
+                for oy in -1..=1 {
+                    let x = best.1 - 149 + ox;
+                    let y = best.2 + oy;
+                    let score = confirmed(frame, w, h, &fit, &border, x, y);
+                    if score > rb.0 {
+                        rb = (score, x, y);
+                    }
+                }
+            }
+            if rb.0 >= 0.90 {
+                mark(
+                    mask,
+                    &fit,
+                    PieceId::RecipeBookPanel,
+                    rb.1,
+                    rb.2,
+                    147,
+                    166,
+                    rb.0,
+                );
+            }
+        }
     }
 
     // Standard 20px buttons are assembled from the left/right halves of the
@@ -143,6 +253,12 @@ pub fn add_screen_masks(
     }
     for r in 0..8 {
         let y = sh / 6 - 12 + 24 * r;
+        candidates.insert((sw / 2 - 155, y, 150));
+        candidates.insert((sw / 2 + 5, y, 150));
+    }
+    // OptionsScreen has a 54px gap from its first row to the settings grid.
+    for r in 0..4 {
+        let y = sh / 6 + 42 + 24 * r;
         candidates.insert((sw / 2 - 155, y, 150));
         candidates.insert((sw / 2 + 5, y, 150));
     }
