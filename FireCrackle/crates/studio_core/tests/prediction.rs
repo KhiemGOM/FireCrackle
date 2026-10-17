@@ -83,37 +83,46 @@ fn navigating_many_guesses_keeps_them_unsaved_and_does_not_reanchor() {
     let pts: Vec<_> = (0..100).map(|n| n as f64 / 60.0).collect();
     let mut s = session(&pts, &[(0, 5)]);
     s.go(Move::To(1));
-    for _ in 0..20 { s.manual_advance(1).unwrap(); }
-    assert_eq!(s.store().labelled_count(),1);
-    assert_eq!(s.suggestion().unwrap().from_frame,0);
+    for _ in 0..20 {
+        s.manual_advance(1).unwrap();
+    }
+    assert_eq!(s.store().labelled_count(), 1);
+    assert_eq!(s.suggestion().unwrap().from_frame, 0);
     assert!(s.take_log().is_empty());
 }
 
 #[test]
 fn explicitly_confirmed_guess_is_human_checked_without_time_guess_source() {
     use studio_core::label::LabelSource;
-    let mut s=session(&[0.0,0.05,0.10],&[(0,5)]);
+    let mut s = session(&[0.0, 0.05, 0.10], &[(0, 5)]);
     s.go(Move::To(1));
     s.accept_suggestion().unwrap();
-    assert_eq!(s.store().sources(1).into_iter().collect::<Vec<_>>(),vec![LabelSource::Manual]);
+    assert_eq!(
+        s.store().sources(1).into_iter().collect::<Vec<_>>(),
+        vec![LabelSource::Manual]
+    );
     assert!(!s.store().is_predicted(1));
     assert!(s.undo());
-    assert_eq!(s.store().get(1),Label::Unset);
+    assert_eq!(s.store().get(1), Label::Unset);
 }
 
 #[test]
 fn manual_forward_only_moves_and_keeps_destination_guess() {
-    let mut s=session(&[0.0,0.05,0.10,0.15,0.20],&[(0,5)]);
-    let mut cfg=Settings::default();cfg.label.advance_frames=4;cfg.label.advance_to_unlabelled=true;
-    s.set_settings(cfg);s.go(Move::To(1));s.manual_advance(2).unwrap();
-    assert_eq!(s.current(),3);
-    assert_eq!(s.store().get(1),Label::Unset);
-    assert_eq!(s.store().get(2),Label::Unset);
-    assert_eq!(s.suggestion().unwrap().from_frame,0);
+    let mut s = session(&[0.0, 0.05, 0.10, 0.15, 0.20], &[(0, 5)]);
+    let mut cfg = Settings::default();
+    cfg.label.advance_frames = 4;
+    cfg.label.advance_to_unlabelled = true;
+    s.set_settings(cfg);
+    s.go(Move::To(1));
+    s.manual_advance(2).unwrap();
+    assert_eq!(s.current(), 3);
+    assert_eq!(s.store().get(1), Label::Unset);
+    assert_eq!(s.store().get(2), Label::Unset);
+    assert_eq!(s.suggestion().unwrap().from_frame, 0);
     assert!(s.take_log().is_empty());
     assert!(s.undo()); // only the original manual anchor is on the undo stack
-    assert_eq!(s.current(),0);
-    assert_eq!(s.store().labelled_count(),0);
+    assert_eq!(s.current(), 0);
+    assert_eq!(s.store().labelled_count(), 0);
 }
 
 #[test]

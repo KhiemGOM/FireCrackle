@@ -226,7 +226,11 @@ impl Session {
         let mut seen = std::collections::BTreeSet::new();
         for &frame in frames {
             if frame >= self.store.frame_count() {
-                return Err(LabelError::FrameOutOfRange {frame, count:self.store.frame_count()}.into());
+                return Err(LabelError::FrameOutOfRange {
+                    frame,
+                    count: self.store.frame_count(),
+                }
+                .into());
             }
             if seen.insert(frame) && self.store.get(frame) == Label::Unset {
                 entries.push(serde_json::json!({"version":2,"frame":frame,"label":Label::NoFire,"sources":["no_fire"]}));
@@ -505,8 +509,15 @@ impl Session {
     /// Explicit Confirm/Enter is a human decision, even when the candidate came from the clock.
     pub fn accept_suggestion(&mut self) -> Result<Applied, SessionError> {
         let s = self.suggestion().ok_or(SessionError::NoSuggestion)?;
-        self.pick = PickState { sheet: s.sheet, mirrored: s.mirrored };
-        self.apply(Label::Fire { sheet: s.sheet, row: s.row, mirrored: s.mirrored })
+        self.pick = PickState {
+            sheet: s.sheet,
+            mirrored: s.mirrored,
+        };
+        self.apply(Label::Fire {
+            sheet: s.sheet,
+            row: s.row,
+            mirrored: s.mirrored,
+        })
     }
 
     /// Navigation updates the preview suggestion without saving the departing frame.

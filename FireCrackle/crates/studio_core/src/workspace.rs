@@ -121,7 +121,9 @@ impl Inner {
     /// decoded. None when the window is full, or when the job would be for the playhead's own frame: a request is
     /// decoding that one.
     fn next_fill(&self) -> Option<DecodeJob> {
-        if self.cancelled.load(Ordering::SeqCst) { return None; }
+        if self.cancelled.load(Ordering::SeqCst) {
+            return None;
+        }
         let cfg = *self.cfg.lock().expect("decode config lock");
         let around = self.latest.load(Ordering::SeqCst);
         let job = {
@@ -242,7 +244,9 @@ impl FrameService {
         let cfg = *inner.cfg.lock().expect("decode config lock");
         let mut foreground = None;
         loop {
-            if inner.cancelled.load(Ordering::SeqCst) { return Err(FrameError::Decode(DecodeError::Cancelled)); }
+            if inner.cancelled.load(Ordering::SeqCst) {
+                return Err(FrameError::Decode(DecodeError::Cancelled));
+            }
             let plan = {
                 let st = inner.state.lock().expect("frame cache lock");
                 plan(&inner.index, &st.cache, frame, &cfg).map_err(FrameError::Plan)?
@@ -296,7 +300,9 @@ impl FrameService {
 
     /// Top the window up around `around` on a background thread (no-op while one is running or nothing is due).
     pub fn prefetch(&self, around: u32) {
-        if self.inner.cancelled.load(Ordering::SeqCst) { return; }
+        if self.inner.cancelled.load(Ordering::SeqCst) {
+            return;
+        }
         self.inner.latest.store(around, Ordering::SeqCst);
         if self.inner.busy.swap(true, Ordering::SeqCst) {
             return;
@@ -346,7 +352,9 @@ impl FrameService {
         let (_guard, timeout) = self
             .inner
             .background_done
-            .wait_timeout_while(guard, FILL_WAIT, |range| covers(range) && !self.inner.cancelled.load(Ordering::SeqCst))
+            .wait_timeout_while(guard, FILL_WAIT, |range| {
+                covers(range) && !self.inner.cancelled.load(Ordering::SeqCst)
+            })
             .expect("background lock");
         !timeout.timed_out()
     }
@@ -699,7 +707,10 @@ impl Workspace {
     }
 
     pub fn add_auto_no_fire(&mut self, frames: &[u32]) -> Result<(View, usize), WorkspaceError> {
-        let added = self.session.add_auto_no_fire(frames).map_err(WorkspaceError::Session)?;
+        let added = self
+            .session
+            .add_auto_no_fire(frames)
+            .map_err(WorkspaceError::Session)?;
         self.flush();
         Ok((self.view(), added))
     }

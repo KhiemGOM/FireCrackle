@@ -87,7 +87,9 @@ impl DecodeGate {
         let mut state = self.lock();
         let ticket = state.next_ticket;
         state.next_ticket += 1;
-        if state.waiting.len() == 32 { state.waiting.remove(0); }
+        if state.waiting.len() == 32 {
+            state.waiting.remove(0);
+        }
         state.waiting.push((ticket, Instant::now()));
         self.freed.notify_all();
         loop {

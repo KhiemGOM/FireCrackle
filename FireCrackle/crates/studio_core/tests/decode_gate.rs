@@ -332,20 +332,33 @@ fn frame_decodes_and_the_thumbnail_pass_start_at_background_priority() {
 
 #[test]
 fn an_overload_has_a_hard_waiter_bound_and_cancels_cleanly() {
-    let gate=Arc::new(DecodeGate::new(1));let held_cancel=never();let held=gate.acquire(&held_cancel).unwrap();
-    let cancel=Arc::new(AtomicBool::new(false));
-    let handles:Vec<_>=(0..40).map(|_|{let g=gate.clone();let c=cancel.clone();thread::spawn(move||g.acquire(&c).is_none())}).collect();
+    let gate = Arc::new(DecodeGate::new(1));
+    let held_cancel = never();
+    let held = gate.acquire(&held_cancel).unwrap();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let handles: Vec<_> = (0..40)
+        .map(|_| {
+            let g = gate.clone();
+            let c = cancel.clone();
+            thread::spawn(move || g.acquire(&c).is_none())
+        })
+        .collect();
     thread::sleep(Duration::from_millis(200));
-    let queued=gate.waiting();
-    cancel.store(true,Ordering::SeqCst);
-    for h in handles {assert!(h.join().unwrap());}
+    let queued = gate.waiting();
+    cancel.store(true, Ordering::SeqCst);
+    for h in handles {
+        assert!(h.join().unwrap());
+    }
     drop(held);
-    assert!(queued<=32,"unbounded queued decodes: {queued}");
-    assert_eq!(gate.waiting(),0);assert_eq!(gate.in_flight(),0);
+    assert!(queued <= 32, "unbounded queued decodes: {queued}");
+    assert_eq!(gate.waiting(), 0);
+    assert_eq!(gate.in_flight(), 0);
 }
 
 #[test]
 fn invalid_large_limits_cannot_disable_the_process_cap() {
-    let gate=DecodeGate::new(usize::MAX);assert!(gate.limit()<=8);
-    gate.set_limit(usize::MAX);assert!(gate.limit()<=8);
+    let gate = DecodeGate::new(usize::MAX);
+    assert!(gate.limit() <= 8);
+    gate.set_limit(usize::MAX);
+    assert!(gate.limit() <= 8);
 }
