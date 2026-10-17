@@ -47,6 +47,12 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         <h3>First-person fire labeller</h3>
         <p>Finds first-person fire sprites. Check automatic labels afterward, especially near unusual timing.</p>
         <p className="dim">Best with full, uncropped vanilla Minecraft 1.16.5 footage. Existing labels stay unchanged; uncertain frames are left alone.</p>
+        <details>
+          <summary>Measured results</summary>
+          <p>Current labeller, six local recordings: <strong>1,676 / 1,676 accepted rows correct</strong>; <strong>0 false positives in 14,102 samples without first-person fire</strong>. It labelled 90.0% of the 1,862 first-person-fire samples.</p>
+          <p>Two additional recordings, kept separate from sprite tuning: 280 / 349 fire samples labelled (80.2%), all accepted rows correct; 0 false positives in 2,184 non-overlay samples.</p>
+          <p className="dim">Measured 18 Oct 2026 on sampled, correlated frames from the same local setup. The additional recordings had appeared in other preprocessing research. Zero observed errors is not a guarantee. Unlabelled frames can still contain fire.</p>
+        </details>
         {!supported&&<p>This tool is available in the desktop app.</p>}
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
