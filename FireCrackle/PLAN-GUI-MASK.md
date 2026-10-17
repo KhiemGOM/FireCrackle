@@ -202,6 +202,71 @@ level 0; boss bars of every colour at 0 % and 100 %, two bars stacked; mount hea
 instead of XP; F3 left and right columns; JPEG compression; nothing of this is reported when the HUD itself is not
 reliable; phase 1 results unchanged.
 
+### 3.4 Action bar (plan)
+
+Survival vanilla uses it (Yarn 1.16.5): bed messages (`BedBlock` 98, 105; `PlayerEntity` 2094–2099: occupied, no
+sleep now, too far away, obstructed, not safe), "Press … to Dismount" when mounting (`ClientPlayNetworkHandler` 952),
+jukebox "Now Playing" in a shifting colour (`InGameHud` 1069–1070), locked containers. Drawn by `InGameHud` 229–257:
+`translate(W/2, H−68)`, text at `(−width/2, −4)` → GUI rows `H−72 .. H−65`, centred, **no shadow**, no background
+with the default options (`getTextBackgroundColor(0)` is 0 when `backgroundForChatOnly`), white or the tint, shown for
+60 ticks and fading out over the last 20 (`setOverlayMessage` 1073–1077).
+
+Without a shadow the colour alone is weak (snow, quartz), so the evidence is the font itself: in the band, the pixels of
+the line's colour must **parse left to right as real glyphs of `font/ascii.png`** (each glyph's bitmap, one empty
+column, spaces of 4), centred on `W/2`. Random bright world cannot form a glyph sequence; as a bonus the message is read.
+Pixels of the parsed glyphs are `opaque` (translucent while fading is not detected: a faded line is left alone, never
+guessed).
+
+Failure cases (tests first): each survival message found and read back exactly; a tinted jukebox line; a red message;
+alongside the held-item name; other scales and resizes; JPEG; nothing for a bright decoy rectangle, random bright
+strokes, a centred blob of glyph-like but non-font bits, or no message; a fading line never labels world pixels.
+
+**Status: built (2026-10-17), not committed.** `PieceId::ActionBar = 22`, `PieceHit.text` (the message read),
+`HudState.action_bar / action_bar_color / action_bar_alpha`. `tests/gui_mask_actionbar.rs`: 12 tests, red first (API
+missing), unchanged since; phase 1 and 2 suites unchanged and green. Yarn re-checked: `InGameHud` 248 uses
+`textRenderer.draw` (no shadow); the tint is `hsvToRgb(g/50, 0.7, 0.6)` (max channel 153).
+
+How it reads a line (each setting in `GuiOptions`, documented there):
+- **Colour:** the band's most common bright colours in fine bins (8 levels; the flat text colour piles up in one,
+  world spreads). A coarse bin's median was the world's and missed white text at GUI scale 2.
+- **Ink:** luma within `action_bar_color_tolerance` (8), each channel within 3x that. Video halves chroma, so a thin
+  red stroke loses its colour but keeps its luma.
+- **Parse:** dynamic programming over the centred span `s = W/2 - tw/2`. The reading maximises the ink really
+  present, minus mismatches, minus `action_bar_glyph_cost` (4) per non-space glyph; spaces are free.
+- **Structure:** a line starts and ends on a glyph, never has two spaces, and has an ink-free column on each side.
+  Ink in the rows above and below counts as mismatch. Accept at mismatch ≤ `action_bar_max_mismatch` (0.15) with ≥
+  `action_bar_min_glyphs` (3).
+- **Re-read:** a line found at the tight tolerance is re-read at 1.5x, 2x and 3x (up to
+  `action_bar_reread_tolerance`, 24) as the same or a wider centred line, and the cleanest reading wins. On real
+  video the tight pass lost "H…s" of a red line over varied ground.
+
+What went wrong on the way (all on synthetic frames whose world peaks at luma ≈ 250, near-white):
+- A wide tolerance (48) read bright world as ink.
+- Picking the cleanest ratio chose centred fragments ("i only sleep").
+- Maximising "ink − mismatch" made superset glyphs free ('B' over 'o'); the gain must count only ink that is really
+  there.
+- Speck punctuation padded lines (". . .") until glyphs were costed.
+
+Measured:
+- **Synthetic sweep** (7 messages × white/red/tint × 6 seeds, raw and JPEG q3): 252/252 found, 247 read exactly; 5
+  single-glyph misreads ('o'→'c', 'i'→'|', 'u'→'w'); 9 stray world pixels in total; 0 false positives in 40
+  message-free frames.
+- **Cost:** about 0–20 ms per frame on top of the rest.
+- **Real recordings** (1 frame per 2–3 s, four videos):
+  - "Press Left Shift to Dismount" is read exactly every time it shows: `2026-10-17 18-28-42` at 184, 186 and 208 s;
+    `2026-10-16 18-23-42` at 46 and 82 s.
+  - "Height limit for building is 256 blocks" (red) is read exactly at 1251 s in `2026-10-16 18-23-42`.
+  - No other hits in any of the four videos.
+  - Overlay checked by eye at GUI scale 3.75.
+
+Known limits (flagged):
+- White text over near-white world (snow, quartz) is read only where the world stays darker than the text by more
+  than the tolerance. Otherwise the line is skipped, or a glyph whose gap is filled by world is misread; that paints
+  a few world pixels.
+- A fading line is not detected.
+- The app's `pack()` keeps 4 bits for the piece, so ids ≥ 16 (phase 2 and this) need the wider format before the app
+  shows them.
+
 ### 3.2 Phase 1b: the app
 
 **Status: built (2026-10-17), not committed.** `studio_core::gui` (12 tests, red first: module missing; one runs ffmpeg

@@ -173,6 +173,8 @@ pub enum PieceId {
     MountHealth = 19,
     JumpBar = 20,
     DebugText = 21,
+    // phase 3
+    ActionBar = 22,
 }
 
 #[repr(u8)]
@@ -244,6 +246,11 @@ pub struct HudState {
     /// F3 lines, left and right column.
     pub debug_left: Vec<String>,
     pub debug_right: Vec<String>,
+    /// Action bar message (bed, dismount, jukebox), centred above the hotbar without a shadow.
+    pub action_bar: Option<String>,
+    pub action_bar_color: [u8; 3],
+    /// Opacity while it fades out over its last 20 ticks (1: fully shown).
+    pub action_bar_alpha: f32,
 }
 
 /// A boss bar: colour index (pink, blue, red, green, yellow, purple, white = 0..6), progress 0..1, name.
@@ -284,6 +291,9 @@ impl Default for HudState {
             jump_bar: None,
             debug_left: Vec::new(),
             debug_right: Vec::new(),
+            action_bar: None,
+            action_bar_color: [255, 255, 255],
+            action_bar_alpha: 1.0,
         }
     }
 }
@@ -821,6 +831,25 @@ pub struct GuiOptions {
     /// Text: like `edge_tolerance_px`, for text strokes (one GUI pixel wide, so the last digits of a scale that does not
     /// divide the video evenly push most of them across a pixel edge): overlaps thinner than this are ignored.
     pub text_edge_tolerance_px: f64,
+    /// Action bar: how far (levels of luma) a pixel may be from the line's colour and still count as ink; each channel
+    /// may be three times as far (video halves chroma, smearing a thin coloured stroke). The line has no shadow, so this
+    /// only feeds the glyph parse, which is the real evidence. Too wide and bright world behind the text reads as ink.
+    pub action_bar_color_tolerance: f64,
+    /// Action bar: the share of the parsed glyphs' ink that may disagree with the picture (stray or missing pixels,
+    /// from compression or bright world behind the text) for the line to be accepted.
+    pub action_bar_max_mismatch: f64,
+    /// Action bar: the fewest non-space glyphs a line needs (one or two glyphs are too easy to match by chance).
+    pub action_bar_min_glyphs: usize,
+    /// Action bar: the loosest tolerance (levels of luma) a line already found at `action_bar_color_tolerance` is
+    /// re-read at (1.5x, 2x, 3x that, up to this): video smears a thin coloured stroke over varied ground, so the tight
+    /// pass can lose a glyph or two at the ends. A re-read may only keep or widen the same centred line, and wins
+    /// only if it reads at least as cleanly.
+    pub action_bar_reread_tolerance: f64,
+    /// Action bar: what each non-space glyph costs, in ink pixels, when readings of the band are compared (a reading
+    /// scores the ink it explains minus its mismatches minus this per glyph; spaces are free). Letters explain 8-15
+    /// pixels; a '.' or ''' laid over a bright world speck explains one or two, so with a cost above that, padding a
+    /// line or filling a word gap with specks never pays.
+    pub action_bar_glyph_cost: f64,
 }
 
 impl Default for GuiOptions {
@@ -834,6 +863,11 @@ impl Default for GuiOptions {
             text_shadow_tolerance: 10.0,
             text_min_hits: 8,
             text_edge_tolerance_px: 0.3,
+            action_bar_color_tolerance: 8.0,
+            action_bar_max_mismatch: 0.15,
+            action_bar_min_glyphs: 3,
+            action_bar_glyph_cost: 4.0,
+            action_bar_reread_tolerance: 24.0,
         }
     }
 }
@@ -848,6 +882,8 @@ pub struct PieceHit {
     pub w: u32,
     pub h: u32,
     pub score: f64,
+    /// The text read from the picture (action bar), when the piece is read glyph by glyph.
+    pub text: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1010,6 +1046,37 @@ fn check_options(o: &GuiOptions) -> Result<(), String> {
     }
     if o.text_min_hits == 0 {
         return Err("text_min_hits must be at least 1".into());
+    }
+    if !(o.action_bar_color_tolerance.is_finite()
+        && (0.0..=128.0).contains(&o.action_bar_color_tolerance))
+    {
+        return Err(format!(
+            "action_bar_color_tolerance must be in 0..128, got {}",
+            o.action_bar_color_tolerance
+        ));
+    }
+    if !(o.action_bar_max_mismatch.is_finite() && (0.0..1.0).contains(&o.action_bar_max_mismatch)) {
+        return Err(format!(
+            "action_bar_max_mismatch must be in 0..1, got {}",
+            o.action_bar_max_mismatch
+        ));
+    }
+    if !(o.action_bar_glyph_cost.is_finite() && (0.0..=64.0).contains(&o.action_bar_glyph_cost)) {
+        return Err(format!(
+            "action_bar_glyph_cost must be in 0..64, got {}",
+            o.action_bar_glyph_cost
+        ));
+    }
+    if !(o.action_bar_reread_tolerance.is_finite()
+        && (0.0..=128.0).contains(&o.action_bar_reread_tolerance))
+    {
+        return Err(format!(
+            "action_bar_reread_tolerance must be in 0..128, got {}",
+            o.action_bar_reread_tolerance
+        ));
+    }
+    if o.action_bar_min_glyphs == 0 {
+        return Err("action_bar_min_glyphs must be at least 1".into());
     }
     if !(o.edge_tolerance_px.is_finite() && (0.0..0.5).contains(&o.edge_tolerance_px)) {
         return Err(format!(
@@ -1611,9 +1678,16 @@ pub fn detect_gui(
             w: (p.w as f64 * fit.scale).round() as u32,
             h: (p.h as f64 * fit.scale).round() as u32,
             score: *sc,
+            text: None,
         });
     }
     detect_text(frame, w, h, &fit, opts, boss_found, &mut mask);
+    match tex.font.as_ref() {
+        Some(font) => detect_action_bar(frame, w, h, &fit, opts, font, &mut mask),
+        None => mask
+            .notes
+            .push("no font texture: the action bar is not checked".into()),
+    }
     Ok(mask)
 }
 
@@ -1770,6 +1844,34 @@ fn draw_text(
     rgb: [u8; 3],
     shadow: bool,
 ) {
+    draw_text_alpha(
+        frame, w, h, fit, font, truth, piece, x, y, unit, text, rgb, 255, shadow,
+    );
+}
+
+/// `draw_text` at an opacity below 1 (a fading line) is labelled translucent.
+#[allow(clippy::too_many_arguments)]
+fn draw_text_alpha(
+    frame: &mut [u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    font: &Texture,
+    truth: &mut Truth,
+    piece: PieceId,
+    x: i32,
+    y: i32,
+    unit: i32,
+    text: &str,
+    rgb: [u8; 3],
+    alpha: u8,
+    shadow: bool,
+) {
+    let class = if alpha == 255 {
+        PixelClass::Opaque
+    } else {
+        PixelClass::Translucent
+    };
     let quarter = [rgb[0] / 4, rgb[1] / 4, rgb[2] / 4];
     let passes: Vec<(i32, [u8; 3])> = if shadow {
         vec![(unit, quarter), (0, rgb)]
@@ -1795,10 +1897,10 @@ fn draw_text(
                             h,
                             fit,
                             rect,
-                            [col[0], col[1], col[2], 255],
+                            [col[0], col[1], col[2], alpha],
                             truth,
                             piece,
-                            PixelClass::Opaque,
+                            class,
                         );
                     }
                 }
@@ -1898,6 +2000,28 @@ fn compose_text(
             white,
             true,
         );
+    }
+    // action bar (InGameHud 229-257): translate(W/2, H-68), text at (-width/2, -4), no shadow, no background
+    if let Some(t) = &st.action_bar {
+        let alpha = (st.action_bar_alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+        if alpha > 0 {
+            draw_text_alpha(
+                frame,
+                w,
+                h,
+                fit,
+                font,
+                truth,
+                PieceId::ActionBar,
+                sw / 2 + (-text_width(font, t) / 2),
+                sh - 72,
+                1,
+                t,
+                st.action_bar_color,
+                alpha,
+                false,
+            );
+        }
     }
     let grey_box = [80u8, 80, 80, 0x90];
     for (i, line) in st.debug_left.iter().enumerate() {
@@ -2255,6 +2379,7 @@ fn accept_line(
         w: ((gx1 - gx0) as f64 * fit.scale).round() as u32,
         h: ((gy1 - gy0) as f64 * fit.scale).round() as u32,
         score: hits as f64,
+        text: None,
     });
 }
 
@@ -2446,4 +2571,289 @@ fn detect_text(
             idx = idx.saturating_add(1);
         }
     }
+}
+
+// ================================================================ action bar
+
+/// One printable glyph as column bitmasks (bit r = row r of its 8x8 cell), `advance` columns long (the last one is
+/// the empty gap), and its ink pixel count.
+struct GlyphCols {
+    ch: char,
+    cols: Vec<u8>,
+    ink: u32,
+}
+
+fn glyph_columns(font: &Texture) -> Vec<GlyphCols> {
+    (' '..='~')
+        .map(|ch| {
+            let (cx, cy, adv) = glyph(font, ch);
+            let cols: Vec<u8> = (0..adv as i64)
+                .map(|x| {
+                    if ch == ' ' || x >= 8 {
+                        return 0;
+                    }
+                    (0..8).fold(0u8, |m, r| {
+                        if font.texel(cx + x, cy + r)[3] > 0 {
+                            m | 1 << r
+                        } else {
+                            m
+                        }
+                    })
+                })
+                .collect();
+            let ink = cols.iter().map(|c| c.count_ones()).sum();
+            GlyphCols { ch, cols, ink }
+        })
+        .collect()
+}
+
+/// Luma of a sampled colour. Video keeps luma at full resolution but halves chroma (4:2:0), which smears the colour of
+/// a one-pixel stroke into its neighbours, so ink is matched on luma with only a loose colour check.
+fn luma3(a: [f64; 3]) -> f64 {
+    0.299 * a[0] + 0.587 * a[1] + 0.114 * a[2]
+}
+
+/// The best reading of the band as a centred glyph sequence: (start column, glyph indices, mismatches, glyph ink).
+struct Parse {
+    start: i32,
+    glyphs: Vec<usize>,
+    mismatch: u32,
+    ink: u32,
+}
+
+/// Read `ink` (one column bitmask per GUI column: bit 0 the row above the band, bits 1..8 its 8 rows, bit 9 the row
+/// below) as glyphs, left to right from `s`, for a line whose width `tw` puts it centred: `s = W/2 - tw/2`
+/// (InGameHud 247), so `tw` is `2(W/2 - s)` or one more. A line starts and ends with a glyph and never has two spaces in
+/// a row (vanilla messages do not), and the font leaves a free frame around it: the columns just outside must be free
+/// of ink and ink in the rows above and below counts as mismatch, so text over a bright blob is not read at all rather
+/// than read wrong.
+fn parse_centred(
+    ink: &[u16],
+    half: i32,
+    s: i32,
+    font: &[GlyphCols],
+    glyph_cost: f64,
+) -> Option<Parse> {
+    let k = half - s;
+    let len = (2 * k + 1) as usize;
+    if s < 1 || s as usize + len > ink.len() {
+        return None;
+    }
+    let at = |i: usize| ink.get(s as usize + i).copied().unwrap_or(0);
+    // dp[i][last glyph was a space] = (mismatches, glyph ink, previous position, previous state, glyph) and the path's
+    // gain: ink the glyphs explain that is really there, minus mismatches, minus `glyph_cost` per non-space glyph
+    // (spaces are free: a gap over bright world is a space, not punctuation made of world specks)
+    type Cell = Option<(u32, u32, usize, usize, usize)>;
+    let mut dp: Vec<[Cell; 2]> = vec![[None, None]; len + 1];
+    let mut gain: Vec<[f64; 2]> = vec![[f64::NEG_INFINITY; 2]; len + 1];
+    // start as if after a space, so a line cannot begin with one
+    dp[0][1] = Some((0, 0, 0, 0, 0));
+    gain[0][1] = 0.0;
+    for i in 0..len {
+        for st in 0..2 {
+            let Some((m0, k0, _, _, _)) = dp[i][st] else {
+                continue;
+            };
+            for (g, gc) in font.iter().enumerate() {
+                let space = gc.ch == ' ';
+                if space && st == 1 {
+                    continue;
+                }
+                let a = gc.cols.len();
+                if i + a > len {
+                    continue;
+                }
+                let (mut m, mut hit) = (0u32, 0u32);
+                for (j, &c) in gc.cols.iter().enumerate() {
+                    let (col, c) = (at(i + j), (c as u16) << 1);
+                    m += (col ^ c).count_ones();
+                    hit += (col & c).count_ones();
+                }
+                let ns = space as usize;
+                let gn = gain[i][st] + hit as f64 - m as f64 - if space { 0.0 } else { glyph_cost };
+                if gn > gain[i + a][ns] {
+                    gain[i + a][ns] = gn;
+                    dp[i + a][ns] = Some((m0 + m, k0 + gc.ink, i, st, g));
+                }
+            }
+        }
+    }
+    let ratio = |d: &(u32, u32, usize, usize, usize)| d.0 as f64 / d.1.max(1) as f64;
+    // the line ends on a glyph; the columns just outside it are free (the left one is checked by the caller), and
+    // only their rows above and below the band can still disagree
+    let (e, d) = [2 * k as usize, len]
+        .into_iter()
+        .filter(|&e| ink.get(s as usize + e).is_some_and(|c| c & 0x1fe == 0))
+        .filter_map(|e| dp[e][0].map(|d| (e, d)))
+        .map(|(e, mut d)| {
+            d.0 += ink[s as usize - 1].count_ones() + ink[s as usize + e].count_ones();
+            (e, d)
+        })
+        .min_by(|a, b| ratio(&a.1).total_cmp(&ratio(&b.1)))?;
+    let (mismatch, ink_total) = (d.0, d.1);
+    let (mut i, mut st) = (e, 0usize);
+    let mut glyphs = Vec::new();
+    while i > 0 {
+        let (_, _, prev, pst, g) = dp[i][st]?;
+        glyphs.push(g);
+        i = prev;
+        st = pst;
+    }
+    glyphs.reverse();
+    Some(Parse {
+        start: s,
+        glyphs,
+        mismatch,
+        ink: ink_total,
+    })
+}
+
+/// The action bar (InGameHud 229-257): one line centred at y = H-72, no shadow and no background. The colour alone
+/// proves nothing, so a line is accepted only when its pixels read as real glyphs of the font; the glyphs read are
+/// the hit's text. A fading line (colour blended with the world) does not read and is left alone.
+fn detect_action_bar(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    font: &Texture,
+    mask: &mut GuiMask,
+) {
+    let (sw, sh) = (fit.scaled_width as i32, fit.scaled_height as i32);
+    let y0 = sh - 72;
+    if y0 < 0 || sw < 8 {
+        return;
+    }
+    let half = sw / 2;
+    // the band's 8 rows plus the free row above and below (index 0 and 9)
+    let band: Vec<[Option<[f64; 3]>; 10]> = (0..sw)
+        .map(|gx| std::array::from_fn(|r| gui_px(frame, w, h, fit, gx, y0 + r as i32 - 1, 1)))
+        .collect();
+    // candidate line colours: the most common bright colours in the band, in fine bins (8 levels) because the line is
+    // one flat colour that piles up in a bin while the world spreads over many (a coarse bin's median is the world's)
+    let mut bins: std::collections::HashMap<(u8, u8, u8), Vec<[f64; 3]>> = Default::default();
+    for col in &band {
+        for a in col[1..9].iter().flatten() {
+            if brightest(*a) >= o.text_min_bright {
+                let key = (a[0] as u8 >> 3, a[1] as u8 >> 3, a[2] as u8 >> 3);
+                bins.entry(key).or_default().push(*a);
+            }
+        }
+    }
+    let mut bins: Vec<_> = bins.into_iter().collect();
+    bins.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(&b.0)));
+    let glyphs = glyph_columns(font);
+    let non_space = |q: &Parse| q.glyphs.iter().filter(|&&g| glyphs[g].ch != ' ').count();
+    // the whole line explains the most ink (a centred fragment of it reads cleanly too), but every glyph costs: tiny
+    // glyphs ('.', ''') laid over world specks would otherwise pad the line
+    let gain = |q: &Parse| {
+        q.ink as f64 - q.mismatch as f64 - o.action_bar_glyph_cost * non_space(q) as f64
+    };
+    // the best centred reading of the band in `colour` at `tol`, starting at most at `s_max`
+    let read = |colour: [f64; 3], tol: f64, s_max: i32| -> Option<(Parse, f64)> {
+        let is_ink = |a: Option<[f64; 3]>| {
+            a.is_some_and(|a| {
+                (luma3(a) - luma3(colour)).abs() <= tol
+                    && (0..3).all(|k| (a[k] - colour[k]).abs() <= 3.0 * tol)
+            })
+        };
+        let ink: Vec<u16> = band
+            .iter()
+            .map(|col| (0..10).fold(0u16, |m, r| if is_ink(col[r]) { m | 1 << r } else { m }))
+            .collect();
+        let mut best: Option<(Parse, f64)> = None;
+        for s in 1..=s_max.min(half - 1) {
+            // glyphs are left-aligned in their cells, so a line starts on an inked column after a free one
+            if ink[s as usize] & 0x1fe == 0 || ink[s as usize - 1] & 0x1fe != 0 {
+                continue;
+            }
+            // and ends with a glyph whose last column is inked, just before its one empty column
+            let k = (half - s) as usize;
+            let inked = |c: usize| ink.get(s as usize + c).is_some_and(|m| m & 0x1fe != 0);
+            if !inked(2 * k - 2) && !inked(2 * k - 1) {
+                continue;
+            }
+            let Some(p) = parse_centred(&ink, half, s, &glyphs, o.action_bar_glyph_cost) else {
+                continue;
+            };
+            let ratio = p.mismatch as f64 / p.ink.max(1) as f64;
+            if non_space(&p) < o.action_bar_min_glyphs || ratio > o.action_bar_max_mismatch {
+                continue;
+            }
+            if best.as_ref().is_none_or(|b| gain(&p) > gain(&b.0)) {
+                best = Some((p, ratio));
+            }
+        }
+        best
+    };
+    // strict: the line must read at the tight tolerance first (bright world cannot pass for text there). Bright
+    // world often outnumbers the line's pixels, so several colour bins are tried.
+    let mut strict: Option<(Parse, f64, [f64; 3])> = None;
+    for (_, members) in bins.iter().take(8) {
+        if members.len() < 4 * o.action_bar_min_glyphs {
+            break;
+        }
+        let colour: [f64; 3] = std::array::from_fn(|k| {
+            let mut v: Vec<f64> = members.iter().map(|a| a[k]).collect();
+            v.sort_by(f64::total_cmp);
+            v[v.len() / 2]
+        });
+        if let Some((p, ratio)) = read(colour, o.action_bar_color_tolerance, half - 1) {
+            if strict.as_ref().is_none_or(|b| gain(&p) > gain(&b.0)) {
+                strict = Some((p, ratio, colour));
+            }
+        }
+    }
+    let Some((p0, r0, colour)) = strict else {
+        return;
+    };
+    // re-read the found line at looser tolerances (video smears a thin coloured stroke over varied ground, losing a
+    // glyph or two at the tight one), only as the same centred line or a wider one; the cleanest reading wins
+    let mut best = Some((p0, r0));
+    for f in [1.5, 2.0, 3.0] {
+        let tol = o.action_bar_color_tolerance * f;
+        if tol > o.action_bar_reread_tolerance {
+            break;
+        }
+        let s_max = best.as_ref().map_or(0, |b| b.0.start);
+        if let Some((p, ratio)) = read(colour, tol, s_max) {
+            let b = best.as_ref().unwrap();
+            if ratio < b.1 - 0.005 || (ratio <= b.1 + 0.005 && gain(&p) > gain(&b.0)) {
+                best = Some((p, ratio));
+            }
+        }
+    }
+    let Some((p, ratio)) = best else {
+        return;
+    };
+    let mut x = p.start;
+    for &g in &p.glyphs {
+        for (j, &c) in glyphs[g].cols.iter().enumerate() {
+            for r in 0..8 {
+                if c >> r & 1 == 1 {
+                    paint(
+                        mask,
+                        fit,
+                        ((x + j as i32) as f64, (y0 + r) as f64, 1.0, 1.0),
+                        PieceId::ActionBar,
+                        PixelClass::Opaque,
+                        o.text_edge_tolerance_px,
+                    );
+                }
+            }
+        }
+        x += glyphs[g].cols.len() as i32;
+    }
+    let text: String = p.glyphs.iter().map(|&g| glyphs[g].ch).collect();
+    mask.hits.push(PieceHit {
+        piece: PieceId::ActionBar,
+        index: 0,
+        x: (fit.origin_x + p.start as f64 * fit.scale).floor() as i32,
+        y: (fit.origin_y + y0 as f64 * fit.scale).floor() as i32,
+        w: ((x - p.start) as f64 * fit.scale).round() as u32,
+        h: (8.0 * fit.scale).round() as u32,
+        score: 1.0 - ratio,
+        text: Some(text.trim_end().to_string()),
+    });
 }
