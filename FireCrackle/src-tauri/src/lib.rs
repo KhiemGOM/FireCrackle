@@ -14,8 +14,8 @@ mod compression;
 mod external_tools;
 mod gui;
 mod jolt;
-mod pov;
 mod no_fire;
+mod pov;
 mod url_import;
 
 #[tauri::command]
@@ -72,7 +72,10 @@ fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
     let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
     let workspace = guard.as_ref().ok_or("No video is open")?;
     studio_core::gui::ensure_allowed(studio_core::gui::read_answer(workspace.dir()))?;
-    state.no_fire.start_no_fire(workspace.automation_project(), external_tools::video_tools()?)
+    state.no_fire.start_no_fire(
+        workspace.automation_project(),
+        external_tools::video_tools()?,
+    )
 }
 #[tauri::command]
 fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
@@ -83,7 +86,11 @@ fn no_fire_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
     state.no_fire.cancel(id)
 }
 #[tauri::command]
-fn no_fire_candidates(state: State<'_, AppState>, id: u64, offset: usize) -> Result<Vec<u32>, String> {
+fn no_fire_candidates(
+    state: State<'_, AppState>,
+    id: u64,
+    offset: usize,
+) -> Result<Vec<u32>, String> {
     state.no_fire.candidates(id, offset)
 }
 

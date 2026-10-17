@@ -28,7 +28,9 @@ const ANSWER_FILE: &str = "gui.json";
 /// taken as yes).
 pub fn read_answer(project_dir: &Path) -> Option<GuiAnswer> {
     let bytes = std::fs::read(project_dir.join(ANSWER_FILE)).ok()?;
-    serde_json::from_slice::<AnswerFile>(&bytes).ok().map(|f| f.answer)
+    serde_json::from_slice::<AnswerFile>(&bytes)
+        .ok()
+        .map(|f| f.answer)
 }
 
 /// Save the answer (temp file + rename, so a crash never leaves a half-written answer).
@@ -40,7 +42,12 @@ pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String>
     if r.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
-    r.map_err(|e| format!("could not save the GUI answer in {}: {e}", project_dir.display()))
+    r.map_err(|e| {
+        format!(
+            "could not save the GUI answer in {}: {e}",
+            project_dir.display()
+        )
+    })
 }
 
 /// The mask may run only after a "yes".
@@ -84,9 +91,18 @@ pub struct GuiMaskReply {
     pub pieces: Vec<PieceCount>,
 }
 
-static WIDGETS: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../fire-detection/data/assets/gui/widgets.rgba"));
-static ICONS: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../fire-detection/data/assets/gui/icons.rgba"));
-static INVENTORY: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../fire-detection/data/assets/gui/inventory.rgba"));
+static WIDGETS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/widgets.rgba"
+));
+static ICONS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/icons.rgba"
+));
+static INVENTORY: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/inventory.rgba"
+));
 
 /// Runs the shared mask with the vanilla textures built into the binary.
 pub struct GuiAnalyzer {
@@ -97,7 +113,10 @@ pub struct GuiAnalyzer {
 impl GuiAnalyzer {
     pub fn new() -> Result<GuiAnalyzer, String> {
         let tex = GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?;
-        Ok(GuiAnalyzer { tex, opts: GuiOptions::default() })
+        Ok(GuiAnalyzer {
+            tex,
+            opts: GuiOptions::default(),
+        })
     }
 
     /// Decode a JPEG frame and mask it: the summary and one packed byte per pixel.
@@ -106,7 +125,9 @@ impl GuiAnalyzer {
             return Err("the frame is empty".into());
         }
         let mut d = jpeg_decoder::Decoder::new(jpeg);
-        let px = d.decode().map_err(|e| format!("the frame is not a readable JPEG: {e}"))?;
+        let px = d
+            .decode()
+            .map_err(|e| format!("the frame is not a readable JPEG: {e}"))?;
         let info = d.info().ok_or("the frame has no JPEG header")?;
         let (w, h) = (info.width as usize, info.height as usize);
         let rgb = match info.pixel_format {
@@ -121,14 +142,34 @@ impl GuiAnalyzer {
         }
         // drawing order of the pieces, so the summary reads bottom-up like the HUD
         let order = |n: &str| {
-            [PieceId::Hotbar, PieceId::SelectedSlot, PieceId::Offhand, PieceId::HotbarItem, PieceId::Crosshair, PieceId::XpBar, PieceId::Health, PieceId::Armor, PieceId::Food, PieceId::Air, PieceId::EffectIcon]
-                .iter()
-                .position(|p| format!("{p:?}") == n)
-                .unwrap_or(usize::MAX)
+            [
+                PieceId::Hotbar,
+                PieceId::SelectedSlot,
+                PieceId::Offhand,
+                PieceId::HotbarItem,
+                PieceId::Crosshair,
+                PieceId::XpBar,
+                PieceId::Health,
+                PieceId::Armor,
+                PieceId::Food,
+                PieceId::Air,
+                PieceId::EffectIcon,
+            ]
+            .iter()
+            .position(|p| format!("{p:?}") == n)
+            .unwrap_or(usize::MAX)
         };
-        let mut pieces: Vec<PieceCount> = counts.into_iter().map(|(piece, count)| PieceCount { piece, count }).collect();
+        let mut pieces: Vec<PieceCount> = counts
+            .into_iter()
+            .map(|(piece, count)| PieceCount { piece, count })
+            .collect();
         pieces.sort_by_key(|p| order(&p.piece));
-        let packed = m.piece.iter().zip(&m.class).map(|(&p, &c)| pack(p, c)).collect();
+        let packed = m
+            .piece
+            .iter()
+            .zip(&m.class)
+            .map(|(&p, &c)| pack(p, c))
+            .collect();
         let reply = GuiMaskReply {
             width: w,
             height: h,

@@ -6,11 +6,14 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn tex() -> GuiTextures {
-    GuiTextures::load(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui")).expect("textures")
+    GuiTextures::load(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui"))
+        .expect("textures")
 }
 
 fn rnd(seed: &mut u64) -> u32 {
-    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *seed = seed
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     (*seed >> 33) as u32
 }
 
@@ -21,7 +24,8 @@ fn world(w: usize, h: usize, seed: u64) -> Vec<u8> {
         for x in 0..w {
             let base = 128.0 + 110.0 * ((x as f64 / 37.0).sin() * (y as f64 / 23.0).cos());
             for k in 0..3 {
-                f[(y * w + x) * 3 + k] = (base + (rnd(&mut s) % 17) as f64 - 8.0 + k as f64 * 5.0).clamp(0.0, 255.0) as u8;
+                f[(y * w + x) * 3 + k] = (base + (rnd(&mut s) % 17) as f64 - 8.0 + k as f64 * 5.0)
+                    .clamp(0.0, 255.0) as u8;
             }
         }
     }
@@ -37,7 +41,10 @@ struct Shot {
 
 fn shot_at(fb_w: u32, fb_h: u32, g: u32, k: f64, st: &HudState, seed: u64) -> Shot {
     let fit = GuiFit::framebuffer(fb_w, fb_h, g, k);
-    let (w, h) = ((fb_w as f64 * k).round() as usize, (fb_h as f64 * k).round() as usize);
+    let (w, h) = (
+        (fb_w as f64 * k).round() as usize,
+        (fb_h as f64 * k).round() as usize,
+    );
     let mut frame = world(w, h, seed);
     let truth = compose_hud(&mut frame, w, h, &tex(), st, &fit);
     Shot { w, h, frame, truth }
@@ -52,11 +59,17 @@ fn detect(s: &Shot) -> GuiMask {
 }
 
 fn bars(m: &GuiMask) -> Vec<&PieceHit> {
-    m.hits.iter().filter(|h| h.piece == PieceId::ActionBar).collect()
+    m.hits
+        .iter()
+        .filter(|h| h.piece == PieceId::ActionBar)
+        .collect()
 }
 
 fn msg(text: &str) -> HudState {
-    HudState { action_bar: Some(text.into()), ..HudState::default() }
+    HudState {
+        action_bar: Some(text.into()),
+        ..HudState::default()
+    }
 }
 
 fn recall(s: &Shot, m: &GuiMask) -> f64 {
@@ -74,7 +87,9 @@ fn recall(s: &Shot, m: &GuiMask) -> f64 {
 }
 
 fn stray(s: &Shot, m: &GuiMask) -> usize {
-    (0..s.w * s.h).filter(|&i| s.truth.piece[i] == 0 && m.piece[i] == PieceId::ActionBar as u8).count()
+    (0..s.w * s.h)
+        .filter(|&i| s.truth.piece[i] == 0 && m.piece[i] == PieceId::ActionBar as u8)
+        .count()
 }
 
 // ================================================================ found and read
@@ -100,7 +115,11 @@ fn survival_bed_and_mount_messages_are_found_and_read_back() {
 
 #[test]
 fn a_tinted_jukebox_line_is_found() {
-    let st = HudState { action_bar: Some("Now Playing: C418 - cat".into()), action_bar_color: [153, 46, 120], ..HudState::default() };
+    let st = HudState {
+        action_bar: Some("Now Playing: C418 - cat".into()),
+        action_bar_color: [153, 46, 120],
+        ..HudState::default()
+    };
     let m = detect(&shot(&st, 2));
     assert_eq!(bars(&m).len(), 1);
     assert_eq!(bars(&m)[0].text.as_deref(), Some("Now Playing: C418 - cat"));
@@ -108,22 +127,47 @@ fn a_tinted_jukebox_line_is_found() {
 
 #[test]
 fn a_red_message_is_found() {
-    let st = HudState { action_bar: Some("Spectators cannot open containers".into()), action_bar_color: [255, 85, 85], ..HudState::default() };
+    let st = HudState {
+        action_bar: Some("Spectators cannot open containers".into()),
+        action_bar_color: [255, 85, 85],
+        ..HudState::default()
+    };
     assert_eq!(bars(&detect(&shot(&st, 3))).len(), 1);
 }
 
 #[test]
 fn it_is_found_together_with_the_held_item_name() {
-    let st = HudState { action_bar: Some("This bed is occupied".into()), item_name: Some("Red Bed".into()), ..HudState::default() };
+    let st = HudState {
+        action_bar: Some("This bed is occupied".into()),
+        item_name: Some("Red Bed".into()),
+        ..HudState::default()
+    };
     let m = detect(&shot(&st, 4));
     assert_eq!(bars(&m).len(), 1);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::ItemName).count(), 1);
+    assert_eq!(
+        m.hits
+            .iter()
+            .filter(|h| h.piece == PieceId::ItemName)
+            .count(),
+        1
+    );
 }
 
 #[test]
 fn it_is_found_at_other_scales_and_resizes() {
-    for (fb_w, fb_h, g, k) in [(1920, 1080, 2, 1.0), (1920, 1080, 4, 2.0 / 3.0), (2560, 1440, 6, 0.75)] {
-        let m = detect(&shot_at(fb_w, fb_h, g, k, &msg("You can only sleep at night"), 5));
+    for (fb_w, fb_h, g, k) in [
+        (1920, 1080, 2, 1.0),
+        (1920, 1080, 4, 2.0 / 3.0),
+        (2560, 1440, 6, 0.75),
+    ] {
+        let m = detect(&shot_at(
+            fb_w,
+            fb_h,
+            g,
+            k,
+            &msg("You can only sleep at night"),
+            5,
+        ));
         assert_eq!(bars(&m).len(), 1, "{fb_w}x{fb_h} g{g} k{k}");
     }
 }
@@ -192,7 +236,11 @@ fn glyph_like_blocks_that_are_not_the_font_are_not_text() {
 
 #[test]
 fn a_fading_line_never_labels_world_pixels() {
-    let st = HudState { action_bar: Some("You can only sleep at night".into()), action_bar_alpha: 0.4, ..HudState::default() };
+    let st = HudState {
+        action_bar: Some("You can only sleep at night".into()),
+        action_bar_alpha: 0.4,
+        ..HudState::default()
+    };
     let s = shot(&st, 10);
     let m = detect(&s);
     assert_eq!(stray(&s, &m), 0);
@@ -200,18 +248,40 @@ fn a_fading_line_never_labels_world_pixels() {
 
 #[test]
 fn earlier_pieces_are_unchanged_by_an_action_bar() {
-    let st = HudState { action_bar: Some("You can only sleep at night".into()), chat: vec!["<Steve> zzz".into()], ..HudState::default() };
+    let st = HudState {
+        action_bar: Some("You can only sleep at night".into()),
+        chat: vec!["<Steve> zzz".into()],
+        ..HudState::default()
+    };
     let m = detect(&shot(&st, 11));
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::ChatLine).count(), 1);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::Hotbar).count(), 1);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::Food).count(), 10);
+    assert_eq!(
+        m.hits
+            .iter()
+            .filter(|h| h.piece == PieceId::ChatLine)
+            .count(),
+        1
+    );
+    assert_eq!(
+        m.hits.iter().filter(|h| h.piece == PieceId::Hotbar).count(),
+        1
+    );
+    assert_eq!(
+        m.hits.iter().filter(|h| h.piece == PieceId::Food).count(),
+        10
+    );
 }
 
 // ================================================================ compression
 
 #[test]
 fn it_survives_jpeg_compression() {
-    let ok = Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
+    let ok = Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
     if !ok {
         return;
     }
@@ -220,14 +290,30 @@ fn it_survives_jpeg_compression() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("f.rgb"), &s.frame).unwrap();
     assert!(Command::new("ffmpeg")
-        .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "1280x720", "-i"])
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            "1280x720",
+            "-i"
+        ])
         .arg(dir.join("f.rgb"))
         .args(["-q:v", "3", "-frames:v", "1"])
         .arg(dir.join("f.jpg"))
         .status()
         .unwrap()
         .success());
-    let back = Command::new("ffmpeg").args(["-loglevel", "error", "-i"]).arg(dir.join("f.jpg")).args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]).output().unwrap();
+    let back = Command::new("ffmpeg")
+        .args(["-loglevel", "error", "-i"])
+        .arg(dir.join("f.jpg"))
+        .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+        .output()
+        .unwrap();
     let _ = std::fs::remove_dir_all(&dir);
     let m = detect_gui(&back.stdout, 1280, 720, &tex(), &GuiOptions::default()).unwrap();
     assert_eq!(bars(&m).len(), 1, "{:?}", m.notes);

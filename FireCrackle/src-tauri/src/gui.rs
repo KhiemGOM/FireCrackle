@@ -1,19 +1,23 @@
 //! GUI mask commands (PLAN-GUI-MASK.md 3.2): the per-video "vanilla?" answer and the mask of a frame. Thin: the logic
 //! is `studio_core::gui` and `fire_core::gui_mask`. The mask is refused unless the answer for this video is "yes".
 
-use super::{err, run, AppState};
+use super::{AppState, err, run};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
-use studio_core::gui::{ensure_allowed, read_answer, write_answer, GuiAnalyzer, GuiAnswer, GuiMaskReply};
-use tauri::ipc::Response;
+use studio_core::gui::{
+    GuiAnalyzer, GuiAnswer, GuiMaskReply, ensure_allowed, read_answer, write_answer,
+};
 use tauri::State;
+use tauri::ipc::Response;
 
 /// The last mask, so the overlay pixels need not be computed twice: project folder, frame, packed pixels.
 static LAST: Mutex<Option<(PathBuf, u32, Vec<u8>)>> = Mutex::new(None);
 
 fn analyzer() -> Result<&'static GuiAnalyzer, String> {
     static A: OnceLock<Result<GuiAnalyzer, String>> = OnceLock::new();
-    A.get_or_init(GuiAnalyzer::new).as_ref().map_err(|e| e.clone())
+    A.get_or_init(GuiAnalyzer::new)
+        .as_ref()
+        .map_err(|e| e.clone())
 }
 
 #[tauri::command]
@@ -46,7 +50,9 @@ pub async fn gui_mask_pixels(state: State<'_, AppState>, frame: u32) -> Result<R
         ensure_allowed(read_answer(w.dir()))?;
         let last = LAST.lock().map_err(err)?;
         match last.as_ref() {
-            Some((dir, f, packed)) if dir == w.dir() && *f == frame => Ok(Response::new(packed.clone())),
+            Some((dir, f, packed)) if dir == w.dir() && *f == frame => {
+                Ok(Response::new(packed.clone()))
+            }
             _ => Err(format!("no mask computed for frame {frame} yet")),
         }
     })

@@ -6,11 +6,14 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn tex() -> GuiTextures {
-    GuiTextures::load(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui")).expect("textures")
+    GuiTextures::load(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui"))
+        .expect("textures")
 }
 
 fn rnd(seed: &mut u64) -> u32 {
-    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *seed = seed
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     (*seed >> 33) as u32
 }
 
@@ -21,7 +24,8 @@ fn world(w: usize, h: usize, seed: u64) -> Vec<u8> {
         for x in 0..w {
             let base = 128.0 + 110.0 * ((x as f64 / 37.0).sin() * (y as f64 / 23.0).cos());
             for k in 0..3 {
-                f[(y * w + x) * 3 + k] = (base + (rnd(&mut s) % 17) as f64 - 8.0 + k as f64 * 5.0).clamp(0.0, 255.0) as u8;
+                f[(y * w + x) * 3 + k] = (base + (rnd(&mut s) % 17) as f64 - 8.0 + k as f64 * 5.0)
+                    .clamp(0.0, 255.0) as u8;
             }
         }
     }
@@ -37,14 +41,20 @@ struct Shot {
 
 fn shot_on(fb_w: u32, fb_h: u32, g: u32, k: f64, st: &HudState, mut frame: Vec<u8>) -> Shot {
     let fit = GuiFit::framebuffer(fb_w, fb_h, g, k);
-    let (w, h) = ((fb_w as f64 * k).round() as usize, (fb_h as f64 * k).round() as usize);
+    let (w, h) = (
+        (fb_w as f64 * k).round() as usize,
+        (fb_h as f64 * k).round() as usize,
+    );
     assert_eq!(frame.len(), w * h * 3);
     let truth = compose_hud(&mut frame, w, h, &tex(), st, &fit);
     Shot { w, h, frame, truth }
 }
 
 fn shot_at(fb_w: u32, fb_h: u32, g: u32, k: f64, st: &HudState, seed: u64) -> Shot {
-    let (w, h) = ((fb_w as f64 * k).round() as usize, (fb_h as f64 * k).round() as usize);
+    let (w, h) = (
+        (fb_w as f64 * k).round() as usize,
+        (fb_h as f64 * k).round() as usize,
+    );
     shot_on(fb_w, fb_h, g, k, st, world(w, h, seed))
 }
 
@@ -57,17 +67,28 @@ fn detect(s: &Shot) -> GuiMask {
 }
 
 fn caps(m: &GuiMask) -> Vec<&PieceHit> {
-    let mut v: Vec<&PieceHit> = m.hits.iter().filter(|h| h.piece == PieceId::SoundCaption).collect();
+    let mut v: Vec<&PieceHit> = m
+        .hits
+        .iter()
+        .filter(|h| h.piece == PieceId::SoundCaption)
+        .collect();
     v.sort_by_key(|h| h.index);
     v
 }
 
 fn cap(text: &str, grey: u8, arrow: Option<CaptionArrow>) -> Caption {
-    Caption { text: text.into(), grey, arrow }
+    Caption {
+        text: text.into(),
+        grey,
+        arrow,
+    }
 }
 
 fn with(captions: Vec<Caption>) -> HudState {
-    HudState { captions, ..HudState::default() }
+    HudState {
+        captions,
+        ..HudState::default()
+    }
 }
 
 const ID: u8 = PieceId::SoundCaption as u8;
@@ -88,14 +109,19 @@ fn recall(s: &Shot, m: &GuiMask, class: Option<PixelClass>) -> f64 {
 }
 
 fn stray(s: &Shot, m: &GuiMask) -> usize {
-    (0..s.w * s.h).filter(|&i| s.truth.piece[i] != ID && m.piece[i] == ID).count()
+    (0..s.w * s.h)
+        .filter(|&i| s.truth.piece[i] != ID && m.piece[i] == ID)
+        .count()
 }
 
 // ================================================================ found, read, boxed
 
 #[test]
 fn one_caption_is_found_read_and_boxed() {
-    let s = shot(&with(vec![cap("Fire crackles", 255, Some(CaptionArrow::Right))]), 1);
+    let s = shot(
+        &with(vec![cap("Fire crackles", 255, Some(CaptionArrow::Right))]),
+        1,
+    );
     let m = detect(&s);
     let c = caps(&m);
     assert_eq!(c.len(), 1, "{:?}", m.notes);
@@ -149,7 +175,11 @@ fn over_bright_lava_every_box_pixel_is_labelled() {
         p[1] = (120 + n).clamp(0, 255) as u8;
         p[2] = (30 + n / 2).clamp(0, 255) as u8;
     }
-    let st = with(vec![cap("Lava pops", 255, Some(CaptionArrow::Left)), cap("Fire crackles", 220, None), cap("Lava pops", 160, None)]);
+    let st = with(vec![
+        cap("Lava pops", 255, Some(CaptionArrow::Left)),
+        cap("Fire crackles", 220, None),
+        cap("Lava pops", 160, None),
+    ]);
     let s = shot_on(1280, 720, 3, 1.0, &st, lava);
     let m = detect(&s);
     assert_eq!(caps(&m).len(), 3, "{:?}", m.notes);
@@ -161,7 +191,17 @@ fn over_bright_lava_every_box_pixel_is_labelled() {
 fn on_a_dark_night_world_it_is_found_through_the_text() {
     let (w, h) = (1280usize, 720usize);
     let night: Vec<u8> = world(w, h, 4).iter().map(|&v| v / 6).collect();
-    let s = shot_on(1280, 720, 3, 1.0, &with(vec![cap("Zombie groans", 255, Some(CaptionArrow::Left)), cap("Footsteps", 180, None)]), night);
+    let s = shot_on(
+        1280,
+        720,
+        3,
+        1.0,
+        &with(vec![
+            cap("Zombie groans", 255, Some(CaptionArrow::Left)),
+            cap("Footsteps", 180, None),
+        ]),
+        night,
+    );
     let m = detect(&s);
     assert_eq!(caps(&m).len(), 2, "{:?}", m.notes);
     assert_eq!(stray(&s, &m), 0);
@@ -169,8 +209,16 @@ fn on_a_dark_night_world_it_is_found_through_the_text() {
 
 #[test]
 fn it_is_found_at_other_scales_and_resizes() {
-    let st = with(vec![cap("Fire crackles", 255, None), cap("Lava pops", 200, Some(CaptionArrow::Right)), cap("Footsteps", 120, None)]);
-    for (fb_w, fb_h, g, k) in [(1920, 1080, 2, 1.0), (1920, 1080, 4, 2.0 / 3.0), (2560, 1440, 6, 0.75)] {
+    let st = with(vec![
+        cap("Fire crackles", 255, None),
+        cap("Lava pops", 200, Some(CaptionArrow::Right)),
+        cap("Footsteps", 120, None),
+    ]);
+    for (fb_w, fb_h, g, k) in [
+        (1920, 1080, 2, 1.0),
+        (1920, 1080, 4, 2.0 / 3.0),
+        (2560, 1440, 6, 0.75),
+    ] {
         let m = detect(&shot_at(fb_w, fb_h, g, k, &st, 5));
         assert_eq!(caps(&m).len(), 3, "{fb_w}x{fb_h} g{g} k{k} {:?}", m.notes);
     }
@@ -185,15 +233,36 @@ fn it_is_found_together_with_the_action_bar() {
     };
     let m = detect(&shot(&st, 6));
     assert_eq!(caps(&m).len(), 1);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::ActionBar).count(), 1);
+    assert_eq!(
+        m.hits
+            .iter()
+            .filter(|h| h.piece == PieceId::ActionBar)
+            .count(),
+        1
+    );
 }
 
 #[test]
 fn earlier_pieces_are_unchanged_by_captions() {
-    let m = detect(&shot(&with(vec![cap("Lava pops", 255, None), cap("Footsteps", 200, None)]), 7));
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::Hotbar).count(), 1);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::Food).count(), 10);
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::Health).count(), 10);
+    let m = detect(&shot(
+        &with(vec![
+            cap("Lava pops", 255, None),
+            cap("Footsteps", 200, None),
+        ]),
+        7,
+    ));
+    assert_eq!(
+        m.hits.iter().filter(|h| h.piece == PieceId::Hotbar).count(),
+        1
+    );
+    assert_eq!(
+        m.hits.iter().filter(|h| h.piece == PieceId::Food).count(),
+        10
+    );
+    assert_eq!(
+        m.hits.iter().filter(|h| h.piece == PieceId::Health).count(),
+        10
+    );
 }
 
 // ================================================================ not captions
@@ -244,34 +313,69 @@ fn a_dark_box_with_random_grey_strokes_is_not_a_caption() {
 
 #[test]
 fn chat_lines_are_not_captions() {
-    let st = HudState { chat: vec!["<Alex> fire crackles".into(), "<Steve> lava pops".into()], ..HudState::default() };
+    let st = HudState {
+        chat: vec!["<Alex> fire crackles".into(), "<Steve> lava pops".into()],
+        ..HudState::default()
+    };
     let m = detect(&shot(&st, 11));
     assert!(caps(&m).is_empty());
-    assert_eq!(m.hits.iter().filter(|h| h.piece == PieceId::ChatLine).count(), 2);
+    assert_eq!(
+        m.hits
+            .iter()
+            .filter(|h| h.piece == PieceId::ChatLine)
+            .count(),
+        2
+    );
 }
 
 // ================================================================ compression
 
 #[test]
 fn it_survives_jpeg_compression() {
-    let ok = Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
+    let ok = Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
     if !ok {
         return;
     }
-    let st = with(vec![cap("Fire crackles", 255, Some(CaptionArrow::Left)), cap("Lava pops", 200, None), cap("Footsteps", 120, Some(CaptionArrow::Right))]);
+    let st = with(vec![
+        cap("Fire crackles", 255, Some(CaptionArrow::Left)),
+        cap("Lava pops", 200, None),
+        cap("Footsteps", 120, Some(CaptionArrow::Right)),
+    ]);
     let s = shot(&st, 12);
     let dir = std::env::temp_dir().join(format!("fc_captions_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("f.rgb"), &s.frame).unwrap();
     assert!(Command::new("ffmpeg")
-        .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "1280x720", "-i"])
+        .args([
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            "1280x720",
+            "-i"
+        ])
         .arg(dir.join("f.rgb"))
         .args(["-q:v", "3", "-frames:v", "1"])
         .arg(dir.join("f.jpg"))
         .status()
         .unwrap()
         .success());
-    let back = Command::new("ffmpeg").args(["-loglevel", "error", "-i"]).arg(dir.join("f.jpg")).args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]).output().unwrap();
+    let back = Command::new("ffmpeg")
+        .args(["-loglevel", "error", "-i"])
+        .arg(dir.join("f.jpg"))
+        .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+        .output()
+        .unwrap();
     let _ = std::fs::remove_dir_all(&dir);
     let m = detect_gui(&back.stdout, 1280, 720, &tex(), &GuiOptions::default()).unwrap();
     assert_eq!(caps(&m).len(), 3, "{:?}", m.notes);
