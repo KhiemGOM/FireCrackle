@@ -23,8 +23,8 @@ clip1 frame 21330. Two explicitly unacceptable examples remain: clip1 frame
 were accepted as negligible in the owner's earlier visual review. These owner
 decisions do not silently replace the original capture-truth metrics above.
 
-This is not separate-video validation. The new translucency-heavy recording is
-pending processing/alignment confirmation; do not consume it before it is ready.
+This cohort is not separate-video validation. See the independent recording
+review below for the subsequent frozen-threshold test.
 
 ## Portal reconstruction
 
@@ -87,3 +87,47 @@ veil tests, 39 browser veil tests, and library Clippy with warnings denied.
 
 Local before/after gallery: <http://127.0.0.1:8794/portal/>. Its parent gallery
 keeps the three explicitly unacceptable and four reopened portal cases separate.
+
+## Independent recording review: 2026-10-17
+
+After the owner confirmed processing was done, scanned the complete 533.35-second
+recording `2026-10-17 18-28-42.mkv` at native 1920 by 1080 resolution, sampling
+every 120 video frames (two seconds): **267 frames**. No thresholds were tuned.
+The original raw/automatic-unveil component score is retained conservatively
+using their maximum, with the same 2,198 threshold and the existing GUI-envelope
+proxy for the guard.
+
+| Decision | Sampled frames |
+| --- | ---: |
+| Candidate clears before guard | 28 |
+| Clears after guard | 18 |
+| Translucency abstentions | 181 |
+| Retained by orange fire evidence without guard hit | 68 |
+
+The final three rows partition the 267 frames. This is a decision distribution,
+**not TP/FP**: the producer confirmed incomplete/rejected ownership masks remain,
+so absent masks are not used as negative labels. The 18 clear thumbnails contain
+no obvious fire on visual review; this does not certify occluded/very small fire
+or unsampled frames.
+
+The test exposes poor material specificity. Portal scenes trigger, but opaque
+obsidian and purple enchanted tools can also trigger. Water scenes at 182–202
+seconds pass the purple guard; several become clears, violating an unconditional
+"any translucency means abstain" material policy even though no obvious fire is
+visible there. Glass scenes commonly abstain with other purple objects present;
+that does not establish that glass itself was detected. General water/glass
+recognition remains unimplemented.
+
+Separately decoded seven inspection frames at 170, 174, 178, 300, 450, 480 and
+520 seconds. The overlay fitter activates only at 170 and 174 seconds (phases
+10/20, opacity 0.1925/0.9325); the five non-overlay inspection frames reject the
+fullscreen fit. At 174 seconds the correction visibly removes the fullscreen
+veil and preserves the actual portal-block surface. Some seams remain. Both
+overlay frames still abstain for no-fire decisions.
+
+The useful next step is a dedicated material/occlusion mask; expanding a purple
+colour gate is not a substitute for one. Keep the portal inverse for inspection.
+
+Review gallery: <http://127.0.0.1:8794/translucency-new/>. Local `report.json`
+contains every sampled decision, `examples.json` the seven fit diagnostics,
+`clears.jpg` all 18 proposed clears, and numbered contact sheets the full sample.
