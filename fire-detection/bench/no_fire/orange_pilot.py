@@ -43,6 +43,8 @@ def main():
         'hud':'diagnostic excluded areas only; all realfire remains truth',
         'limits':'Familiar recordings, sampled full-duration videos; not blind validation or every-frame deployment.',
         'rust_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+        'shared_veil_sha256':hashlib.sha256((source.parents[2]/'core/src/veil.rs').read_bytes()).hexdigest(),
+        'fresh_pixel_decode':not args.rescore and not args.patch_auto_from,
         'python_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     (args.out/'protocol.json').write_text(json.dumps(protocol,indent=2));data={};report={'protocol':protocol,'sources':{}}
     helper=None
