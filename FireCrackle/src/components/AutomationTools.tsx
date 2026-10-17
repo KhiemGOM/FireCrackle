@@ -43,8 +43,8 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
   const running=status?.state==="running";
   const supported=!!backend.povStart;
   return <div className="modal-backdrop" onMouseDown={onClose}>
-    <div className="modal automation-tools" role="dialog" aria-modal="true" aria-label="Automated tools" onMouseDown={e=>e.stopPropagation()}>
-      <div className="modal-head"><h2><Icon name="robot" /> Automated tools</h2><button onClick={onClose}>Close</button></div>
+    <div className="modal automation-tools" role="dialog" aria-modal="true" aria-label="Auto" onMouseDown={e=>e.stopPropagation()}>
+      <div className="modal-head"><h2><Icon name="robot" /> Auto</h2><button onClick={onClose}>Close</button></div>
       <div className="modal-body">
         <h3>First-person fire labeller</h3>
         <p>Finds first-person fire sprites. Check automatic labels afterward, especially near unusual timing.</p>

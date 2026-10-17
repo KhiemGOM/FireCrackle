@@ -274,7 +274,7 @@ export default function App() {
               </IconButton>
               <span className="toolbar-divider" />
               <IconButton icon="keyboard" label="Keyboard shortcuts" aria-pressed={showKeys} onClick={() => setShowKeys((s) => !s)} />
-              <IconButton icon="robot" label="Automated tools" onClick={() => {setPlayback(STOPPED);setShowAutomation(true);}}>Automated tools</IconButton>
+              <IconButton icon="robot" label="Auto" onClick={() => {setPlayback(STOPPED);setShowAutomation(true);}}>Auto</IconButton>
               <IconButton icon="settings" label="Settings" onClick={() => setShowSettings(true)} />
             </div>
           )}
