@@ -13,6 +13,8 @@ import { Credits } from "./components/Credits";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdatesDialog, statusOf } from "./components/UpdatesDialog";
 import { useUpdates } from "./hooks/useUpdates";
+import { EnhancePanel } from "./components/EnhancePanel";
+import { usePostSettings } from "./hooks/usePostSettings";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
@@ -78,6 +80,8 @@ export default function App() {
   const [showCredits, setShowCredits] = useState(false);
   const updates = useUpdates(backend);
   const [showUpdates, setShowUpdates] = useState(false);
+  const post = usePostSettings();
+  const [side, setSide] = useState<"label" | "enhance">("label");
   const [showAutomation,setShowAutomation]=useState(false);
   const [path, setPath] = useState("");
   const [showLink, setShowLink] = useState(false);
@@ -126,6 +130,13 @@ export default function App() {
 
   const maxSpeed = settingValue(ws.settings, "label.max_play_speed", 8);
   const minTick = settingValue(ws.settings, "label.min_play_tick_ms", 16);
+  const bufferSettings = {
+    ahead: settingValue(ws.settings, "label.buffer_ahead", 90),
+    behind: settingValue(ws.settings, "label.buffer_behind", 30),
+    decodeAhead: settingValue(ws.settings, "label.buffer_decode_ahead", 8),
+    parallel: settingValue(ws.settings, "label.buffer_parallel", 3),
+    lateShow: settingValue(ws.settings, "label.buffer_late_show", 30),
+  };
   const typeTimeout = settingValue(ws.settings, "label.row_type_timeout_ms", 700);
   const veilOptions = veilOptionsFromSettings(ws.settings);
 
@@ -339,7 +350,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onError={(m) => console.error(m)} />
+            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={(m) => console.error(m)} />
             <Splitter
               direction="row"
               label="Video height"
@@ -382,7 +393,13 @@ export default function App() {
             onChange={(v) => setLayout("sideWidth", v)}
             onReset={() => resetLayout("sideWidth")}
           />
-          <aside className="right">
+          <aside className={`right${side === "enhance" ? " enhancing" : ""}`}>
+            <div className="side-switch">
+              <button type="button" aria-label="Show label tools" aria-pressed={side === "label"} className={side === "label" ? "on" : ""} title="Label tools" onClick={() => setSide("label")}><Icon name="label" /></button>
+              <button type="button" aria-label="Show Enhance panel" aria-pressed={side === "enhance"} className={side === "enhance" ? "on" : ""} title="Enhance" onClick={() => setSide("enhance")}><Icon name="layers" /></button>
+              <button type="button" aria-label="Toggle post-processing" aria-pressed={post.settings.enabled} className={`post-toggle${post.settings.enabled ? " on" : ""}`} title={`Turn all post-processing on or off · ${post.toggleKey.toUpperCase()}`} onClick={post.toggle} />
+            </div>
+            {side === "enhance" && <EnhancePanel settings={post.settings} selected={post.selected} onSelect={post.setSelected} onChange={post.change} onReset={post.reset} portalStatus={post.portalStatus} portalFit={post.portalFit} />}
             <div className="pick-state">
               <IconButton icon="layers" label={`Toggle candidate sheet · current sheet ${candidatePick?.sheet ?? view.pick.sheet}`} className={candidatePick?.sheet === 1 ? "on" : ""} onClick={() => stageSprite({ sheet: (1 - (candidatePick?.sheet ?? view.pick.sheet)) as 0 | 1, row: candidate && isFire(candidate.label) ? candidate.label.fire.row : 0, mirrored: candidatePick?.mirrored ?? view.pick.mirrored })} title="Switch between fire sheets 0 and 1 · T · selects a candidate; Confirm saves">
                 {candidatePick?.sheet ?? view.pick.sheet}

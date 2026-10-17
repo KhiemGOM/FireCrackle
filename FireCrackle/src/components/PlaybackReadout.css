@@ -1,0 +1,11 @@
+/* The playback readout in the video status bar: green is fine, amber lost a frame, red is stuttering. */
+.playback-readout {
+  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: help;
+}
+.playback-readout.ok { color: var(--green); }
+.playback-readout.warn { color: var(--amber); border-color: var(--amber); }
+.playback-readout.bad { color: #fff; background: #c4161b; border-color: #ff3b3f; }

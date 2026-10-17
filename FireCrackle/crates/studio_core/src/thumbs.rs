@@ -351,7 +351,7 @@ pub fn generate(
     }
     filter.push_str(&format!("scale=w=min({}\\,iw):h=-2,showinfo", plan.width));
 
-    let mut cmd = crate::proc::hidden_command(&tools.ffmpeg);
+    let mut cmd = crate::proc::background_command(&tools.ffmpeg);
     cmd.args([
         "-nostdin",
         "-hide_banner",

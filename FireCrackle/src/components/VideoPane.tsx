@@ -28,9 +28,17 @@ import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
 import { canvasFrameIo, processFrame } from "../lib/veilFrame";
 import { portalPreview, portalWorldMask } from "../lib/portalPreview";
+import { enhance, hasEnhancement } from "../lib/post/pipeline";
+import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
 import { GuiMaskOverlay, GuiMaskPanel, useGuiMask } from "./GuiMaskControls";
 import { JumpBox } from "./JumpBox";
+import { DEFAULT_BUFFER_SETTINGS, FrameBuffer, type BufferSettings } from "../lib/frameBuffer";
+import { domBufferIo } from "../lib/frameBufferDom";
+import { PlaybackStats } from "../lib/playbackStats";
+import { shouldShowLate } from "../lib/lateFrame";
+import { correctsNow } from "../lib/correctionGate";
+import { PlaybackReadout } from "./PlaybackReadout";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
 
 export interface VideoPreviewHandle {
@@ -68,16 +76,43 @@ interface Props {
   onStep?: (frames: number) => void;
   /** Jump to a frame typed in the status bar (a frame number or HH:MM:SS|FF). */
   onGoTo?: (frame: number) => void;
+  /** Which way the video is playing and how fast (the look-ahead buffer follows it). */
+  motion?: { dir: -1 | 0 | 1; speed: number };
+  /** The `label.buffer_*` settings. */
+  bufferSettings?: BufferSettings;
   /** Thresholds for undoing the GUI veil (the settings); the validated defaults when absent. */
   veil?: VeilOptions;
+  /** The post-processing settings the picture is drawn with (the Enhance panel). When given, veil and portal come from them and this pane shows no selects of its own. */
+  post?: PostSettings;
+  /** Reports what the portal stage found, so the Enhance panel can show it. */
+  onPortalStatus?: (status: string) => void;
+  /** Reports the phase and opacity the automatic portal fit found, so the Enhance panel can start the manual values from them. */
+  onPortalFit?: (fit: { phase: number; opacity: number }) => void;
 }
 
 /** The current frame, with its number, time and label over it. */
-export function VideoPane({ backend, view, onError, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil }: Props) {
+export function VideoPane({ backend, view, onError, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
   const urlRef = useRef<string | null>(null);
+  // true while `url` is an object URL of the frame buffer (the buffer revokes it, not this component)
+  const urlFromBuffer = useRef(false);
+  // the frame on screen and the playhead as the loaders see them (a load that finishes late asks whether it still counts)
+  const shownRef = useRef<number | null>(null);
+  const currentRef = useRef(view.current);
+  currentRef.current = view.current;
+  // Frames are fetched and decoded ahead of the playhead (lib/frameBuffer.ts); the readout shows what playback did.
+  const motionRef = useRef({ dir: 0 as -1 | 0 | 1, speed: 1 });
+  motionRef.current = { dir: motion?.dir ?? 0, speed: motion?.speed ?? 1 };
+  // corrections (veil, portal, Enhance) and the GUI mask are for a paused picture: while playing they cannot keep up and
+  // every corrected frame would be too late to show (lib/correctionGate.ts)
+  const playing = (motion?.dir ?? 0) !== 0;
+  const bufferWanted = bufferSettings ?? DEFAULT_BUFFER_SETTINGS;
+  const bufferKey = `${bufferWanted.ahead}|${bufferWanted.behind}|${bufferWanted.decodeAhead}|${bufferWanted.parallel}`;
+  const stats = useRef(new PlaybackStats());
+  // created in an effect, not memoised: React StrictMode runs an effect's cleanup before its second run
+  const [buffer, setBuffer] = useState<FrameBuffer | null>(null);
   const toolStorage = storageScope ? scopedStorage(storageScope, stateStorage) : stateStorage;
   const restored = useRef<MaskState | null>(null);
   if (!restored.current) restored.current = readMaskState(toolStorage);
@@ -132,15 +167,24 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
   const [animationOpen, setAnimationOpen] = useState(saved.manualEnabled && readPreferences(toolStorage).animationOpen);
   const [animationStop, setAnimationStop] = useState(0);
   useEffect(() => { writePreferences({ animationOpen }, toolStorage); }, [animationOpen]);
-  const [veilMode, setVeilMode] = useState<VeilMode>(() => readPreferences(toolStorage).veilMode);
-  useEffect(() => { writePreferences({ veilMode }, toolStorage); }, [veilMode]);
+  const [ownVeilMode, setVeilMode] = useState<VeilMode>(() => readPreferences(toolStorage).veilMode);
+  useEffect(() => { writePreferences({ veilMode: ownVeilMode }, toolStorage); }, [ownVeilMode]);
   const [veilApplied, setVeilApplied] = useState(false);
-  const [portalMode, setPortalMode] = useState<PortalMode>(() => readPreferences(toolStorage).portalMode);
-  useEffect(() => { writePreferences({ portalMode }, toolStorage); }, [portalMode]);
+  const [ownPortalMode, setPortalMode] = useState<PortalMode>(() => readPreferences(toolStorage).portalMode);
+  useEffect(() => { writePreferences({ portalMode: ownPortalMode }, toolStorage); }, [ownPortalMode]);
   const [portalStatus, setPortalStatus] = useState("");
+  // with post-processing settings the Enhance panel decides; without them the two selects below do
+  const veilMode = post ? post.veil : ownVeilMode;
+  const portalMode = post ? post.portal : ownPortalMode;
+  const enhanceOn = !!post && hasEnhancement(post);
+  const enhanceKey = enhanceOn ? JSON.stringify([post!.order, post!.stages]) : "";
+  const manualPortal = post && post.portal === "manual" ? post.portalManual : undefined;
+  const portalManualKey = manualPortal ? `${manualPortal.phase}|${manualPortal.opacity}` : "";
+  const [enhanceApplied, setEnhanceApplied] = useState(false);
+  const reportPortalStatus = (status: string) => { setPortalStatus(status); onPortalStatus?.(status); };
   // GUI mask: videos only (photos have no project to keep the vanilla answer in)
   const [guiMaskOn, setGuiMaskOn] = useState(false);
-  const guiMask = useGuiMask(backend, view.current, !stillImage && shown === view.current && !!url, (guiMaskOn || portalMode === "auto") && !stillImage);
+  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode !== "off") && !stillImage);
   const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
   const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
 
@@ -226,50 +270,91 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
     if (next) selectPreview(next);
   }, [view.current, view.suggestion, view.label, manualEnabled, hudEnabled]);
 
+  // (declared here, after the first effects: VideoPane.interaction.test picks those by position)
+  useEffect(() => {
+    if (stillImage) { setBuffer(null); return; }
+    const created = new FrameBuffer(view.frame_count, domBufferIo((n) => backend.frame(n)), bufferWanted);
+    setBuffer(created);
+    return () => created.dispose();
+  }, [backend, videoKey, view.frame_count, !!stillImage]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { buffer?.setSettings(bufferWanted); }, [buffer, bufferKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const mine = ++token.current;
     const cancel = new AbortController();
     const guiReady = !stillImage && guiMask.maskFrame === view.current && !!guiMask.reply?.reliable && !!guiMask.pixels;
-    const runPortal = portalMode === "auto";
+    const correcting = correctsNow({ playing, veilMode, portalMode, enhance: enhanceOn });
+    const runPortal = portalMode !== "off" && correcting;
     let guiProtected = false;
-    if (runPortal) setPortalStatus(guiReady ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
-    else setPortalStatus("");
-    if (stillImage && veilMode === "off" && portalMode === "off") {
-      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
-      setUrl(stillImage.url); setShown(view.current); setVeilApplied(false); return;
+    if (runPortal) reportPortalStatus(guiReady ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
+    else reportPortalStatus(playing && portalMode !== "off" ? "Applied when playback is paused" : "");
+    if (stillImage && veilMode === "off" && portalMode === "off" && !enhanceOn) {
+      if (urlRef.current && !urlFromBuffer.current) URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null; urlFromBuffer.current = false;
+      shownRef.current = view.current;
+      setUrl(stillImage.url); setShown(view.current); setVeilApplied(false); setEnhanceApplied(false); return;
+    }
+    if (!stillImage && buffer) {
+      stats.current.needed(view.current, performance.now(), { playing: motionRef.current.dir !== 0, speed: motionRef.current.speed });
+      buffer.prefetch(view.current, motionRef.current);
+      if (!correcting) {
+        // no picture correction: show the frame buffer's own, already decoded, object URL
+        const frame = view.current;
+        buffer.load(frame).then(({ fromBuffer }) => {
+          // the playhead moved on while this frame was on its way: it is still shown when it is newer than the picture
+          // on screen and not too far behind (lib/lateFrame.ts), so a slow moment slows the picture, not freezes it
+          const late = mine !== token.current;
+          if (late && !shouldShowLate({ frame, shown: shownRef.current, current: currentRef.current, dir: motionRef.current.dir, maxLag: bufferWanted.lateShow ?? 0 })) return;
+          const next = buffer.urlFor(frame);
+          if (!next) return;
+          buffer.show(frame);
+          const old = urlRef.current, oldFromBuffer = urlFromBuffer.current;
+          urlRef.current = next; urlFromBuffer.current = true;
+          shownRef.current = frame;
+          setUrl(next); setShown(frame); setVeilApplied(false); setEnhanceApplied(false);
+          if (old && !oldFromBuffer) URL.revokeObjectURL(old);
+          if (!late) stats.current.shown(frame, performance.now(), fromBuffer);
+        }).catch((e) => mine === token.current && onError(`Could not decode frame ${frame}: ${String(e)}`));
+        return () => { ++token.current; cancel.abort(); };
+      }
     }
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
-    const source: Promise<{ bytes: ArrayBuffer; original: Blob }> = stillImage
-      ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original }; })
-      : backend.frame(view.current).then((bytes) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }) }));
+    const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
+      ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original, fromBuffer: false }; })
+      : (buffer ? buffer.load(view.current) : backend.frame(view.current).then((bytes) => ({ bytes, fromBuffer: false })))
+        .then(({ bytes, fromBuffer }) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }), fromBuffer }));
     source
-      .then(async ({ bytes, original }) => {
+      .then(async ({ bytes, original, fromBuffer }) => {
         const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo, runPortal ? async image => {
           let world: Uint8Array | undefined;
           if (guiReady && guiMask.pixels && guiMask.reply && image.width === guiMask.reply.width && image.height === guiMask.reply.height) {
             world = portalWorldMask(guiMask.pixels);
             guiProtected = true;
           }
-          return portalPreview(image, cancel.signal, world);
-        } : undefined);
+          const fit = await portalPreview(image, cancel.signal, world, manualPortal);
+          if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
+          return fit;
+        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
         if (made.error) onError(`Picture correction: ${made.error}`);
-        if (runPortal) setPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
+        if (runPortal) reportPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
         const next = URL.createObjectURL(made.blob);
-        const old = urlRef.current;
-        urlRef.current = next;
+        const old = urlRef.current, oldFromBuffer = urlFromBuffer.current;
+        urlRef.current = next; urlFromBuffer.current = false;
+        shownRef.current = view.current;
         setUrl(next);
         setShown(view.current);
         setVeilApplied(made.applied);
-        if (old) URL.revokeObjectURL(old);
+        setEnhanceApplied(!!made.enhanced);
+        if (old && !oldFromBuffer) URL.revokeObjectURL(old);
+        if (!stillImage) stats.current.shown(view.current, performance.now(), fromBuffer);
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
     return () => { ++token.current; cancel.abort(); };
-  }, [backend, view.current, stillImage?.url, veilMode, veilKey, portalMode, guiMask.maskFrame, guiMask.reply, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backend, buffer, view.current, stillImage?.url, veilMode, veilKey, portalMode, portalManualKey, enhanceKey, playing, guiMask.maskFrame, guiMask.reply, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(
     () => () => {
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      if (urlRef.current && !urlFromBuffer.current) URL.revokeObjectURL(urlRef.current);
     },
     [],
   );
@@ -373,6 +458,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
         </div>}
         {shown !== view.current && url && <div className="loading-tag">loading frame {view.current}…</div>}
         {veilApplied && shown === view.current && <div className="veil-tag" title="The darkening behind an open screen is reversed on this picture">GUI veil undone</div>}
+        {enhanceApplied && shown === view.current && <div className="veil-tag enhance-tag" aria-label="Picture enhanced" title="Post-processing is applied to this picture; detection and exports use the original frame">Enhanced</div>}
         {!stillImage && <div className={`label-chip ${labelClass(view.label)}`}>{describeLabel(view.label)}</div>}
         {view.typed_pending !== null && <div className="typed-chip">row: {view.typed_pending}_</div>}
         {s && (
@@ -394,9 +480,9 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
         {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, no HUD-changing packs or mods, and uncropped footage. Shows GUI pixels only when the HUD fit is reliable." aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
-        <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>
-        <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>
-        {portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
+        {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
+        {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
+        {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
         <IconButton icon="copy" label="Comparison proof" title="Copy original and mask side by side to the clipboard, with the displayed sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
@@ -469,6 +555,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
         </span>
         <span>{formatTimecode(view.pts, view.fps)}</span></>}
         <span>{view.fps.toFixed(2)} fps</span>
+        {buffer && <PlaybackReadout stats={stats.current} buffer={buffer} fps={view.fps} current={view.current} dir={motion?.dir ?? 0} />}
         <span>
           labelled <b>{view.labelled_count}</b>
         </span>

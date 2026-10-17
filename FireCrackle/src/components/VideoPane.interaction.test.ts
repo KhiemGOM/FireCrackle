@@ -20,6 +20,7 @@ import { DEFAULT_MASK_STATE, MASK_STATE_KEY, readMaskState } from "../lib/maskSt
 import * as guiControls from "./GuiMaskControls";
 import * as frameProcessing from "../lib/veilFrame";
 import * as portalProcessing from "../lib/portalPreview";
+import { DEFAULT_POST, DEFAULT_TONE, pictureSettings, type PostSettings } from "../lib/post/settings";
 
 type Element = ReactElement<Record<string, any>>;
 function viewport(node: Element): Element | undefined {
@@ -276,4 +277,142 @@ it("image mode shares every viewer tool without decoding or labelling a video fr
   for (const label of ["Toggle calibrated ruler", "Toggle first-person fire", "Toggle manual fire quad mask", "Toggle sprite matching tool", "Toggle sprite animation tool", "Comparison proof"]) expect(find(tools, label)).toBeDefined();
   expect(find(root, "Previous photo")).toBeDefined();
   expect(find(root, "Frame navigation")).toBeUndefined();
+});
+
+// ---------------------------------------------------------------- the post-processing settings (Enhance panel)
+
+const postOf = (patch: Partial<PostSettings> = {}, tone: Partial<typeof DEFAULT_TONE> = {}, on = false): PostSettings => ({
+  ...DEFAULT_POST, ...patch, stages: { ...DEFAULT_POST.stages, tone: { on, params: { ...DEFAULT_TONE, ...tone } } },
+});
+
+async function runLoad(post: PostSettings | undefined, extra: Record<string, unknown> = {}) {
+  // no GUI mask (its own effect would be found first), as in the portal tests above
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+  const backend = createMockBackend();
+  vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(0));
+  const view = await backend.view();
+  const render = () => {
+    hooks.stateCursor = hooks.refCursor = 0; hooks.effects = [];
+    return VideoPane({ backend, view, onError: vi.fn(), post, ...extra } as Parameters<typeof VideoPane>[0]);
+  };
+  render();
+  const load = hooks.effects.find(effect => effect.toString().includes("const mine"));
+  expect(load).toBeDefined();
+  const stop = load!();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  stop?.();
+  return { render, view };
+}
+
+it("takes veil and portal from the post settings and no longer shows its own selects", async () => {
+  const backend = createMockBackend();
+  hooks.stateCursor = hooks.refCursor = 0;
+  const root = VideoPane({ backend, view: await backend.view(), onError: vi.fn(), post: postOf({ veil: "auto" }) });
+  expect(find(root, "Undo GUI veil")).toBeUndefined();
+  expect(find(root, "Undo portal overlay")).toBeUndefined();
+});
+
+it("keeps its own veil and portal selects when no post settings are given", async () => {
+  const root = await tree();
+  expect(find(root, "Undo GUI veil")).toBeDefined();
+  expect(find(root, "Undo portal overlay")).toBeDefined();
+});
+
+it("processes with the veil mode from the post settings", async () => {
+  const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  await runLoad(postOf({ veil: "on" }));
+  expect(spy).toHaveBeenCalled();
+  expect(spy.mock.calls[0][2]).toBe("on");
+});
+
+it("runs the portal stage when the post settings say Auto, and not otherwise", async () => {
+  const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  await runLoad(postOf({ portal: "auto" }));
+  expect(spy.mock.calls[0][5]).toBeDefined();
+  spy.mockClear();
+  await runLoad(postOf({ veil: "auto" }));
+  expect(spy.mock.calls[0][5]).toBeUndefined();
+});
+
+it("passes an enhancement stage that applies the tone settings when an effect is on", async () => {
+  const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  await runLoad(postOf({}, { gamma: 2 }, true));
+  const stage = spy.mock.calls[0][6]!;
+  expect(stage).toBeTypeOf("function");
+  const out = stage({ data: new Uint8ClampedArray([64, 64, 64, 255]), width: 1, height: 1 });
+  expect(out.applied).toBe(true);
+  expect(out.data[0]).toBeGreaterThan(100);
+  expect(out.data[3]).toBe(255);
+});
+
+it("runs no stage at all when every effect is off, an effect is neutral, or the master switch is off", async () => {
+  // (with no frame buffer, as in this harness, the pane still calls processFrame, but with nothing to do: it returns the original)
+  const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  for (const post of [postOf(), postOf({}, {}, true), pictureSettings({ ...postOf({ veil: "auto", portal: "auto" }, { gamma: 2 }, true), enabled: false })]) { // what the app hands the pane for a master switch that is off
+    spy.mockClear();
+    await runLoad(post);
+    for (const call of spy.mock.calls) {
+      expect(call[2]).toBe("off");
+      expect(call[5]).toBeUndefined();
+      expect(call[6]).toBeUndefined();
+    }
+  }
+});
+
+it("runs the portal stage with the manual phase and opacity, and keeps the GUI mask on for it", async () => {
+  const image = { data: new Uint8ClampedArray(8), width: 2, height: 1 };
+  const portal = vi.spyOn(portalProcessing, "portalPreview").mockResolvedValue({ data: image.data, applied: true, phase: 7, opacity: 0.4, valid: new Uint8Array(2) } as Awaited<ReturnType<typeof portalProcessing.portalPreview>>);
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original, _m, _o, _io, transform) => {
+    await transform?.(image);
+    return { blob: original, applied: false, portalApplied: true };
+  });
+  const mask = vi.spyOn(guiControls, "useGuiMask");
+  await runLoad(postOf({ portal: "manual", portalManual: { phase: 12, opacity: 0.62 } }));
+  expect(portal).toHaveBeenCalledOnce();
+  expect(portal.mock.calls[0][3]).toEqual({ phase: 12, opacity: 0.62 });
+  expect(mask.mock.calls[mask.mock.calls.length - 1][3]).toBe(true);
+});
+
+it("does not pass manual values to the automatic portal fit, and reports that fit so the panel can copy it", async () => {
+  const image = { data: new Uint8ClampedArray(8), width: 2, height: 1 };
+  const portal = vi.spyOn(portalProcessing, "portalPreview").mockResolvedValue({ data: image.data, applied: true, phase: 7, opacity: 0.4, valid: new Uint8Array(2) } as Awaited<ReturnType<typeof portalProcessing.portalPreview>>);
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original, _m, _o, _io, transform) => {
+    await transform?.(image);
+    return { blob: original, applied: false, portalApplied: true };
+  });
+  const onPortalFit = vi.fn();
+  await runLoad(postOf({ portal: "auto", portalManual: { phase: 12, opacity: 0.62 } }), { onPortalFit });
+  expect(portal.mock.calls[0][3]).toBeUndefined();
+  expect(onPortalFit).toHaveBeenCalledWith({ phase: 7, opacity: 0.4 });
+});
+
+it("does not report a fit for a manual portal (the values are the user's)", async () => {
+  const image = { data: new Uint8ClampedArray(8), width: 2, height: 1 };
+  vi.spyOn(portalProcessing, "portalPreview").mockResolvedValue({ data: image.data, applied: true, phase: 12, opacity: 0.62, valid: new Uint8Array(2) } as Awaited<ReturnType<typeof portalProcessing.portalPreview>>);
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original, _m, _o, _io, transform) => {
+    await transform?.(image);
+    return { blob: original, applied: false, portalApplied: true };
+  });
+  const onPortalFit = vi.fn();
+  await runLoad(postOf({ portal: "manual" }), { onPortalFit });
+  expect(onPortalFit).not.toHaveBeenCalled();
+});
+
+it("tells the panel about the portal status instead of showing it itself", async () => {
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false, portalApplied: false }));
+  const onPortalStatus = vi.fn();
+  await runLoad(postOf({ portal: "auto" }), { onPortalStatus });
+  expect(onPortalStatus).toHaveBeenCalledWith(expect.stringContaining("Checking portal"));
+  expect(onPortalStatus).toHaveBeenLastCalledWith("No confident portal fit");
+});
+
+it("marks the picture as enhanced only when a stage changed it", async () => {
+  const spy = vi.spyOn(frameProcessing, "processFrame");
+  spy.mockImplementation(async (_b, original) => ({ blob: original, applied: false, enhanced: true }));
+  const { render } = await runLoad(postOf({}, { gamma: 2 }, true));
+  expect(find(render(), "Picture enhanced")).toBeDefined();
+  spy.mockImplementation(async (_b, original) => ({ blob: original, applied: false, enhanced: false }));
+  hooks.states = []; hooks.refs = [];
+  const second = await runLoad(postOf({}, { gamma: 2 }, true));
+  expect(find(second.render(), "Picture enhanced")).toBeUndefined();
 });

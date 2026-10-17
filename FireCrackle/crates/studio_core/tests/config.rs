@@ -1,6 +1,6 @@
 use studio_core::config::*;
 
-const KEYS: [&str; 49] = [
+const KEYS: [&str; 55] = [
     "phase.min_run",
     "phase.tick_rate",
     "phase.window_ticks",
@@ -30,7 +30,13 @@ const KEYS: [&str; 49] = [
     "label.veil_min_share",
     "label.veil_margin",
     "label.veil_slack",
+    "label.buffer_ahead",
+    "label.buffer_behind",
+    "label.buffer_decode_ahead",
+    "label.buffer_parallel",
+    "label.buffer_late_show",
     "decode.window_back",
+    "decode.max_parallel",
     "decode.window_ahead",
     "decode.prefetch_fraction",
     "decode.cache_mb",
@@ -76,7 +82,13 @@ fn defaults_are_the_documented_values() {
     assert_eq!(s.label.veil_min_share, 0.9);
     assert_eq!(s.label.veil_margin, 0.2);
     assert_eq!(s.label.veil_slack, 2.0);
+    assert_eq!(s.label.buffer_ahead, 90);
+    assert_eq!(s.label.buffer_behind, 30);
+    assert_eq!(s.label.buffer_decode_ahead, 8);
+    assert_eq!(s.label.buffer_parallel, 3);
+    assert_eq!(s.label.buffer_late_show, 30);
     assert_eq!(s.decode.window_back, 120);
+    assert_eq!(s.decode.max_parallel, 2);
     assert_eq!(s.decode.window_ahead, 600);
     assert_eq!(s.decode.prefetch_fraction, 0.7);
     assert_eq!(s.decode.cache_mb, 512);
@@ -167,7 +179,13 @@ fn set_changes_exactly_the_named_field() {
     s.set("label.veil_min_share", 0.75).unwrap();
     s.set("label.veil_margin", 0.3).unwrap();
     s.set("label.veil_slack", 4.0).unwrap();
+    s.set("label.buffer_ahead", 200.0).unwrap();
+    s.set("label.buffer_behind", 10.0).unwrap();
+    s.set("label.buffer_decode_ahead", 16.0).unwrap();
+    s.set("label.buffer_parallel", 2.0).unwrap();
+    s.set("label.buffer_late_show", 12.0).unwrap();
     s.set("decode.window_back", 10.0).unwrap();
+    s.set("decode.max_parallel", 4.0).unwrap();
     s.set("decode.window_ahead", 200.0).unwrap();
     s.set("decode.prefetch_fraction", 0.25).unwrap();
     s.set("decode.cache_mb", 128.0).unwrap();
@@ -197,7 +215,13 @@ fn set_changes_exactly_the_named_field() {
     assert_eq!(s.label.veil_min_share, 0.75);
     assert_eq!(s.label.veil_margin, 0.3);
     assert_eq!(s.label.veil_slack, 4.0);
+    assert_eq!(s.label.buffer_ahead, 200);
+    assert_eq!(s.label.buffer_behind, 10);
+    assert_eq!(s.label.buffer_decode_ahead, 16);
+    assert_eq!(s.label.buffer_parallel, 2);
+    assert_eq!(s.label.buffer_late_show, 12);
     assert_eq!(s.decode.window_back, 10);
+    assert_eq!(s.decode.max_parallel, 4);
     assert_eq!(s.decode.window_ahead, 200);
     assert_eq!(s.decode.prefetch_fraction, 0.25);
     assert_eq!(s.decode.cache_mb, 128);
@@ -335,7 +359,17 @@ fn out_of_range_values_are_rejected_and_change_nothing() {
         ("label.veil_margin", 0.51),
         ("label.veil_slack", -1.0),
         ("label.veil_slack", 17.0),
+        ("label.buffer_ahead", -1.0),
+        ("label.buffer_ahead", 1201.0),
+        ("label.buffer_behind", 601.0),
+        ("label.buffer_decode_ahead", 65.0),
+        ("label.buffer_parallel", 0.0),
+        ("label.buffer_parallel", 9.0),
+        ("label.buffer_late_show", -1.0),
+        ("label.buffer_late_show", 601.0),
         ("decode.window_ahead", 0.0),
+        ("decode.max_parallel", 0.0),
+        ("decode.max_parallel", 9.0),
         ("decode.prefetch_fraction", 1.5),
         ("decode.cache_mb", 8.0),
         ("decode.max_width", 100.0),

@@ -191,7 +191,13 @@ pub fn decode_job(
         return Err(DecodeError::Cancelled);
     }
 
-    let mut cmd = crate::proc::hidden_command(&tools.ffmpeg);
+    // At most `decode.max_parallel` decodes run at once, however many frames are asked for (crate::decode_gate). A decode
+    // that is cancelled while it waits for its turn never starts.
+    let gate = crate::decode_gate::decode_gate();
+    gate.set_limit(cfg.max_parallel as usize);
+    let _slot = gate.acquire(cancel).ok_or(DecodeError::Cancelled)?;
+
+    let mut cmd = crate::proc::background_command(&tools.ffmpeg);
     cmd.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-nostats"]);
     // ffmpeg reports frame times relative to the seek point (or to the first frame when there is no seek), so the
     // absolute time of decoded frame `k` is `time_base + showinfo time`. `-copyts` would keep absolute times but

@@ -4,6 +4,7 @@ import { PREFERENCES_KEY } from "./lib/preferences";
 const fixture = vi.hoisted(() => ({
   backend: { mock: true }, act: vi.fn(async (_action: unknown) => {}), view: {} as any,
   updates: {} as any,
+  post: {} as any,
   states: [] as any[], refs: [] as Array<{current: any}>, stateCursor: 0, refCursor: 0, effectCursor: 0,
   effects: [] as Array<{ deps?: unknown[]; cleanup?: void | (() => void) }>, pending: [] as Array<() => void>,
 }));
@@ -28,12 +29,15 @@ vi.mock("./hooks/useLayout", () => ({ useLayout: () => ({ layout: { sideWidth: 6
 vi.mock("./hooks/usePanelZooms", () => ({ usePanelZooms: () => ({ zooms: {picker: 1, flags: 1}, wheel: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/useWheel", () => ({ useWheel: () => {} }));
 vi.mock("./hooks/useUpdates", () => ({ useUpdates: () => fixture.updates }));
+vi.mock("./hooks/usePostSettings", () => ({ usePostSettings: () => fixture.post }));
 import App from "./App";
 import { Picker } from "./components/Picker";
 import { VideoPane } from "./components/VideoPane";
 import { ImagesTab } from "./components/ImagesTab";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdatesDialog } from "./components/UpdatesDialog";
+import { EnhancePanel } from "./components/EnhancePanel";
+import { DEFAULT_POST, type PostSettings } from "./lib/post/settings";
 import { parseRelease } from "./lib/updateCheck";
 import { version as appVersion } from "../package.json";
 
@@ -58,6 +62,7 @@ function key(key: string, mods: Record<string,unknown> = {}) {
 beforeEach(() => {
   fixture.act.mockClear(); fixture.states = [fixture.backend, null]; fixture.refs = []; fixture.effects = [];
   fixture.updates = updatesFixture(null);
+  fixture.post = postFixture();
   fixture.view = { current: 10, frame_count: 100, fps: 30, pts: 1 / 3, label: "unset", pick: {sheet: 1, mirrored: false}, suggestion: {sheet: 1, row: 7, mirrored: false, alt_row: 8, from_frame: 1}, typed_pending: null, labelled_count: 1, flag_count: 0, warnings: [], save_error: null };
   const target = new EventTarget();
   vi.stubGlobal("window", {
@@ -271,4 +276,71 @@ it("the Software updates button is there with or without a loaded video, and say
   expect([button.props.children].flat().join(" ")).toContain("Update");
   fixture.updates = updatesFixture(null);
   expect([updatesButton(render().tree)!.props.children].flat().filter(Boolean).join(" ")).not.toContain("Update");
+});
+
+// ---------------------------------------------------------------- the Enhance panel in the right side
+
+function postFixture(settings: PostSettings = DEFAULT_POST, over: Record<string, unknown> = {}) {
+  return { settings, picture: settings, selected: "veil", setSelected: vi.fn(), change: vi.fn(), toggle: vi.fn(), reset: vi.fn(), portalStatus: "", setPortalStatus: vi.fn(), portalFit: null, setPortalFit: vi.fn(), toggleKey: "v", ...over };
+}
+const sideButton = (tree: Element, label: string) => find(tree, e => e.props["aria-label"] === label);
+
+it("shows a Label / Enhance switch above the right side, with Label chosen and no Enhance panel at first", () => {
+  const { tree } = render();
+  expect(sideButton(tree, "Show label tools")!.props["aria-pressed"]).toBe(true);
+  expect(sideButton(tree, "Show Enhance panel")!.props["aria-pressed"]).toBe(false);
+  expect(find(tree, e => e.type === EnhancePanel)).toBeUndefined();
+});
+
+it("opens the Enhance panel in the right side with the post settings, and keeps the label tools mounted", () => {
+  fixture.post = postFixture({ ...DEFAULT_POST, veil: "auto" }, { selected: "tone" });
+  sideButton(render().tree, "Show Enhance panel")!.props.onClick();
+  const ui = render();
+  const panel = find(ui.tree, e => e.type === EnhancePanel)!;
+  expect(panel).toBeDefined();
+  expect(panel.props.settings).toBe(fixture.post.settings);
+  expect(panel.props.selected).toBe("tone");
+  expect(panel.props.onSelect).toBe(fixture.post.setSelected);
+  expect(panel.props.onChange).toBe(fixture.post.change);
+  expect(panel.props.onReset).toBe(fixture.post.reset);
+  expect(find(ui.tree, e => e.type === "aside")!.props.className).toContain("enhancing");
+  expect(ui.picker).toBeDefined(); // the picker stays mounted, so its state survives a visit to Enhance
+});
+
+it("goes back to the label tools from the Enhance panel", () => {
+  sideButton(render().tree, "Show Enhance panel")!.props.onClick();
+  sideButton(render().tree, "Show label tools")!.props.onClick();
+  const ui = render();
+  expect(find(ui.tree, e => e.type === EnhancePanel)).toBeUndefined();
+  expect(find(ui.tree, e => e.type === "aside")!.props.className).not.toContain("enhancing");
+});
+
+it("has a post-processing on/off button in both views that shows its state and toggles the global switch", () => {
+  fixture.post = postFixture({ ...DEFAULT_POST, enabled: false });
+  let ui = render();
+  const button = sideButton(ui.tree, "Toggle post-processing")!;
+  expect(button.props["aria-pressed"]).toBe(false);
+  expect(button.props.title).toContain("V");
+  button.props.onClick();
+  expect(fixture.post.toggle).toHaveBeenCalledOnce();
+  sideButton(ui.tree, "Show Enhance panel")!.props.onClick();
+  ui = render();
+  expect(sideButton(ui.tree, "Toggle post-processing")).toBeDefined();
+});
+
+it("gives the video the picture settings and a place to report the portal status", () => {
+  const picture = { ...DEFAULT_POST, veil: "on" as const };
+  fixture.post = postFixture(DEFAULT_POST, { picture });
+  const { video } = render();
+  expect(video.props.post).toBe(picture);
+  expect(video.props.onPortalStatus).toBe(fixture.post.setPortalStatus);
+});
+
+it("hands the last portal fit between the video and the Enhance panel", () => {
+  fixture.post = postFixture(DEFAULT_POST, { portalFit: { phase: 20, opacity: 0.39 }, selected: "portal" });
+  const { video } = render();
+  expect(video.props.onPortalFit).toBe(fixture.post.setPortalFit);
+  sideButton(render().tree, "Show Enhance panel")!.props.onClick();
+  const panel = find(render().tree, e => e.type === EnhancePanel)!;
+  expect(panel.props.portalFit).toEqual({ phase: 20, opacity: 0.39 });
 });

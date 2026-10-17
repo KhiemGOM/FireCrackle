@@ -174,6 +174,16 @@ pub struct LabelConfig {
     pub veil_margin: f64,
     /// Veil undo: levels of tolerance at both ends of the legal veiled range.
     pub veil_slack: f64,
+    /// Playback buffer in the app: frames fetched ahead of the playhead in the direction of play.
+    pub buffer_ahead: u32,
+    /// Playback buffer: frames kept behind the playhead (and fetched while paused).
+    pub buffer_behind: u32,
+    /// Playback buffer: how many of the next frames are also decoded ahead of time.
+    pub buffer_decode_ahead: u32,
+    /// Playback buffer: frames fetched at the same time.
+    pub buffer_parallel: u32,
+    /// Playback buffer: how far behind the playhead a picture that arrives late may still be shown.
+    pub buffer_late_show: u32,
 }
 
 impl Default for LabelConfig {
@@ -191,6 +201,11 @@ impl Default for LabelConfig {
             veil_min_share: 0.9,
             veil_margin: 0.2,
             veil_slack: 2.0,
+            buffer_ahead: 90,
+            buffer_behind: 30,
+            buffer_decode_ahead: 8,
+            buffer_parallel: 3,
+            buffer_late_show: 30,
         }
     }
 }
@@ -201,6 +216,8 @@ impl Default for LabelConfig {
 pub struct DecodeConfig {
     /// Frames kept decoded behind the playhead.
     pub window_back: u32,
+    /// The most ffmpeg frame decodes that run at the same time; further ones wait their turn.
+    pub max_parallel: u32,
     /// Frames kept decoded ahead of the playhead.
     pub window_ahead: u32,
     /// Prefetch only when the cached frames ahead/behind fell under this fraction of the window.
@@ -229,6 +246,7 @@ impl Default for DecodeConfig {
             // and fast playback (4x eats 240 frames a second) needs a deep window. 720 frames of about 100 KB are
             // 70 MB of the 512 MB cache.
             window_back: 120,
+            max_parallel: 2,
             window_ahead: 600,
             prefetch_fraction: 0.7,
             cache_mb: 512,
@@ -351,7 +369,7 @@ struct Spec {
     set: fn(&mut Settings, f64),
 }
 
-static SPECS: [Spec; 49] = [
+static SPECS: [Spec; 55] = [
     Spec {
         key: "phase.min_run",
         label: "Phase: shortest believable run (frames)",
@@ -632,6 +650,56 @@ overloading the screen and the decoder. 16 ms is one refresh of a 60 Hz monitor.
         set: |s, v| s.label.veil_slack = v,
     },
     Spec {
+        key: "label.buffer_ahead",
+        label: "Playback buffer: frames fetched ahead",
+        min: 0.0,
+        max: 1200.0,
+        integer: true,
+        explanation: "While playing, the app asks for this many of the next frames before the playhead gets to them, so showing a frame is a swap, not a request and a decode. 90 is a second and a half of a 60 fps video (about 14 MB). At 2x or faster only the frames that will really be shown are fetched. 0 turns the look-ahead off.",
+        get: |s| s.label.buffer_ahead as f64,
+        set: |s, v| s.label.buffer_ahead = v as u32,
+    },
+    Spec {
+        key: "label.buffer_behind",
+        label: "Playback buffer: frames kept behind",
+        min: 0.0,
+        max: 600.0,
+        integer: true,
+        explanation: "The frames this far behind the playhead stay in the app's buffer, so stepping back and replaying the last moment is instant. While paused the buffer also fetches this many frames behind the playhead, nearest first. Playing backwards, the look-ahead above is used for the direction of play and this value for the frames just played.",
+        get: |s| s.label.buffer_behind as f64,
+        set: |s, v| s.label.buffer_behind = v as u32,
+    },
+    Spec {
+        key: "label.buffer_decode_ahead",
+        label: "Playback buffer: frames decoded ahead",
+        min: 0.0,
+        max: 64.0,
+        integer: true,
+        explanation: "Of the buffered frames, this many next to the playhead are also decoded into pictures in advance. A decoded 720p frame takes about 4 MB of memory (8 MB at 1080p), so this stays small: 8 covers a seventh of a second of a 60 fps video. 0 decodes each frame only when it is shown.",
+        get: |s| s.label.buffer_decode_ahead as f64,
+        set: |s, v| s.label.buffer_decode_ahead = v as u32,
+    },
+    Spec {
+        key: "label.buffer_parallel",
+        label: "Playback buffer: frames fetched at once",
+        min: 1.0,
+        max: 8.0,
+        integer: true,
+        explanation: "How many frames the buffer asks the backend for at the same time. The backend already holds the frames around the playhead in memory, so these requests are quick; a few at once keep the buffer ahead of playback without flooding the connection to the backend. Raise it only if the buffer falls behind on a fast computer.",
+        get: |s| s.label.buffer_parallel as f64,
+        set: |s, v| s.label.buffer_parallel = v as u32,
+    },
+    Spec {
+        key: "label.buffer_late_show",
+        label: "Playback buffer: late pictures still shown (frames)",
+        min: 0.0,
+        max: 600.0,
+        integer: true,
+        explanation: "When a frame arrives after the playhead has already moved on, it is still shown if it is newer than the picture on screen and no more than this many frames behind the playhead, so playback follows at whatever rate the pictures can be produced instead of freezing and then jumping. 30 is half a second of a 60 fps video. 0 throws every late frame away, as playback used to.",
+        get: |s| s.label.buffer_late_show as f64,
+        set: |s, v| s.label.buffer_late_show = v as u32,
+    },
+    Spec {
         key: "decode.window_back",
         label: "Decode: frames kept ready behind the playhead",
         min: 0.0,
@@ -642,6 +710,16 @@ frames behind the current one are kept ready. Stepping backwards past this windo
 starts at the previous keyframe.",
         get: |s| s.decode.window_back as f64,
         set: |s, v| s.decode.window_back = v as u32,
+    },
+    Spec {
+        key: "decode.max_parallel",
+        label: "Decode: video decodes at the same time",
+        min: 1.0,
+        max: 8.0,
+        integer: true,
+        explanation: "Each frame that is not in memory is decoded by its own ffmpeg run, which keeps a processor core or more busy for a second or two at 1080p. This is the most of them that run at once; further requests wait their turn (and are dropped if the playhead has moved on). It protects the whole computer from a burst of requests, such as a click on the timeline: 2 keeps playback smooth and the machine responsive. Raise it only on a computer with many idle cores.",
+        get: |s| s.decode.max_parallel as f64,
+        set: |s, v| s.decode.max_parallel = v as u32,
     },
     Spec {
         key: "decode.window_ahead",

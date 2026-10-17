@@ -7,6 +7,7 @@
 pub mod autosave;
 pub mod chart;
 pub mod config;
+pub mod decode_gate;
 pub mod decode_plan;
 pub mod frames;
 pub mod gui;
