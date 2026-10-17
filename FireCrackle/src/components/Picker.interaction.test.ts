@@ -13,6 +13,7 @@ vi.mock("react", async original => ({
 import { Picker } from "./Picker";
 import type { View } from "../lib/api";
 import type { Label } from "../lib/grid";
+import type { EdgeFilter } from "../lib/atlasFilter";
 
 type Element = ReactElement<Record<string, any>>;
 function all(node: Element, test: (e: Element) => boolean): Element[] {
@@ -23,13 +24,15 @@ const onCell = vi.fn();
 const onNoFire = vi.fn();
 const view = { label: "unset", suggestion: null } as View;
 let cleanup: Array<void | (() => void)> = [];
-function render(candidate:Label = {fire: {sheet: 1, row: 0, mirrored: false}}) {
+function render(candidate:Label = {fire: {sheet: 1, row: 0, mirrored: false}}, filter?: EdgeFilter, onFilterChange?: (filter: EdgeFilter) => void) {
   hooks.si = hooks.ri = 0; hooks.effects = [];
-  const tree = Picker({ view, cell: 40, onCell, onNoFire, candidate });
+  const tree = Picker({ view, cell: 40, onCell, onNoFire, candidate, filter, onFilterChange });
   return {
     cells: all(tree, e => e.type === "button" && e.props.className?.startsWith("cell")),
     input: (side: string) => all(tree, e => e.props["aria-label"] === `${side} edge fire pixels`)[0],
-    reset: all(tree, e => e.props.label === "Clear edge pixel filters")[0],
+    whiteInput: (bound: string) => all(tree, e => e.props["aria-label"] === `${bound} bottom white pixels`)[0],
+    reset: all(tree, e => e.props.label === "Clear sprite pixel filters")[0],
+    alerts: all(tree, e => e.props.role === "alert"),
     noFire: all(tree, e => e.props["aria-label"] === "Choose no fire")[0],
   };
 }
@@ -39,6 +42,7 @@ beforeEach(() => {
   for (let sheet = 0; sheet < 2; sheet++) {
     for (let y = 0; y < (sheet ? 2 : 3); y++) data[sheet][(y * 16) * 4 + 3] = 255;
     for (let y = 0; y < (sheet ? 9 : 7); y++) data[sheet][(y * 16 + 15) * 4 + 3] = 255;
+    for (let x = 3; x < (sheet ? 5 : 8); x++) data[sheet].set([255, 255, 255, 255], (15 * 16 + x) * 4);
   }
   vi.stubGlobal("Image", class {
     naturalWidth = 16; naturalHeight = 512; onload?: () => void; onerror?: () => void; source = "";
@@ -48,6 +52,44 @@ beforeEach(() => {
     let sheet = 0;
     return { getContext: () => ({ drawImage: (image: {source: string}) => { sheet = image.source.includes("fire_0") ? 0 : 1; }, getImageData: () => ({data: data[sheet]}) }) };
   } });
+});
+it("filters bottom white inclusively, keeps dimmed sprites clickable, and clears both bounds", async () => {
+  render(); cleanup = hooks.effects.map(effect => effect());
+  await Promise.resolve(); await Promise.resolve();
+  let ui = render();
+  ui.whiteInput("Minimum").props.onChange({target: {value: "2"}});
+  ui = render(); ui.whiteInput("Maximum").props.onChange({target: {value: "5"}});
+  ui = render();
+  expect(ui.cells.filter(e => !e.props.className.includes("edge-filter-miss"))).toHaveLength(4);
+  ui.whiteInput("Minimum").props.onChange({target: {value: "5"}});
+  ui = render();
+  const matching = ui.cells.filter(e => !e.props.className.includes("edge-filter-miss"));
+  expect(matching).toHaveLength(2); // normal and mirrored; exact min=max is inclusive
+  expect(matching[0].props.title).toContain("bottom white 5");
+  const dimmed = ui.cells.find(e => e.props.className.includes("edge-filter-miss"))!;
+  onCell.mockClear(); dimmed.props.onClick({ctrlKey: false});
+  expect(onCell).toHaveBeenCalledOnce();
+  ui.whiteInput("Maximum").props.onChange({target: {value: "4"}});
+  ui = render();
+  expect(ui.alerts).toHaveLength(1);
+  expect(ui.cells.every(e => e.props.className.includes("edge-filter-miss"))).toBe(true);
+  ui.reset.props.onClick(); ui = render();
+  expect(ui.whiteInput("Minimum").props.value).toBe("");
+  expect(ui.whiteInput("Maximum").props.value).toBe("");
+  expect(ui.cells.every(e => !e.props.className.includes("edge-filter-miss"))).toBe(true);
+  ui.whiteInput("Maximum").props.onChange({target: {value: "0"}});
+  expect(render().cells.filter(e => !e.props.className.includes("edge-filter-miss"))).toHaveLength(124);
+});
+it("preserves white bounds through edge edits and manual exclusions in shared filter state", () => {
+  let filter: EdgeFilter = {left: null, right: null, bottomWhiteMin: 5, bottomWhiteMax: 8};
+  const update = (next: EdgeFilter) => {filter = next;};
+  let ui = render(undefined, filter, update);
+  ui.input("Left").props.onChange({target: {value: "3"}});
+  ui = render(undefined, filter, update);
+  ui.cells[0].props.onContextMenu({preventDefault: vi.fn(), stopPropagation: vi.fn()});
+  expect(filter).toMatchObject({left: 3, bottomWhiteMin: 5, bottomWhiteMax: 8, excluded: [0]});
+  ui = render(undefined, filter, update); ui.reset.props.onClick();
+  expect(filter).toMatchObject({left: null, right: null, bottomWhiteMin: null, bottomWhiteMax: null, excluded: [0]});
 });
 it("offers a compact No fire choice alongside filters without occupying a sprite cell", () => {
   const ui = render("no_fire");

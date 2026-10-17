@@ -10,10 +10,38 @@ it("counts only visible pixels at x=0 and x=15, in each animation row", () => {
   rgba[(20 * 16) * 4] = 255; // RGB under transparent alpha must not count.
   const rows = sheetEdgeCounts(rgba);
   expect(rows).toHaveLength(32);
-  expect(rows[0]).toEqual({ left: 3, right: 7 });
-  expect(rows[1]).toEqual({ left: 1, right: 0 });
-  expect(rows[31]).toEqual({ left: 0, right: 0 });
+  expect(rows[0]).toEqual({ left: 3, right: 7, bottomWhite: 0 });
+  expect(rows[1]).toEqual({ left: 1, right: 0, bottomWhite: 0 });
+  expect(rows[31]).toEqual({ left: 0, right: 0, bottomWhite: 0 });
   expect(() => sheetEdgeCounts(new Uint8ClampedArray(10))).toThrow();
+});
+it("totals separate bottom-row white and near-white patches, ignoring yellow cream, other rows and hidden white", () => {
+  const rgba = new Uint8ClampedArray(16 * 512 * 4);
+  for (const x of [0, 1, 5, 9, 10, 15]) rgba.set([255, 255, 255, 255], (15 * 16 + x) * 4);
+  rgba.set([254, 253, 247, 255], (15 * 16 + 3) * 4);
+  rgba.set([245, 245, 245, 255], (15 * 16 + 11) * 4); // Inclusive near-white boundary.
+  rgba.set([255, 255, 244, 255], (15 * 16 + 12) * 4); // Every channel must pass.
+  rgba.set([253, 249, 227, 255], (15 * 16 + 13) * 4); // Pale cream stays outside.
+  rgba.set([255, 255, 255, 0], (15 * 16 + 4) * 4);
+  rgba.set([255, 255, 255, 127], (15 * 16 + 6) * 4);
+  rgba.set([255, 255, 255, 255], (14 * 16 + 7) * 4);
+  rgba.set([255, 255, 255, 255], (31 * 16 + 8) * 4);
+  const rows = sheetEdgeCounts(rgba);
+  expect(rows[0].bottomWhite).toBe(8);
+  expect(rows[1].bottomWhite).toBe(1);
+  expect(rows[2].bottomWhite).toBe(0);
+  expect(appearanceEdges([rows, rows], 0, 0, true).bottomWhite).toBe(8);
+});
+it("combines inclusive white bounds with edges, mirrors, exclusions and animation", () => {
+  const edges: AtlasEdges = [Array.from({length: 32}, (_, row) => ({left: 3, right: 7, bottomWhite: row % 17})), Array.from({length: 32}, () => ({left: 2, right: 9, bottomWhite: 16}))];
+  const filter = {left: 7, right: 3, bottomWhiteMin: 5, bottomWhiteMax: 7, excluded: [appearanceId(0, 5, true)]};
+  const pool = animationPool(edges, filter);
+  expect(pool.map(s => s.row)).toEqual([6, 7, 22, 23, 24]);
+  expect(matchingAppearances(edges, filter)).toBe(5);
+  expect(animationPool(null, {left: null, right: null, bottomWhiteMin: 0})).toHaveLength(0);
+  expect(matchesEdges({left: 0, right: 0, bottomWhite: 0}, {left: null, right: null, bottomWhiteMax: 0})).toBe(true);
+  expect(matchesEdges({left: 0, right: 0, bottomWhite: 16}, {left: null, right: null, bottomWhiteMin: 16})).toBe(true);
+  expect(matchingAppearances(edges, {...filter, bottomWhiteMin: 8, bottomWhiteMax: 7})).toBe(0);
 });
 
 it("swaps edge counts for mirrored appearances and supports independent filters", () => {

@@ -31,12 +31,18 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const [localLeft, setLocalLeft] = useState<number | null>(null);
   const [localRight, setLocalRight] = useState<number | null>(null);
   const [localExcluded, setLocalExcluded] = useState<number[]>([]);
+  const [localWhiteMin, setLocalWhiteMin] = useState<number | null>(null);
+  const [localWhiteMax, setLocalWhiteMax] = useState<number | null>(null);
   const { left, right } = filter ?? { left: localLeft, right: localRight };
   const excluded = filter ? filter.excluded ?? [] : localExcluded;
-  const activeFilter = { left, right, ...(excluded.length ? { excluded } : {}) };
+  const bottomWhiteMin = filter ? filter.bottomWhiteMin ?? null : localWhiteMin;
+  const bottomWhiteMax = filter ? filter.bottomWhiteMax ?? null : localWhiteMax;
+  const activeFilter = { left, right, bottomWhiteMin, bottomWhiteMax, ...(excluded.length ? { excluded } : {}) };
   const setLeft = (value: number | null) => { setLocalLeft(value); onFilterChange?.({ ...activeFilter, left: value }); };
   const setRight = (value: number | null) => { setLocalRight(value); onFilterChange?.({ ...activeFilter, right: value }); };
-  const setExcluded = (values: number[]) => { setLocalExcluded(values); onFilterChange?.({ left, right, excluded: values }); };
+  const setExcluded = (values: number[]) => { setLocalExcluded(values); onFilterChange?.({ ...activeFilter, excluded: values }); };
+  const setWhiteMin = (value: number | null) => { setLocalWhiteMin(value); onFilterChange?.({ ...activeFilter, bottomWhiteMin: value }); };
+  const setWhiteMax = (value: number | null) => { setLocalWhiteMax(value); onFilterChange?.({ ...activeFilter, bottomWhiteMax: value }); };
   const [edges, setEdges] = useState<AtlasEdges | null>(null);
   const [edgeError, setEdgeError] = useState(false);
   useEffect(() => { onEdgesChange?.(edges); }, [edges, onEdgesChange]);
@@ -81,18 +87,25 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
     targetRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [focusRow, blocks, CELL]);
 
-  const filterActive = left !== null || right !== null;
+  const filterActive = left !== null || right !== null || bottomWhiteMin !== null || bottomWhiteMax !== null;
+  const invalidWhiteRange = bottomWhiteMin !== null && bottomWhiteMax !== null && bottomWhiteMin > bottomWhiteMax;
   return (<>
     <div className="atlas-options" onKeyDown={(e) => e.stopPropagation()}>
     <section className="atlas-filters" aria-label="Visual sprite filters">
-      <div className="atlas-filter-heading"><Icon name="filter" /><strong>Edge pixels</strong><span role="status">{edgeError ? "Counts unavailable" : edges ? `${matchingAppearances(edges, activeFilter)} / 128 match` : "Reading pixels…"}</span></div>
+      <div className="atlas-filter-heading"><Icon name="filter" /><strong>Sprite pixels</strong><span role="status">{edgeError ? "Counts unavailable" : edges ? `${matchingAppearances(edges, activeFilter)} / 128 match` : "Reading pixels…"}</span></div>
       <div className="atlas-filter-inputs">
         <label>Left <input type="number" min={0} max={16} step={1} placeholder="Any" aria-label="Left edge fire pixels" value={left ?? ""} onChange={(e) => setLeft(edgeFilterValue(e.target.value))} /></label>
         <label>Right <input type="number" min={0} max={16} step={1} placeholder="Any" aria-label="Right edge fire pixels" value={right ?? ""} onChange={(e) => setRight(edgeFilterValue(e.target.value))} /></label>
-        <IconButton icon="reset" label="Clear edge pixel filters" disabled={!filterActive} onClick={() => { setLocalLeft(null); setLocalRight(null); onFilterChange?.({ ...activeFilter, left: null, right: null }); }} />
+        <IconButton icon="reset" label="Clear sprite pixel filters" disabled={!filterActive} onClick={() => { setLocalLeft(null); setLocalRight(null); setLocalWhiteMin(null); setLocalWhiteMax(null); onFilterChange?.({ ...activeFilter, left: null, right: null, bottomWhiteMin: null, bottomWhiteMax: null }); }} />
         {excluded.length > 0 && <IconButton icon="erase" label="Clear manual sprite exclusions" title={`Include all ${excluded.length} manually excluded sprites`} onClick={() => setExcluded([])}>{excluded.length}</IconButton>}
       </div>
-      <p>{edgeError ? "Could not read edge counts. Sprites remain selectable." : "Outermost columns · right-click: include/exclude · all sprites stay clickable"}</p>
+      <div className="atlas-filter-inputs" role="group" aria-label="Bottom white inclusive range" title="Total white and near-white pixels across the entire bottom row, adding every separate patch. Enter a range to allow for cream pixels or uncertain footage. Near-white includes RGB channels 245–255. Both bounds are inclusive; blank means no bound.">
+        <span>Bottom white</span>
+        <label>Min <input type="number" min={0} max={16} step={1} placeholder="Any" aria-label="Minimum bottom white pixels" aria-invalid={invalidWhiteRange || undefined} value={bottomWhiteMin ?? ""} onChange={e => setWhiteMin(edgeFilterValue(e.target.value))} /></label>
+        <label>Max <input type="number" min={0} max={16} step={1} placeholder="Any" aria-label="Maximum bottom white pixels" aria-invalid={invalidWhiteRange || undefined} value={bottomWhiteMax ?? ""} onChange={e => setWhiteMax(edgeFilterValue(e.target.value))} /></label>
+      </div>
+      {invalidWhiteRange && <p role="alert">Bottom white: Min must be no greater than Max.</p>}
+      <p>{edgeError ? "Could not read pixel counts. Sprites remain selectable." : "Bottom white: total, min–max inclusive · right-click: include/exclude · all sprites stay clickable"}</p>
     </section>
         <button type="button" className={`atlas-no-fire${view.label === "no_fire" ? " saved" : ""}`} aria-label="Choose no fire" aria-pressed={candidate === "no_fire"} onClick={onNoFire} disabled={!onNoFire} title={previewOnly ? "Choose no fire for this image check" : `Choose no fire · X · Confirm/Enter saves it as reviewed${view.label === "no_fire" ? " · current saved label" : ""}`}>
           <span className="no-fire-art" aria-hidden="true">
@@ -144,7 +157,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
                         className={`cell${isCurrent ? " atlas-saved" : ""}${isSug ? " atlas-time" : ""}${isAlt ? " atlas-alt" : ""}${isChosen ? " atlas-candidate" : ""}${isShown ? " atlas-preview" : ""}${filteredOut ? " edge-filter-miss" : ""}${manualExcluded ? " manual-filter-miss" : ""}`}
                         aria-label={`row ${row}, sheet ${col.sheet}, ${col.mirrored ? "mirrored" : "normal"}${counts ? `; left ${counts.left}, right ${counts.right} edge pixels` : ""}${filteredOut ? "; outside filter, still selectable" : ""}${states.length ? `; ${states.join(", ")}` : ""}`}
                         aria-pressed={isChosen}
-                        title={`row ${row} · sheet ${col.sheet} · ${col.mirrored ? "mirrored" : "normal"}${counts ? `\nEdge pixels: left ${counts.left} · right ${counts.right}` : ""}${filteredOut ? "\nOutside filter · still selectable" : ""}${states.length ? `\n${states.join(" · ")}` : ""}\n${previewOnly ? "Click: preview sprite" : "Click: select candidate · Ctrl+click: preview only"}\nRight-click: ${manualExcluded ? "restore candidate" : "mark as non-candidate"}`}
+                        title={`row ${row} · sheet ${col.sheet} · ${col.mirrored ? "mirrored" : "normal"}${counts ? `\nEdge pixels: left ${counts.left} · right ${counts.right} · bottom white ${counts.bottomWhite ?? "unknown"}` : ""}${filteredOut ? "\nOutside filter · still selectable" : ""}${states.length ? `\n${states.join(" · ")}` : ""}\n${previewOnly ? "Click: preview sprite" : "Click: select candidate · Ctrl+click: preview only"}\nRight-click: ${manualExcluded ? "restore candidate" : "mark as non-candidate"}`}
                         onClick={(e) => onCell(c, row, e.ctrlKey)}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setExcluded(manualExcluded ? excluded.filter(value => value !== id) : [...excluded, id]); }}
                         tabIndex={-1}

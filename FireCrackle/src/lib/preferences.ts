@@ -32,7 +32,7 @@ export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
       const excluded = [...new Set<number>(raw.atlasFilter.excluded.filter((n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n < 128))];
       if (excluded.length) result.atlasFilter.excluded = excluded;
     }
-    for (const side of ["left", "right"] as const) {
+    for (const side of ["left", "right", "bottomWhiteMin", "bottomWhiteMax"] as const) {
       const n = raw.atlasFilter?.[side];
       if (Number.isInteger(n) && n >= 0 && n <= 16) result.atlasFilter[side] = n;
     }

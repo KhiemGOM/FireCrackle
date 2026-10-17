@@ -21,3 +21,13 @@ it("ignores corrupt, out-of-range or wrong-type preferences", () => {
   expect(readPreferences({ getItem: () => { throw Error("blocked"); } })).toEqual(DEFAULT_PREFERENCES);
   expect(() => writePreferences({ tab: "phase" }, { getItem: () => null, setItem: () => { throw Error("full"); } })).not.toThrow();
 });
+it("persists inclusive bottom white bounds including zero and ignores invalid values", () => {
+  let raw: string | null = null;
+  const storage = {getItem: () => raw, setItem: (_: string, value: string) => {raw = value;}};
+  writePreferences({atlasFilter: {left: 3, right: null, bottomWhiteMin: 0, bottomWhiteMax: 7, excluded: [5]}}, storage);
+  expect(readPreferences(storage).atlasFilter).toEqual({left: 3, right: null, bottomWhiteMin: 0, bottomWhiteMax: 7, excluded: [5]});
+  writePreferences({atlasFilter: {left: null, right: null, bottomWhiteMin: null, bottomWhiteMax: null}}, storage);
+  expect(readPreferences(storage).atlasFilter).toEqual({left: null, right: null});
+  raw = JSON.stringify({atlasFilter: {bottomWhiteMin: -1, bottomWhiteMax: "7"}});
+  expect(readPreferences(storage).atlasFilter).toEqual({left: null, right: null});
+});

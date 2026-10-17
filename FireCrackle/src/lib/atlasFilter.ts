@@ -1,11 +1,13 @@
 import type { PreviewSprite } from "./firePreview";
-export interface EdgeCounts { left: number; right: number }
-export interface EdgeFilter { left: number | null; right: number | null; excluded?: number[] }
+export interface EdgeCounts { left: number; right: number; bottomWhite?: number }
+export interface EdgeFilter { left: number | null; right: number | null; bottomWhiteMin?: number | null; bottomWhiteMax?: number | null; excluded?: number[] }
 export type AtlasEdges = [EdgeCounts[], EdgeCounts[]];
+/** Include almost-white texels, while leaving visibly yellow creams outside the reference count. */
+export const BOTTOM_WHITE_CHANNEL_MIN = 245;
 export const appearanceId = (sheet: 0 | 1, row: number, mirrored: boolean) => sheet * 64 + Number(mirrored) * 32 + row;
 export function matchesAppearance(edges: AtlasEdges | null, sheet: 0 | 1, row: number, mirrored: boolean, filter: EdgeFilter): boolean {
   if (filter.excluded?.includes(appearanceId(sheet, row, mirrored))) return false;
-  if (filter.left === null && filter.right === null) return true;
+  if (filter.left === null && filter.right === null && filter.bottomWhiteMin == null && filter.bottomWhiteMax == null) return true;
   return edges !== null && matchesEdges(appearanceEdges(edges, sheet, row, mirrored), filter);
 }
 /** A complete cycle visits every sheet, mirror and animation row once. */
@@ -22,7 +24,9 @@ export function nextAppearance(pool: PreviewSprite[], current: PreviewSprite, di
   return pool[index < 0 ? direction > 0 ? 0 : pool.length - 1 : (index + direction + pool.length) % pool.length];
 }
 
-/** A fire pixel is a nontransparent texel; internal columns are deliberately ignored. */
+/** Edge counts use visible alpha. Bottom white totals opaque texels with every RGB channel >=245 on y=15.
+ * User-entered inclusive bounds express uncertainty in the footage; no colour threshold is inferred from it.
+ */
 export function sheetEdgeCounts(rgba: Uint8ClampedArray): EdgeCounts[] {
   if (rgba.length !== 16 * 512 * 4) throw new Error("Expected a 16×512 fire sprite sheet");
   return Array.from({ length: 32 }, (_, row) => {
@@ -31,15 +35,22 @@ export function sheetEdgeCounts(rgba: Uint8ClampedArray): EdgeCounts[] {
       if (rgba[(y * 16) * 4 + 3] > 0) left++;
       if (rgba[(y * 16 + 15) * 4 + 3] > 0) right++;
     }
-    return { left, right };
+    let bottomWhite = 0;
+    for (let x = 0; x < 16; x++) {
+      const i = ((row * 16 + 15) * 16 + x) * 4;
+      if (rgba[i + 3] === 255 && rgba[i] >= BOTTOM_WHITE_CHANNEL_MIN && rgba[i + 1] >= BOTTOM_WHITE_CHANNEL_MIN && rgba[i + 2] >= BOTTOM_WHITE_CHANNEL_MIN) bottomWhite++;
+    }
+    return { left, right, bottomWhite };
   });
 }
 export function appearanceEdges(edges: AtlasEdges, sheet: 0 | 1, row: number, mirrored: boolean): EdgeCounts {
   const counts = edges[sheet][row];
-  return mirrored ? { left: counts.right, right: counts.left } : counts;
+  return mirrored ? { ...counts, left: counts.right, right: counts.left } : counts;
 }
 export function matchesEdges(counts: EdgeCounts, filter: EdgeFilter): boolean {
-  return (filter.left === null || filter.left === counts.left) && (filter.right === null || filter.right === counts.right);
+  return (filter.left === null || filter.left === counts.left) && (filter.right === null || filter.right === counts.right)
+    && (filter.bottomWhiteMin == null || (counts.bottomWhite !== undefined && counts.bottomWhite >= filter.bottomWhiteMin))
+    && (filter.bottomWhiteMax == null || (counts.bottomWhite !== undefined && counts.bottomWhite <= filter.bottomWhiteMax));
 }
 export function edgeFilterValue(value: string): number | null {
   if (!value.trim()) return null;
