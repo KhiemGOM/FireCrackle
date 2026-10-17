@@ -56,6 +56,8 @@ jobs:
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --input-type=module -e "import {prepareGuiAssets} from './scripts/gui-assets.mjs'; await prepareGuiAssets();"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --manifest-path crates/studio_core/Cargo.toml --lib --tests --no-run
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run tauri -- build --config src-tauri/tauri.release.conf.json --no-bundle
@@ -88,6 +90,8 @@ jobs:
       - name: Build the dependencies the release restores
         run: |
           npm ci
+          python3 scripts/prepare-no-fire.py
+          node --input-type=module -e "import {prepareGuiAssets} from './scripts/gui-assets.mjs'; await prepareGuiAssets();"
           for manifest in crates/studio_core/Cargo.toml ../fire-detection/core/Cargo.toml; do
             cargo test --manifest-path "$manifest" --no-run
           done

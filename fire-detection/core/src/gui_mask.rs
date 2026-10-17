@@ -1015,7 +1015,9 @@ impl<'a> LumaRows<'a> {
     fn row(&self, y: usize) -> &[f64] {
         self.rows[y].get_or_init(|| {
             self.rgb[y * self.width * 3..(y + 1) * self.width * 3]
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|p| luma(p[0], p[1], p[2]))
                 .collect()
         })
@@ -3766,7 +3768,9 @@ mod correlation_parity {
             .map(|i| ((i * 37 + i / 17) % 256) as u8)
             .collect();
         let dense: Vec<_> = frame
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|p| luma(p[0], p[1], p[2]))
             .collect();
         let lum = LumaRows::new(&frame, w, h);

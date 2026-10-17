@@ -20,6 +20,18 @@ def job(name, workflow):
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_cache_warm_prepares_generated_gui_assets_before_rust(self):
+        for platform in ("windows", "linux"):
+            body = job(platform, "rust-cache-warm.yml")
+            self.assertIn("prepareGuiAssets", body)
+            self.assertLess(body.index("prepareGuiAssets"), body.index("cargo test"))
+
+    def test_python_checks_install_research_image_dependencies(self):
+        body = job("python", "ci.yml")
+        for dependency in ("pillow", "torch"):
+            self.assertRegex(body.lower(), rf"pip install[^\n]*\b{dependency}\b")
+        self.assertIn("https://download.pytorch.org/whl/cpu", body)
+
     def test_every_action_is_pinned_to_a_full_commit_with_its_version_in_a_comment(self):
         for path in sorted(WORKFLOWS.glob("*.yml")):
             for line in path.read_text(encoding="utf-8").splitlines():
