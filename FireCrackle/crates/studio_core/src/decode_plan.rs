@@ -127,6 +127,73 @@ pub struct DecodeJob {
     pub slow: bool,
 }
 
+/// The job for the missing run `a..=b`, started at the keyframe governing `a`.
+pub fn job_for(index: &FrameIndex, a: u32, b: u32, cfg: &DecodeConfig) -> DecodeJob {
+    let keyframe = index.keyframe_at_or_before(a).unwrap_or(0);
+    DecodeJob {
+        keyframe,
+        seek_pts: index.frames[keyframe as usize].pts,
+        first: a,
+        last: b,
+        decode_count: b - keyframe + 1,
+        slow: a - keyframe > cfg.max_gop_frames,
+    }
+}
+
+/// How far past a missing frame its own job decodes by default. The first frame's wait is the cost of this job (a decode
+/// costs about 300 ms, 1.7 ms a frame, from the keyframe), so it is kept short; the rest of the window is filled in the
+/// background right after it and takes about 1 s, so the frames of this job (at 60 fps, 90 are 1.5 s) must last that long.
+pub const DEFAULT_FIRST_AHEAD: u32 = 90;
+
+/// How far before a missing frame its own job starts.
+pub const FIRST_JOB_BACK: u32 = 30;
+
+/// Cut the job for a missing frame `want` down to `FIRST_JOB_BACK` frames before it and `ahead` after it. A job that
+/// does not contain `want` (a prefetch), one already that short, and an `ahead` of 0 are returned as they are.
+pub fn trim_job(
+    index: &FrameIndex,
+    job: DecodeJob,
+    want: u32,
+    ahead: u32,
+    cfg: &DecodeConfig,
+) -> DecodeJob {
+    if ahead == 0 || want < job.first || want > job.last {
+        return job;
+    }
+    let first = job.first.max(want.saturating_sub(FIRST_JOB_BACK));
+    let last = job.last.min(want.saturating_add(ahead));
+    if (first, last) == (job.first, job.last) {
+        return job;
+    }
+    job_for(index, first, last, cfg)
+}
+
+/// The most frames one background job decodes. A job restarts the decoder at a keyframe, so its cost is about 300 ms plus
+/// 1.7 ms a frame (from that keyframe): one 4 s keyframe interval keeps a job near 1 s, short enough to finish before
+/// the frames already ahead of the playhead run out, and short enough that the next job follows the playhead.
+pub const MAX_FILL_FRAMES: u32 = 240;
+
+/// Cut a background job (one that does not contain the wanted frame) to `max` frames: the part next to the playhead
+/// is kept, the far end is left for the next job. A shorter job, a job for the wanted frame itself, and a `max` of 0 are
+/// returned as they are.
+pub fn cap_job(
+    index: &FrameIndex,
+    job: DecodeJob,
+    want: u32,
+    max: u32,
+    cfg: &DecodeConfig,
+) -> DecodeJob {
+    let len = job.last - job.first + 1;
+    if max == 0 || len <= max || (job.first..=job.last).contains(&want) {
+        return job;
+    }
+    if job.first > want {
+        job_for(index, job.first, job.first + max - 1, cfg)
+    } else {
+        job_for(index, job.last + 1 - max, job.last, cfg)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Plan {
     /// The wanted frame is already cached.
@@ -159,18 +226,7 @@ pub fn plan(
     let lo = want.saturating_sub(cfg.window_back);
     let hi = want.saturating_add(cfg.window_ahead).min(last);
 
-    // a job for the missing run `a..=b`, started at the keyframe governing `a`
-    let job = |a: u32, b: u32| {
-        let keyframe = index.keyframe_at_or_before(a).unwrap_or(0);
-        DecodeJob {
-            keyframe,
-            seek_pts: index.frames[keyframe as usize].pts,
-            first: a,
-            last: b,
-            decode_count: b - keyframe + 1,
-            slow: a - keyframe > cfg.max_gop_frames,
-        }
-    };
+    let job = |a: u32, b: u32| job_for(index, a, b, cfg);
 
     if !cache.contains(want) {
         let mut a = want;

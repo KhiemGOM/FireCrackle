@@ -3,6 +3,7 @@ import type { UiAction } from "../lib/actions";
 import type { Backend, Flag, SettingInfo, View } from "../lib/api";
 import { openSession, readSession, writeSession } from "../lib/sessionRestore";
 import { readProjects, recordProject, removeProject, seedFromSession, writeProjects, type ProjectEntry } from "../lib/projects";
+import { createTrailingThrottle } from "../lib/writeThrottle";
 
 /** Actions that change labels: after them the timeline lanes and the flag list must be refreshed. */
 const MUTATING = new Set<UiAction["type"]>([
@@ -75,6 +76,20 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
   const [transferring, setTransferring] = useState(false);
   const [projects, setProjects] = useState<ProjectEntry[]>(loadProjects);
   const projectsRef = useRef(projects);
+  // The list is kept up to date in memory at every step but written at most about once a second: a step every frame
+  // while playing must not rewrite a long list (and re-render the project list) sixty times a second.
+  const projectWrite = useRef<ReturnType<typeof createTrailingThrottle> | null>(null);
+  if (projectWrite.current === null) {
+    projectWrite.current = createTrailingThrottle(() => {
+      try {
+        writeProjects(localStorage, projectsRef.current);
+        setProjects(projectsRef.current);
+      } catch (e) {
+        setError(`Labels still autosave, but the project list could not be saved: ${messageOf(e)}`);
+      }
+    }, 1000);
+  }
+  useEffect(() => () => projectWrite.current?.flush(), []);
   const busy = useRef(false);
   const applyAutomation = useCallback(async (id:number) => {
     if (!backend?.povApply || busy.current) return;
@@ -94,10 +109,8 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
     if (!backend || backend.mock || !videoPath.current) return;
     try {
       writeSession(localStorage, { videoPath: videoPath.current, frame: v.current });
-      const next = recordProject(projectsRef.current, { videoPath: videoPath.current, frame: v.current, frameCount: v.frame_count, labelled: v.labelled_count }, Date.now());
-      writeProjects(localStorage, next);
-      projectsRef.current = next;
-      setProjects(next);
+      projectsRef.current = recordProject(projectsRef.current, { videoPath: videoPath.current, frame: v.current, frameCount: v.frame_count, labelled: v.labelled_count }, Date.now());
+      projectWrite.current?.call();
       setSaveStatus(v.save_error ? "Save failed" : "Autosaved");
     } catch (e) {
       setSaveStatus("Resume unavailable");

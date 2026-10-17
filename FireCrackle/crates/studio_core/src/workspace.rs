@@ -4,7 +4,9 @@
 use crate::autosave::{AutosaveError, AutosaveLog};
 use crate::chart::decimate;
 use crate::config::{DecodeConfig, SettingError, SettingInfo, Settings};
-use crate::decode_plan::{plan, DecodeJob, FrameCache, PlanError};
+use crate::decode_plan::{
+    cap_job, plan, trim_job, DecodeJob, FrameCache, PlanError, DEFAULT_FIRST_AHEAD, MAX_FILL_FRAMES,
+};
 use crate::frames::{decode_job, DecodeError, DecodedFrame};
 use crate::import::{import_video, ImportError, Tools};
 use crate::index::FrameIndex;
@@ -17,11 +19,15 @@ use crate::thumbs::{generate, nearest, Thumb, ThumbError, ThumbKey, ThumbPlan, T
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 // ============================================================ frame service
+
+/// The longest a request waits for the background decode that already covers its frame, before decoding it itself.
+const FILL_WAIT: Duration = Duration::from_secs(4);
 
 /// Where decoded frames come from. The real one is ffmpeg; tests use a fake that counts calls.
 pub trait FrameSource: Send + Sync {
@@ -97,12 +103,45 @@ struct Inner {
     /// Whether the capacity follows `cfg.cache_mb` (false for an explicit capacity).
     capacity_from_cfg: bool,
     state: Mutex<State>,
+    /// How far past a missing frame its own job decodes (`decode_plan::DEFAULT_FIRST_AHEAD`); 0 decodes the whole window.
+    first_ahead: AtomicU32,
+    /// The frame most recently asked for: the background fill works around wherever the playhead is now.
+    latest: AtomicU32,
+    /// The frames the background worker is decoding right now: a request for one of them waits for it.
+    background: Mutex<Option<(u32, u32)>>,
+    background_done: Condvar,
     busy: AtomicBool,
     worker: Mutex<Option<JoinHandle<()>>>,
     never_cancelled: AtomicBool,
 }
 
 impl Inner {
+    /// The next background job around the playhead (one keyframe interval at most), published as the range being
+    /// decoded. None when the window is full, or when the job would be for the playhead's own frame: a request is
+    /// decoding that one.
+    fn next_fill(&self) -> Option<DecodeJob> {
+        let cfg = *self.cfg.lock().expect("decode config lock");
+        let around = self.latest.load(Ordering::SeqCst);
+        let job = {
+            let st = self.state.lock().expect("frame cache lock");
+            plan(&self.index, &st.cache, around, &cfg)
+                .ok()
+                .and_then(|p| p.job)
+        }?;
+        if (job.first..=job.last).contains(&around) {
+            return None;
+        }
+        let job = cap_job(&self.index, job, around, MAX_FILL_FRAMES, &cfg);
+        *self.background.lock().expect("background lock") = Some((job.first, job.last));
+        Some(job)
+    }
+
+    /// The published background job is done (or abandoned): wake the requests waiting for it.
+    fn finish_fill(&self) {
+        *self.background.lock().expect("background lock") = None;
+        self.background_done.notify_all();
+    }
+
     /// Store decoded frames (evicted ones leave memory too). `last` is inserted last so it is the most recently
     /// used and survives even a cache smaller than the window.
     fn insert(&self, frames: Vec<DecodedFrame>, last: Option<u32>) -> Option<Arc<Vec<u8>>> {
@@ -133,7 +172,9 @@ impl Inner {
 }
 
 /// Decoded frames in memory around the playhead: a byte cache driven by the decode planner, with a background
-/// prefetch that follows the planner's hysteresis.
+/// prefetch that follows the planner's hysteresis. Cloning gives another handle on the same cache, so a caller can
+/// take one out of a locked workspace and decode without holding the workspace.
+#[derive(Clone)]
 pub struct FrameService {
     inner: Arc<Inner>,
 }
@@ -176,6 +217,10 @@ impl FrameService {
                     cache: FrameCache::new(cap),
                     data: HashMap::new(),
                 }),
+                first_ahead: AtomicU32::new(DEFAULT_FIRST_AHEAD),
+                latest: AtomicU32::new(0),
+                background: Mutex::new(None),
+                background_done: Condvar::new(),
                 busy: AtomicBool::new(false),
                 worker: Mutex::new(None),
                 never_cancelled: AtomicBool::new(false),
@@ -190,12 +235,16 @@ impl FrameService {
         if frame as usize >= inner.index.frames.len() {
             return Err(FrameError::OutOfRange(frame));
         }
+        inner.latest.store(frame, Ordering::SeqCst);
         let cfg = *inner.cfg.lock().expect("decode config lock");
         loop {
             let plan = {
                 let st = inner.state.lock().expect("frame cache lock");
                 plan(&inner.index, &st.cache, frame, &cfg).map_err(FrameError::Plan)?
             };
+            if !plan.want_cached && self.wait_for_background(frame) {
+                continue; // the background decode has finished: plan again, the frame is probably cached now
+            }
             if plan.want_cached {
                 let hit = {
                     let mut st = inner.state.lock().expect("frame cache lock");
@@ -213,42 +262,88 @@ impl FrameService {
                 }
                 continue; // evicted between planning and reading: plan again
             }
-            let job = plan.job.expect("a missing frame always has a job");
+            // The frame's own job stops a short way around it, so it is shown after one short decode; the rest of the
+            // window is filled in the background right after it (a decode costs about 300 ms plus 1.7 ms a frame).
+            let job = trim_job(
+                &inner.index,
+                plan.job.expect("a missing frame always has a job"),
+                frame,
+                inner.first_ahead.load(Ordering::SeqCst),
+                &cfg,
+            );
             let decoded = inner
                 .source
                 .decode(&job, &inner.never_cancelled)
                 .map_err(FrameError::Decode)?;
-            return inner.insert(decoded, Some(frame)).ok_or_else(|| {
+            let kept = inner.insert(decoded, Some(frame)).ok_or_else(|| {
                 FrameError::Decode(DecodeError::BadStream(format!(
                     "the decode did not contain frame {frame}"
                 )))
-            });
+            })?;
+            self.prefetch(frame);
+            return Ok(kept);
         }
     }
 
     /// Top the window up around `around` on a background thread (no-op while one is running or nothing is due).
     pub fn prefetch(&self, around: u32) {
+        self.inner.latest.store(around, Ordering::SeqCst);
         if self.inner.busy.swap(true, Ordering::SeqCst) {
             return;
         }
+        // The first job is chosen here rather than on the thread: a request for one of its frames that arrives a
+        // moment later then already finds the range published, and waits for it instead of decoding it again.
+        let Some(first) = self.inner.next_fill() else {
+            self.inner.busy.store(false, Ordering::SeqCst);
+            return;
+        };
         let inner = self.inner.clone();
         let handle = std::thread::spawn(move || {
-            let cfg = *inner.cfg.lock().expect("decode config lock");
-            let job = {
-                let st = inner.state.lock().expect("frame cache lock");
-                plan(&inner.index, &st.cache, around, &cfg)
-                    .ok()
-                    .and_then(|p| p.job)
-            };
-            if let Some(job) = job {
+            // Passes of at most one keyframe interval: ahead, then behind, around wherever the playhead is by then,
+            // so one request fills both sides without waiting for the next one.
+            let mut job = Some(first);
+            for _ in 0..8 {
+                let Some(current) = job.take() else { break };
                 // a failed prefetch is not an error: the next request plans again
-                if let Ok(frames) = inner.source.decode(&job, &inner.never_cancelled) {
+                let decoded = inner.source.decode(&current, &inner.never_cancelled);
+                let ok = decoded.is_ok();
+                if let Ok(frames) = decoded {
                     inner.insert(frames, None);
                 }
+                inner.finish_fill();
+                if !ok {
+                    break;
+                }
+                job = inner.next_fill();
+            }
+            if job.is_some() {
+                inner.finish_fill(); // out of passes with a job published: nobody will decode it
             }
             inner.busy.store(false, Ordering::SeqCst);
         });
         *self.inner.worker.lock().expect("worker lock") = Some(handle);
+    }
+
+    /// If the background worker is decoding `frame`, wait for it (true: it finished or gave up, plan again). False:
+    /// nothing is decoding it, or the wait ran out, so the caller decodes it itself.
+    fn wait_for_background(&self, frame: u32) -> bool {
+        let covers =
+            |range: &Option<(u32, u32)>| range.is_some_and(|(a, b)| a <= frame && frame <= b);
+        let guard = self.inner.background.lock().expect("background lock");
+        if !covers(&guard) {
+            return false;
+        }
+        let (_guard, timeout) = self
+            .inner
+            .background_done
+            .wait_timeout_while(guard, FILL_WAIT, |range| covers(range))
+            .expect("background lock");
+        !timeout.timed_out()
+    }
+
+    /// How far past a missing frame its own job decodes (0: the whole window at once).
+    pub fn set_first_frames(&self, frames: u32) {
+        self.inner.first_ahead.store(frames, Ordering::SeqCst);
     }
 
     /// Block until no background prefetch is running.
@@ -752,6 +847,11 @@ impl Workspace {
         if let Err(e) = self.log.compact_if_needed(self.session.store()) {
             self.save_error = Some(format!("Could not compact the label log: {e:?}"));
         }
+    }
+
+    /// A handle on this workspace's frame cache that works without the workspace, and so without its lock.
+    pub fn frame_service(&self) -> FrameService {
+        self.frames.clone()
     }
 
     pub fn frame_jpeg(&self, frame: u32) -> Result<Arc<Vec<u8>>, WorkspaceError> {

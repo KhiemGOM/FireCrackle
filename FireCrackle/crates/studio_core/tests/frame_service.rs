@@ -86,8 +86,13 @@ fn cfg(back: u32, ahead: u32, fraction: f64) -> DecodeConfig {
     }
 }
 
+/// These tests are about the window policy (what is cached, when it refills), so a miss decodes the whole window in
+/// one job here, as it did before the first job was cut short (see tests/playback.rs for that).
 fn service(n: usize, c: DecodeConfig, fake: &Arc<Fake>) -> FrameService {
-    FrameService::new(index_of(n, 60), fake.clone() as Arc<dyn FrameSource>, c)
+    let svc = FrameService::new(index_of(n, 60), fake.clone() as Arc<dyn FrameSource>, c);
+    svc.set_first_frames(0); // whole-window misses, see `service`
+    svc.set_first_frames(0);
+    svc
 }
 
 // ---------------------------------------------------------------- basics
@@ -175,6 +180,7 @@ fn evicted_frames_are_dropped_from_memory() {
         cfg(2, 2, 0.5),
         5 * FRAME_BYTES,
     );
+    svc.set_first_frames(0); // whole-window misses, see `service`
     svc.get(100).unwrap();
     assert_eq!(svc.cached_frames(), vec![98, 99, 100, 101, 102]);
     svc.get(500).unwrap();
@@ -191,6 +197,7 @@ fn the_wanted_frame_survives_a_window_bigger_than_the_cache() {
         cfg(2, 2, 0.5),
         3 * FRAME_BYTES,
     );
+    svc.set_first_frames(0); // whole-window misses, see `service`
     let bytes = svc.get(100).unwrap();
     assert_eq!(*bytes, payload(100));
     assert!(svc.cached_frames().contains(&100));
@@ -208,6 +215,7 @@ fn the_default_capacity_comes_from_cache_mb() {
             ..cfg(30, 90, 0.5)
         },
     );
+    svc.set_first_frames(0); // whole-window misses, see `service`
     svc.get(100).unwrap();
     assert_eq!(
         svc.cached_frames().len(),
@@ -338,6 +346,7 @@ fn lowering_cache_mb_evicts_frames_at_once() {
         ..cfg(0, 19, 0.5)
     };
     let svc = FrameService::new(index_of(1000, 60), fake.clone() as Arc<dyn FrameSource>, c);
+    svc.set_first_frames(0); // whole-window misses, see `service`
     svc.get(100).unwrap();
     assert_eq!(svc.cached_frames().len(), 20);
     svc.set_config(DecodeConfig { cache_mb: 8, ..c });

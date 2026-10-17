@@ -194,15 +194,19 @@ async fn import_labels(state: State<'_, AppState>, path: String) -> Result<View,
     .await
 }
 
-/// The JPEG bytes of one frame, sent raw (no JSON).
+/// The JPEG bytes of one frame, sent raw (no JSON). A frame that is not cached decodes for up to a second, so the
+/// workspace is locked only to take a handle on its frame cache: every other command keeps working meanwhile.
 #[tauri::command]
 async fn frame(state: State<'_, AppState>, frame: u32) -> Result<Response, String> {
-    run(state.ws.clone(), move |w| {
-        w.frame_jpeg(frame)
+    let frames = run(state.ws.clone(), |w| Ok(w.frame_service())).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        frames
+            .get(frame)
             .map(|b| Response::new((*b).clone()))
-            .map_err(err)
+            .map_err(|e| err(studio_core::workspace::WorkspaceError::Frame(e)))
     })
     .await
+    .map_err(err)?
 }
 
 #[tauri::command]

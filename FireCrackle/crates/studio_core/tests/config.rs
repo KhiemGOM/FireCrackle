@@ -76,9 +76,9 @@ fn defaults_are_the_documented_values() {
     assert_eq!(s.label.veil_min_share, 0.9);
     assert_eq!(s.label.veil_margin, 0.2);
     assert_eq!(s.label.veil_slack, 2.0);
-    assert_eq!(s.decode.window_back, 30);
-    assert_eq!(s.decode.window_ahead, 90);
-    assert_eq!(s.decode.prefetch_fraction, 0.5);
+    assert_eq!(s.decode.window_back, 120);
+    assert_eq!(s.decode.window_ahead, 600);
+    assert_eq!(s.decode.prefetch_fraction, 0.7);
     assert_eq!(s.decode.cache_mb, 512);
     assert_eq!(s.decode.max_width, 1280);
     assert_eq!(s.decode.max_gop_frames, 600);

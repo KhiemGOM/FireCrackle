@@ -224,9 +224,13 @@ pub struct DecodeConfig {
 impl Default for DecodeConfig {
     fn default() -> DecodeConfig {
         DecodeConfig {
-            window_back: 30,
-            window_ahead: 90,
-            prefetch_fraction: 0.5,
+            // ten seconds of video ready ahead and two behind: a refill is one keyframe interval at a time and takes
+            // about 1 s at 1080p (a decode costs 300 ms plus 1.7 ms a frame), so it must start with seconds to spare,
+            // and fast playback (4x eats 240 frames a second) needs a deep window. 720 frames of about 100 KB are
+            // 70 MB of the 512 MB cache.
+            window_back: 120,
+            window_ahead: 600,
+            prefetch_fraction: 0.7,
             cache_mb: 512,
             max_width: 1280,
             max_gop_frames: 600,
