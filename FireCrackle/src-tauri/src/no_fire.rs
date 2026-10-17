@@ -136,11 +136,11 @@ mod tests {
         let h = 96;
         let world = vec![1; w * h];
         let mut rgb = vec![0; w * h * 3];
-        for c in rgb.chunks_exact_mut(3) {
+        for c in rgb.as_chunks_mut::<3>().0 {
             c.copy_from_slice(&[30, 100, 180]);
         }
         assert!(!material(&rgb, &world, w, h));
-        for (i, c) in rgb.chunks_exact_mut(3).enumerate() {
+        for (i, c) in rgb.as_chunks_mut::<3>().0.iter_mut().enumerate() {
             let d = if (i % w / 3 + i / w / 3) % 2 == 0 {
                 0
             } else {
@@ -150,7 +150,7 @@ mod tests {
         }
         assert!(material(&rgb, &world, w, h));
         assert!(!material(&rgb, &vec![0; w * h], w, h));
-        for (i, c) in rgb.chunks_exact_mut(3).enumerate() {
+        for (i, c) in rgb.as_chunks_mut::<3>().0.iter_mut().enumerate() {
             let d = if (i % w / 3 + i / w / 3) % 2 == 0 {
                 0
             } else {

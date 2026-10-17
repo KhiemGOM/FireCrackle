@@ -19,7 +19,7 @@ fn main() -> Result<(), String> {
     }
     let mut values = Vec::new();
     let start = Instant::now();
-    for image in views.chunks_exact(224 * 224 * 3) {
+    for image in views.as_chunks::<{ 224 * 224 * 3 }>().0 {
         values.push(engine.score_view(image)?);
     }
     println!(

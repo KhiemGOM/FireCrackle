@@ -10,7 +10,7 @@ fn cnn_can_override_orange_score_but_never_missing_gui_evidence() {
     .unwrap();
     let rgb = vec![100u8; 1920 * 1080 * 3];
     let mut orange = rgb;
-    for p in orange.chunks_exact_mut(3) {
+    for p in orange.as_chunks_mut::<3>().0 {
         p.copy_from_slice(&[230, 130, 20]);
     }
     let mut calls = 0;
