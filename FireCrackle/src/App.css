@@ -18,7 +18,6 @@
 * {
   box-sizing: border-box;
 }
-html { scrollbar-gutter: stable; }
 
 html,
 body,
@@ -307,6 +306,7 @@ input {
 }
 .right {
   min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
