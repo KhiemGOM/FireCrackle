@@ -24,12 +24,17 @@ export interface PostSettings {
   stages: Record<StageId, StageState>;
 }
 
-export const POST_KEY = "firecrackle.post.v1";
+/** v2: the first version saved GUI veil and portal as off; a fresh start now has them on, in Auto. */
+export const POST_KEY = "firecrackle.post.v2";
 
 const neutralStages = (): Record<StageId, StageState> =>
   Object.fromEntries(STAGE_IDS.map(id => [id, { on: false, params: { ...STAGES[id].defaults } }])) as Record<StageId, StageState>;
 
+/** Everything off: the neutral settings that presets and tests start from. */
 export const DEFAULT_POST: PostSettings = { enabled: true, veil: "off", portal: "off", portalManual: { phase: 0, opacity: 0.5 }, order: [...STAGE_IDS], stages: neutralStages() };
+
+/** What a fresh install starts with: GUI veil and portal on, in Auto, and every other effect off. */
+export const STARTING_POST: PostSettings = { ...DEFAULT_POST, veil: "auto", portal: "auto" };
 
 /** Every effect off with its neutral controls (what a preset starts from). */
 export const neutralEffects = neutralStages;
@@ -38,8 +43,8 @@ type Store = Pick<Storage, "getItem" | "setItem">;
 export interface LegacyPrefs { veilMode?: unknown; portalMode?: unknown }
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-const veilOf = (v: unknown): VeilMode => (VEIL_MODES.includes(v as VeilMode) ? (v as VeilMode) : "off");
-const portalOf = (v: unknown): PortalMode => (v === "auto" || v === "manual" ? v : "off");
+const veilOf = (v: unknown): VeilMode => (VEIL_MODES.includes(v as VeilMode) ? (v as VeilMode) : STARTING_POST.veil);
+const portalOf = (v: unknown): PortalMode => (v === "off" || v === "auto" || v === "manual" ? v : STARTING_POST.portal);
 
 /** A phase (whole number inside the animation) and an opacity (0 to 1), with a bad or missing one replaced by its default. */
 export function repairManual(raw: unknown): PortalManual {

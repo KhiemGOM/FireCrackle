@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readPreferences } from "../lib/preferences";
 import { POST_TOGGLE_KEY, isTypingTarget, postKeyAction } from "../lib/post/keys";
 import {
-  DEFAULT_POST, onlyParamsChanged, pictureSettings, readPostSettings, toggleEnabled, writePostSettings, type PostSettings, type RowId,
+  STARTING_POST, onlyParamsChanged, pictureSettings, readPostSettings, toggleEnabled, writePostSettings, type PostSettings, type RowId,
 } from "../lib/post/settings";
 
 /** How long the picture waits for a slider to stop moving. Switches apply at once. */
@@ -14,7 +13,7 @@ export const SLIDER_DELAY_MS = 80;
  * Only useState, useRef, useEffect and useCallback, like the other hooks the App test replaces.
  */
 export function usePostSettings() {
-  const [settings, setSettings] = useState<PostSettings>(() => readPostSettings(undefined, readPreferences()));
+  const [settings, setSettings] = useState<PostSettings>(() => readPostSettings());
   const [applied, setApplied] = useState<PostSettings>(settings);
   const [selected, setSelected] = useState<RowId>("veil");
   const [portalStatus, setPortalStatus] = useState("");
@@ -47,8 +46,8 @@ export function usePostSettings() {
 
   const change = useCallback((next: PostSettings) => setSettings(next), []);
   const toggle = useCallback(() => setSettings(toggleEnabled), []);
-  /** Every effect back to its neutral state; the master switch is left as it is. */
-  const reset = useCallback(() => setSettings(current => ({ ...DEFAULT_POST, enabled: current.enabled })), []);
+  /** Back to how a fresh install starts (veil and portal in Auto, every other effect off); the master switch is left as it is. */
+  const reset = useCallback(() => setSettings(current => ({ ...STARTING_POST, enabled: current.enabled })), []);
 
   return { settings, picture: pictureSettings(applied), selected, setSelected, change, toggle, reset, portalStatus, setPortalStatus, portalFit, setPortalFit, toggleKey: POST_TOGGLE_KEY };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_POST, DEFAULT_TONE, PORTAL_FRAMES, POST_KEY, STAGE_IDS, clampTone, needsProcessing, onlyParamsChanged, pictureSettings, readPostSettings, repairPostSettings, toggleEnabled, writePostSettings,
+  DEFAULT_POST, DEFAULT_TONE, PORTAL_FRAMES, POST_KEY, STAGE_IDS, STARTING_POST, clampTone, needsProcessing, onlyParamsChanged, pictureSettings, readPostSettings, repairPostSettings, toggleEnabled, writePostSettings,
   type PostSettings,
 } from "./settings";
 
@@ -15,8 +15,39 @@ const withStage = (id: keyof PostSettings["stages"], params: Record<string, numb
   ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, [id]: { on, params: { ...DEFAULT_POST.stages[id].params, ...params } } },
 });
 
+describe("what a fresh install starts with", () => {
+  it("has GUI veil and portal switched on in Auto, the master switch on, and every other effect off", () => {
+    expect(STARTING_POST.enabled).toBe(true);
+    expect(STARTING_POST.veil).toBe("auto");
+    expect(STARTING_POST.portal).toBe("auto");
+    for (const id of STAGE_IDS) expect(STARTING_POST.stages[id].on).toBe(false);
+    expect(needsProcessing(STARTING_POST)).toBe(true);
+  });
+
+  it("is what is used when nothing is saved, or the saved text is unusable", () => {
+    expect(readPostSettings(memory())).toEqual(STARTING_POST);
+    for (const bad of ["{oops", "null", "[]", "7"]) expect(readPostSettings(memory({ [POST_KEY]: bad }))).toEqual(STARTING_POST);
+  });
+
+  it("leaves the old saved settings (which had veil and portal off) behind, by saving under a new key", () => {
+    expect(POST_KEY).toBe("firecrackle.post.v2");
+    const old = memory({ "firecrackle.post.v1": JSON.stringify({ ...DEFAULT_POST, veil: "off", portal: "off" }) });
+    expect(readPostSettings(old)).toEqual(STARTING_POST);
+  });
+
+  it("keeps a choice the user made on purpose, even Off", () => {
+    const store = memory({ [POST_KEY]: JSON.stringify({ ...STARTING_POST, veil: "off", portal: "manual" }) });
+    expect(readPostSettings(store)).toMatchObject({ veil: "off", portal: "manual" });
+  });
+
+  it("replaces an unusable veil or portal value with Auto, not Off", () => {
+    expect(repairPostSettings({ veil: "sideways", portal: 3 })).toMatchObject({ veil: "auto", portal: "auto" });
+    expect(repairPostSettings({})).toMatchObject({ veil: "auto", portal: "auto" });
+  });
+});
+
 describe("post-processing defaults", () => {
-  it("start enabled but with every effect off, so nothing changes until the user turns something on", () => {
+  it("the neutral settings (what presets and tests start from) have everything off, so nothing changes", () => {
     expect(DEFAULT_POST.enabled).toBe(true);
     expect(DEFAULT_POST.veil).toBe("off");
     expect(DEFAULT_POST.portal).toBe("off");
@@ -30,7 +61,7 @@ describe("post-processing defaults", () => {
 
 describe("reading and writing settings", () => {
   it("gives the defaults when nothing is saved", () => {
-    expect(readPostSettings(memory())).toEqual(DEFAULT_POST);
+    expect(readPostSettings(memory())).toEqual(STARTING_POST);
   });
 
   it("round-trips what was written", () => {
@@ -43,12 +74,12 @@ describe("reading and writing settings", () => {
 
   it("survives blocked or full storage in both directions", () => {
     const blocked = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("full"); } };
-    expect(readPostSettings(blocked)).toEqual(DEFAULT_POST);
+    expect(readPostSettings(blocked)).toEqual(STARTING_POST);
     expect(() => writePostSettings(DEFAULT_POST, blocked)).not.toThrow();
   });
 
   it("gives the defaults for text that is not JSON or not an object", () => {
-    for (const bad of ["{oops", "null", "[]", "7", '"x"']) expect(readPostSettings(memory({ [POST_KEY]: bad }))).toEqual(DEFAULT_POST);
+    for (const bad of ["{oops", "null", "[]", "7", '"x"']) expect(readPostSettings(memory({ [POST_KEY]: bad }))).toEqual(STARTING_POST);
   });
 });
 
@@ -56,8 +87,8 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
   it("replaces each bad field on its own and keeps the good ones", () => {
     const fixed = repairPostSettings({ enabled: "yes", veil: "sideways", portal: 3, stages: { tone: { on: true, params: { gamma: "x", contrast: 30 } } } });
     expect(fixed.enabled).toBe(true);
-    expect(fixed.veil).toBe("off");
-    expect(fixed.portal).toBe("off");
+    expect(fixed.veil).toBe("auto");
+    expect(fixed.portal).toBe("auto");
     expect(fixed.stages.tone.on).toBe(true);
     expect(fixed.stages.tone.params.gamma).toBe(1);
     expect(fixed.stages.tone.params.contrast).toBe(30);
@@ -120,7 +151,7 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
 
   it("accepts only the veil and portal modes that exist", () => {
     expect(repairPostSettings({ veil: "on", portal: "auto" })).toMatchObject({ veil: "on", portal: "auto" });
-    expect(repairPostSettings({ portal: "sideways" }).portal).toBe("off"); // (Manual used to be invalid; it is a mode now)
+    expect(repairPostSettings({ portal: "sideways" }).portal).toBe("auto"); // (Manual used to be invalid; it is a mode now)
   });
 });
 
@@ -138,8 +169,8 @@ describe("carrying over the old Veil and Portal settings", () => {
 
   it("ignores old values that are not valid modes", () => {
     const s = readPostSettings(memory(), { veilMode: "weird" as never, portalMode: "x" as never });
-    expect(s.veil).toBe("off");
-    expect(s.portal).toBe("off");
+    expect(s.veil).toBe("auto");
+    expect(s.portal).toBe("auto");
   });
 });
 
@@ -237,16 +268,15 @@ describe("keeping a tone control inside its limits", () => {
 });
 
 describe("manual portal settings", () => {
-  it("default to a neutral phase and a middling opacity, with off still the portal mode", () => {
-    expect(DEFAULT_POST.portal).toBe("off");
+  it("default to a neutral phase and a middling opacity", () => {
     expect(DEFAULT_POST.portalManual).toEqual({ phase: 0, opacity: 0.5 });
     expect(PORTAL_FRAMES).toBe(32);
   });
 
   it("accepts Manual as a portal mode and rejects anything else", () => {
     expect(repairPostSettings({ portal: "manual" }).portal).toBe("manual");
-    expect(repairPostSettings({ portal: "Manual" }).portal).toBe("off");
-    expect(repairPostSettings({ portal: 1 }).portal).toBe("off");
+    expect(repairPostSettings({ portal: "Manual" }).portal).toBe("auto");
+    expect(repairPostSettings({ portal: 1 }).portal).toBe("auto");
   });
 
   it("keeps the phase a whole number inside the animation and the opacity inside 0 to 1", () => {
