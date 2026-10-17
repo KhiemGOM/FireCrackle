@@ -68,13 +68,11 @@ describe("Enhance panel: the list", () => {
 });
 
 describe("Enhance panel: switches live inside the rows", () => {
-  it("has a master switch that flips the global on/off", () => {
-    const { root, onChange } = panel();
-    const master = byLabel(root, "Post-processing");
-    expect(master.props.role).toBe("switch");
-    expect(master.props["aria-checked"]).toBe(true);
-    master.props.onClick();
-    expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...DEFAULT_POST, enabled: false });
+  it("has no master switch of its own: the one in the right-side header is the only global on/off", () => {
+    const { root } = panel();
+    expect(byLabel(root, "Post-processing")).toBeUndefined();
+    expect(byLabel(root, "Toggle post-processing")).toBeUndefined();
+    expect(all(root, e => e.props.role === "switch").length).toBe(6 + 2); // one per row: veil, portal and the six effects
   });
 
   it("turns veil on as Auto and back off, and portal likewise", () => {
@@ -232,10 +230,6 @@ describe("Enhance panel: order controls and reset", () => {
     byLabel(root, "Reset effects").props.onClick();
     expect(onReset).toHaveBeenCalledOnce();
   });
-
-  it("shows the key that toggles post-processing", () => {
-    expect(String(byLabel(panel().root, "Post-processing").props.title)).toContain("V");
-  });
 });
 
 describe("Enhance panel: the other effects", () => {
@@ -353,7 +347,7 @@ describe("Enhance panel: icons and short text", () => {
 
   it("shows every switch as a toggle with no words, its state in aria-checked", () => {
     const { root } = panel({ ...DEFAULT_POST, veil: "auto" });
-    for (const label of ["Post-processing", "GUI veil on/off", "Portal on/off", "Tone on/off"]) {
+    for (const label of ["GUI veil on/off", "Portal on/off", "Tone on/off"]) {
       const sw = byLabel(root, label);
       expect(sw.props.role).toBe("switch");
       expect(text(sw), label).toBe("");
