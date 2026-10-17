@@ -141,7 +141,8 @@ document.getElementById('cutoff').addEventListener('input',update);document.getE
     html=html.replace('<div id="cards"></div>',
         '<style>#cards{grid-template-columns:repeat(auto-fit,minmax(780px,1fr))}.card img{width:760px;max-width:none;height:300px}</style>'
         '<p><label><input id="alternatives" type="checkbox"> Show alternative real examples at each size</label></p><div id="cards"></div>')
-    rows=''.join(f"<tr{' style=\"color:#ffcf55;font-weight:bold\"' if t=='4' else ''}><td>{t}px{' (CURRENT)' if t=='4' else ''}</td><td>{float(t)**2:g}px²</td><td>{float(t)**2*100/2073600:.6f}%</td><td>{v['frames_below']:,} ({v['percent_of_fire_frames']:.2f}%)</td></tr>" for t,v in distribution['shorter_side_cutoffs'].items())
+    current_style=' style="color:#ffcf55;font-weight:bold"'
+    rows=''.join(f"<tr{current_style if t=='4' else ''}><td>{t}px{' (CURRENT)' if t=='4' else ''}</td><td>{float(t)**2:g}px²</td><td>{float(t)**2*100/2073600:.6f}%</td><td>{v['frames_below']:,} ({v['percent_of_fire_frames']:.2f}%)</td></tr>" for t,v in distribution['shorter_side_cutoffs'].items())
     table='<h3>Cutoff reference</h3><p class="note">Square-box area is a reference only; the actual rule checks both dimensions.</p><table><tr><th>Shorter-side cutoff</th><th>Equivalent square box</th><th>Frame area</th><th>Fire-labelled frames below</th></tr>'+rows+'</table>'
     html=html.replace('<pre id="distribution"></pre>',table+'<details><summary>Measurement details</summary><pre id="distribution"></pre></details>')
     html+='''<script>function alternatives(){for(const c of cases){const e=cards.querySelector(`[data-id="${c.id}"]`);e.hidden=c.rank>0&&!document.getElementById('alternatives').checked}}document.getElementById('alternatives').addEventListener('change',alternatives);alternatives();</script>'''

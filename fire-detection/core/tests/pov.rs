@@ -17,7 +17,7 @@ const SHEET: &[u8] = include_bytes!("../testdata/fire_1.rgba");
 fn compact_scores_and_candidate_bins_preserve_full_diagnostics() {
     let (w, h) = (640, 360);
     let mut frame = vec![0; w * h * 3];
-    for (i, p) in frame.chunks_exact_mut(3).enumerate() {
+    for (i, p) in frame.as_chunks_mut::<3>().0.iter_mut().enumerate() {
         p.copy_from_slice(&[
             (i * 17 % 256) as u8,
             (i * 31 % 256) as u8,
