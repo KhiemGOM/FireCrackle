@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTimecode } from "./timecode";
+import { formatTimecode, formatTimecodeFor } from "./timecode";
 
 describe("formatTimecode", () => {
   it("writes hours, minutes, seconds and the frame within the second", () => {
@@ -47,5 +47,24 @@ describe("formatTimecode", () => {
   it("two frames one apart differ only in the last field", () => {
     expect(formatTimecode(100 / 60, 60)).toBe("00:00:01|40");
     expect(formatTimecode(101 / 60, 60)).toBe("00:00:01|41");
+  });
+});
+
+describe("formatTimecodeFor", () => {
+  it("drops the hour part entirely when the video is under an hour", () => {
+    expect(formatTimecodeFor(52 * 60 + 15 + 58 / 60, 60, 3000)).toBe("52:15|58");
+    expect(formatTimecodeFor(0, 60, 59)).toBe("00:00|00");
+    expect(formatTimecodeFor(3599.5, 60, 3599.99)).toBe("59:59|30");
+  });
+
+  it("keeps it for a video of an hour or more", () => {
+    expect(formatTimecodeFor(3725.5, 60, 7200)).toBe("01:02:05|30");
+    expect(formatTimecodeFor(5, 60, 3600)).toBe("00:00:05|00");
+  });
+
+  it("keeps it when the time is past the hour anyway, and when the length is unknown", () => {
+    expect(formatTimecodeFor(3725.5, 60, 3000)).toBe("01:02:05|30");
+    expect(formatTimecodeFor(5, 60, NaN)).toBe("00:00:05|00");
+    expect(formatTimecodeFor(5, 60, Infinity)).toBe("00:00:05|00");
   });
 });

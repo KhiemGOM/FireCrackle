@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { resolveJump } from "../lib/jump";
-import { formatTimecode } from "../lib/timecode";
+import { formatTimecodeFor } from "../lib/timecode";
 import "./JumpBox.css";
 
 interface Props {
@@ -16,15 +16,18 @@ interface Props {
 /** The status bar's frame number and timecode; click either to type a frame or a time and jump there. */
 export function JumpBox({ current, frameCount, pts, fps, onJump, locate }: Props) {
   const [text, setText] = useState<string | null>(null);
+  // opened from the timecode, bare digits are a time; opened from the frame number, they are a frame
+  const [bare, setBare] = useState<"frame" | "time">("frame");
   const [error, setError] = useState<string | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
   const open = text !== null;
   useEffect(() => {
     if (open) field.current?.select();
   }, [open]);
-  const timecode = formatTimecode(pts, fps);
-  const start = (value: string) => {
+  const timecode = formatTimecodeFor(pts, fps, frameCount / Math.max(fps, 1));
+  const start = (value: string, as: "frame" | "time") => {
     setText(value);
+    setBare(as);
     setError(null);
   };
   const close = () => {
@@ -32,7 +35,7 @@ export function JumpBox({ current, frameCount, pts, fps, onJump, locate }: Props
     setError(null);
   };
   const submit = async (value: string) => {
-    const r = await resolveJump(value, { fps, frameCount, current, pts }, locate);
+    const r = await resolveJump(value, { fps, frameCount, current, pts }, locate, { bare });
     if ("error" in r) {
       setError(r.error);
       return;
@@ -49,9 +52,10 @@ export function JumpBox({ current, frameCount, pts, fps, onJump, locate }: Props
           data-owns-keys={true}
           className={error ? "jump-input bad" : "jump-input"}
           aria-label="Jump to a frame number or a time HH:MM:SS|FF"
-          placeholder="frame or HH:MM:SS|FF"
+          placeholder={bare === "time" ? "time" : "frame"}
           spellCheck={false}
           value={text}
+          style={{ width: `${Math.max(text.length, 1)}ch` }}
           onChange={(e) => {
             setText(e.target.value);
             setError(null);
@@ -77,12 +81,12 @@ export function JumpBox({ current, frameCount, pts, fps, onJump, locate }: Props
     <>
       <span>
         frame{" "}
-        <button type="button" className="jump-target" title="Type a frame number to jump to" onClick={() => start(String(current))}>
+        <button type="button" className="jump-target" title="Type a frame number to jump to" onClick={() => start(String(current), "frame")}>
           {current}
         </button>{" "}
         / {frameCount - 1}
       </span>
-      <button type="button" className="jump-target" title="Type a time HH:MM:SS|FF to jump to" onClick={() => start(timecode)}>
+      <button type="button" className="jump-target" title="Type a time HH:MM:SS|FF to jump to" onClick={() => start(timecode, "time")}>
         {timecode}
       </button>
     </>

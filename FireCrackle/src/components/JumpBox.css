@@ -23,7 +23,8 @@
 .jump-input {
   font: inherit;
   font-variant-numeric: tabular-nums;
-  width: 15ch;
+  /* the width is set from the text (JumpBox.tsx); this is the floor while it is empty */
+  min-width: 8ch;
   padding: 1px 6px;
   color: var(--text);
   background: var(--bg, #10131a);

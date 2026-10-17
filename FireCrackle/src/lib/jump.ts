@@ -5,6 +5,11 @@ export type JumpError = { error: string };
 
 const HOW = "Type a frame number or a time as HH:MM:SS|FF (MM:SS|FF, SS|FF and HH:MM:SS work too).";
 
+export interface JumpOptions {
+  /** What a bare number is: a frame (default), or time digits filled in from the right (`52158` = 5:21|58). */
+  bare?: "frame" | "time";
+}
+
 /** The nominal rate `formatTimecode` counts FF in. */
 const nominal = (fps: number) => (Number.isFinite(fps) && fps >= 1 ? Math.round(fps) : 1);
 
@@ -12,8 +17,9 @@ const nominal = (fps: number) => (Number.isFinite(fps) && fps >= 1 ? Math.round(
  * Read what was typed. A whole number is a frame (0 … frameCount-1); anything with `:` or `|` is a time, units counted
  * from the right (the leftmost unit may exceed its usual range, the others may not), FF at the video's nominal rate.
  */
-export function parseJump(text: string, fps: number, frameCount: number): JumpTarget | JumpError {
+export function parseJump(text: string, fps: number, frameCount: number, opts: JumpOptions = {}): JumpTarget | JumpError {
   const t = text.trim();
+  if (/^\d+$/.test(t) && opts.bare === "time") return fromDigits(t, nominal(fps));
   if (/^\d+$/.test(t)) {
     const frame = Number(t);
     if (!(frameCount >= 1)) return { error: "This video has no frames to jump to." };
@@ -34,6 +40,19 @@ export function parseJump(text: string, fps: number, frameCount: number): JumpTa
   return { kind: "time", seconds: h * 3600 + mm * 60 + s + ff / rate };
 }
 
+/** Digits typed for a time fill HH MM SS FF from the right; seconds and minutes stay below 60, hours may be any size. */
+function fromDigits(d: string, rate: number): JumpTarget | JumpError {
+  const ff = Number(d.slice(-2));
+  const rest = d.slice(0, -2);
+  const ss = Number(rest.slice(-2) || 0);
+  const mm = Number(rest.slice(0, -2).slice(-2) || 0);
+  const hh = Number(rest.slice(0, -4) || 0);
+  if (ff >= rate) return { error: `The last two digits are the frame: 00–${String(rate - 1).padStart(2, "0")} at this frame rate.` };
+  if (ss >= 60) return { error: `Seconds must be 00–59. ${HOW}` };
+  if (mm >= 60) return { error: `Minutes must be 00–59. ${HOW}` };
+  return { kind: "time", seconds: hh * 3600 + mm * 60 + ss + ff / rate };
+}
+
 export interface JumpContext {
   fps: number;
   frameCount: number;
@@ -50,8 +69,9 @@ export async function resolveJump(
   text: string,
   ctx: JumpContext,
   locate?: (seconds: number) => Promise<number>,
+  opts: JumpOptions = {},
 ): Promise<{ frame: number } | JumpError> {
-  const target = parseJump(text, ctx.fps, ctx.frameCount);
+  const target = parseJump(text, ctx.fps, ctx.frameCount, opts);
   if ("error" in target) return target;
   if (target.kind === "frame") return { frame: target.frame };
   if (locate) {

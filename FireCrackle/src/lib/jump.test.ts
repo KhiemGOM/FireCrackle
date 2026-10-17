@@ -125,3 +125,59 @@ describe("resolveJump", () => {
     expect(err(await resolveJump("nope", ctx))).toBeTruthy();
   });
 });
+
+describe("parseJump: digits only, read as a time", () => {
+  const time = (t: string, fps = 60) => parseJump(t, fps, 1e9, { bare: "time" });
+
+  it("fills HH:MM:SS|FF from the right, like a video editor", () => {
+    expect(time("52158")).toEqual({ kind: "time", seconds: 5 * 60 + 21 + 58 / 60 });
+    expect(time("1015")).toEqual({ kind: "time", seconds: 10 + 15 / 60 });
+    expect(time("15")).toEqual({ kind: "time", seconds: 15 / 60 });
+    expect(time("5")).toEqual({ kind: "time", seconds: 5 / 60 });
+    expect(time("0")).toEqual({ kind: "time", seconds: 0 });
+    expect(time("1000000")).toEqual({ kind: "time", seconds: 3600 }); // 1 | 00 | 00 | 00
+    expect(time("10000000")).toEqual({ kind: "time", seconds: 36000 }); // 10 | 00 | 00 | 00
+    expect(time("00005258")).toEqual({ kind: "time", seconds: 52 + 58 / 60 });
+  });
+
+  it("is the inverse of the timecode with its separators removed", () => {
+    for (const code of ["00:52:15|58", "01:02:05|30", "00:00:01|00", "100:00:00|00"]) {
+      const digits = code.replace(/[:|]/g, "");
+      expect(time(digits)).toEqual(parseJump(code, 60, 1e9));
+    }
+  });
+
+  it("still accepts separators in this mode", () => {
+    expect(time("02:05|30")).toEqual({ kind: "time", seconds: 125.5 });
+  });
+
+  it("refuses digits that do not make a valid time instead of wrapping", () => {
+    expect(err(time("160"))).toBeTruthy(); // FF 60 at 60 fps
+    expect(err(time("6000"))).toBeTruthy(); // SS 60
+    expect(err(time("1006000"))).toBeTruthy(); // MM 60 under an hour
+  });
+
+  it("uses the nominal frame rate for FF", () => {
+    expect(time("129", 29.97)).toEqual({ kind: "time", seconds: 1 + 29 / 30 });
+    expect(err(time("130", 29.97))).toBeTruthy();
+  });
+
+  it("is frame mode by default: a bare number stays a frame", () => {
+    expect(parseJump("1234", 60, 5000)).toEqual({ kind: "frame", frame: 1234 });
+    expect(parseJump("1234", 60, 5000, { bare: "frame" })).toEqual({ kind: "frame", frame: 1234 });
+  });
+});
+
+describe("resolveJump: bare digits by mode", () => {
+  const ctx = { fps: 60, frameCount: 10000, current: 600, pts: 10 };
+  it("sends bare digits to the time lookup in time mode", async () => {
+    const locate = vi.fn(async () => 321);
+    expect(await resolveJump("1015", ctx, locate, { bare: "time" })).toEqual({ frame: 321 });
+    expect(locate).toHaveBeenCalledWith(10 + 15 / 60);
+  });
+  it("keeps them a frame in frame mode", async () => {
+    const locate = vi.fn();
+    expect(await resolveJump("1015", ctx, locate, { bare: "frame" })).toEqual({ frame: 1015 });
+    expect(locate).not.toHaveBeenCalled();
+  });
+});
