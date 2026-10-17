@@ -54,7 +54,7 @@ where
     U: FnMut(u32, T),
 {
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::{mpsc, Arc, Mutex};
     if frame_bytes == 0 {
         return Err("Frame size must be positive".into());
     }
@@ -119,32 +119,30 @@ where
             let output = result_tx.clone();
             let recycle = free_tx.clone();
             let process = &process;
-            scope.spawn(move || {
-                loop {
-                    let received = match input.lock() {
-                        Ok(rx) => rx.recv(),
-                        Err(_) => {
-                            let _ = output.send(Err("Frame queue unavailable".into()));
-                            break;
-                        }
-                    };
-                    let Ok((n, frame)) = received else {
-                        break;
-                    };
-                    if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
-                        let _ = recycle.send(frame);
+            scope.spawn(move || loop {
+                let received = match input.lock() {
+                    Ok(rx) => rx.recv(),
+                    Err(_) => {
+                        let _ = output.send(Err("Frame queue unavailable".into()));
                         break;
                     }
-                    let result = process(n, &frame).map(|value| (n, value));
-                    if result.is_err() {
-                        stopped.store(true, Ordering::Relaxed);
-                    }
-                    let failed = result.is_err();
-                    let _ = output.send(result);
+                };
+                let Ok((n, frame)) = received else {
+                    break;
+                };
+                if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
                     let _ = recycle.send(frame);
-                    if failed {
-                        break;
-                    }
+                    break;
+                }
+                let result = process(n, &frame).map(|value| (n, value));
+                if result.is_err() {
+                    stopped.store(true, Ordering::Relaxed);
+                }
+                let failed = result.is_err();
+                let _ = output.send(result);
+                let _ = recycle.send(frame);
+                if failed {
+                    break;
                 }
             });
         }
