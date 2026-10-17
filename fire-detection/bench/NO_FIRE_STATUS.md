@@ -272,6 +272,54 @@ Always-unveiled palette count is an interesting **same-recording diagnostic**, n
 reported variants on clips used to develop those cues; it needs a separately frozen cross-recording test. Morphological
 opening can delete exactly the tiny fire we need to protect. The complete 41-variant results remain in the local JSON.
 
+## Registered temporal baseline (2026-10-17, historical size proxy)
+
+An offline registered three-frame burst test (frames n,n+3,n+6; anchors every90frames)
+was completed across all four recordings. Low warm-texture activity is treated as a
+candidate no-fire clear; registration failures remain review. Clip2 calibrates thresholds,
+then clip1/quad1/survival1 evaluate them without retuning.
+
+These results use the **old 4px minimum-side box proxy**, not the user's subsequently clarified
+sprite-readability definition. On 1,361 evaluation anchors, strict zero-FP and 1%-FP calibration
+budgets both produced **TP0/FP0** (abstain). Allowing a 5% calibration FP budget produced
+**TP157/FP51** for repeated change, or **TP120/FP38** for brightness reversal. Positive means
+**clear no fire**; FP means meaningful fire wrongly cleared. Thus temporal inactivity is not
+safe absence evidence, and this baseline is not adopted. Small flames can remain static in
+short bursts. Saved per-frame boxes/scores support later relabelling without decoding again;
+no width8 relabelling was applied. Local provenance: `.board/fire-positive-temporal/`.
+
+## Sprite readability correction (2026-10-17)
+
+The user means **distinguishable horizontal sprite columns after scaling and compression**,
+not a flame box narrower than 8 native video pixels. Eight distinguishable columns is the
+proposed lenient reference, sixteen the full-detail reference. Neither the old 4px minimum-side
+rule nor a new 8px width rule establishes this. No benchmark labels were changed to width8.
+
+`no_fire/sprite_readability.py` audits 32 real block-fire examples in the two recordings with
+quad geometry, spanning about 0.4–6 decoded video pixels per sprite texel. It compares strong
+opaque horizontal sprite colour edges with actual native decoded pixel samples. Logged
+visibility is imperfect: visual inspection found foreground blocks/portal effects in some
+supposedly fully visible examples. Such failures are **unknown**, not proof of compression loss
+and never permission to clear meaningful fire.
+
+A controlled sensitivity test uses a visibly clear real flame (survival1 frame 3030, sheet1
+row14), downsampled to six projected texel pitches and optionally re-encoded as single-frame
+H.264 yuv420p at CRF18/28/38. At roughly 3 video px/texel, 30/41 eligible strong horizontal edge
+pairs survived without additional encoding, versus 13/41 at CRF28 and 6/41 at CRF38. At roughly
+0.5 px/texel, those counts were 9/41, 7/41 and 4/41. These are **edge-pair diagnostics, not a
+count of distinguishable columns**; sampling alignment is non-monotonic and a universal
+human-readability cutoff has not been validated. Added encodes are stress tests, not claims
+about the original recording's encoder settings.
+
+Local visual outputs: `.board/fire-size-gallery/controlled.html`, `controlled-comparison.png`,
+`readability.html` and corresponding JSON provenance. Source/tests only are suitable for git.
+
+```powershell
+python -m unittest discover -s fire-detection/bench/no_fire -p test_sprite_readability.py
+python fire-detection/bench/no_fire/sprite_readability.py .board/fire-size-gallery --per-target 4
+python fire-detection/bench/no_fire/sprite_readability.py .board/fire-size-gallery --controlled-only
+```
+
 ## Limits
 
 Labels come from synchronized game logs, not exhaustive human pixel review. Previous visual audits found some no-fire
