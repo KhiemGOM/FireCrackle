@@ -1,6 +1,6 @@
 # FireCrackle
 
-Video labelling and fire-sprite matching app. Current test release: **0.1.0**, Windows x64 and Linux x86_64. Downloads are published to [KhiemGOM/FireCrackle](https://github.com/KhiemGOM/FireCrackle/releases); access follows that repository's visibility.
+Video labelling and fire-sprite matching app for Windows x64 and Linux x86_64. Next release: **0.2.1**. AI model integration is planned for **0.3.0** and is outside the 0.2.1 release scope. Downloads are published to [KhiemGOM/FireCrackle](https://github.com/KhiemGOM/FireCrackle/releases); access follows that repository's visibility.
 
 ## Build something to share
 
