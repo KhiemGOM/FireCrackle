@@ -64,8 +64,8 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         <p className="dim">Applying fills empty frames only and can be undone in one step. Closing this panel lets the scan continue.</p>
         {status?.applied ? <p>Open the Phase chart to spot unusual timing. If it looks odd near an automatically labelled frame, check that automatic label first. Use the source filter to isolate tool results. Independently choosing and confirming the same sprite adds “Human checked” while keeping the tool source.</p> : null}
         <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
-          <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Experimental · Risky</span></h3>
-          <p className="experiment-warning">Can miss fire. Check every suggested frame afterward. Scanning does not save labels.</p>
+          <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Beta</span></h3>
+          <p className="experiment-warning">Missed fire is usually hard to label. If you need more phase readings, recheck Auto’s no-fire suggestions. Scanning does not save labels.</p>
           <p>Best results with:</p>
           <ul>
             <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
