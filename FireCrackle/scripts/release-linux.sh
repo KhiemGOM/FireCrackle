@@ -26,7 +26,7 @@ fi
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$project/src-tauri/target}"
 export FIRECRACKLE_TEST_FFMPEG="$(command -v ffmpeg)"
 python3 scripts/prepare-no-fire.py
-export FIRECRACKLE_TEST_ORT="$project/src-tauri/runtime/ai/libonnxruntime.so"
+export FIRECRACKLE_TEST_ORT="$project/.release-cache/no-fire/native-linux-x64/libonnxruntime.so"
 export FIRECRACKLE_TEST_MODEL="$project/src-tauri/runtime/ai/no-fire-v3.onnx"
 npm ci
 npm test

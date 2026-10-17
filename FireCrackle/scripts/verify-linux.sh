@@ -15,7 +15,7 @@ work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
 dpkg-deb --extract "$deb" "$work/deb"
 binary="$work/deb/usr/bin/firecrackle"
-for resource in no-fire-v3.onnx libonnxruntime.so libonnxruntime_providers_cuda.so ONNX-Runtime-LICENSE.txt; do
+for resource in no-fire-v3.onnx native.zip ONNX-Runtime-LICENSE.txt; do
   [[ -n $(find "$work/deb" -type f -name "$resource" -print -quit) ]] || { echo "Missing AI resource: $resource" >&2; exit 1; }
 done
 test -x "$binary"
@@ -40,7 +40,9 @@ for notice in LICENSE.txt THIRD_PARTY_NOTICES.txt README-linux.txt; do
   }
 done
 # Load the actual extracted package's AI model/runtime on CPU, even on runners without GPUs.
-ai_runtime="$(find "$work/deb" -type f -name libonnxruntime.so -print -quit)"
+ai_archive="$(find "$work/deb" -type f -name native.zip -print -quit)"
+python3 -c 'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "$ai_archive" "$work/ai"
+ai_runtime="$work/ai/libonnxruntime.so"
 ai_model="$(find "$work/deb" -type f -name no-fire-v3.onnx -print -quit)"
 python3 -c 'import sys; open(sys.argv[1],"wb").write(bytes(224*224*3))' "$work/black.rgb"
 cargo build --release --manifest-path "$project/crates/no_fire_cnn/Cargo.toml" --example infer

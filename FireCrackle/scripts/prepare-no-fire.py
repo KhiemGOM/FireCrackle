@@ -4,6 +4,7 @@ No Python/runtime downloads occur in the installed app. Assets remain ignored.
 import argparse,hashlib,json,os,platform,shutil,tarfile,urllib.request,urllib.error,zipfile,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+LINUX_LIBRARIES=("libonnxruntime.so","libonnxruntime_providers_cuda.so","libonnxruntime_providers_shared.so")
 def verify(path,expected):
     digest=hashlib.sha256()
     with Path(path).open('rb') as stream:
@@ -42,6 +43,14 @@ def download(url,destination,sha):
         finally:temporary.unlink(missing_ok=True)
     return destination
 
+def pack_linux(source,destination):
+    source=Path(source);destination=Path(destination);destination.mkdir(parents=True,exist_ok=True)
+    hashes={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in LINUX_LIBRARIES}
+    with zipfile.ZipFile(destination/'native.zip','w',compression=zipfile.ZIP_DEFLATED,compresslevel=3) as archive:
+        for name in LINUX_LIBRARIES:archive.write(source/name,name)
+        archive.writestr('SHA256SUMS.json',json.dumps(hashes,sort_keys=True))
+    for notice in source.glob('*.txt'):shutil.copyfile(notice,destination/notice.name)
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--platform');args=parser.parse_args()
     key=args.platform or platform_key(platform.system(),platform.machine())
@@ -54,7 +63,9 @@ def main():
     cache=ROOT/'.release-cache/no-fire'
     for artifact in manifest['platforms'][key]:
         archive=download(artifact['url'],cache/artifact['sha256'],artifact['sha256'])
-        extract(archive,artifact['members'],output)
+        native=cache/'native-linux-x64' if key=='linux-x64' else output
+        extract(archive,artifact['members'],native)
+    if key=='linux-x64':pack_linux(cache/'native-linux-x64',output)
     (output/'model.json').write_text(json.dumps(model,indent=2)+'\n')
     print(f'Prepared AI no-fire model and {key} inference runtime')
 if __name__=='__main__':main()

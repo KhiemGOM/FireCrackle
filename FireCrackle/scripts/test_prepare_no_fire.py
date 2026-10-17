@@ -15,6 +15,16 @@ class RuntimePackage(unittest.TestCase):
         outputs=[name for artifact in manifest['platforms']['linux-x64'] for name in artifact['members'].values()]
         self.assertIn('libonnxruntime_providers_cuda.so',outputs)
         self.assertFalse(any('pybind' in name for name in outputs))
+    def test_linux_native_archive_preserves_bytes_and_hashes(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'source';source.mkdir();target=root/'target'
+            for name in m.LINUX_LIBRARIES:(source/name).write_bytes(name.encode())
+            m.pack_linux(source,target)
+            with zipfile.ZipFile(target/'native.zip') as archive:
+                hashes=json.loads(archive.read('SHA256SUMS.json'))
+                for name in m.LINUX_LIBRARIES:
+                    self.assertEqual(hashlib.sha256(archive.read(name)).hexdigest(),hashes[name])
+            self.assertFalse(list(target.glob('*.so')))
     def test_hash_is_required(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'x';p.write_bytes(b'bad')
