@@ -44,7 +44,7 @@ class PreflightTests(unittest.TestCase):
     def test_checks_formatting_of_every_rust_crate_the_ci_checks(self):
         commands = release.preflight_commands()
         self.assertEqual([crate for crate, _ in commands],
-                         ["FireCrackle/src-tauri", "FireCrackle/crates/studio_core", "fire-detection/core"])
+                         ["FireCrackle/src-tauri", "FireCrackle/crates/studio_core", "fire-detection/core", "FireCrackle/crates/no_fire_cnn"])
         for crate, argv in commands:
             self.assertEqual(argv, ["cargo", "fmt", "--manifest-path", f"{crate}/Cargo.toml", "--", "--check"])
 
@@ -53,11 +53,11 @@ class PreflightTests(unittest.TestCase):
         full = release.preflight_commands(clippy=True)
         self.assertFalse(any("clippy" in argv for _, argv in plain))
         clippy = [(c, a) for c, a in full if "clippy" in a]
-        self.assertEqual(len(clippy), 3)
+        self.assertEqual(len(clippy), 4)
         for crate, argv in clippy:
             self.assertEqual(argv, ["cargo", "clippy", "--manifest-path", f"{crate}/Cargo.toml", "--all-targets",
                                     "--no-deps", "--", "-D", "warnings"])
-        self.assertEqual(full[:3], plain)  # the cheap checks still come first
+        self.assertEqual(full[:4], plain)  # the cheap checks still come first
 
     def test_passes_when_every_check_passes_and_runs_them_in_the_worktree(self):
         calls = []
@@ -65,9 +65,9 @@ class PreflightTests(unittest.TestCase):
             calls.append((argv, cwd))
             return 0, ""
         done = release.run_preflight(Path("work"), runner=runner)
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), 4)
         self.assertTrue(all(cwd == Path("work") for _, cwd in calls))
-        self.assertEqual(len(done), 3)
+        self.assertEqual(len(done), 4)
 
     def test_reports_every_failing_crate_with_the_tools_own_output(self):
         def runner(argv, cwd):

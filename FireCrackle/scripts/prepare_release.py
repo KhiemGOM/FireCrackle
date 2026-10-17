@@ -12,7 +12,8 @@ FILES = ["package.json", "package-lock.json", "src-tauri/tauri.conf.json",
 
 
 # The crates the CI checks, so the CI cannot fail on something this cut could have caught in seconds.
-RUST_CRATES = ["FireCrackle/src-tauri", "FireCrackle/crates/studio_core", "fire-detection/core"]
+RUST_CRATES = ["FireCrackle/src-tauri", "FireCrackle/crates/studio_core", "fire-detection/core",
+               "FireCrackle/crates/no_fire_cnn"]
 
 
 def run(*args, cwd=ROOT):
