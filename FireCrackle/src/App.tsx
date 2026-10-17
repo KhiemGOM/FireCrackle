@@ -403,7 +403,7 @@ export default function App() {
               <button type="button" aria-label="Show label tools" aria-pressed={side === "label"} className={side === "label" ? "on" : ""} title="Label tools" onClick={() => setSide("label")}><Icon name="atlas" />Label</button>
               <button type="button" aria-label="Show Enhance panel" aria-pressed={side === "enhance"} className={side === "enhance" ? "on" : ""} title="Enhance" onClick={() => setSide("enhance")}><Icon name="enhance" />Enhance</button>
             </div>
-            {side === "enhance" && <EnhancePanel settings={post.settings} selected={post.selected} onSelect={post.setSelected} onChange={post.change} onReset={post.reset} portalStatus={post.portalStatus} portalFit={post.portalFit} />}
+            {side === "enhance" && <EnhancePanel settings={post.settings} selected={post.selected} onSelect={post.setSelected} onChange={post.change} onReset={post.reset} portalStatus={post.portalStatus} portalFit={post.portalFit} userPresets={post.userPresets} presetName={post.presetName} onPresetName={post.setPresetName} onSavePreset={post.savePreset} onDeletePreset={post.deletePreset} />}
             <div className="pick-state">
               <IconButton icon="layers" label={`Toggle candidate sheet · current sheet ${candidatePick?.sheet ?? view.pick.sheet}`} className={candidatePick?.sheet === 1 ? "on" : ""} onClick={() => stageSprite({ sheet: (1 - (candidatePick?.sheet ?? view.pick.sheet)) as 0 | 1, row: candidate && isFire(candidate.label) ? candidate.label.fire.row : 0, mirrored: candidatePick?.mirrored ?? view.pick.mirrored })} title="Switch between fire sheets 0 and 1 · T · selects a candidate; Confirm saves">
                 {candidatePick?.sheet ?? view.pick.sheet}

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { POST_TOGGLE_KEY, isTypingTarget, postKeyAction } from "../lib/post/keys";
+import { addUserPreset, readUserPresets, removeUserPreset, writeUserPresets } from "../lib/post/userPresets";
+import type { Preset } from "../lib/post/presets";
 import {
   STARTING_POST, onlyParamsChanged, pictureSettings, readPostSettings, toggleEnabled, writePostSettings, type PostSettings, type RowId,
 } from "../lib/post/settings";
@@ -18,6 +20,10 @@ export function usePostSettings() {
   const [selected, setSelected] = useState<RowId>("veil");
   const [portalStatus, setPortalStatus] = useState("");
   const [portalFit, setPortalFit] = useState<{ phase: number; opacity: number } | null>(null);
+  const [userPresets, setUserPresets] = useState<Preset[]>(() => readUserPresets());
+  const [presetName, setPresetName] = useState("");
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const appliedRef = useRef(applied);
   appliedRef.current = applied;
 
@@ -49,7 +55,24 @@ export function usePostSettings() {
   /** Back to how a fresh install starts (veil and portal in Auto, every other effect off); the master switch is left as it is. */
   const reset = useCallback(() => setSettings(current => ({ ...STARTING_POST, enabled: current.enabled })), []);
 
-  return { settings, picture: pictureSettings(applied), selected, setSelected, change, toggle, reset, portalStatus, setPortalStatus, portalFit, setPortalFit, toggleKey: POST_TOGGLE_KEY };
+  /** Saves the effects that are on as a preset with the typed name (a blank name or no effect on saves nothing). */
+  const savePreset = useCallback((name: string) => {
+    setUserPresets(current => {
+      const next = addUserPreset(current, name, settingsRef.current);
+      if (next !== current) writeUserPresets(next);
+      return next;
+    });
+    setPresetName("");
+  }, []);
+  const deletePreset = useCallback((id: string) => {
+    setUserPresets(current => {
+      const next = removeUserPreset(current, id);
+      writeUserPresets(next);
+      return next;
+    });
+  }, []);
+
+  return { settings, picture: pictureSettings(applied), selected, setSelected, change, toggle, reset, portalStatus, setPortalStatus, portalFit, setPortalFit, userPresets, presetName, setPresetName, savePreset, deletePreset, toggleKey: POST_TOGGLE_KEY };
 }
 
 export type PostController = ReturnType<typeof usePostSettings>;

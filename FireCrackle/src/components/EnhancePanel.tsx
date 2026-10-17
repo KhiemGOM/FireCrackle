@@ -1,8 +1,10 @@
+import type { CSSProperties } from "react";
 import { VEIL_MODES, type VeilMode } from "../lib/veil";
 import { displayOrder, moveEnabled, rowNumbers } from "../lib/post/order";
-import { PRESETS, applyPreset, presetOf } from "../lib/post/presets";
-import { PORTAL_FRAMES, clampParam, repairManual, type PostSettings, type RowId, type StageId } from "../lib/post/settings";
-import { STAGES } from "../lib/post/stages";
+import { allPresets, applyPreset, presetOf, type Preset } from "../lib/post/presets";
+import { PORTAL_FRAMES, STAGE_IDS, clampParam, repairManual, type PostSettings, type RowId, type StageId } from "../lib/post/settings";
+import { STAGES, type Control } from "../lib/post/stages";
+import { MAX_PRESET_NAME } from "../lib/post/userPresets";
 import { POST_TOGGLE_KEY } from "../lib/post/keys";
 import { Icon } from "./Icon";
 import "./EnhancePanel.css";
@@ -17,7 +19,6 @@ const ROW_HELP: Partial<Record<RowId, string>> = {
   portal: "Assumes portal rendering like vanilla 1.16.5; custom textures or shaders may change the result. Auto fits the frame and opacity; Manual applies the ones you pick, even where Auto finds no fit. GUI pixels are protected when a mask is available.",
   ...Object.fromEntries((Object.keys(STAGES) as StageId[]).filter(id => STAGES[id].help).map(id => [id, STAGES[id].help])),
 };
-
 const MASTER_TITLE = `Post-processing on/off · ${POST_TOGGLE_KEY.toUpperCase()} · view only: detection and exports use the original frames`;
 
 interface Props {
@@ -31,15 +32,24 @@ interface Props {
   portalStatus?: string;
   /** The phase and opacity the automatic portal fit found last, to start the manual values from. */
   portalFit?: { phase: number; opacity: number } | null;
+  /** The presets the user saved, the name being typed for the next one, and what to do with them. */
+  userPresets?: readonly Preset[];
+  presetName?: string;
+  onPresetName?: (name: string) => void;
+  onSavePreset?: (name: string) => void;
+  onDeletePreset?: (id: string) => void;
 }
+
+const percent = (c: Control, v: number) => Math.min(100, Math.max(0, ((v - c.min) / (c.max - c.min)) * 100));
 
 /**
  * The Enhance panel: a vertical list of effects. Each row has its own on/off switch (separate from selecting the row),
  * the ones that are on come first and show the order they are applied in, and veil and portal stay pinned on top.
- * Switches and buttons use icons and tooltips instead of words. Plain elements only, so the whole tree can be read
- * without rendering.
+ * Moving any control of an effect switches it on; a dot marks an effect whose controls differ from neutral; a slider
+ * resets on double-click and can be typed into; Shift + arrow moves it a fine step. Plain elements only, so the whole
+ * tree can be read without rendering.
  */
-export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, portalStatus, portalFit }: Props) {
+export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, portalStatus, portalFit, userPresets = [], presetName = "", onPresetName, onSavePreset, onDeletePreset }: Props) {
   const numbers = rowNumbers(settings);
   const stageOn = (id: StageId) => settings.stages[id].on;
   const enabledOrder = displayOrder(settings.order, stageOn);
@@ -47,6 +57,7 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
   const isStage = (id: RowId): id is StageId => id !== "veil" && id !== "portal";
   const isOn = (id: RowId) => (id === "veil" ? settings.veil !== "off" : id === "portal" ? settings.portal !== "off" : stageOn(id));
   const setStage = (id: StageId, patch: Partial<PostSettings["stages"][StageId]>) => onChange({ ...settings, stages: { ...settings.stages, [id]: { ...settings.stages[id], ...patch } } });
+  const modified = (id: StageId) => STAGES[id].controls.some(c => settings.stages[id].params[c.key] !== STAGES[id].defaults[c.key]);
   const flip = (id: RowId) => {
     if (id === "veil") onChange({ ...settings, veil: settings.veil === "off" ? "auto" : "off" });
     else if (id === "portal") onChange({ ...settings, portal: settings.portal === "off" ? "auto" : "off" });
@@ -57,31 +68,48 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
     if (raw === "" || !Number.isFinite(next)) return;
     onChange({ ...settings, portalManual: repairManual({ ...settings.portalManual, [key]: next }) });
   };
-  const iconButton = (label: string, icon: "reset" | "copy", onClick: () => void, disabled = false) => (
+  const iconButton = (label: string, icon: "reset" | "copy" | "save", onClick: () => void, disabled = false) => (
     <button type="button" className="icon-button icon-only" aria-label={label} title={label} disabled={disabled} onClick={onClick}><Icon name={icon} /></button>
   );
-  const control = (id: StageId, c: (typeof STAGES)[StageId]["controls"][number]) => {
+  const control = (id: StageId, c: Control) => {
     const value = settings.stages[id].params[c.key];
-    const set = (raw: string) => {
+    const neutral = STAGES[id].defaults[c.key];
+    // moving a control is asking for the effect, so it switches on; the number is brought inside the limits
+    const commit = (raw: string) => {
       const next = Number(raw);
       if (raw === "" || !Number.isFinite(next)) return;
-      setStage(id, { params: clampParam(id, c.key, next, settings.stages[id].params) });
+      setStage(id, { on: true, params: clampParam(id, c.key, next, settings.stages[id].params) });
     };
+    const className = `post-slider${value !== neutral ? " changed" : ""}`;
     if (c.kind === "choice") {
       return (
-        <label className="post-slider post-choice" key={c.key}>
+        <label className={`${className} post-choice`} key={c.key}>
           <span>{c.label}</span>
-          <select aria-label={c.label} value={value} onChange={e => set(e.target.value)}>
+          <select aria-label={c.label} value={value} onChange={e => commit(e.target.value)}>
             {c.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </label>
       );
     }
+    const tick = percent(c, neutral);
     return (
-      <label className="post-slider" key={c.key}>
+      <label className={className} key={c.key}>
         <span>{c.label}</span>
-        <input type="range" aria-label={c.label} min={c.min} max={c.max} step={c.step} value={value} onChange={e => set(e.target.value)} />
-        <output>{value}</output>
+        <span className="post-track">
+          <input type="range" aria-label={c.label} min={c.min} max={c.max} step={c.step} value={value} style={{ "--pct": `${percent(c, value)}%`, "--f": String(percent(c, value) / 100) } as CSSProperties}
+            title="Double-click to reset · Shift + arrow keys for fine steps"
+            onChange={e => commit(e.target.value)}
+            onDoubleClick={() => setStage(id, { params: { ...settings.stages[id].params, [c.key]: neutral } })}
+            onKeyDown={e => {
+              if (!e.shiftKey || !c.fine || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+              e.preventDefault();
+              commit(String(Number((Number((e.target as HTMLInputElement).value) + (e.key === "ArrowRight" ? c.fine : -c.fine)).toFixed(4))));
+            }} />
+          {tick > 0.5 && tick < 99.5 ? <span className="post-tick" style={{ left: `${tick}%`, "--f": String(tick / 100) } as CSSProperties} /> : null}
+        </span>
+        <input type="number" className="post-number" aria-label={`${c.label} value`} key={`${c.key}-${value}`} min={c.min} max={c.max} step={c.step} defaultValue={value}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }} />
       </label>
     );
   };
@@ -134,14 +162,16 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
     const name = ROW_NAMES[id];
     const on = isOn(id);
     const number = numbers[id];
+    const changed = isStage(id) && modified(id);
     const at = isStage(id) ? enabledOrder.indexOf(id) : -1;
     const canMove = (dir: -1 | 1) => isStage(id) && on && at >= 0 && at + dir >= 0 && at + dir < enabledOrder.length && stageOn(enabledOrder[at + dir]);
     const move = (step: number) => isStage(id) && onChange({ ...settings, order: moveEnabled(settings.order, stageOn, id, step) });
     return (
-      <li key={id} data-row={id} className={`post-row ${on ? "on" : "off"}${selected === id ? " selected" : ""}`}>
+      <li key={id} data-row={id} className={`post-row ${on ? "on" : "off"}${selected === id ? " selected" : ""}${changed ? " modified" : ""}`}>
         <div className="post-row-head">
           {number !== null ? <span className="post-badge">{number}</span> : <span className="post-badge-gap" aria-hidden="true" />}
           <button type="button" className="post-select" aria-label={`Show ${name} controls`} aria-expanded={selected === id} title={ROW_HELP[id]} onClick={() => onSelect(id)}>{name}</button>
+          {changed ? <span className="post-dot" title="Changed from neutral" /> : null}
           {isStage(id) ? (
             <span className="post-moves">
               <button type="button" aria-label={`Move ${name} earlier`} title="Earlier" disabled={!canMove(-1)} onClick={() => move(-1)}>▲</button>
@@ -154,24 +184,33 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
       </li>
     );
   };
-  const current = presetOf(settings);
+  const current = presetOf(settings, userPresets);
+  const builtInCount = allPresets().length;
+  const canSave = presetName.trim() !== "" && STAGE_IDS.some(id => stageOn(id));
   return (
     <div className={`enhance-panel${settings.enabled ? "" : " master-off"}`}>
       <div className="post-head">
-        <label className="post-preset">
-          Presets
-          <select aria-label="Preset" title={`Presets: ${PRESETS.map(p => p.name).join(", ")}. A preset switches on a set of effects at once.`} value={current} onChange={e => {
-            if (e.target.value === "custom") return;
-            const next = applyPreset(settings, e.target.value);
-            if (next !== settings) onChange(next);
-          }}>
-            <option value="none">None</option>
-            {PRESETS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            {current === "custom" ? <option value="custom" disabled>Custom</option> : null}
-          </select>
-        </label>
+        <span className="post-presets-label">Presets</span>
         {iconButton("Reset effects", "reset", onReset)}
         <button type="button" role="switch" className="post-switch post-master" aria-label="Post-processing" title={MASTER_TITLE} aria-checked={settings.enabled} onClick={() => onChange({ ...settings, enabled: !settings.enabled })} />
+      </div>
+      <div className="post-presets" role="group" aria-label="Presets">
+        {allPresets(userPresets).map((p, i) => {
+          const pressed = current === p.id;
+          return (
+            <span className="post-chip-wrap" key={p.id}>
+              <button type="button" className={`post-chip${pressed ? " on" : ""}`} aria-label={`Preset ${p.name}`} aria-pressed={pressed}
+                onClick={() => onChange(pressed ? applyPreset(settings, "none") : applyPreset(settings, p.id, userPresets))}>{p.name}</button>
+              {i >= builtInCount ? <button type="button" className="post-chip-x" aria-label={`Delete preset ${p.name}`} title="Delete this preset" onClick={() => onDeletePreset?.(p.id)}>×</button> : null}
+            </span>
+          );
+        })}
+      </div>
+      <div className="post-save">
+        <input type="text" className="post-name" aria-label="Preset name" placeholder="Save current as…" maxLength={MAX_PRESET_NAME} value={presetName}
+          onChange={e => onPresetName?.(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && canSave) { e.preventDefault(); onSavePreset?.(presetName); } }} />
+        {iconButton("Save as preset", "save", () => onSavePreset?.(presetName), !canSave)}
       </div>
       <ul className="post-list">{rows.map(row)}</ul>
     </div>

@@ -281,7 +281,7 @@ it("the Software updates button is there with or without a loaded video, and say
 // ---------------------------------------------------------------- the Enhance panel in the right side
 
 function postFixture(settings: PostSettings = DEFAULT_POST, over: Record<string, unknown> = {}) {
-  return { settings, picture: settings, selected: "veil", setSelected: vi.fn(), change: vi.fn(), toggle: vi.fn(), reset: vi.fn(), portalStatus: "", setPortalStatus: vi.fn(), portalFit: null, setPortalFit: vi.fn(), toggleKey: "v", ...over };
+  return { settings, picture: settings, selected: "veil", setSelected: vi.fn(), change: vi.fn(), toggle: vi.fn(), reset: vi.fn(), portalStatus: "", setPortalStatus: vi.fn(), portalFit: null, setPortalFit: vi.fn(), toggleKey: "v", userPresets: [], presetName: "", setPresetName: vi.fn(), savePreset: vi.fn(), deletePreset: vi.fn(), ...over };
 }
 const sideButton = (tree: Element, label: string) => find(tree, e => e.props["aria-label"] === label);
 
@@ -368,3 +368,14 @@ it("never runs the playhead ahead of the picture during slow delivery or after a
   } finally {vi.useRealTimers();fixture.act.mockImplementation(async()=>{});}
 });
 
+it("hands the saved presets and their handlers to the Enhance panel", () => {
+  const userPresets = [{ id: "user-1", name: "Night", stages: { tone: { gamma: 1.4 } } }];
+  fixture.post = postFixture(DEFAULT_POST, { userPresets, presetName: "Cav" });
+  sideButton(render().tree, "Show Enhance panel")!.props.onClick();
+  const panel = find(render().tree, e => e.type === EnhancePanel)!;
+  expect(panel.props.userPresets).toBe(userPresets);
+  expect(panel.props.presetName).toBe("Cav");
+  expect(panel.props.onPresetName).toBe(fixture.post.setPresetName);
+  expect(panel.props.onSavePreset).toBe(fixture.post.savePreset);
+  expect(panel.props.onDeletePreset).toBe(fixture.post.deletePreset);
+});

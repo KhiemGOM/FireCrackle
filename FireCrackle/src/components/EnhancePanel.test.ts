@@ -3,6 +3,8 @@ import type { ReactElement } from "react";
 import { EnhancePanel } from "./EnhancePanel";
 import { DEFAULT_POST, DEFAULT_TONE, type PostSettings, type RowId } from "../lib/post/settings";
 import { PRESETS, applyPreset } from "../lib/post/presets";
+import { addUserPreset } from "../lib/post/userPresets";
+import { STAGES } from "../lib/post/stages";
 
 type El = ReactElement<Record<string, any>>;
 function all(node: unknown, pred: (e: El) => boolean): El[] {
@@ -25,8 +27,8 @@ const tone = (patch: Partial<PostSettings["stages"]["tone"]["params"]>, on = tru
 const stage = (id: keyof PostSettings["stages"], params: Record<string, number>, on = true): PostSettings["stages"] => ({ ...DEFAULT_POST.stages, [id]: { on, params: { ...DEFAULT_POST.stages[id].params, ...params } } });
 
 function panel(settings: PostSettings = DEFAULT_POST, selected: RowId = "veil", over: Record<string, unknown> = {}) {
-  const handlers = { onSelect: vi.fn(), onChange: vi.fn(), onReset: vi.fn() };
-  const root = EnhancePanel({ settings, selected, ...handlers, ...over } as Parameters<typeof EnhancePanel>[0]) as El;
+  const handlers = { onSelect: vi.fn(), onChange: vi.fn(), onReset: vi.fn(), onPresetName: vi.fn(), onSavePreset: vi.fn(), onDeletePreset: vi.fn() };
+  const root = EnhancePanel({ settings, selected, userPresets: [], presetName: "", ...handlers, ...over } as Parameters<typeof EnhancePanel>[0]) as El;
   return { root, ...handlers };
 }
 
@@ -289,30 +291,194 @@ describe("Enhance panel: the other effects", () => {
   });
 });
 
-describe("Enhance panel: presets", () => {
-  it("offers None and every preset, and shows the one that matches", () => {
-    const { root } = panel(applyPreset(DEFAULT_POST, "dark"));
-    const select = byLabel(root, "Preset");
-    expect(select.props.value).toBe("dark");
-    const values = all(select, e => e.type === "option").map(o => o.props.value);
-    expect(values).toEqual(["none", ...PRESETS.map(p => p.id)]);
+describe("Enhance panel: preset buttons", () => {
+  const group = (root: El) => all(root, e => e.props.role === "group" && e.props["aria-label"] === "Presets")[0];
+  const chip = (root: El, name: string) => byLabel(root, `Preset ${name}`);
+
+  it("shows the presets as buttons under the word Presets, with no dropdown", () => {
+    const { root } = panel();
+    expect(group(root)).toBeDefined();
+    expect(byLabel(root, "Preset")).toBeUndefined();
+    expect(all(group(root), e => e.type === "select")).toHaveLength(0);
+    for (const p of PRESETS) {
+      const b = chip(root, p.name);
+      expect(b.type).toBe("button");
+      expect(text(b)).toBe(p.name);
+    }
+    expect(text(all(root, e => e.props.className === "post-presets-label")[0])).toBe("Presets");
   });
 
-  it("shows Custom when the settings match no preset", () => {
+  it("marks the preset the settings match as pressed, and none when they match nothing", () => {
+    const { root } = panel(applyPreset(DEFAULT_POST, "dark"));
+    expect(chip(root, "Dark scene").props["aria-pressed"]).toBe(true);
+    expect(chip(root, "Fire focus").props["aria-pressed"]).toBe(false);
     const base = applyPreset(DEFAULT_POST, "dark");
     const nudged = { ...base, stages: { ...base.stages, tone: { ...base.stages.tone, params: { ...base.stages.tone.params, gamma: 1.123 } } } };
-    const select = byLabel(panel(nudged).root, "Preset");
-    expect(select.props.value).toBe("custom");
-    expect(all(select, e => e.type === "option").map(o => o.props.value)).toContain("custom");
+    for (const p of PRESETS) expect(chip(panel(nudged).root, p.name).props["aria-pressed"], p.name).toBe(false);
   });
 
-  it("applies the chosen preset through onChange, and ignores Custom", () => {
-    const { root, onChange } = panel();
-    byLabel(root, "Preset").props.onChange({ target: { value: "dark" } });
-    expect(onChange).toHaveBeenCalledWith(applyPreset(DEFAULT_POST, "dark"));
+  it("applies a preset when its button is clicked, and clears the effects when the pressed one is clicked again", () => {
+    const first = panel();
+    chip(first.root, "Dark scene").props.onClick();
+    expect(first.onChange).toHaveBeenCalledWith(applyPreset(DEFAULT_POST, "dark"));
+    const pressed = panel(applyPreset(DEFAULT_POST, "dark"));
+    chip(pressed.root, "Dark scene").props.onClick();
+    expect(pressed.onChange).toHaveBeenCalledWith(applyPreset(applyPreset(DEFAULT_POST, "dark"), "none"));
+  });
+
+  it("shows the presets the user saved after the built-in ones, with a delete button each", () => {
+    const user = addUserPreset([], "My night", { ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, tone: { on: true, params: { ...DEFAULT_POST.stages.tone.params, gamma: 1.4 } } } });
+    const { root, onChange, onDeletePreset } = panel(DEFAULT_POST, "veil", { userPresets: user });
+    const b = chip(root, "My night");
+    expect(text(b)).toBe("My night");
+    b.props.onClick();
+    expect(onChange).toHaveBeenCalledWith(applyPreset(DEFAULT_POST, user[0].id, user));
+    byLabel(root, "Delete preset My night").props.onClick();
+    expect(onDeletePreset).toHaveBeenCalledExactlyOnceWith(user[0].id);
+    expect(byLabel(root, "Delete preset Dark scene")).toBeUndefined(); // built-in presets cannot be deleted
+  });
+
+  it("saves the current effects under a typed name: the name box is controlled, Enter and the button both save", () => {
+    const { root, onPresetName, onSavePreset } = panel(applyPreset(DEFAULT_POST, "dark"), "veil", { presetName: "Cave" });
+    const input = byLabel(root, "Preset name");
+    expect(input.props.value).toBe("Cave");
+    input.props.onChange({ target: { value: "Cave 2" } });
+    expect(onPresetName).toHaveBeenCalledWith("Cave 2");
+    input.props.onKeyDown({ key: "Enter", preventDefault: vi.fn() });
+    expect(onSavePreset).toHaveBeenCalledWith("Cave");
+    byLabel(root, "Save as preset").props.onClick();
+    expect(onSavePreset).toHaveBeenCalledTimes(2);
+  });
+
+  it("cannot save with a blank name or with no effect switched on, and other keys do not save", () => {
+    expect(byLabel(panel(applyPreset(DEFAULT_POST, "dark"), "veil", { presetName: "  " }).root, "Save as preset").props.disabled).toBe(true);
+    expect(byLabel(panel(DEFAULT_POST, "veil", { presetName: "Cave" }).root, "Save as preset").props.disabled).toBe(true);
+    const ok = panel(applyPreset(DEFAULT_POST, "dark"), "veil", { presetName: "Cave" });
+    expect(byLabel(ok.root, "Save as preset").props.disabled).toBe(false);
+    byLabel(ok.root, "Preset name").props.onKeyDown({ key: "a", preventDefault: vi.fn() });
+    expect(ok.onSavePreset).not.toHaveBeenCalled();
+    const blank = panel(applyPreset(DEFAULT_POST, "dark"), "veil", { presetName: " " });
+    byLabel(blank.root, "Preset name").props.onKeyDown({ key: "Enter", preventDefault: vi.fn() });
+    expect(blank.onSavePreset).not.toHaveBeenCalled();
+  });
+});
+
+describe("Enhance panel: sliders you can trust", () => {
+  const off = (id: keyof PostSettings["stages"], params: Record<string, number> = {}) => stage(id, params, false);
+
+  it("switches an effect on when you move one of its controls", () => {
+    const settings = { ...DEFAULT_POST, stages: off("sharpen", { amount: 0 }) };
+    const { root, onChange } = panel(settings, "sharpen");
+    byLabel(root, "Amount").props.onChange({ target: { value: "60" } });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 60 }, true) });
+  });
+
+  it("switches it on from a choice and from a typed number too", () => {
+    const channels = panel({ ...DEFAULT_POST, stages: off("channels") }, "channels");
+    byLabel(channels.root, "Channel").props.onChange({ target: { value: "2" } });
+    expect(channels.onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("channels", { mode: 2 }, true) });
+    const typed = panel({ ...DEFAULT_POST, stages: off("fire") }, "fire");
+    byLabel(typed.root, "Strength value").props.onBlur({ target: { value: "30" } });
+    expect(typed.onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("fire", { strength: 30 }, true) });
+  });
+
+  it("leaves the switch alone when you reset a control (resetting is not asking for the effect)", () => {
+    const settings = { ...DEFAULT_POST, stages: off("sharpen", { amount: 80 }) };
+    const { root, onChange } = panel(settings, "sharpen");
+    byLabel(root, "Amount").props.onDoubleClick();
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: off("sharpen", { amount: 0 }) });
+  });
+
+  it("marks a row whose controls differ from neutral, on or off, and not one that is untouched", () => {
+    const marked = (settings: PostSettings, id: RowId) => all(row(panel(settings).root, id), e => e.props.className === "post-dot");
+    expect(marked({ ...DEFAULT_POST, stages: off("sharpen", { amount: 80 }) }, "sharpen")).toHaveLength(1);
+    expect(marked({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.3 }) }, "tone")).toHaveLength(1);
+    expect(marked({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone")).toHaveLength(0);
+    expect(marked(DEFAULT_POST, "veil")).toHaveLength(0);
+    expect(String(row(panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.3 }) }).root, "tone").props.className)).toContain("modified");
+  });
+
+  it("highlights a control that is away from its neutral value", () => {
+    const { root } = panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.3 }) }, "tone");
+    const labelOf = (name: string) => all(root, e => e.type === "label" && all(e, x => x.props["aria-label"] === name).length > 0)[0];
+    expect(String(labelOf("Gamma").props.className)).toContain("changed");
+    expect(String(labelOf("Contrast").props.className)).not.toContain("changed");
+  });
+
+  it("resets one control to its neutral value on double-click and leaves the others", () => {
+    const settings = { ...DEFAULT_POST, stages: stage("tone", { gamma: 1.8, contrast: 30 }) };
+    const { root, onChange } = panel(settings, "tone");
+    byLabel(root, "Gamma").props.onDoubleClick();
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1, contrast: 30 }) });
+  });
+
+  it("lets you type a number: it is committed on Enter or on leaving the box, clamped, and nonsense is ignored", () => {
+    const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone");
+    const box = byLabel(root, "Gamma value");
+    expect(box.props.type).toBe("number");
+    expect([box.props.min, box.props.max, box.props.step]).toEqual([0.3, 3, 0.05]);
+    box.props.onBlur({ target: { value: "2" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 2 }) });
+    box.props.onKeyDown({ key: "Enter", target: { value: "9" }, preventDefault: vi.fn() });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) });
     onChange.mockClear();
-    byLabel(root, "Preset").props.onChange({ target: { value: "custom" } });
+    box.props.onBlur({ target: { value: "abc" } });
+    box.props.onBlur({ target: { value: "" } });
+    box.props.onKeyDown({ key: "Escape", target: { value: "2" }, preventDefault: vi.fn() });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed box in step with the slider (its default value follows the value)", () => {
+    const a = byLabel(panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.5 }) }, "tone").root, "Gamma value");
+    const b = byLabel(panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 2.5 }) }, "tone").root, "Gamma value");
+    expect(a.props.defaultValue).toBe(1.5);
+    expect(b.props.defaultValue).toBe(2.5);
+    expect(a.key).not.toBe(b.key); // a new key makes the box show the new value
+  });
+
+  it("moves by a fine step with Shift and an arrow key, clamped, and leaves plain arrows to the browser", () => {
+    const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.5 }) }, "tone");
+    const slider = byLabel(root, "Gamma");
+    const prevent = vi.fn();
+    slider.props.onKeyDown({ key: "ArrowRight", shiftKey: true, preventDefault: prevent, target: { value: "1.5" } });
+    expect(prevent).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.51 }) });
+    slider.props.onKeyDown({ key: "ArrowLeft", shiftKey: true, preventDefault: vi.fn(), target: { value: "1.5" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.49 }) });
+    onChange.mockClear();
+    const plain = vi.fn();
+    slider.props.onKeyDown({ key: "ArrowRight", shiftKey: false, preventDefault: plain, target: { value: "1.5" } });
+    slider.props.onKeyDown({ key: "ArrowUp", shiftKey: true, preventDefault: plain, target: { value: "1.5" } });
+    expect(plain).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+    const top = panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) }, "tone");
+    byLabel(top.root, "Gamma").props.onKeyDown({ key: "ArrowRight", shiftKey: true, preventDefault: vi.fn(), target: { value: "3" } });
+    expect(top.onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) });
+  });
+
+  it("draws a tick where neutral is when that is inside the range, and none when neutral is at an end", () => {
+    const ticks = (settings: PostSettings, id: RowId, label: string) => {
+      const { root } = panel(settings, id);
+      const lab = all(root, e => e.type === "label" && all(e, x => x.props["aria-label"] === label).length > 0)[0];
+      return all(lab, e => e.props.className === "post-tick");
+    };
+    const gamma = ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Gamma");
+    expect(gamma).toHaveLength(1);
+    expect(parseFloat(String(gamma[0].props.style.left))).toBeCloseTo(((1 - 0.3) / (3 - 0.3)) * 100, 1);
+    expect(parseFloat(String(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Contrast")[0].props.style.left))).toBeCloseTo(50, 1);
+    expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Shadow lift")).toHaveLength(0); // neutral 0 is the left end
+    expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "White point")).toHaveLength(0); // neutral 255 is the right end
+  });
+
+  it("fills the track up to the value through a CSS variable", () => {
+    const slider = byLabel(panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.5 }) }, "tone").root, "Gamma");
+    expect(parseFloat(String(slider.props.style["--pct"]))).toBeCloseTo(((1.5 - 0.3) / 2.7) * 100, 1);
+    const atMin = byLabel(panel({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 0 }) }, "sharpen").root, "Amount");
+    expect(parseFloat(String(atMin.props.style["--pct"]))).toBe(0);
+  });
+
+  it("gives every control a fine step, so Shift+arrow always has something sensible to do", () => {
+    for (const id of Object.keys(STAGES) as Array<keyof typeof STAGES>) for (const c of STAGES[id].controls) if (c.kind === "range") expect(c.fine ?? c.step, `${id}.${c.key}`).toBeGreaterThan(0);
   });
 });
 
@@ -379,9 +545,4 @@ describe("Enhance panel: icons and short text", () => {
     expect(text(root).toLowerCase()).not.toContain("viewing only");
   });
 
-  it("labels the preset choice with the word Presets, so it is clear what the dropdown is for", () => {
-    const { root } = panel();
-    expect(byLabel(root, "Preset").props.title).toContain("Dark scene");
-    expect(text(all(root, e => e.props.className === "post-preset")[0].props.children[0])).toBe("Presets");
-  });
 });

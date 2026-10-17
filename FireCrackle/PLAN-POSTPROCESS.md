@@ -125,6 +125,16 @@ Not built, and why:
   frame-buffer work that is still being finished (job 171).
 - **Worker for the heavy effects**, and dragging to reorder (the earlier/later buttons exist).
 
+## UX pass (after trying Phase 0 to 3)
+
+Asked for and built: moving any control of an effect switches it on; a dot marks an effect whose controls are away from
+neutral; a slider resets on double-click, can be typed into (a number box) and moves a fine step with Shift + arrow; the
+slider line is filled up to the value, has a tick at the neutral value, and a thin thumb so it sits at the very end of the
+line at the minimum and maximum; presets are buttons (pressing the active one clears the effects), you can save the
+effects that are on under a name and delete your own presets (kept in `firecrackle.post.presets.v1`). The built-in presets
+were retuned by eye on real recordings: Dark scene, Compressed footage, Fire focus, Texture edges, Soft footage.
+Declined: hold-to-peek (V is enough) and grouping the rows.
+
 ## Decisions for the user
 
 1. Global settings plus presets (recommended) or per video.

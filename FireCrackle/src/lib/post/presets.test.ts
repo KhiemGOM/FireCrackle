@@ -62,3 +62,58 @@ describe("presets", () => {
     expect(presetOf({ ...nudged, stages: { ...nudged.stages, tone: { ...nudged.stages.tone, params: { ...nudged.stages.tone.params, gamma: 1.123 } } } })).toBe("custom");
   });
 });
+
+describe("the built-in presets are useful and not cluttered", () => {
+  const on = (id: string) => {
+    const s = applyPreset(DEFAULT_POST, id);
+    return STAGE_IDS.filter(stage => s.stages[stage].on);
+  };
+
+  it("are Dark scene, Compressed footage, Fire focus, Texture edges and Soft footage", () => {
+    expect(PRESETS.map(p => p.id)).toEqual(["dark", "compressed", "fire", "edges", "soft"]);
+    expect(PRESETS.map(p => p.name)).toEqual(["Dark scene", "Compressed footage", "Fire focus", "Texture edges", "Soft footage"]);
+  });
+
+  it("each switch on at most three effects", () => {
+    for (const p of PRESETS) expect(on(p.id).length, p.id).toBeLessThanOrEqual(3);
+  });
+
+  it("Dark scene lifts the shadows and brightens, and calms the noise that brightening brings out", () => {
+    const s = applyPreset(DEFAULT_POST, "dark");
+    expect(s.stages.tone.params.gamma).toBeGreaterThanOrEqual(1.5);
+    expect(s.stages.tone.params.shadows).toBeGreaterThanOrEqual(30);
+    expect(s.stages.denoise.on).toBe(true);
+    expect(s.stages.denoise.params.strength).toBeGreaterThan(0);
+  });
+
+  it("Compressed footage cleans first and sharpens gently, without changing the tones (a contrast step crushed dark frames)", () => {
+    const s = applyPreset(DEFAULT_POST, "compressed");
+    expect(on("compressed")).toEqual(["denoise", "sharpen"]);
+    expect(STAGE_IDS.indexOf("denoise")).toBeLessThan(STAGE_IDS.indexOf("sharpen"));
+    expect(s.stages.sharpen.params.amount).toBeLessThanOrEqual(100);
+    expect(s.stages.tone.on).toBe(false);
+  });
+
+  it("Fire focus shows fire-coloured pixels but keeps some of the surroundings visible", () => {
+    const s = applyPreset(DEFAULT_POST, "fire");
+    expect(s.stages.fire.on).toBe(true);
+    expect(s.stages.fire.params.strength).toBeGreaterThanOrEqual(40);
+    expect(s.stages.fire.params.strength).toBeLessThan(100); // full strength hides all context
+    expect(s.stages.tone.params.gamma).toBeGreaterThan(1);
+    expect(s.stages.channels.on).toBe(false);
+  });
+
+  it("Texture edges sharpens with a small radius to show the texel boundaries", () => {
+    const s = applyPreset(DEFAULT_POST, "edges");
+    expect(s.stages.sharpen.on).toBe(true);
+    expect(s.stages.sharpen.params.amount).toBeGreaterThanOrEqual(100);
+    expect(s.stages.sharpen.params.radius).toBeLessThanOrEqual(1);
+  });
+
+  it("Soft footage deblurs with few iterations (more makes halos)", () => {
+    const s = applyPreset(DEFAULT_POST, "soft");
+    expect(s.stages.deblur.on).toBe(true);
+    expect(s.stages.deblur.params.iterations).toBeGreaterThanOrEqual(1);
+    expect(s.stages.deblur.params.iterations).toBeLessThanOrEqual(5);
+  });
+});

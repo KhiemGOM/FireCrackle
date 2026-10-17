@@ -18,6 +18,8 @@ export interface Control {
   min: number;
   max: number;
   step: number;
+  /** The step of Shift + arrow key, finer than `step`; absent when `step` is already the finest useful one. */
+  fine?: number;
   options?: ReadonlyArray<{ value: number; label: string }>;
 }
 
@@ -36,12 +38,12 @@ export interface StageSpec {
   constrain?(key: string, value: number, p: Params): Params;
 }
 
-const range = (key: string, label: string, min: number, max: number, step: number): Control => ({ key, label, kind: "range", min, max, step });
+const range = (key: string, label: string, min: number, max: number, step: number, fine?: number): Control => ({ key, label, kind: "range", min, max, step, ...(fine ? { fine } : {}) });
 
 export const STAGES: Record<StageId, StageSpec> = {
   tone: {
     id: "tone", name: "Tone", defaults: { ...DEFAULT_TONE },
-    controls: [range("gamma", "Gamma", 0.3, 3, 0.05), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("contrast", "Contrast", -100, 100, 1), range("shadows", "Shadow lift", 0, 100, 1)],
+    controls: [range("gamma", "Gamma", 0.3, 3, 0.05, 0.01), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("contrast", "Contrast", -100, 100, 1), range("shadows", "Shadow lift", 0, 100, 1)],
     isIdentity: p => isToneIdentity(p as unknown as ToneParams),
     apply: (d, _w, _h, p) => applyTone(d, p as unknown as ToneParams),
     repair: p => (p.black >= p.white ? { ...p, black: DEFAULT_TONE.black, white: DEFAULT_TONE.white } : p),
@@ -57,14 +59,14 @@ export const STAGES: Record<StageId, StageSpec> = {
   deblur: {
     id: "deblur", name: "Deblur", defaults: { ...DEFAULT_DEBLUR },
     help: "Assumes a Gaussian blur of the chosen size. Keep the iterations low: it can ring (halos) and sharpen compression blocks.",
-    controls: [range("iterations", "Iterations", 0, 10, 1), range("radius", "Blur size", 0.5, 3, 0.1)],
+    controls: [range("iterations", "Iterations", 0, 10, 1), range("radius", "Blur size", 0.5, 3, 0.1, 0.05)],
     isIdentity: p => isDeblurIdentity(p as unknown as DeblurParams),
     apply: (d, w, h, p) => applyDeblur(d, w, h, p as unknown as DeblurParams),
   },
   sharpen: {
     id: "sharpen", name: "Sharpen", defaults: { ...DEFAULT_SHARPEN },
     help: "Sharpens brightness only, so colours do not fringe. JPEG blocks get sharper too: keep it gentle on compressed footage.",
-    controls: [range("amount", "Amount", 0, 300, 5), range("radius", "Radius", 0.5, 5, 0.1), range("threshold", "Threshold", 0, 50, 1)],
+    controls: [range("amount", "Amount", 0, 300, 5, 1), range("radius", "Radius", 0.5, 5, 0.1, 0.05), range("threshold", "Threshold", 0, 50, 1)],
     isIdentity: p => isSharpenIdentity(p as unknown as SharpenParams),
     apply: (d, w, h, p) => applySharpen(d, w, h, p as unknown as SharpenParams),
   },
