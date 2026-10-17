@@ -4,6 +4,15 @@
 
 - The sole production source of veil detection, GUI-neutral rules, gradient constants,
   inverse colour math and rounding is `fire-detection/core/src/veil.rs`.
+- Animated portal fitting, known-RGBA-layer inverse and conservative translucency
+  guard live in its `portal.rs` implementation module (`veil::portal`). Native/WASM
+  ABI remains `veil_abi.rs`; Python `portal_undo.py` is a thin binding. No parallel
+  language-specific inverse. Game textures are loaded locally, never committed.
+- For confident no-fire decisions, detected/suspected world translucency means
+  abstain. Portal correction is inspection/post-processing, not permission to clear.
+  The current automatic guard recognizes purple portal/effect candidates and accepts
+  caller-supplied translucent-world masks; absence is NOT proof of opacity. Do not
+  claim unimplemented water/glass/ice recognition. GUI masking stays separate.
 - Native Rust callers use `fire_core::veil::detect_veil` / `detect_pixels`,
   `unveil_in_place` / `unveil_rgb`, or `row_transform` + `restore_channel` for sparse probes.
   Standalone research binaries include that same source module; do not port its code.

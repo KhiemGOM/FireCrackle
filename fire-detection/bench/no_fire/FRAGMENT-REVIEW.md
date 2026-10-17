@@ -2,6 +2,14 @@
 
 ## Owner's explicit review decision
 
+**Later clarification:** portal-obscured fire is not excusable merely because
+the portal makes detection hard. The four portal cases are reopened and must
+abstain under the owner's subsequent translucency rule. The original three
+explicit readable-fire misses remain. Current review bookkeeping is97 accepted,
+3 explicit misses,4 reopened portal cases; the101/3 figures below describe the
+earlier review before that clarification. Portal correction is now implemented
+in the shared preprocessing path; see `PORTAL-RESULTS.md`.
+
 After viewing the gallery, the owner selected exactly three crops as
 inexcusable misses: **clip1:21330**, **survival1:41850**, **clip1:22950**.
 The attached images match those gallery crop PNGs pixel-for-pixel. The other
@@ -74,8 +82,9 @@ Near-full-opacity pixels have little recoverable world information. A fit
 must report uncertainty, and an uncertain correction must retain review.
 This belongs in the **shared preprocessing path**; do not create a separate
 Python/TypeScript portal inverse. The menu-gradient model must not be applied
-as if it were a portal model. No portal undoer was implemented or evaluated
-by this visual-review task.
+as if it were a portal model. The original visual-review task did not implement
+an undoer. The subsequent portal task does; see `PORTAL-RESULTS.md` for measured
+results and limitations.
 
 ## A width-only fix is too blunt
 

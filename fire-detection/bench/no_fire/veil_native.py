@@ -14,7 +14,7 @@ _library=None
 def library():
     global _library
     if _library is not None:return _library
-    src=ROOT/'fire-detection/core/src';digest=hashlib.sha256((src/'veil.rs').read_bytes()+(src/'veil_abi.rs').read_bytes()).hexdigest()[:20]
+    src=ROOT/'fire-detection/core/src';digest=hashlib.sha256(b''.join((src/name).read_bytes() for name in ['veil.rs','veil_abi.rs','portal.rs'])).hexdigest()[:20]
     cache=ROOT/'.board/shared-veil'/digest;cache.mkdir(parents=True,exist_ok=True)
     extension='.dll' if sys.platform=='win32' else '.dylib' if sys.platform=='darwin' else '.so'
     output=cache/f'veil{extension}'

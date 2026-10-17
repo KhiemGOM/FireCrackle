@@ -1,5 +1,9 @@
 //! Detecting the vanilla GUI background veil. See tests/veil.rs for the numbers.
 
+/// Animated known-texture overlays share this preprocessing entry point.
+#[path = "portal.rs"]
+pub mod portal;
+
 /// Alpha at the top and bottom row of the veil: 192/255 and 208/255 (fillGradient 0xC0101010 -> 0xD0101010).
 pub const A_TOP: f64 = 192.0 / 255.0;
 pub const A_BOTTOM: f64 = 208.0 / 255.0;

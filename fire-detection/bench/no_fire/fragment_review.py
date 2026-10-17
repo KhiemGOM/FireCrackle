@@ -80,15 +80,18 @@ def main():
     decisions=json.loads(Path(__file__).with_name('fragment_review_decisions.json').read_text())
     bad={(r['source'],r['frame']) for r in decisions['unacceptable_cases']}
     accepted={(r['source'],r['frame']) for r in decisions['acceptable_cases']}
-    assert bad.isdisjoint(accepted) and bad|accepted=={(r['source'],r['frame']) for r in reviewed}
+    reopened={(r['source'],r['frame']) for r in decisions.get('reopened_cases',[])}
+    assert bad.isdisjoint(accepted|reopened) and accepted.isdisjoint(reopened) and bad|accepted|reopened=={(r['source'],r['frame']) for r in reviewed}
     for r in reviewed:
         crops=''.join(f'<figure><figcaption>#{j+1}: {c["native_width"]:.1f} × {c["native_height"]:.1f} native px</figcaption><img class="crop" src="{c["file"]}" style="width:{c["crop_width"]*4}px;height:{c["crop_height"]*4}px"></figure>' for j,c in enumerate(r['crops']))
         cards.append(f'<article id="{r["source"]}-{r["frame"]}"><h2>{r["source"]} · frame {r["frame"]} · {r["seconds"]:.2f}s</h2><p>Score {r["score"]} &lt;2198 · auto-unveil {r["unveiled"]} · largest box width {r["max_native_width"]:.1f}px</p><a href="{r["auto"]}"><img class="context" src="{r["context"]}"></a><p><a href="{r["raw"]}">Original full-resolution picture</a> · <a href="{r["auto"]}">Shared auto-unveil full resolution</a></p><div class="crops">{crops}</div></article>')
         status='Unacceptable miss — remaining regression' if (r['source'],r['frame']) in bad else 'Acceptable pass — owner reviewed'
         colour='#ff7373' if (r['source'],r['frame']) in bad else '#75dba0'
+        if (r['source'],r['frame']) in reopened:status='Portal case reopened — must abstain; undo available below';colour='#ffba66'
         cards[-1]=cards[-1].replace('<h2>',f'<p style="color:{colour};font-weight:bold">{html.escape(status)}</p><h2>',1)
     page='<!doctype html><meta charset="utf-8"><title>13 fire frames wrongly cleared</title><style>body{background:#10151d;color:#e8edf7;font:15px system-ui;margin:24px}h1{font-size:26px}p{color:#b8c4d9}a{color:#6dd6ff}article{border:1px solid #354259;border-radius:12px;padding:16px;margin:22px 0}.context{max-width:960px;width:100%}.crops{display:flex;gap:20px;overflow:auto;align-items:flex-start}figure{margin:0;flex-shrink:0}figcaption{margin-bottom:8px}.crop{image-rendering:pixelated;max-width:none}button{padding:10px;background:#334057;color:white;border:0;border-radius:6px}</style><h1>13 actual fire frames the91-clear rule missed</h1><p>Full-frame context, followed by every labelled fire box cropped at native resolution and enlarged4×. Red boxes locate capture-mod fire; boxes alone do not prove the flame is labelable. Click a context picture for full resolution.</p><p>Judge sprite readability, smoke/occlusion and distance. Original labels and frozen threshold remain unchanged.</p>'+''.join(cards)
-    page=page.replace('<h1>13 actual fire frames the91-clear rule missed</h1>','<h1>Owner review: 101 acceptable clears / 3 unacceptable misses</h1><p>Of the13 original fire cases:10 accepted,3 remain. Original capture labels and detector decisions are unchanged.</p>')
+    counts=decisions['reviewed_clear_outputs']
+    page=page.replace('<h1>13 actual fire frames the91-clear rule missed</h1>',f'<h1>Owner review: {counts["acceptable"]} accepted / {counts["unacceptable"]} explicit misses / {len(reopened)} portal cases reopened</h1><p><a href="portal/">Open portal undo before/after gallery</a>. Detected translucency must abstain; portal cases are no longer accepted passes. Original capture labels remain unchanged.</p>')
     (args.out/'index.html').write_text(page,encoding='utf8')
     (args.out/'owner-review.json').write_text(json.dumps(decisions,indent=2))
     print(json.dumps({'cases':len(reviewed),'width_sensitivity':sensitivity},indent=2),flush=True)

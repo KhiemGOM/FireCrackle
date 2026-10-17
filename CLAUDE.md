@@ -13,6 +13,12 @@ and the existing settings. Known GUI colours are neutral veil evidence, never ev
 of fire. The shared GUI-piece mask is separate from unveil and should supply metadata,
 not another inverse or detector implementation.
 
+Portal undo and conservative world-translucency abstention use `veil::portal`
+(`core/src/portal.rs`), the same native/WASM ABI and thin `portal_undo.py` binding.
+Suspected translucency keeps a no-fire frame in review even after a useful undo.
+Current automatic coverage is purple portal/effect candidates plus supplied masks;
+do not claim that an unchecked frame is opaque or that water/glass detectors exist.
+
 Frontend prerequisite: `rustup target add wasm32-unknown-unknown`; normal npm dev/test/build
 scripts generate the ignored WASM and metadata. Python's binding builds a source-hashed
 native library in ignored `.board/shared-veil/`. Historical result hashes must remain honest.

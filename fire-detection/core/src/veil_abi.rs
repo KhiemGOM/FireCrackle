@@ -3,6 +3,124 @@
 #[path = "veil.rs"]
 mod veil;
 
+/// # Safety
+/// p must contain len bytes; optional masks eachw*h bytes; out4 writable doubles.
+#[no_mangle]
+pub unsafe extern "C" fn portal_guard(
+    p: *const u8,
+    len: usize,
+    w: usize,
+    h: usize,
+    mask: *const u8,
+    known: *const u8,
+    out: *mut f64,
+) -> i32 {
+    if p.is_null() || out.is_null() {
+        return -1;
+    }
+    let rgb = unsafe { std::slice::from_raw_parts(p, len) };
+    let m = if mask.is_null() {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(mask, w.saturating_mul(h)) })
+    };
+    let k = if known.is_null() {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(known, w.saturating_mul(h)) })
+    };
+    match veil::portal::guard(rgb, w, h, m, k) {
+        Ok(g) => {
+            let v = [
+                g.abstain as u8 as f64,
+                g.flags as f64,
+                g.largest_purple as f64,
+                g.known_pixels as f64,
+            ];
+            unsafe { std::ptr::copy_nonoverlapping(v.as_ptr(), out, 4) };
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+/// # Safety
+/// Input buffers must match their lengths; out must reference8 writable doubles.
+#[no_mangle]
+pub unsafe extern "C" fn portal_fit(
+    p: *const u8,
+    len: usize,
+    w: usize,
+    h: usize,
+    atlas: *const u8,
+    atlas_len: usize,
+    side: usize,
+    mask: *const u8,
+    out: *mut f64,
+) -> i32 {
+    if p.is_null() || atlas.is_null() || out.is_null() {
+        return -1;
+    }
+    let rgb = unsafe { std::slice::from_raw_parts(p, len) };
+    let tex = unsafe { std::slice::from_raw_parts(atlas, atlas_len) };
+    let m = if mask.is_null() {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(mask, w.saturating_mul(h)) })
+    };
+    match veil::portal::fit(rgb, w, h, tex, side, m) {
+        Ok(f) => {
+            let values = [
+                f.detected as u8 as f64,
+                f.phase as f64,
+                f.opacity,
+                f.residual,
+                f.baseline,
+                f.improvement,
+                f.runner_up,
+                f.purple_share,
+            ];
+            unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), out, 8) };
+            0
+        }
+        Err(_) => -1,
+    }
+}
+/// # Safety
+/// RGB/atlas/mask lengths must match dimensions; valid must referencew*h writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn portal_inverse(
+    p: *mut u8,
+    len: usize,
+    w: usize,
+    h: usize,
+    atlas: *const u8,
+    atlas_len: usize,
+    side: usize,
+    phase: usize,
+    opacity: f64,
+    mask: *const u8,
+    valid: *mut u8,
+) -> i32 {
+    if p.is_null() || atlas.is_null() || valid.is_null() {
+        return -1;
+    }
+    let rgb = unsafe { std::slice::from_raw_parts_mut(p, len) };
+    let tex = unsafe { std::slice::from_raw_parts(atlas, atlas_len) };
+    let m = if mask.is_null() {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(mask, w.saturating_mul(h)) })
+    };
+    match veil::portal::undo(rgb, w, h, tex, side, phase, opacity, m) {
+        Ok(v) => {
+            unsafe { std::ptr::copy_nonoverlapping(v.as_ptr(), valid, v.len()) };
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn veil_constant(index: u32) -> f64 {
     let o = veil::Options::default();
