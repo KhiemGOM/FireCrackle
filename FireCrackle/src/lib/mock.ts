@@ -166,10 +166,6 @@ export function createMockBackend(): Backend {
   }
 
   function manualAdvance(frames:number) {
-    if (frames>0 && current<N-1 && get(current)==="unset") {
-      const s=suggestion();
-      if (s) {put([[current,{fire:{sheet:s.sheet,row:s.row,mirrored:s.mirrored}}]],true);pick={sheet:s.sheet,mirrored:s.mirrored};}
-    }
     current=clamp(current+frames);
   }
 
@@ -215,7 +211,7 @@ export function createMockBackend(): Backend {
           const s = suggestion();
           if (!s) throw new Error("NoSuggestion");
           pick = { sheet: s.sheet, mirrored: s.mirrored };
-          pickRow(s.row, true);
+          pickRow(s.row);
           break;
         }
         case "clear": apply("unset"); break;

@@ -502,41 +502,15 @@ impl Session {
         })
     }
 
+    /// Explicit Confirm/Enter is a human decision, even when the candidate came from the clock.
     pub fn accept_suggestion(&mut self) -> Result<Applied, SessionError> {
         let s = self.suggestion().ok_or(SessionError::NoSuggestion)?;
-        self.pick = PickState {
-            sheet: s.sheet,
-            mirrored: s.mirrored,
-        };
-        self.apply_with_source(
-            Label::Fire {
-                sheet: s.sheet,
-                row: s.row,
-                mirrored: s.mirrored,
-            },
-            true,
-        )
+        self.pick = PickState { sheet: s.sheet, mirrored: s.mirrored };
+        self.apply(Label::Fire { sheet: s.sheet, row: s.row, mirrored: s.mirrored })
     }
 
-    /// Confirm the departing unset frame, then navigate exactly once (never use label auto-advance).
+    /// Navigation updates the preview suggestion without saving the departing frame.
     pub fn manual_advance(&mut self, frames: i64) -> Result<u32, SessionError> {
-        if frames > 0 && self.current < self.last() && self.label() == Label::Unset {
-            if let Some(s) = self.suggestion() {
-                let label = Label::Fire {
-                    sheet: s.sheet,
-                    row: s.row,
-                    mirrored: s.mirrored,
-                };
-                if self.store.set_predicted(self.current, label)? {
-                    self.log.push(self.store.log_line(self.current));
-                    self.analysis = None;
-                }
-                self.pick = PickState {
-                    sheet: s.sheet,
-                    mirrored: s.mirrored,
-                };
-            }
-        }
         Ok(self.go(Move::Frames(frames)))
     }
 

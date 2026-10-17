@@ -10,6 +10,7 @@ function canvas(){
 }
 describe("automatic label edge bars",()=>{
   it("leaves manual and older backend buckets unstriped",()=>{const {g,rects}=canvas();paintAutomaticStrips(g,bucket,10,30,4,44);expect(rects).toEqual([]);});
+  it("never marks a time guess as an automatic label tool",()=>{const {g,rects}=canvas();paintAutomaticStrips(g,{...bucket,auto_time_guess:4},10,30,4,44);expect(rects).toEqual([]);});
   it("retains every tool at both edges of a mixed one-pixel bucket",()=>{
     const {g,rects}=canvas();paintAutomaticStrips(g,{...bucket,auto_no_fire:1,auto_first_person:1,auto_time_guess:1},10,30,1,48);
     expect(rects).toEqual(AUTOMATIC_TOOLS.flatMap((tool,i)=>[

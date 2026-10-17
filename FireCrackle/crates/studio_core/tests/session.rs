@@ -710,7 +710,10 @@ fn predicted_labels_do_not_supply_phase_evidence_or_flags() {
 fn manually_confirming_a_prediction_refreshes_phase_evidence() {
     let mut s = session(10);
     s.pick_row(0).unwrap();
-    s.accept_suggestion().unwrap();
+    let legacy = serde_json::json!({"format":"firecrackle-labels","version":2,
+        "fingerprint":s.project().fingerprint,"frame_count":10,
+        "labels":[{"version":2,"frame":1,"label":fire(1,0,false),"predicted":true,"sources":["time_guess"]}]});
+    s.import_labels(&legacy.to_string()).unwrap();
     assert!(s.store().is_predicted(1));
     assert_eq!(s.analysis().points.len(), 1);
     let label = s.store().get(1);

@@ -79,54 +79,41 @@ fn incompatible_lag_does_not_average_away_a_recent_trusted_anchor() {
 }
 
 #[test]
-fn accepting_many_guesses_does_not_reanchor_the_clock_and_survives_replay() {
+fn navigating_many_guesses_keeps_them_unsaved_and_does_not_reanchor() {
     let pts: Vec<_> = (0..100).map(|n| n as f64 / 60.0).collect();
     let mut s = session(&pts, &[(0, 5)]);
     s.go(Move::To(1));
-    for _ in 0..20 {
-        s.accept_suggestion().unwrap();
-    }
-    assert_eq!(s.suggestion().unwrap().from_frame, 0);
-    let log = s.take_log().join("\n");
-    let mut store = LabelStore::replay(&log, 100).unwrap().store;
-    store
-        .set(
-            0,
-            Label::Fire {
-                sheet: 1,
-                row: 5,
-                mirrored: false,
-            },
-        )
-        .unwrap();
-    let mut reopened = Session::new(project(&pts), store, Settings::default()).unwrap();
-    reopened.go(Move::To(22));
-    assert_eq!(reopened.suggestion().unwrap().from_frame, 0);
+    for _ in 0..20 { s.manual_advance(1).unwrap(); }
+    assert_eq!(s.store().labelled_count(),1);
+    assert_eq!(s.suggestion().unwrap().from_frame,0);
+    assert!(s.take_log().is_empty());
 }
 
 #[test]
-fn manual_forward_confirms_once_without_using_auto_advance_settings() {
-    let mut s = session(&[0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30], &[(0, 5)]);
-    let mut cfg = Settings::default();
-    cfg.label.advance_frames = 4;
-    cfg.label.advance_to_unlabelled = true;
-    s.set_settings(cfg);
+fn explicitly_confirmed_guess_is_human_checked_without_time_guess_source() {
+    use studio_core::label::LabelSource;
+    let mut s=session(&[0.0,0.05,0.10],&[(0,5)]);
     s.go(Move::To(1));
-    s.manual_advance(2).unwrap();
-    assert_eq!(s.current(), 3);
-    assert_eq!(
-        s.store().get(1),
-        Label::Fire {
-            sheet: 1,
-            row: 6,
-            mirrored: false
-        }
-    );
-    assert_eq!(s.store().get(2), Label::Unset);
-    assert_eq!(s.suggestion().unwrap().from_frame, 0);
+    s.accept_suggestion().unwrap();
+    assert_eq!(s.store().sources(1).into_iter().collect::<Vec<_>>(),vec![LabelSource::Manual]);
+    assert!(!s.store().is_predicted(1));
     assert!(s.undo());
-    assert_eq!(s.current(), 1);
-    assert_eq!(s.label(), Label::Unset);
+    assert_eq!(s.store().get(1),Label::Unset);
+}
+
+#[test]
+fn manual_forward_only_moves_and_keeps_destination_guess() {
+    let mut s=session(&[0.0,0.05,0.10,0.15,0.20],&[(0,5)]);
+    let mut cfg=Settings::default();cfg.label.advance_frames=4;cfg.label.advance_to_unlabelled=true;
+    s.set_settings(cfg);s.go(Move::To(1));s.manual_advance(2).unwrap();
+    assert_eq!(s.current(),3);
+    assert_eq!(s.store().get(1),Label::Unset);
+    assert_eq!(s.store().get(2),Label::Unset);
+    assert_eq!(s.suggestion().unwrap().from_frame,0);
+    assert!(s.take_log().is_empty());
+    assert!(s.undo()); // only the original manual anchor is on the undo stack
+    assert_eq!(s.current(),0);
+    assert_eq!(s.store().labelled_count(),0);
 }
 
 #[test]

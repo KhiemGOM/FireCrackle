@@ -92,28 +92,26 @@ fn manual(frames: i64) -> UiAction {
 }
 
 #[test]
-fn manual_advance_autosaves_departing_guess_once_and_returns_destination_suggestion() {
-    let (dir, mut w) = ws("manual_prediction", 20);
-    click(&mut w, 1, 5); // trustedframe0, nowframe1
-    let v = w.apply(manual(3)).unwrap();
-    assert_eq!(v.current, 4);
-    assert_eq!(v.labelled_count, 2);
-    assert_eq!(v.suggestion.unwrap().from_frame, 0);
-    w.apply(UiAction::GoTo { frame: 1 }).unwrap();
-    assert_eq!(w.view().label, fire(1, 6, false));
-    let saved = lines(&dir);
-    assert_eq!(saved.len(), 2);
-    assert!(saved[1].contains("\"predicted\":true"));
-    let mut reopened = open_in(&dir, 20);
-    reopened.apply(UiAction::GoTo { frame: 4 }).unwrap();
-    assert_eq!(reopened.view().suggestion.unwrap().from_frame, 0);
-    let v = w.apply(UiAction::Undo).unwrap();
-    assert_eq!(v.current, 1);
-    assert_eq!(v.label, Label::Unset);
-    let mut reopened = open_in(&dir, 20);
-    reopened.apply(UiAction::GoTo { frame: 1 }).unwrap();
-    assert_eq!(reopened.view().label, Label::Unset);
-    let _ = std::fs::remove_dir_all(&dir);
+fn manual_advance_keeps_guess_unsaved_and_returns_destination_suggestion() {
+    let (dir, mut w)=ws("manual_prediction",20);
+    click(&mut w,1,5);
+    let v=w.apply(manual(3)).unwrap();
+    assert_eq!(v.current,4);assert_eq!(v.labelled_count,1);
+    assert_eq!(v.suggestion.unwrap().from_frame,0);
+    w.apply(UiAction::GoTo{frame:1}).unwrap();
+    assert_eq!(w.view().label,Label::Unset);
+    assert_eq!(lines(&dir).len(),1);
+    let mut reopened=open_in(&dir,20);
+    reopened.apply(UiAction::GoTo{frame:1}).unwrap();
+    assert_eq!(reopened.view().label,Label::Unset);
+    let v=reopened.apply(UiAction::AcceptSuggestion).unwrap();
+    assert_eq!(v.labelled_count,2);
+    reopened.apply(UiAction::GoTo{frame:1}).unwrap();
+    assert_eq!(reopened.view().label_sources,vec![studio_core::label::LabelSource::Manual]);
+    reopened.apply(UiAction::Undo).unwrap();
+    let mut reopened=open_in(&dir,20);
+    reopened.apply(UiAction::GoTo{frame:1}).unwrap();
+    assert_eq!(reopened.view().label,Label::Unset);
 }
 
 #[test]
@@ -132,30 +130,17 @@ fn navigation_only_actions_and_existing_labels_never_confirm_a_guess() {
 }
 
 #[test]
-fn manual_big_step_moves_once_and_failed_save_retries_without_reconfirmation() {
-    let (dir, mut w) = ws("manual_retry", 30);
-    click(&mut w, 1, 5);
-    let path = dir.join("labels.jsonl");
-    let backup = dir.join("labels.backup");
-    std::fs::rename(&path, &backup).unwrap();
-    std::fs::create_dir(&path).unwrap();
-    let action: UiAction =
-        serde_json::from_value(serde_json::json!({"type":"manualBigStep","dir":1})).unwrap();
-    let v = w.apply(action).unwrap();
-    assert_eq!(v.current, 11);
-    assert_eq!(v.labelled_count, 2);
-    assert!(v.save_error.is_some());
-    std::fs::remove_dir(&path).unwrap();
-    std::fs::rename(backup, &path).unwrap();
-    let v = w.apply(UiAction::Step { frames: 1 }).unwrap();
-    assert_eq!(v.current, 12);
-    assert_eq!(v.labelled_count, 2);
-    assert!(v.save_error.is_none());
-    assert_eq!(lines(&dir).len(), 2);
-    let mut reopened = open_in(&dir, 30);
-    reopened.apply(UiAction::GoTo { frame: 12 }).unwrap();
-    assert_eq!(reopened.view().suggestion.unwrap().from_frame, 0);
-    let _ = std::fs::remove_dir_all(&dir);
+fn manual_big_step_moves_once_without_writing_any_guess() {
+    let (dir,mut w)=ws("manual_no_save",30);
+    click(&mut w,1,5);
+    let action:UiAction=serde_json::from_value(serde_json::json!({"type":"manualBigStep","dir":1})).unwrap();
+    let v=w.apply(action).unwrap();
+    assert_eq!(v.current,11);assert_eq!(v.labelled_count,1);
+    assert!(v.save_error.is_none());assert_eq!(lines(&dir).len(),1);
+    let mut reopened=open_in(&dir,30);
+    reopened.apply(UiAction::GoTo{frame:1}).unwrap();
+    assert_eq!(reopened.view().label,Label::Unset);
+    assert_eq!(reopened.view().suggestion.unwrap().from_frame,0);
 }
 
 fn click(w: &mut Workspace, col: u32, row: u32) -> View {

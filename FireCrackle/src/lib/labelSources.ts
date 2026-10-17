@@ -3,7 +3,6 @@ import type { Bucket } from "./api";
 export const AUTOMATIC_TOOLS = [
   { source: "first_person", name: "First-person fire", color: "#bd8bff", count: "auto_first_person" },
   { source: "no_fire", name: "No-fire checker", color: "#38d4bf", count: "auto_no_fire" },
-  { source: "time_guess", name: "Time guess", color: "#ffd166", count: "auto_time_guess" },
 ] as const;
 
 /** Tool bars at both edges leave the label colour clear in the middle.

@@ -8,7 +8,6 @@ const sources: { value: Source; label: string; detail: string }[] = [
   { value: "independent", label: "Human + first-person tool", detail: "Default · excludes time guesses" },
   { value: "manual", label: "Human checked", detail: "Only labels confirmed by a person" },
   { value: "first_person", label: "First-person tool", detail: "Includes tool labels later checked by a person" },
-  { value: "time_guess", label: "Time guesses", detail: "Diagnostic · extrapolated from the animation clock" },
 ];
 
 export function PhaseSourcePicker({ value, onChange }: { value: Source; onChange: (source: Source) => void }) {
