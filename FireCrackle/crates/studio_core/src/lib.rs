@@ -12,6 +12,7 @@ pub mod frames;
 pub mod gui;
 pub mod import;
 pub mod index;
+pub mod install_kind;
 pub mod label;
 pub mod lane;
 pub mod phase;

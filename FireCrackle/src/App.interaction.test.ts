@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { PREFERENCES_KEY } from "./lib/preferences";
 const fixture = vi.hoisted(() => ({
   backend: { mock: true }, act: vi.fn(async (_action: unknown) => {}), view: {} as any,
+  updates: {} as any,
   states: [] as any[], refs: [] as Array<{current: any}>, stateCursor: 0, refCursor: 0, effectCursor: 0,
   effects: [] as Array<{ deps?: unknown[]; cleanup?: void | (() => void) }>, pending: [] as Array<() => void>,
 }));
@@ -26,10 +27,15 @@ vi.mock("./hooks/useWorkspace", () => ({ useWorkspace: () => ({ view: fixture.vi
 vi.mock("./hooks/useLayout", () => ({ useLayout: () => ({ layout: { sideWidth: 600, videoHeight: 400, flagsHeight: 120 }, set: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/usePanelZooms", () => ({ usePanelZooms: () => ({ zooms: {picker: 1, flags: 1}, wheel: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/useWheel", () => ({ useWheel: () => {} }));
+vi.mock("./hooks/useUpdates", () => ({ useUpdates: () => fixture.updates }));
 import App from "./App";
 import { Picker } from "./components/Picker";
 import { VideoPane } from "./components/VideoPane";
 import { ImagesTab } from "./components/ImagesTab";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { UpdatesDialog } from "./components/UpdatesDialog";
+import { parseRelease } from "./lib/updateCheck";
+import { version as appVersion } from "../package.json";
 
 type Element = ReactElement<Record<string, any>>;
 function find(node: Element, test: (e: Element) => boolean): Element | undefined {
@@ -51,6 +57,7 @@ function key(key: string, mods: Record<string,unknown> = {}) {
 }
 beforeEach(() => {
   fixture.act.mockClear(); fixture.states = [fixture.backend, null]; fixture.refs = []; fixture.effects = [];
+  fixture.updates = updatesFixture(null);
   fixture.view = { current: 10, frame_count: 100, fps: 30, pts: 1 / 3, label: "unset", pick: {sheet: 1, mirrored: false}, suggestion: {sheet: 1, row: 7, mirrored: false, alt_row: 8, from_frame: 1}, typed_pending: null, labelled_count: 1, flag_count: 0, warnings: [], save_error: null };
   const target = new EventTarget();
   vi.stubGlobal("window", {
@@ -171,4 +178,97 @@ it("restores saved filters and persists edits for the next launch", () => {
   ui.picker.props.onFilterChange({left:2,right:null});
   ui=render();
   expect(JSON.parse(saved)).toMatchObject({atlasFilter:{left:2,right:null},matchOnlyFiltered:false});
+});
+
+// ---------------------------------------------------------------- the update banner and dialog
+
+const newer = parseRelease({
+  tag_name: "v9.9.9", html_url: "https://github.com/KhiemGOM/FireCrackle/releases/tag/v9.9.9", body: "Notes", draft: false, prerelease: false,
+  assets: [{ name: "FireCrackle-9.9.9-windows-x64.zip", size: 1, browser_download_url: "https://github.com/KhiemGOM/FireCrackle/releases/download/v9.9.9/FireCrackle-9.9.9-windows-x64.zip" }],
+})!;
+
+function updatesFixture(banner: typeof newer | null, over: Record<string, unknown> = {}) {
+  const controller = { open: vi.fn(), skip: vi.fn(), later: vi.fn(), setAuto: vi.fn(), check: vi.fn(async () => {}) };
+  const result = banner ? { state: "available" as const, release: banner } : null;
+  return {
+    banner, controller,
+    state: { settings: { auto: true, lastCheckMs: null, skipped: null }, result, checking: false, laterHidden: false, kind: "windows_portable", ...over },
+  };
+}
+const updatesButton = (tree: Element) => find(tree, e => e.props.label === "Software updates");
+
+it("shows no update banner when there is nothing newer", () => {
+  const { tree } = render();
+  expect(find(tree, e => e.type === UpdateBanner)).toBeUndefined();
+});
+
+it("shows the banner for a newer release, with this version, this install kind and its handlers", () => {
+  fixture.updates = updatesFixture(newer);
+  const banner = find(render().tree, e => e.type === UpdateBanner)!;
+  expect(banner).toBeDefined();
+  expect(banner.props.release).toBe(newer);
+  expect(banner.props.localVersion).toBe(appVersion);
+  expect(banner.props.kind).toBe("windows_portable");
+  banner.props.onOpen("https://github.com/KhiemGOM/FireCrackle/releases/tag/v9.9.9");
+  banner.props.onSkip();
+  banner.props.onLater();
+  expect(fixture.updates.controller.open).toHaveBeenCalledExactlyOnceWith("https://github.com/KhiemGOM/FireCrackle/releases/tag/v9.9.9");
+  expect(fixture.updates.controller.skip).toHaveBeenCalledOnce();
+  expect(fixture.updates.controller.later).toHaveBeenCalledOnce();
+});
+
+it("has a Software updates button that opens the dialog, and the dialog closes again", () => {
+  fixture.updates = updatesFixture(null);
+  let ui = render();
+  expect(find(ui.tree, e => e.type === UpdatesDialog)).toBeUndefined();
+  updatesButton(ui.tree)!.props.onClick();
+  ui = render();
+  const dialog = find(ui.tree, e => e.type === UpdatesDialog)!;
+  expect(dialog).toBeDefined();
+  expect(dialog.props.localVersion).toBe(appVersion);
+  expect(dialog.props.auto).toBe(true);
+  dialog.props.onClose();
+  expect(find(render().tree, e => e.type === UpdatesDialog)).toBeUndefined();
+});
+
+it("What's new on the banner opens the same dialog", () => {
+  fixture.updates = updatesFixture(newer);
+  const ui = render();
+  find(ui.tree, e => e.type === UpdateBanner)!.props.onDetails();
+  expect(find(render().tree, e => e.type === UpdatesDialog)).toBeDefined();
+});
+
+it("the dialog's switch, check and open go to the update controller, and it shows the result", () => {
+  fixture.updates = updatesFixture(newer, { checking: false });
+  updatesButton(render().tree)!.props.onClick();
+  const dialog = find(render().tree, e => e.type === UpdatesDialog)!;
+  dialog.props.onAuto(false);
+  dialog.props.onCheck();
+  dialog.props.onOpen("https://github.com/KhiemGOM/FireCrackle/releases/tag/v9.9.9");
+  expect(fixture.updates.controller.setAuto).toHaveBeenCalledExactlyOnceWith(false);
+  expect(fixture.updates.controller.check).toHaveBeenCalledExactlyOnceWith(true);
+  expect(fixture.updates.controller.open).toHaveBeenCalledOnce();
+  expect(dialog.props.status).toBe("available");
+  expect(dialog.props.release).toBe(newer);
+});
+
+it("the dialog shows a failed check's message and a running check", () => {
+  fixture.updates = updatesFixture(null, { result: { state: "error", reason: "offline", message: "Could not reach GitHub. Are you offline?" } });
+  updatesButton(render().tree)!.props.onClick();
+  let dialog = find(render().tree, e => e.type === UpdatesDialog)!;
+  expect(dialog.props.status).toBe("error");
+  expect(dialog.props.message).toContain("Could not reach GitHub");
+  fixture.updates = updatesFixture(null, { checking: true });
+  dialog = find(render().tree, e => e.type === UpdatesDialog)!;
+  expect(dialog.props.status).toBe("checking");
+});
+
+it("the Software updates button is there with or without a loaded video, and says when an update waits", () => {
+  fixture.view = null;
+  fixture.updates = updatesFixture(newer);
+  const button = updatesButton(render().tree)!;
+  expect(button).toBeDefined();
+  expect([button.props.children].flat().join(" ")).toContain("Update");
+  fixture.updates = updatesFixture(null);
+  expect([updatesButton(render().tree)!.props.children].flat().filter(Boolean).join(" ")).not.toContain("Update");
 });

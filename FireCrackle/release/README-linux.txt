@@ -15,6 +15,14 @@ Debian/Ubuntu package:
   Open FireCrackle from the desktop menu, or run firecrackle.
   apt installs the declared FFmpeg and desktop-library dependencies.
 
+Upgrading:
+  FireCrackle checks once a day whether a newer version exists and shows a banner
+  (switch that off, or check now, with the Software updates button). Close FireCrackle first.
+  AppImage: replace the old file with the newer one and make it executable.
+  Debian/Ubuntu package: sudo apt install ./FireCrackle-<new version>-linux-amd64.deb
+  Labels live beside each video in its .firecrackle folder, so an upgrade never touches them.
+  Do not open a project with an older FireCrackle than the one that made it.
+
 Unlike the Windows package, Linux packages use system ffmpeg and ffprobe.
 No Windows video-tool executables are bundled. Node.js and Rust are not needed.
 

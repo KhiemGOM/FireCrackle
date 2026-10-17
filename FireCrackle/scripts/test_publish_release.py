@@ -109,3 +109,29 @@ class ReleaseSafetyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AssetNameContractTests(unittest.TestCase):
+    """The app's update check looks for these file names (release/asset-names.json); the publisher must produce them."""
+
+    def test_the_publisher_names_assets_as_the_app_expects(self):
+        contract = json.loads((release.ROOT / "FireCrackle/release/asset-names.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(contract), {"windowsSetup", "windowsPortable", "linuxAppImage", "linuxDeb"})
+        names = release.expected_asset_names("1.2.3")
+        self.assertEqual(set(names), set(contract))
+        for key, template in contract.items():
+            self.assertIn("{version}", template)
+            self.assertEqual(names[key], template.replace("{version}", "1.2.3"), key)
+
+    def test_the_names_carry_the_version_and_no_path(self):
+        for name in release.expected_asset_names("0.2.10").values():
+            self.assertIn("0.2.10", name)
+            self.assertNotIn("/", name)
+            self.assertNotIn("\\", name)
+
+    def test_verification_accepts_files_named_by_the_contract(self):
+        names = release.expected_asset_names("0.2.3")
+        self.assertEqual(names["windowsPortable"], "FireCrackle-0.2.3-windows-x64.zip")
+        self.assertEqual(names["windowsSetup"], "FireCrackle-0.2.3-windows-x64-Setup.exe")
+        self.assertEqual(names["linuxAppImage"], "FireCrackle-0.2.3-linux-x86_64.AppImage")
+        self.assertEqual(names["linuxDeb"], "FireCrackle-0.2.3-linux-amd64.deb")

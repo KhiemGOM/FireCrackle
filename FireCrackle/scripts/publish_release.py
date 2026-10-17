@@ -98,11 +98,18 @@ def verify_windows_archive(archive, version, commit):
         verify_metadata(json.loads(package.read(info)), version, commit, "windows-x64")
 
 
+def expected_asset_names(version):
+    """The release's installer file names, from the contract the app's update check also reads."""
+    templates = json.loads((ROOT / "FireCrackle/release/asset-names.json").read_text(encoding="utf-8"))
+    return {key: template.replace("{version}", version) for key, template in templates.items()}
+
+
 def verify_artifacts(windows, linux, version, commit):
-    zip_name = f"FireCrackle-{version}-windows-x64.zip"
-    setup_name = f"FireCrackle-{version}-windows-x64-Setup.exe"
-    image_name = f"FireCrackle-{version}-linux-x86_64.AppImage"
-    deb_name = f"FireCrackle-{version}-linux-amd64.deb"
+    names = expected_asset_names(version)
+    zip_name = names["windowsPortable"]
+    setup_name = names["windowsSetup"]
+    image_name = names["linuxAppImage"]
+    deb_name = names["linuxDeb"]
     if verify_checksums(windows, "SHA256SUMS.txt") != {zip_name, setup_name}:
         raise ValueError("Unexpected Windows artifact list")
     verify_windows_archive(windows / zip_name, version, commit)

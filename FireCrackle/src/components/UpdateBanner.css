@@ -1,0 +1,12 @@
+.update-banner { margin: 0 12px 8px; padding: 8px 12px; border: 1px solid var(--line, #2a3142); border-left: 4px solid #4cc38a; border-radius: 6px; background: var(--panel, #161b26); font-size: 13px; }
+.update-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.update-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.update-hash { margin-top: 4px; color: var(--dim, #8b96ab); overflow-wrap: anywhere; }
+.update-hash code { font-size: 11px; }
+.update-steps { margin: 6px 0 0; padding-left: 20px; color: var(--dim, #8b96ab); }
+.updates-dialog { width: min(560px, calc(100vw - 40px)); }
+.updates-dialog .modal-body { display: flex; flex-direction: column; gap: 10px; }
+.updates-dialog p { margin: 0; line-height: 1.5; }
+.update-notes { margin: 0; padding: 8px; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #0003; border-radius: 6px; font: inherit; font-size: 12px; }
+.update-auto { display: flex; align-items: center; gap: 6px; }
+.updates-dialog .modal-body > button { align-self: flex-start; }

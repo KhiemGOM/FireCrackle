@@ -13,6 +13,13 @@ Open a video to begin. Labels autosave beside the video in its .firecrackle fold
 keep that folder with the video. Export labels from the toolbar to share them.
 Settings and preview geometry are saved for your Windows account.
 
+Upgrading: FireCrackle checks once a day whether a newer version exists and shows a
+banner (switch that off, or check now, with the Software updates button). To upgrade,
+close FireCrackle, then run the newer Setup.exe (it replaces the installed version) or
+extract the newer ZIP (to the same place or a new folder) and run its FireCrackle.exe.
+Your labels live beside each video in its .firecrackle folder, so an upgrade never
+touches them. Do not open a project with an older FireCrackle than the one that made it.
+
 Quick keys: Left/Right = video frames; Up/Down = animation phases;
 R = flip; T = switch sheet; E = preview opacity; Enter = confirm candidate;
 Ctrl+S = save. Use the keyboard icon for the full list.

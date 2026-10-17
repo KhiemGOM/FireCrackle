@@ -10,6 +10,9 @@ import { ImagesTab } from "./components/ImagesTab";
 import { Picker } from "./components/Picker";
 import { ProjectsHome } from "./components/ProjectsHome";
 import { Credits } from "./components/Credits";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { UpdatesDialog, statusOf } from "./components/UpdatesDialog";
+import { useUpdates } from "./hooks/useUpdates";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
@@ -73,6 +76,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
+  const updates = useUpdates(backend);
+  const [showUpdates, setShowUpdates] = useState(false);
   const [showAutomation,setShowAutomation]=useState(false);
   const [path, setPath] = useState("");
   const [showLink, setShowLink] = useState(false);
@@ -286,11 +291,13 @@ export default function App() {
               <IconButton icon="settings" label="Settings" onClick={() => setShowSettings(true)} />
             </div>
           )}
+          <IconButton icon="import" label="Software updates" title="Check for updates" onClick={() => setShowUpdates(true)}>{updates.banner ? "Update" : null}</IconButton>
           <IconButton icon="info" label="Credits" onClick={() => setShowCredits(true)} />
         </div>
       </header>
 
       <ToolSetupNotice backend={backend} />
+      {updates.banner && <UpdateBanner release={updates.banner} localVersion={appVersion} kind={updates.state.kind} onOpen={updates.controller.open} onSkip={updates.controller.skip} onLater={updates.controller.later} onDetails={() => setShowUpdates(true)} />}
       {tab !== "images" && ws.error && (
         <div className="banner error" onClick={ws.clearError}>
           {ws.error} <span className="dismiss">(click to dismiss)</span>
@@ -428,6 +435,7 @@ export default function App() {
         </div>
       )}
       {showSettings && <SettingsPanel settings={ws.settings} onSet={ws.setSetting} onClose={() => setShowSettings(false)} />}
+      {showUpdates && <UpdatesDialog localVersion={appVersion} auto={updates.state.settings.auto} lastCheckMs={updates.state.settings.lastCheckMs} status={statusOf(updates.state.result, updates.state.checking)} message={updates.state.result?.state === "error" ? updates.state.result.message : null} release={updates.state.result?.state === "available" ? updates.state.result.release : null} nowMs={Date.now()} onAuto={updates.controller.setAuto} onCheck={() => void updates.controller.check(true)} onOpen={updates.controller.open} onClose={() => setShowUpdates(false)} />}
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
       {showLink && <OpenLink backend={backend} initialUrl={/^https?:\/\//i.test(path.trim()) ? path : ""} onClose={() => setShowLink(false)} onOpen={async downloaded => { setShowLink(false); await openVideo(downloaded); }} />}
       {showAutomation && view && <AutomationTools key={ws.videoPath} backend={backend} videoPath={ws.videoPath} onApply={ws.applyAutomation} onReview={(frame)=>{jumpToLabel(frame);setShowAutomation(false);}} onClose={()=>setShowAutomation(false)} />}

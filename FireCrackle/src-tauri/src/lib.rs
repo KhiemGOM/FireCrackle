@@ -51,6 +51,12 @@ struct AppState {
 fn tool_status() -> Option<external_tools::Progress> {
     external_tools::status()
 }
+
+/// Which package this copy came from (setup, portable ZIP, AppImage, Debian), so the update banner offers the matching file.
+#[tauri::command]
+fn install_kind() -> studio_core::install_kind::InstallKind {
+    studio_core::install_kind::detect()
+}
 #[tauri::command]
 fn link_start(
     state: State<'_, AppState>,
@@ -385,6 +391,7 @@ pub fn run_app() {
         .invoke_handler(tauri::generate_handler![
             startup_video,
             tool_status,
+            install_kind,
             link_start,
             link_status,
             link_cancel,

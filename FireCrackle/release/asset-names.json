@@ -1,0 +1,6 @@
+{
+  "windowsSetup": "FireCrackle-{version}-windows-x64-Setup.exe",
+  "windowsPortable": "FireCrackle-{version}-windows-x64.zip",
+  "linuxAppImage": "FireCrackle-{version}-linux-x86_64.AppImage",
+  "linuxDeb": "FireCrackle-{version}-linux-amd64.deb"
+}
