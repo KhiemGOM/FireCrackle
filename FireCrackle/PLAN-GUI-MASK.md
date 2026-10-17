@@ -153,6 +153,88 @@ tolerance, confidence cut-offs, the rounding band) is a documented setting.
   texture cannot be checked: the frame is reported unreliable), `hotbar_min_score` 0.8, `piece_min_score` 0.8.
 - **Out of scope for phase 1**: the app dialog and overlay (phase 1b, after the core is proven).
 
+### 3.3 Phase 2: text and bars
+
+**Status: built (2026-10-17), not committed.** In `gui_mask.rs`: the shadow-signature text detector (chat lines,
+held-item name, title ×4, subtitle ×2, boss names), the XP number, boss bars (`bars.png`, every colour and fill),
+mount hearts instead of food, the jump bar instead of XP, F3 lines. 17 tests in `core/tests/gui_mask_text.rs` (red
+first: API missing; unchanged since), phase 1's 35 tests unchanged and green, whole crate green, clippy clean. Real
+1080p frames: the advancement chat lines (GUI scale 6 and 2) and the XP number "9" (scale 2) found and masked.
+Changes found while building, stated: F3 detection by colour alone fired on bright grey world (12k false pixels in a
+phase-1 test), so it also requires a neutral grey, the line anchored at x = 2 / W−2 (DebugHud 147, 160) and stroke
+density ≤ 0.6; and a separate `text_edge_tolerance_px` (0.3) because one-GUI-pixel strokes otherwise turn mostly
+unknown when the scale does not divide the video evenly. Out of scope by user decision: the scoreboard (not survival
+vanilla). Next: sound captions (`SubtitlesHud`: black box at alpha 0.8 bottom right, unshadowed text) and the action
+bar.
+
+Evidence (Yarn 1.16.5, `TextRenderer`, `InGameHud`, `ChatHud`, `BossBarHud`, `DebugHud`, `GameOptions`):
+- **Shadowed text** (`drawWithShadow`): the shadow is drawn first at `+1, +1` in the text's own units, colour = text
+  colour × 0.25 per channel (`TextRenderer` 238–244, `Drawer` 451, 485–491), then the text on top. So every visible text
+  pixel `C` has, one text unit down-right, either another text pixel or exactly `C/4`, whatever the world is. Used by:
+  chat (`ChatHud` 80), held-item name (`InGameHud` 594), titles ×4 and subtitles ×2 (279–291), boss names
+  (`BossBarHud` 41).
+- **XP level number**: green `0x80FF20` drawn over four black copies offset by one pixel (`InGameHud` 558–564), centred
+  at `y = H−35`.
+- **Chat**: from `(0, H−48)`, `+ (2, 8)`, lines upward every 9 GUI px (at default line spacing), line background
+  `-2 .. width+4` black at alpha `255 · opacity · textBackgroundOpacity` (default 0.5); width `floor(chatWidth·280+40)`
+  (default 320), unfocused height 90 → 10 lines; lines vanish after 200 ticks unless chat is open (`ChatHud` 40–97,
+  273–297; `GameOptions` 62–77).
+- **Boss bars**: `bars.png`, 182×5 at `(W/2−91, 12 + 19n)` per colour (background row `color·10`, progress `+5`),
+  name centred 9 px above (`BossBarHud` 29–60).
+- **Mount health** replaces food: hearts from `(W/2+91−8p−9, H−39)` upward (`icons` 52/88/97, 9) (881–915); **jump
+  bar** replaces the XP bar (`icons` 0,84 / 0,89) (525–538).
+- **F3 text**: grey `0xE0E0E0`, no shadow, on `0x90505050` boxes, rows from `y = 2` every 9 px, left at `x = 2`,
+  right-aligned at `W − 2` (`DebugHud` 134–153).
+- **Unshadowed white text** (action bar `InGameHud` 251, scoreboard 659–663, sound subtitles): no signature beyond
+  "white", which snow and quartz also are. **Deferred** to a later step, stated, not guessed.
+
+Design: a text detector on the GUI grid at the fitted scale, run only inside the regions above: a pixel is text when its
+colour is visible and the pixel one text unit down-right is its quarter (tolerance a setting), or it is covered by
+another text pixel; a line is accepted only with enough such pixels (setting). Text and shadow pixels are `opaque`;
+the rest of an accepted line box is `unknown` (glyphs between samples, backgrounds whose opacity is a user option).
+Bars are matched as textures like the XP bar. The font texture `font/ascii.png` (16×16 glyphs of 8×8) composes
+synthetic text for tests.
+
+Failure cases (tests first): a world with bright pixels next to darker ones that are not a quarter (no text found); a
+quarter-ratio pair alone (too few hits); chat lines at every slot, fading lines are not required; long and short
+names; titles at ×4 with the shadow 4 GUI px away; text over a bright and a dark world; XP number 1–3 digits, absent at
+level 0; boss bars of every colour at 0 % and 100 %, two bars stacked; mount hearts instead of food and the jump bar
+instead of XP; F3 left and right columns; JPEG compression; nothing of this is reported when the HUD itself is not
+reliable; phase 1 results unchanged.
+
+### 3.2 Phase 1b: the app
+
+**Status: built (2026-10-17), not committed.** `studio_core::gui` (12 tests, red first: module missing; one runs ffmpeg
+to make a real JPEG), `src-tauri/src/gui.rs` (4 commands), `src/lib/guiMask.ts` (9 tests, red first),
+`GuiMaskControls.tsx` + `.css`, hook-ups in `api.ts`, `VideoPane.tsx`, `src-tauri/src/lib.rs` through the patch queue
+(batches 76–78). 6 interaction tests (fake backend) for the question → yes → mask flow, no/not-sure, off, frame change
+and failure; these were written after the component, as the check the closed dev window could not give. Not
+verified: the real Tauri window (the dev window was closed right after it opened). Two notes: the patch queue rewrote
+`VideoPane.tsx` as `videopane.tsx` on publish (restored, reported on the noticeboard), and `studio_core` now depends on
+`fire_core` and `jpeg-decoder`.
+
+- **Ask first.** The video tools get a **GUI mask** toggle. The first time it is turned on for a video, a dialog asks
+  *"Is this footage vanilla Minecraft 1.16.5 GUI: no resource pack, no HUD mods, not cropped?"* **Yes / No / Not
+  sure**. The answer is saved in the project folder (`<video>.firecrackle/gui.json`), so it is asked once per video and
+  can be changed later from the same panel. Only **Yes** lets the mask run; the backend refuses otherwise, so a UI bug
+  cannot bypass the answer. Photos in the Images tab have no project: the tool is not offered there yet.
+- **Compute in Rust** (`studio_core::gui`): decode the frame JPEG the app already shows, run
+  `fire_core::gui_mask::detect_gui` with the vanilla textures embedded in the binary, cache the last frame's result.
+  The reply carries the fit, `reliable`, notes and per-piece counts (JSON), and a packed byte per pixel
+  (`class << 4 | piece`) fetched as raw bytes.
+- **Draw** the mask as a translucent overlay on the picture (red opaque, blue translucent, yellow unknown), in the same
+  zoom/pan/rotation layer as the frame, with a status line ("GUI scale 4.50 px per GUI px · hotbar, 10 hearts …" or
+  the reason nothing was found). Metadata only: the picture underneath is unchanged.
+- **Hook-ups in queue-only files** (`src-tauri/src/lib.rs`, `src/lib/api.ts`, `src/components/VideoPane.tsx`) go
+  through the board's patch queue, kept minimal; everything else lives in new files (`studio_core/src/gui.rs`,
+  `src-tauri/src/gui.rs`, `src/lib/guiMask.ts`, `src/components/GuiMaskControls.tsx`).
+
+Failure cases (tests first): no answer yet / No / Not sure → refused with a reason; `gui.json` missing, corrupt or
+with an unknown answer → treated as unanswered (asked again), never as Yes; atomic write; a frame that is not a JPEG
+or is empty → error, no mask; mask size equals the decoded frame size; packed bytes round-trip; the overlay colouring
+for every class; the status text for reliable / unreliable; changing frames discards a stale mask (no mask from frame
+A over frame B).
+
 ## 4. Ways this can break (tests cover each)
 
 - Scale: every GUI scale 1–6 × video resize factors (0.5, 2/3, 1, 1.5) × odd framebuffer heights (ceil rounding puts

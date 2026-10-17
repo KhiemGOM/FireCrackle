@@ -38,6 +38,10 @@ pub struct GuiTextures {
     pub widgets: Texture,
     pub icons: Texture,
     pub inventory: Texture,
+    /// `textures/gui/bars.png` (boss bars), when present.
+    pub bars: Option<Texture>,
+    /// `textures/font/ascii.png` (16x16 glyphs of 8x8), when present: needed only to compose synthetic text.
+    pub font: Option<Texture>,
 }
 
 impl GuiTextures {
@@ -64,7 +68,38 @@ impl GuiTextures {
             widgets: t("widgets", widgets)?,
             icons: t("icons", icons)?,
             inventory: t("inventory", inventory)?,
+            bars: None,
+            font: None,
         })
+    }
+
+    /// Add the boss bar sheet (256x256) and the font sheet (128x128).
+    pub fn with_extras(
+        mut self,
+        bars: Option<Vec<u8>>,
+        font: Option<Vec<u8>>,
+    ) -> Result<GuiTextures, String> {
+        if let Some(b) = bars {
+            if b.len() != 256 * 256 * 4 {
+                return Err(format!("bars must be 256x256 RGBA, got {} bytes", b.len()));
+            }
+            self.bars = Some(Texture {
+                width: 256,
+                height: 256,
+                rgba: b,
+            });
+        }
+        if let Some(f) = font {
+            if f.len() != 128 * 128 * 4 {
+                return Err(format!("font must be 128x128 RGBA, got {} bytes", f.len()));
+            }
+            self.font = Some(Texture {
+                width: 128,
+                height: 128,
+                rgba: f,
+            });
+        }
+        Ok(self)
     }
 
     /// `widgets.rgba`, `icons.rgba` and `inventory.rgba` from a folder.
@@ -76,14 +111,16 @@ impl GuiTextures {
             read("widgets.rgba")?,
             read("icons.rgba")?,
             read("inventory.rgba")?,
-        )
+        )?
+        .with_extras(read("bars.rgba").ok(), read("ascii.rgba").ok())
     }
 
-    fn sheet(&self, s: Sheet) -> &Texture {
+    fn sheet(&self, s: Sheet) -> Option<&Texture> {
         match s {
-            Sheet::Widgets => &self.widgets,
-            Sheet::Icons => &self.icons,
-            Sheet::Inventory => &self.inventory,
+            Sheet::Widgets => Some(&self.widgets),
+            Sheet::Icons => Some(&self.icons),
+            Sheet::Inventory => Some(&self.inventory),
+            Sheet::Bars => self.bars.as_ref(),
         }
     }
 }
@@ -125,6 +162,17 @@ pub enum PieceId {
     Food = 9,
     Air = 10,
     EffectIcon = 11,
+    // phase 2
+    ChatLine = 12,
+    ItemName = 13,
+    XpLevel = 14,
+    Title = 15,
+    Subtitle = 16,
+    BossBar = 17,
+    BossName = 18,
+    MountHealth = 19,
+    JumpBar = 20,
+    DebugText = 21,
 }
 
 #[repr(u8)]
@@ -149,6 +197,7 @@ pub enum Sheet {
     Widgets,
     Icons,
     Inventory,
+    Bars,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,6 +227,31 @@ pub struct HudState {
     pub xp_bar: bool,
     pub xp_progress: f32,
     pub effects: Vec<Effect>,
+    /// Chat lines shown, newest (bottom) first.
+    pub chat: Vec<String>,
+    /// The held-item name shown above the bars after switching items.
+    pub item_name: Option<String>,
+    /// XP level (0: the number is not drawn).
+    pub xp_level: u32,
+    pub title: Option<String>,
+    pub subtitle: Option<String>,
+    pub boss_bars: Vec<BossBar>,
+    /// Hearts of a ridden living mount (0: not riding one); replaces the food row.
+    pub mount_hearts: u32,
+    pub mount_health: f32,
+    /// Jump power of a jumping mount; replaces the XP bar.
+    pub jump_bar: Option<f32>,
+    /// F3 lines, left and right column.
+    pub debug_left: Vec<String>,
+    pub debug_right: Vec<String>,
+}
+
+/// A boss bar: colour index (pink, blue, red, green, yellow, purple, white = 0..6), progress 0..1, name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BossBar {
+    pub color: u8,
+    pub progress: f32,
+    pub name: String,
 }
 
 impl Default for HudState {
@@ -199,6 +273,17 @@ impl Default for HudState {
             xp_bar: true,
             xp_progress: 0.5,
             effects: Vec::new(),
+            chat: Vec::new(),
+            item_name: None,
+            xp_level: 0,
+            title: None,
+            subtitle: None,
+            boss_bars: Vec::new(),
+            mount_hearts: 0,
+            mount_health: 0.0,
+            jump_bar: None,
+            debug_left: Vec::new(),
+            debug_right: Vec::new(),
         }
     }
 }
@@ -407,7 +492,8 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
         hearts.reverse();
         out.extend(hearts);
         let k = st.food as i32;
-        for zx in 0..10 {
+        // the food row is replaced by the mount's hearts when riding a living mount (827-857, 881-915)
+        for zx in 0..if st.mount_hearts == 0 { 10 } else { 0 } {
             let mut layers = vec![lay(Sheet::Icons, 16, 27, 9, 9)];
             if zx * 2 + 1 < k {
                 layers.push(lay(Sheet::Icons, 52, 27, 9, 9));
@@ -424,14 +510,41 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
                 layers,
             ));
         }
+        // renderMountHealth 881-915: rows of 10 from the food row upward
+        let mount_rows = (st.mount_hearts as i32 + 9) / 10;
+        let mount_hp = st.mount_health.ceil() as i32;
+        for idx in 0..st.mount_hearts as i32 {
+            let (row, p) = (idx / 10, idx % 10);
+            let nn = row * 20;
+            let mut layers = vec![lay(Sheet::Icons, 52, 9, 9, 9)];
+            if p * 2 + 1 + nn < mount_hp {
+                layers.push(lay(Sheet::Icons, 88, 9, 9, 9));
+            } else if p * 2 + 1 + nn == mount_hp {
+                layers.push(lay(Sheet::Icons, 97, 9, 9, 9));
+            }
+            out.push(place(
+                PieceId::MountHealth,
+                idx as u8,
+                n - p * 8 - 9,
+                o - row * 10,
+                9,
+                9,
+                layers,
+            ));
+        }
         if let Some(b) = st.air {
-            // t = o - 10, minus 10 for the food row, plus 10 (no mount: getHeartRows(0) - 1 = -1)
+            // t = o - 10, minus 10 for the food row, minus (getHeartRows(mount) - 1) * 10 (859-875)
+            let air_y = if st.mount_hearts == 0 {
+                o - 10
+            } else {
+                o - 10 * mount_rows
+            };
             for ae in 0..(b.min(10) as i32) {
                 out.push(place(
                     PieceId::Air,
                     ae as u8,
                     n - ae * 8 - 9,
-                    o - 10,
+                    air_y,
                     9,
                     9,
                     vec![lay(Sheet::Icons, 16, 18, 9, 9)],
@@ -439,7 +552,15 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
             }
         }
     }
-    if st.xp_bar {
+    if let Some(jump) = st.jump_bar {
+        // renderMountJumpBar 525-538, drawn instead of the XP bar (188-193)
+        let fill = (jump.clamp(0.0, 1.0) * 183.0) as u32;
+        let mut layers = vec![lay(Sheet::Icons, 0, 84, 182, 5)];
+        if fill > 0 {
+            layers.push(lay(Sheet::Icons, 0, 89, fill, 5));
+        }
+        out.push(place(PieceId::JumpBar, 0, c - 91, h - 29, 182, 5, layers));
+    } else if st.xp_bar {
         // renderExperienceBar 540-553: fill is (int)(progress * 183) wide
         let fill = (st.xp_progress.clamp(0.0, 1.0) * 183.0) as u32;
         let mut layers = vec![lay(Sheet::Icons, 0, 64, 182, 5)];
@@ -447,6 +568,24 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
             layers.push(lay(Sheet::Icons, 0, 69, fill, 5));
         }
         out.push(place(PieceId::XpBar, 0, c - 91, h - 29, 182, 5, layers));
+    }
+    // BossBarHud 29-60: bars.png, 182x5 from y = 12, every 19 GUI px
+    for (nb, b) in st.boss_bars.iter().enumerate() {
+        let v = b.color.min(6) as u32 * 10;
+        let fill = (b.progress.clamp(0.0, 1.0) * 183.0) as u32;
+        let mut layers = vec![lay(Sheet::Bars, 0, v, 182, 5)];
+        if fill > 0 {
+            layers.push(lay(Sheet::Bars, 0, v + 5, fill, 5));
+        }
+        out.push(place(
+            PieceId::BossBar,
+            nb as u8,
+            c - 91,
+            12 + 19 * nb as i32,
+            182,
+            5,
+            layers,
+        ));
     }
     // renderStatusEffectOverlay 404-459
     let (mut i, mut j) = (0, 0);
@@ -479,7 +618,9 @@ fn composite(tex: &GuiTextures, p: &Placed) -> Vec<[u8; 4]> {
     let (w, h) = (p.w as usize, p.h as usize);
     let mut img = vec![[0u8; 4]; w * h];
     for l in &p.layers {
-        let t = tex.sheet(l.sheet);
+        let Some(t) = tex.sheet(l.sheet) else {
+            continue;
+        };
         for ly in 0..l.h as i64 {
             for lx in 0..l.w as i64 {
                 let (x, y) = (lx + l.dx as i64, ly + l.dy as i64);
@@ -634,6 +775,7 @@ pub fn compose_hud(
             }
         }
     }
+    compose_text(frame, w, h, tex, st, fit, &mut truth);
     truth
 }
 
@@ -670,6 +812,15 @@ pub struct GuiOptions {
     /// A video pixel "touches" a GUI pixel only if it overlaps it by more than this share of a video pixel (0..0.5):
     /// slivers thinner than that come from the last digits of the fitted scale, not from the picture.
     pub edge_tolerance_px: f64,
+    /// Text: the brightest channel a text pixel must reach (0..255) before its shadow is looked for.
+    pub text_min_bright: f64,
+    /// Text: how far (levels, per channel) the shadow may be from exactly a quarter of the text colour.
+    pub text_shadow_tolerance: f64,
+    /// Text: how many text pixels with their shadow a line needs before it is reported.
+    pub text_min_hits: usize,
+    /// Text: like `edge_tolerance_px`, for text strokes (one GUI pixel wide, so the last digits of a scale that does not
+    /// divide the video evenly push most of them across a pixel edge): overlaps thinner than this are ignored.
+    pub text_edge_tolerance_px: f64,
 }
 
 impl Default for GuiOptions {
@@ -679,6 +830,10 @@ impl Default for GuiOptions {
             hotbar_min_score: 0.8,
             piece_min_score: 0.8,
             edge_tolerance_px: 0.05,
+            text_min_bright: 96.0,
+            text_shadow_tolerance: 10.0,
+            text_min_hits: 8,
+            text_edge_tolerance_px: 0.3,
         }
     }
 }
@@ -834,6 +989,27 @@ fn check_options(o: &GuiOptions) -> Result<(), String> {
         if !(v.is_finite() && (-1.0..=1.0).contains(&v)) {
             return Err(format!("{name} must be in -1..1, got {v}"));
         }
+    }
+    if !(o.text_min_bright.is_finite() && (0.0..=255.0).contains(&o.text_min_bright)) {
+        return Err(format!(
+            "text_min_bright must be in 0..255, got {}",
+            o.text_min_bright
+        ));
+    }
+    if !(o.text_shadow_tolerance.is_finite() && (0.0..=64.0).contains(&o.text_shadow_tolerance)) {
+        return Err(format!(
+            "text_shadow_tolerance must be in 0..64, got {}",
+            o.text_shadow_tolerance
+        ));
+    }
+    if !(o.text_edge_tolerance_px.is_finite() && (0.0..0.5).contains(&o.text_edge_tolerance_px)) {
+        return Err(format!(
+            "text_edge_tolerance_px must be in 0..0.5, got {}",
+            o.text_edge_tolerance_px
+        ));
+    }
+    if o.text_min_hits == 0 {
+        return Err("text_min_hits must be at least 1".into());
     }
     if !(o.edge_tolerance_px.is_finite() && (0.0..0.5).contains(&o.edge_tolerance_px)) {
         return Err(format!(
@@ -1160,8 +1336,20 @@ pub fn detect_gui(
             place(PieceId::XpBar, 0, c - 91, sh_ - 29, 182, 5, layers)
         })
         .collect();
-    if let Some(x) = best_of(xp_cands, &[0]) {
-        accepted.push(x);
+    // the jump bar of a jumping mount takes the XP bar's place (InGameHud 188-193, 525-538)
+    let jump_cands: Vec<Placed> = (0..=183u32)
+        .map(|fill| {
+            let mut layers = vec![lay(Sheet::Icons, 0, 84, 182, 5)];
+            if fill > 0 {
+                layers.push(lay(Sheet::Icons, 0, 89, fill, 5));
+            }
+            place(PieceId::JumpBar, 0, c - 91, sh_ - 29, 182, 5, layers)
+        })
+        .collect();
+    match (best_of(xp_cands, &[0]), best_of(jump_cands, &[0])) {
+        (Some(x), Some(j)) => accepted.push(if j.1 > x.1 { j } else { x }),
+        (Some(x), None) | (None, Some(x)) => accepted.push(x),
+        (None, None) => {}
     }
 
     // hearts (rows), armor, food, air
@@ -1280,6 +1468,46 @@ pub fn detect_gui(
                 food_found += 1;
             }
         }
+        if food_found == 0 {
+            // riding a living mount: its hearts replace the food row, rows of 10 upward (881-915)
+            'rows: for row in 0..4 {
+                let mut in_row = 0;
+                for pp in 0..10 {
+                    let x = n - pp * 8 - 9;
+                    let idx = (row * 10 + pp) as u8;
+                    let mut cands = vec![place(
+                        PieceId::MountHealth,
+                        idx,
+                        x,
+                        o - row * 10,
+                        9,
+                        9,
+                        vec![lay(Sheet::Icons, 52, 9, 9, 9)],
+                    )];
+                    for fill in [88u32, 97] {
+                        cands.push(place(
+                            PieceId::MountHealth,
+                            idx,
+                            x,
+                            o - row * 10,
+                            9,
+                            9,
+                            vec![
+                                lay(Sheet::Icons, 52, 9, 9, 9),
+                                lay(Sheet::Icons, fill, 9, 9, 9),
+                            ],
+                        ));
+                    }
+                    if let Some(x) = best_of(cands, &[0]) {
+                        accepted.push(x);
+                        in_row += 1;
+                    }
+                }
+                if in_row == 0 {
+                    break 'rows;
+                }
+            }
+        }
         if food_found > 0 {
             for ae in 0..10 {
                 let x = n - ae * 8 - 9;
@@ -1335,6 +1563,31 @@ pub fn detect_gui(
         }
     }
 
+    // boss bars (BossBarHud 29-60): bars.png, every colour, any fill, from y = 12 every 19 GUI px
+    let mut boss_found = 0usize;
+    if tex.bars.is_some() {
+        for nb in 0..6 {
+            let y = 12 + 19 * nb;
+            let mut cands = Vec::new();
+            for color in 0..7u32 {
+                for fill in 0..=183u32 {
+                    let mut layers = vec![lay(Sheet::Bars, 0, color * 10, 182, 5)];
+                    if fill > 0 {
+                        layers.push(lay(Sheet::Bars, 0, color * 10 + 5, fill, 5));
+                    }
+                    cands.push(place(PieceId::BossBar, nb as u8, c - 91, y, 182, 5, layers));
+                }
+            }
+            match best_of(cands, &[0]) {
+                Some(x) => {
+                    accepted.push(x);
+                    boss_found += 1;
+                }
+                None => break,
+            }
+        }
+    }
+
     // --- label pixels, in drawing order (later pieces cover earlier ones)
     let order = |p: PieceId| -> u8 {
         match p {
@@ -1360,6 +1613,7 @@ pub fn detect_gui(
             score: *sc,
         });
     }
+    detect_text(frame, w, h, &fit, opts, boss_found, &mut mask);
     Ok(mask)
 }
 
@@ -1424,6 +1678,772 @@ fn label(mask: &mut GuiMask, tex: &GuiTextures, p: &Placed, fit: &GuiFit, tol: f
             } else {
                 first.unwrap_or(PixelClass::Unknown)
             } as u8;
+        }
+    }
+}
+
+// ================================================================ phase 2: text (PLAN-GUI-MASK.md 3.3)
+
+/// `ChatHud.getWidth(1.0)`: the default chat width option.
+const CHAT_WIDTH: i32 = 320;
+/// Lines the chat can show (focused height `floor(1.0 * 160 + 20) / 9` = 20).
+const CHAT_LINES: i32 = 20;
+
+/// Cell and advance of a glyph of `font/ascii.png` (16x16 cells of 8x8): advance = rightmost opaque column + 2
+/// (glyph width + 1), a space advances 4. Only used to compose synthetic text.
+fn glyph(font: &Texture, ch: char) -> (i64, i64, i32) {
+    let c = if (' '..='~').contains(&ch) {
+        ch as u32
+    } else {
+        '?' as u32
+    };
+    let (cx, cy) = ((c % 16 * 8) as i64, (c / 16 * 8) as i64);
+    if c == 32 {
+        return (cx, cy, 4);
+    }
+    let mut width = 0;
+    for x in 0..8 {
+        for y in 0..8 {
+            if font.texel(cx + x, cy + y)[3] > 0 {
+                width = width.max(x as i32 + 1);
+            }
+        }
+    }
+    (cx, cy, width + 1)
+}
+
+fn text_width(font: &Texture, s: &str) -> i32 {
+    s.chars().map(|c| glyph(font, c).2).sum()
+}
+
+/// Fill a GUI rectangle in an RGB frame (alpha blended), setting the truth where a pixel's centre falls inside.
+#[allow(clippy::too_many_arguments)]
+fn fill_gui(
+    frame: &mut [u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    rect: (f64, f64, f64, f64),
+    rgba: [u8; 4],
+    truth: &mut Truth,
+    piece: PieceId,
+    class: PixelClass,
+) {
+    let (gx, gy, gw, gh) = rect;
+    let (x0, y0, x1, y1) = video_rect(fit, gx, gy, gw, gh, w, h);
+    let a = rgba[3] as f64 / 255.0;
+    for y in y0..y1 {
+        let cy = (y as f64 + 0.5 - fit.origin_y) / fit.scale;
+        if cy < gy || cy >= gy + gh {
+            continue;
+        }
+        for x in x0..x1 {
+            let cx = (x as f64 + 0.5 - fit.origin_x) / fit.scale;
+            if cx < gx || cx >= gx + gw {
+                continue;
+            }
+            let i = y * w + x;
+            for k in 0..3 {
+                frame[i * 3 + k] =
+                    (rgba[k] as f64 * a + frame[i * 3 + k] as f64 * (1.0 - a)).round() as u8;
+            }
+            truth.piece[i] = piece as u8;
+            truth.class[i] = class as u8;
+        }
+    }
+}
+
+/// `TextRenderer.draw` / `drawWithShadow`: the shadow first, one text unit down-right, at a quarter of the colour.
+#[allow(clippy::too_many_arguments)]
+fn draw_text(
+    frame: &mut [u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    font: &Texture,
+    truth: &mut Truth,
+    piece: PieceId,
+    x: i32,
+    y: i32,
+    unit: i32,
+    text: &str,
+    rgb: [u8; 3],
+    shadow: bool,
+) {
+    let quarter = [rgb[0] / 4, rgb[1] / 4, rgb[2] / 4];
+    let passes: Vec<(i32, [u8; 3])> = if shadow {
+        vec![(unit, quarter), (0, rgb)]
+    } else {
+        vec![(0, rgb)]
+    };
+    for (d, col) in passes {
+        let mut cx = x;
+        for ch in text.chars() {
+            let (gx0, gy0, adv) = glyph(font, ch);
+            for py in 0..8 {
+                for px in 0..8 {
+                    if font.texel(gx0 + px, gy0 + py)[3] > 0 {
+                        let rect = (
+                            (cx + px as i32 * unit + d) as f64,
+                            (y + py as i32 * unit + d) as f64,
+                            unit as f64,
+                            unit as f64,
+                        );
+                        fill_gui(
+                            frame,
+                            w,
+                            h,
+                            fit,
+                            rect,
+                            [col[0], col[1], col[2], 255],
+                            truth,
+                            piece,
+                            PixelClass::Opaque,
+                        );
+                    }
+                }
+            }
+            cx += adv * unit;
+        }
+    }
+}
+
+/// The HUD's text for a synthetic frame, in drawing order (InGameHud 142-338, BossBarHud, DebugHud, ChatHud).
+fn compose_text(
+    frame: &mut [u8],
+    w: usize,
+    h: usize,
+    tex: &GuiTextures,
+    st: &HudState,
+    fit: &GuiFit,
+    truth: &mut Truth,
+) {
+    let Some(font) = tex.font.as_ref() else {
+        return;
+    };
+    if st.hud_hidden {
+        return;
+    }
+    let (sw, sh) = (fit.scaled_width as i32, fit.scaled_height as i32);
+    let white = [255u8, 255, 255];
+    for (nb, b) in st.boss_bars.iter().enumerate() {
+        let tw = text_width(font, &b.name);
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::BossName,
+            sw / 2 - tw / 2,
+            12 + 19 * nb as i32 - 9,
+            1,
+            &b.name,
+            white,
+            true,
+        );
+    }
+    if st.xp_level > 0 && st.xp_bar && st.jump_bar.is_none() {
+        let s = st.xp_level.to_string();
+        let (k, l) = ((sw - text_width(font, &s)) / 2, sh - 35);
+        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            draw_text(
+                frame,
+                w,
+                h,
+                fit,
+                font,
+                truth,
+                PieceId::XpLevel,
+                k + dx,
+                l + dy,
+                1,
+                &s,
+                [0, 0, 0],
+                false,
+            );
+        }
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::XpLevel,
+            k,
+            l,
+            1,
+            &s,
+            [128, 255, 32],
+            false,
+        );
+    }
+    if let Some(name) = &st.item_name {
+        let tw = text_width(font, name);
+        let y = if st.status_bars { sh - 59 } else { sh - 45 };
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::ItemName,
+            (sw - tw) / 2,
+            y,
+            1,
+            name,
+            white,
+            true,
+        );
+    }
+    let grey_box = [80u8, 80, 80, 0x90];
+    for (i, line) in st.debug_left.iter().enumerate() {
+        let (y, k) = (2 + 9 * i as i32, text_width(font, line));
+        fill_gui(
+            frame,
+            w,
+            h,
+            fit,
+            (1.0, (y - 1) as f64, (k + 2) as f64, 9.0),
+            grey_box,
+            truth,
+            PieceId::DebugText,
+            PixelClass::Translucent,
+        );
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::DebugText,
+            2,
+            y,
+            1,
+            line,
+            [224, 224, 224],
+            false,
+        );
+    }
+    for (i, line) in st.debug_right.iter().enumerate() {
+        let (y, k) = (2 + 9 * i as i32, text_width(font, line));
+        let x = sw - 2 - k;
+        fill_gui(
+            frame,
+            w,
+            h,
+            fit,
+            ((x - 1) as f64, (y - 1) as f64, (k + 2) as f64, 9.0),
+            grey_box,
+            truth,
+            PieceId::DebugText,
+            PixelClass::Translucent,
+        );
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::DebugText,
+            x,
+            y,
+            1,
+            line,
+            [224, 224, 224],
+            false,
+        );
+    }
+    if let Some(t) = &st.title {
+        let l = text_width(font, t);
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::Title,
+            sw / 2 + 4 * (-l / 2),
+            sh / 2 - 40,
+            4,
+            t,
+            white,
+            true,
+        );
+    }
+    if let Some(t) = &st.subtitle {
+        let m = text_width(font, t);
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::Subtitle,
+            sw / 2 + 2 * (-m / 2),
+            sh / 2 + 10,
+            2,
+            t,
+            white,
+            true,
+        );
+    }
+    for (m, line) in st.chat.iter().enumerate().take(10) {
+        let base = sh - 40 - 9 * m as i32;
+        fill_gui(
+            frame,
+            w,
+            h,
+            fit,
+            (0.0, (base - 9) as f64, (CHAT_WIDTH + 6) as f64, 9.0),
+            [0, 0, 0, 127],
+            truth,
+            PieceId::ChatLine,
+            PixelClass::Translucent,
+        );
+        draw_text(
+            frame,
+            w,
+            h,
+            fit,
+            font,
+            truth,
+            PieceId::ChatLine,
+            2,
+            base - 8,
+            1,
+            line,
+            white,
+            true,
+        );
+    }
+}
+
+/// Mean colour of the middle half of a GUI pixel `unit` GUI px wide (the nearest video pixel when that is empty).
+fn gui_px(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    gx: i32,
+    gy: i32,
+    unit: i32,
+) -> Option<[f64; 3]> {
+    let s = fit.scale * unit as f64;
+    let (vx, vy) = (
+        fit.origin_x + gx as f64 * fit.scale,
+        fit.origin_y + gy as f64 * fit.scale,
+    );
+    if vx < 0.0 || vy < 0.0 || vx + s > w as f64 || vy + s > h as f64 {
+        return None;
+    }
+    let range = |a: f64| -> (usize, usize) {
+        let lo = (a + 0.25 * s - 0.5).ceil().max(0.0) as usize;
+        let hi = (a + 0.75 * s - 0.5).floor().max(0.0) as usize;
+        if lo <= hi {
+            (lo, hi)
+        } else {
+            let c = (a + 0.5 * s).floor() as usize;
+            (c, c)
+        }
+    };
+    let ((x0, x1), (y0, y1)) = (range(vx), range(vy));
+    let mut sum = [0.0; 3];
+    let mut n = 0.0;
+    for y in y0..=y1.min(h - 1) {
+        for x in x0..=x1.min(w - 1) {
+            for k in 0..3 {
+                sum[k] += frame[(y * w + x) * 3 + k] as f64;
+            }
+            n += 1.0;
+        }
+    }
+    (n > 0.0).then(|| [sum[0] / n, sum[1] / n, sum[2] / n])
+}
+
+fn brightest(a: [f64; 3]) -> f64 {
+    a.iter().cloned().fold(0.0, f64::max)
+}
+
+/// One text pixel and its shadow (TextRenderer 238-244, 451): visible, and the pixel one unit down-right is a quarter.
+fn is_text(a: [f64; 3], b: [f64; 3], o: &GuiOptions) -> bool {
+    brightest(a) >= o.text_min_bright
+        && (0..3).all(|k| (b[k] - a[k] / 4.0).abs() <= o.text_shadow_tolerance)
+}
+
+type TextHit = (i32, i32, [f64; 3]);
+
+/// Text pixels (with their shadow) in a band of 8 text rows starting at `y0`, columns `x0..x1` on the `unit` grid.
+#[allow(clippy::too_many_arguments)]
+fn scan_text(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    x0: i32,
+    x1: i32,
+    y0: i32,
+    unit: i32,
+) -> Vec<TextHit> {
+    let mut hits = Vec::new();
+    for gy in (y0..y0 + 8 * unit).step_by(unit as usize) {
+        for gx in (x0..x1).step_by(unit as usize) {
+            let (Some(a), Some(b)) = (
+                gui_px(frame, w, h, fit, gx, gy, unit),
+                gui_px(frame, w, h, fit, gx + unit, gy + unit, unit),
+            ) else {
+                continue;
+            };
+            if is_text(a, b, o) {
+                hits.push((gx, gy, a));
+            }
+        }
+    }
+    hits
+}
+
+/// Every pixel of an accepted line drawn in its dominant colour, plus the shadows one unit down-right.
+#[allow(clippy::too_many_arguments)]
+fn line_pixels(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    hits: &[TextHit],
+    y0: i32,
+    unit: i32,
+) -> Vec<(i32, i32)> {
+    let mut chans: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for &(_, _, a) in hits {
+        for k in 0..3 {
+            chans[k].push(a[k]);
+        }
+    }
+    let dom: Vec<f64> = chans
+        .iter_mut()
+        .map(|c| {
+            c.sort_by(f64::total_cmp);
+            c[c.len() / 2]
+        })
+        .collect();
+    let lo = hits.iter().map(|h| h.0).min().unwrap_or(0) - 2 * unit;
+    let hi = hits.iter().map(|h| h.0).max().unwrap_or(0) + 3 * unit;
+    let mut out: Vec<(i32, i32)> = hits.iter().map(|h| (h.0, h.1)).collect();
+    for gy in (y0..y0 + 8 * unit).step_by(unit as usize) {
+        for gx in (lo..hi).step_by(unit as usize) {
+            if let Some(a) = gui_px(frame, w, h, fit, gx, gy, unit) {
+                if (0..3).all(|k| (a[k] - dom[k]).abs() <= 2.0 * o.text_shadow_tolerance)
+                    && brightest(a) >= o.text_min_bright
+                {
+                    out.push((gx, gy));
+                }
+            }
+        }
+    }
+    let shadows: Vec<(i32, i32)> = out
+        .iter()
+        .filter_map(|&(gx, gy)| {
+            let a = gui_px(frame, w, h, fit, gx, gy, unit)?;
+            let b = gui_px(frame, w, h, fit, gx + unit, gy + unit, unit)?;
+            (0..3)
+                .all(|k| (b[k] - a[k] / 4.0).abs() <= o.text_shadow_tolerance)
+                .then_some((gx + unit, gy + unit))
+        })
+        .collect();
+    out.extend(shadows);
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// Label a GUI rectangle: pixels fully inside get `class`, pixels it only touches become `unknown` of that piece
+/// (without taking a pixel another piece already owns).
+fn paint(
+    mask: &mut GuiMask,
+    fit: &GuiFit,
+    rect: (f64, f64, f64, f64),
+    piece: PieceId,
+    class: PixelClass,
+    tol: f64,
+) {
+    let (gx, gy, gw, gh) = rect;
+    let (w, h) = (mask.width, mask.height);
+    let (x0, y0, x1, y1) = video_rect(fit, gx, gy, gw, gh, w, h);
+    for y in y0..y1 {
+        let ya = (y as f64 + tol - fit.origin_y) / fit.scale;
+        let yb = (y as f64 + 1.0 - tol - fit.origin_y) / fit.scale;
+        if yb <= gy || ya >= gy + gh {
+            continue;
+        }
+        for x in x0..x1 {
+            let xa = (x as f64 + tol - fit.origin_x) / fit.scale;
+            let xb = (x as f64 + 1.0 - tol - fit.origin_x) / fit.scale;
+            if xb <= gx || xa >= gx + gw {
+                continue;
+            }
+            let i = y * w + x;
+            let inside = xa >= gx && xb <= gx + gw && ya >= gy && yb <= gy + gh;
+            if inside {
+                mask.piece[i] = piece as u8;
+                mask.class[i] = class as u8;
+            } else if mask.piece[i] == 0 || mask.piece[i] == piece as u8 {
+                mask.piece[i] = piece as u8;
+                if mask.class[i] == PixelClass::None as u8 {
+                    mask.class[i] = PixelClass::Unknown as u8;
+                }
+            }
+        }
+    }
+}
+
+/// Record an accepted text line: its box (if it has a background) unknown, its pixels opaque, a hit.
+#[allow(clippy::too_many_arguments)]
+fn accept_line(
+    mask: &mut GuiMask,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    piece: PieceId,
+    index: u8,
+    pixels: &[(i32, i32)],
+    unit: i32,
+    boxed: Option<(f64, f64, f64, f64)>,
+    hits: usize,
+) {
+    if let Some(b) = boxed {
+        paint(
+            mask,
+            fit,
+            b,
+            piece,
+            PixelClass::Unknown,
+            o.text_edge_tolerance_px,
+        );
+    }
+    for &(gx, gy) in pixels {
+        paint(
+            mask,
+            fit,
+            (gx as f64, gy as f64, unit as f64, unit as f64),
+            piece,
+            PixelClass::Opaque,
+            o.text_edge_tolerance_px,
+        );
+    }
+    let (gx0, gx1, gy0, gy1) = match boxed {
+        Some((bx, by, bw, bh)) => (bx as i32, (bx + bw) as i32, by as i32, (by + bh) as i32),
+        None => (
+            pixels.iter().map(|p| p.0).min().unwrap_or(0),
+            pixels.iter().map(|p| p.0).max().unwrap_or(0) + unit,
+            pixels.iter().map(|p| p.1).min().unwrap_or(0),
+            pixels.iter().map(|p| p.1).max().unwrap_or(0) + unit,
+        ),
+    };
+    mask.hits.push(PieceHit {
+        piece,
+        index,
+        x: (fit.origin_x + gx0 as f64 * fit.scale).floor() as i32,
+        y: (fit.origin_y + gy0 as f64 * fit.scale).floor() as i32,
+        w: ((gx1 - gx0) as f64 * fit.scale).round() as u32,
+        h: ((gy1 - gy0) as f64 * fit.scale).round() as u32,
+        score: hits as f64,
+    });
+}
+
+fn centre(hits: &[TextHit], unit: i32) -> f64 {
+    let lo = hits.iter().map(|h| h.0).min().unwrap_or(0) as f64;
+    let hi = (hits.iter().map(|h| h.0).max().unwrap_or(0) + unit) as f64;
+    (lo + hi) / 2.0
+}
+
+fn is_black(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    gx: i32,
+    gy: i32,
+    o: &GuiOptions,
+) -> bool {
+    gui_px(frame, w, h, fit, gx, gy, 1)
+        .is_some_and(|b| brightest(b) <= 3.0 * o.text_shadow_tolerance)
+}
+
+/// Shadowed text in the places the game draws it, the XP number, and F3 lines.
+fn detect_text(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    boss_bars: usize,
+    mask: &mut GuiMask,
+) {
+    let (sw, sh) = (fit.scaled_width as i32, fit.scaled_height as i32);
+    let half = sw as f64 / 2.0;
+    // chat (ChatHud 40-97): text from x = 2, lines upward from y = H-48 every 9 GUI px
+    for m in 0..CHAT_LINES {
+        let base = sh - 40 - 9 * m;
+        if base - 9 < 0 {
+            break;
+        }
+        let hits = scan_text(frame, w, h, fit, o, 0, sw, base - 8, 1);
+        if hits.len() >= o.text_min_hits && hits.iter().map(|h| h.0).min().unwrap_or(i32::MAX) <= 4
+        {
+            let px = line_pixels(frame, w, h, fit, o, &hits, base - 8, 1);
+            let right = px.iter().map(|p| p.0).max().unwrap_or(2) + 2;
+            let boxed = (0.0, (base - 9) as f64, right as f64, 9.0);
+            accept_line(
+                mask,
+                fit,
+                o,
+                PieceId::ChatLine,
+                m as u8,
+                &px,
+                1,
+                Some(boxed),
+                hits.len(),
+            );
+        }
+    }
+    // held-item name (InGameHud 569-601): centred at y = H-59, or H-45 without status bars
+    for y0 in [sh - 59, sh - 45] {
+        let hits = scan_text(frame, w, h, fit, o, 0, sw, y0, 1);
+        let centred = (centre(&hits, 1) - half).abs() <= 4.0;
+        if hits.len() >= o.text_min_hits
+            && centred
+            && hits.iter().map(|h| h.0).min().unwrap_or(0) > 6
+        {
+            let px = line_pixels(frame, w, h, fit, o, &hits, y0, 1);
+            accept_line(mask, fit, o, PieceId::ItemName, 0, &px, 1, None, hits.len());
+            break;
+        }
+    }
+    // title x4 at y = H/2-40 and subtitle x2 at y = H/2+10, centred (InGameHud 259-299)
+    for (piece, unit, y0) in [
+        (PieceId::Title, 4, sh / 2 - 40),
+        (PieceId::Subtitle, 2, sh / 2 + 10),
+    ] {
+        let x0 = (sw / 2).rem_euclid(unit);
+        let hits = scan_text(frame, w, h, fit, o, x0, sw, y0, unit);
+        if hits.len() >= o.text_min_hits
+            && (centre(&hits, unit) - half).abs() <= 2.0 * unit as f64 + 2.0
+        {
+            let px = line_pixels(frame, w, h, fit, o, &hits, y0, unit);
+            accept_line(mask, fit, o, piece, 0, &px, unit, None, hits.len());
+        }
+    }
+    // boss names, 9 GUI px above each boss bar found (BossBarHud 41)
+    for nb in 0..boss_bars as i32 {
+        let y0 = 12 + 19 * nb - 9;
+        let hits = scan_text(frame, w, h, fit, o, 0, sw, y0, 1);
+        if hits.len() >= o.text_min_hits && (centre(&hits, 1) - half).abs() <= 4.0 {
+            let px = line_pixels(frame, w, h, fit, o, &hits, y0, 1);
+            accept_line(
+                mask,
+                fit,
+                o,
+                PieceId::BossName,
+                nb as u8,
+                &px,
+                1,
+                None,
+                hits.len(),
+            );
+        }
+    }
+    // XP number (InGameHud 555-566): green 0x80FF20 over black copies offset by one pixel, centred at y = H-35
+    let green = [128.0, 255.0, 32.0];
+    let mut xp: Vec<(i32, i32)> = Vec::new();
+    for gy in sh - 36..sh - 26 {
+        for gx in (sw / 2 - 30).max(0)..(sw / 2 + 30).min(sw) {
+            let Some(a) = gui_px(frame, w, h, fit, gx, gy, 1) else {
+                continue;
+            };
+            let is_green = (0..3).all(|k| (a[k] - green[k]).abs() <= 3.0 * o.text_shadow_tolerance);
+            if is_green
+                && [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                    .iter()
+                    .any(|&(dx, dy)| is_black(frame, w, h, fit, gx + dx, gy + dy, o))
+            {
+                xp.push((gx, gy));
+            }
+        }
+    }
+    if xp.len() >= 3 {
+        let hits: Vec<TextHit> = xp.iter().map(|&(x, y)| (x, y, green)).collect();
+        if (centre(&hits, 1) - half).abs() <= 4.0 {
+            let mut px = xp.clone();
+            for &(gx, gy) in &xp {
+                for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                    if is_black(frame, w, h, fit, gx + dx, gy + dy, o) {
+                        px.push((gx + dx, gy + dy));
+                    }
+                }
+            }
+            px.sort_unstable();
+            px.dedup();
+            accept_line(mask, fit, o, PieceId::XpLevel, 0, &px, 1, None, xp.len());
+        }
+    }
+    // F3 (DebugHud 134-153): grey 0xE0E0E0 text, no shadow, rows from y = 2 every 9 GUI px, left from x = 2 and
+    // right-aligned at W-2, each on a 0x90505050 box
+    let f3 = [224.0, 224.0, 224.0];
+    let mut idx = 0u8;
+    for left in [true, false] {
+        for row in 0..30 {
+            let y = 2 + 9 * row;
+            if y + 8 > sh {
+                break;
+            }
+            let (x0, x1) = if left { (2, sw / 2) } else { (sw / 2, sw - 2) };
+            let mut px = Vec::new();
+            for gy in y..y + 8 {
+                for gx in x0..x1 {
+                    // exactly the neutral F3 grey (colour alone is weak: snow and quartz are bright grey too)
+                    let grey = gui_px(frame, w, h, fit, gx, gy, 1).is_some_and(|a| {
+                        (0..3).all(|k| (a[k] - f3[k]).abs() <= 2.0 * o.text_shadow_tolerance)
+                            && brightest(a) - a.iter().cloned().fold(255.0, f64::min) <= 6.0
+                    });
+                    if grey {
+                        px.push((gx, gy));
+                    }
+                }
+            }
+            if px.len() < o.text_min_hits {
+                break;
+            }
+            let lo = px.iter().map(|p| p.0).min().unwrap_or(0);
+            let hi = px.iter().map(|p| p.0).max().unwrap_or(0) + 1;
+            // a line starts at x = 2 (left) or ends at W-2 (right) (DebugHud 147, 160), and text is thin strokes:
+            // a solid bright patch is not a line
+            let anchored = if left { lo <= 3 } else { hi >= sw - 3 };
+            let density = px.len() as f64 / ((hi - lo) as f64 * 8.0);
+            if !anchored || density > 0.6 {
+                break;
+            }
+            let boxed = (lo as f64 - 1.0, y as f64 - 1.0, (hi - lo + 2) as f64, 9.0);
+            let n = px.len();
+            accept_line(
+                mask,
+                fit,
+                o,
+                PieceId::DebugText,
+                idx,
+                &px,
+                1,
+                Some(boxed),
+                n,
+            );
+            idx = idx.saturating_add(1);
         }
     }
 }
