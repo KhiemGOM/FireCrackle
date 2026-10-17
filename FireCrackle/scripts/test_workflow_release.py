@@ -32,6 +32,10 @@ class WorkflowPolicyTests(unittest.TestCase):
             self.assertRegex(body.lower(), rf"pip install[^\n]*\b{dependency}\b")
         self.assertIn("https://download.pytorch.org/whl/cpu", body)
 
+    def test_cache_warm_installs_shared_unveil_wasm_target(self):
+        for platform in ("windows", "linux"):
+            self.assertIn("rustup target add wasm32-unknown-unknown", job(platform, "rust-cache-warm.yml"))
+
     def test_every_action_is_pinned_to_a_full_commit_with_its_version_in_a_comment(self):
         for path in sorted(WORKFLOWS.glob("*.yml")):
             for line in path.read_text(encoding="utf-8").splitlines():
