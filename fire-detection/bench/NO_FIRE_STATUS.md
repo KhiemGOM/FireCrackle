@@ -272,6 +272,48 @@ Always-unveiled palette count is an interesting **same-recording diagnostic**, n
 reported variants on clips used to develop those cues; it needs a separately frozen cross-recording test. Morphological
 opening can delete exactly the tiny fire we need to protect. The complete 41-variant results remain in the local JSON.
 
+## Current practical training target and resumed blobs (2026-10-17)
+
+The user authorized a reasonable practical cutoff and continuation of the original deterministic
+colour/blob algorithm. Adopt **horizontal visible-source box width >=24 native pixels** at
+1920x1080 as meaningful fire; smaller sources are negligible for this training task. A frame
+is meaningful if any source meets the cutoff. This is an intentionally pragmatic proxy,
+not a claim that width guarantees distinguishable sprite columns. Raw joined labels remain
+unchanged; derived targets preserve no-fire versus negligible-fire classes and exclude unknowns.
+
+All 141,959 labelled frames across four recordings now have derived target files in
+`.board/no-fire-width24/*-targets.jsonl`: 65,077 meaningful fire, 9,506 negligible fire,
+67,376 no-fire. The positive class for this filter is **clear no-fire/negligible**; FP is
+**meaningful fire incorrectly cleared**.
+
+Reused real-video yellow/pale connected-region evidence (raw and conditional unveil combined
+with max). Freeze pair thresholds on clip2 at zero observed calibration FP: full-frame pair
+score <112, or HUD-excluded pair score <5. The new guarded branch additionally requires the
+largest remaining single warm component <4,096 pixels; large warm blobs stay review because
+the pale region may be obscured/merged. These are connected-region scores, not total pixels.
+
+| Rule | Evaluation TP | Evaluation FP | Correct clear recall |
+| --- | ---: | ---: | ---: |
+| Full-frame pair | 7 | 0 | 0.9% |
+| HUD-excluded pair, unguarded | 34 | 1 | 4.5% |
+| Full-frame OR guarded HUD-excluded pair | 25 | 0 | 3.3% |
+
+Evaluation is clip1+quad1+survival1: 1,361 sampled frames, 755 clear-eligible targets and 606
+meaningful fire. Calibration clip2 is excluded from this table. This is **post-hoc diagnostic
+evidence**: the 4,096 guard was chosen after examining an evaluation false clear (clip1 frame6660),
+so this is not blind validation or a zero-FP guarantee. That frame contains a roughly34px
+orange flame; the guard keeps it for review. Eight additional sampled cleared frames were
+visually reviewed; no obvious meaningful fire was found. Very low clear coverage remains the
+main weakness. No application labels or whole intervals are automatically cleared.
+
+```powershell
+python -m unittest discover -s fire-detection/bench/no_fire -p test_blob_calibration.py
+python fire-detection/bench/no_fire/blob_calibration.py .board/fire-blob-support/yellow .board/no-fire-width24
+```
+
+The report includes input hashes, original detector protocol, frozen thresholds, per-recording
+TP/FP and derived full-recording training targets. Only source/tests/report prose are committed.
+
 ## Registered temporal baseline (2026-10-17, historical size proxy)
 
 An offline registered three-frame burst test (frames n,n+3,n+6; anchors every90frames)
