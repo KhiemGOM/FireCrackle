@@ -7,6 +7,7 @@ FireCrackle is a desktop app for matching Minecraft fire animations to video fra
 - [Download builds](https://github.com/KhiemGOM/FireCrackle/releases)
 - [App development and packaging](FireCrackle/README.md)
 - [Detector, recording mod and experiments](fire-detection/README.md)
+- [Experimental/risky no-fire preview: all assumptions and known failures](fire-detection/bench/no_fire/EXPERIMENTAL-ASSUMPTIONS.md) — reviewable research suggestions only; never automatic label confirmation.
 - [Contributing and verification](CONTRIBUTING.md)
 - [Third-party assets and licensing](THIRD_PARTY_NOTICES.md)
 

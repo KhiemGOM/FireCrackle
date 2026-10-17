@@ -1,7 +1,7 @@
 //! Small saturated-orange evidence veto; never emits a fire label.
 use std::io::{self,Read,Write};
 
-fn components(rgb:&[u8],world:&[u8],w:usize,h:usize)->Vec<(usize,usize,usize,usize,usize)>{
+pub(crate) fn components(rgb:&[u8],world:&[u8],w:usize,h:usize)->Vec<(usize,usize,usize,usize,usize)>{
  let mut m=vec![false;w*h];
  for i in 12*w..w*h{
   let (r,g,b)=(rgb[3*i] as u32,rgb[3*i+1] as u32,rgb[3*i+2] as u32);

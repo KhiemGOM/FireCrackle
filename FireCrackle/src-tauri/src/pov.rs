@@ -69,9 +69,24 @@ impl Jobs {
         Ok(())
     }
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
+        self.start_impl(project, tools, false)
+    }
+    pub fn start_no_fire(&self, project: Project, tools: Tools) -> Result<Status, String> {
+        if project.meta.width != 1920 || project.meta.height != 1080 {
+            return Err("Experimental no-fire scanning currently requires native 1920×1080 footage".into());
+        }
+        self.start_impl(project, tools, true)
+    }
+    pub fn candidates(&self, id: u64, offset: usize) -> Result<Vec<u32>, String> {
+        let state = self.current.lock().map_err(|_| "Scan state unavailable")?;
+        let job = state.as_ref().filter(|j| j.status.id == id).ok_or("Scan is no longer current")?;
+        if job.status.state != "done" { return Err("Finish the scan before reviewing results".into()); }
+        Ok(job.rows.iter().skip(offset).take(100).map(|r| r.0).collect())
+    }
+    fn start_impl(&self, project: Project, tools: Tools, no_fire: bool) -> Result<Status, String> {
         let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
         if state.as_ref().is_some_and(|j| j.status.state == "running") {
-            return Err("A first-person scan is already running".into());
+            return Err("A scan for this tool is already running".into());
         }
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let status = Status {
@@ -95,7 +110,7 @@ impl Jobs {
         });
         let shared = self.current.clone();
         std::thread::spawn(move || {
-            let result = scan(&project, &tools, &cancel, &child, |frame, row| {
+            let update = |frame, row| {
                 if let Ok(mut state) = shared.lock()
                     && let Some(job) = state.as_mut().filter(|j| j.status.id == id)
                 {
@@ -105,7 +120,12 @@ impl Jobs {
                         job.status.accepted = job.rows.len();
                     }
                 }
-            });
+            };
+            let result = if no_fire {
+                crate::no_fire::scan(&project, &tools, &cancel, &child, update)
+            } else {
+                scan(&project, &tools, &cancel, &child, update)
+            };
             // Kill and reap on success, failure, cancellation, or premature EOF.
             if let Ok(mut slot) = child.lock()
                 && let Some(mut process) = slot.take()
@@ -169,6 +189,21 @@ fn scan(
     let (w, h) = (project.meta.width, project.meta.height);
     let matcher70 = SilhouetteMatcher::new(SHEET, w, h, 70.0)?;
     let matcher60 = SilhouetteMatcher::new(SHEET, w, h, 60.0)?;
+    scan_with(project, tools, cancel, slot, |frame| {
+        let veiled = detect_veil(frame, w, h, 16.min(h.saturating_sub(1)))?;
+        let a = if veiled { matcher70.match_frame_veiled(frame)? } else { matcher70.match_frame(frame)? };
+        let b = if veiled { matcher60.match_frame_veiled(frame)? } else { matcher60.match_frame(frame)? };
+        let best = if b.colour_evidence > a.colour_evidence { b } else { a };
+        Ok(accepted(best.ranked_colour[0].0, best.colour_evidence))
+    }, update)
+}
+
+pub(crate) fn scan_with(
+    project: &Project, tools: &Tools, cancel: &AtomicBool, slot: &Mutex<Option<Child>>,
+    process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
+    update: impl FnMut(u32, Option<u8>),
+) -> Result<(), String> {
+    let (w, h) = (project.meta.width, project.meta.height);
     let frame_bytes = w
         .checked_mul(h)
         .and_then(|n| n.checked_mul(3))
@@ -212,25 +247,7 @@ fn scan(
         project.frames.len() as u32,
         scan_workers(frame_bytes),
         cancel,
-        |frame| {
-            let veiled = detect_veil(frame, w, h, 16.min(h.saturating_sub(1)))?;
-            let a = if veiled {
-                matcher70.match_frame_veiled(frame)?
-            } else {
-                matcher70.match_frame(frame)?
-            };
-            let b = if veiled {
-                matcher60.match_frame_veiled(frame)?
-            } else {
-                matcher60.match_frame(frame)?
-            };
-            let best = if b.colour_evidence > a.colour_evidence {
-                b
-            } else {
-                a
-            };
-            Ok(accepted(best.ranked_colour[0].0, best.colour_evidence))
-        },
+        process,
         update,
     )?;
     if cancel.load(Ordering::Relaxed) {
@@ -349,6 +366,18 @@ mod tests {
                 .load(Ordering::Relaxed)
         );
         assert!(jobs.cancel(2).is_err());
+    }
+    #[test]
+    fn candidate_review_requires_completed_scan_and_keeps_original_frame_numbers() {
+        assert!(job("running").candidates(1,0).is_err());
+        assert!(job("cancelled").candidates(1,0).is_err());
+        assert!(job("failed").candidates(1,0).is_err());
+        let jobs=job("done");
+        assert_eq!(jobs.candidates(1,0).unwrap(),vec![0]);
+        assert!(jobs.candidates(1,100).unwrap().is_empty());
+        assert!(jobs.candidates(2,0).is_err());
+        let mut p=project();p.meta.width=1280;
+        assert!(jobs.start_no_fire(p,Tools::default()).is_err());
     }
     #[test]
     #[ignore = "Requires the lossless real clip2 frame765 fixture and FFmpeg paths"]

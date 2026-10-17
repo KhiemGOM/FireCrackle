@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image,ImageDraw
 from translucency import detect,VERSION
 from prepare import ROOT,SOURCES
+from experiment import TITLE,WARNING,announce,metadata,html_notice
 USE_GUI=False
 
 def classify(rgb):
@@ -42,7 +43,7 @@ def old_source(item):
  (out/f'{name}.json').write_text(json.dumps(rows,indent=2));return rows
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--old',action='store_true');ap.add_argument('--gui-mask',action='store_true');a=ap.parse_args()
+ ap=argparse.ArgumentParser(description=TITLE+'. '+WARNING);ap.add_argument('--old',action='store_true');ap.add_argument('--gui-mask',action='store_true');a=ap.parse_args();announce()
  out=ROOT/'.board/no-fire-parallel/fragment-review/translucency-detector';out.mkdir(parents=True,exist_ok=True)
  new=ROOT/'.board/no-fire-parallel/fragment-review/translucency-new'
  rows=[]
@@ -60,9 +61,11 @@ def main():
   report['baseline']={'original_TP':sum(not r['fire'] for r in old),'original_FP':sum(r['fire'] for r in old),'remaining_TP':sum(not r['fire'] and not r['detector']['abstain'] for r in old),'remaining_FP':sum(r['fire'] and not r['detector']['abstain'] for r in old),'cases':old}
  if a.gui_mask:
   report['gui_mask']={'enabled':True,'source_sha256':hashlib.sha256((ROOT/'fire-detection/core/src/gui_mask.rs').read_bytes()).hexdigest(),'material_reliable':sum(r['detector']['gui']['reliable'] for r in rows),'material_frames':len(rows),'baseline_reliable':sum(r['detector']['gui']['reliable'] for r in report.get('baseline',{}).get('cases',[])),'baseline_frames':len(report.get('baseline',{}).get('cases',[])),'policy':'Canonical defaults and all local atlases. Known classes1/2 and unknown item/effect/crosshair interiors excluded; unknown edges retained. Unreliable=unavailable, not proof of no GUI. Fire scores unchanged; this experiment changes material veto only.'}
+ report['experiment']=metadata()
  (out/'report.json').write_text(json.dumps(report,indent=2))
  cards=''.join(f'<article><p>{r["seconds"]}s · {r["label"]} · veto={r["detector"]["abstain"]} · {r["detector"]["reasons"]}</p><a href="../translucency-new/{r["seconds"]*60}.jpg"><img loading="lazy" src="../translucency-new/{r["seconds"]*60}.jpg"></a></article>' for r in rows)
  (out/'index.html').write_text('<!doctype html><meta charset="utf-8"><title>Translucency material detector</title><style>body{background:#10151d;color:white;font:15px system-ui}main{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}img{width:100%}article{border:1px solid #456;padding:10px}</style><h1>Material detection, not fire detection</h1><pre>'+json.dumps(report['material_counts'],indent=2)+'</pre><pre>'+json.dumps({k:v for k,v in report.get('baseline',{}).items() if k!='cases'},indent=2)+'</pre><pre>'+json.dumps(report.get('gui_mask',{}),indent=2)+'</pre><main>'+cards+'</main>',encoding='utf8')
+ page=(out/'index.html').read_text(encoding='utf8');(out/'index.html').write_text(page.replace('<h1>',html_notice()+'<h1>',1),encoding='utf8')
  print(json.dumps(report['material_counts']),flush=True);print(json.dumps({k:v for k,v in report.get('baseline',{}).items() if k!='cases'}),flush=True)
 
 if __name__=='__main__':main()

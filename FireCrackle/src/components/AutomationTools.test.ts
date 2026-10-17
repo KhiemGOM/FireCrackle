@@ -7,10 +7,23 @@ import {AutomationTools} from "./AutomationTools";
 type Element=ReactElement<Record<string,any>>;
 function find(node:any,text:string):Element|undefined{if(Array.isArray(node))return node.map(n=>find(n,text)).find(Boolean);if(!node||typeof node!=="object"||!node.props)return;if(node.type==="button"&&node.props.children===text)return node;return find(node.props.children,text);}
 const status:PovStatus={id:2,video_path:"v.mkv",state:"done",processed:100,total:100,accepted:4,applied:0,error:null};
-const start=vi.fn(),cancel=vi.fn(),apply=vi.fn();
-function render(){hooks.cursor=0;return AutomationTools({backend:{povStart:start,povStatus:async()=>hooks.values[0],povCancel:cancel} as unknown as Backend,videoPath:"v.mkv",onApply:apply,onClose:vi.fn()});}
-beforeEach(()=>{hooks.values=[];start.mockReset();cancel.mockReset();apply.mockReset();});
+const start=vi.fn(),cancel=vi.fn(),apply=vi.fn(),noFireStart=vi.fn(),noFireCancel=vi.fn(),review=vi.fn(),guiSet=vi.fn();
+function render(){hooks.cursor=0;return AutomationTools({backend:{povStart:start,povStatus:async()=>hooks.values[0],povCancel:cancel,noFireStart,noFireCancel,noFireStatus:async()=>hooks.values[3],guiAnswerGet:async()=>null,guiAnswerSet:guiSet} as unknown as Backend,videoPath:"v.mkv",onApply:apply,onReview:review,onClose:vi.fn()});}
+beforeEach(()=>{hooks.values=[];for(const mock of [start,cancel,apply,noFireStart,noFireCancel,review,guiSet])mock.mockReset();});
 afterEach(()=>vi.unstubAllGlobals());
 it("never starts scanning until explicitly requested",async()=>{const root=render();expect(start).not.toHaveBeenCalled();start.mockResolvedValue(status);find(root,"Scan video")!.props.onClick();for(let i=0;i<10;i++)await Promise.resolve();expect(start).toHaveBeenCalledOnce();expect(apply).not.toHaveBeenCalled();});
 it("requires explicit apply and can cancel running work",async()=>{hooks.values=[status,null,false];let root=render();expect(apply).not.toHaveBeenCalled();find(root,"Apply accepted matches")!.props.onClick();for(let i=0;i<10;i++)await Promise.resolve();expect(apply).toHaveBeenCalledExactlyOnceWith(2);hooks.values=[{...status,state:"running"},null,false];root=render();expect(find(root,"Apply accepted matches")).toBeUndefined();find(root,"Cancel scan")!.props.onClick();expect(cancel).toHaveBeenCalledExactlyOnceWith(2);});
 it("does not offer applying failed or cancelled partial results",()=>{for(const state of ["failed","cancelled"]){hooks.values=[{...status,state},null,false];expect(find(render(),"Apply accepted matches")).toBeUndefined();}});
+it("no-fire scanning requires video confirmation and never automatically applies results",async()=>{
+  let root=render();expect(find(root,"Scan for no fire")!.props.disabled).toBe(true);expect(noFireStart).not.toHaveBeenCalled();
+  hooks.values[6]=true;root=render();expect(find(root,"Scan for no fire")!.props.disabled).toBe(false);
+  noFireStart.mockResolvedValue({...status,state:"running"});find(root,"Scan for no fire")!.props.onClick();
+  for(let i=0;i<15;i++)await Promise.resolve();
+  expect(guiSet).toHaveBeenCalledExactlyOnceWith("yes");expect(noFireStart).toHaveBeenCalledOnce();expect(apply).not.toHaveBeenCalled();
+});
+it("reviews the original candidate frame and cancels without saving labels",async()=>{
+  render();hooks.values[3]=status;hooks.values[8]=[1920,2400];hooks.values[9]=1;
+  find(render(),"Review frame")!.props.onClick();expect(review).toHaveBeenCalledExactlyOnceWith(2400);expect(apply).not.toHaveBeenCalled();
+  hooks.values[3]={...status,state:"running"};noFireCancel.mockResolvedValue(undefined);
+  find(render(),"Cancel no-fire scan")!.props.onClick();expect(noFireCancel).toHaveBeenCalledExactlyOnceWith(2);
+});

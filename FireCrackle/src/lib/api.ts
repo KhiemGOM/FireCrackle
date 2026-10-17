@@ -101,6 +101,10 @@ export interface Backend {
   settingsSet(key: string, value: number): Promise<View>;
   /** Native label file dialog and transfer; null on cancel. */
   transferLabels?(kind: "import" | "export"): Promise<View | null>;
+  noFireStart?(): Promise<PovStatus>;
+  noFireStatus?(): Promise<PovStatus | null>;
+  noFireCancel?(id:number): Promise<void>;
+  noFireCandidates?(id:number, offset:number): Promise<number[]>;
   povStart?(): Promise<PovStatus>;
   povStatus?(): Promise<PovStatus | null>;
   povCancel?(id:number): Promise<void>;
@@ -146,6 +150,10 @@ export async function createBackend(): Promise<Backend> {
     linkStatus: () => invoke<LinkStatus | null>("link_status"),
     linkCancel: (id) => invoke<void>("link_cancel", { id }),
     toolStatus: () => invoke<ToolProgress | null>("tool_status"),
+    noFireStart: () => invoke<PovStatus>("no_fire_start"),
+    noFireStatus: () => invoke<PovStatus|null>("no_fire_status"),
+    noFireCancel: (id) => invoke<void>("no_fire_cancel",{id}),
+    noFireCandidates: (id,offset) => invoke<number[]>("no_fire_candidates",{id,offset}),
     povStart: () => invoke<PovStatus>("pov_start"),
     povStatus: () => invoke<PovStatus|null>("pov_status"),
     povCancel: (id) => invoke<void>("pov_cancel",{id}),

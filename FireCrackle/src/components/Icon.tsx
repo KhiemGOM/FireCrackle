@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 const shapes = {
+  robot: <><rect x="4" y="7" width="16" height="14" rx="3" /><path d="M12 3v4M1 12v5M23 12v5M8 17h8" /><circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" /></>,
   filter: <path d="M3 4h18l-7 8v7l-4 2v-9Z" />,
   link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
   folder: <><path d="M3 7V5h6l2 2h10v12H3Z" /><path d="M3 11h18" /></>,

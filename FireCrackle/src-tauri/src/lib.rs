@@ -15,6 +15,7 @@ mod external_tools;
 mod gui;
 mod jolt;
 mod pov;
+mod no_fire;
 mod url_import;
 
 #[tauri::command]
@@ -42,6 +43,7 @@ async fn compress_fire_cycle(
 struct AppState {
     ws: Arc<Mutex<Option<Workspace>>>,
     pov: pov::Jobs,
+    no_fire: pov::Jobs,
     links: url_import::Jobs,
 }
 
@@ -65,6 +67,26 @@ fn link_status(state: State<'_, AppState>) -> Result<Option<url_import::Status>,
 fn link_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
     state.links.cancel(id)
 }
+#[tauri::command]
+fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let workspace = guard.as_ref().ok_or("No video is open")?;
+    studio_core::gui::ensure_allowed(studio_core::gui::read_answer(workspace.dir()))?;
+    state.no_fire.start_no_fire(workspace.automation_project(), external_tools::video_tools()?)
+}
+#[tauri::command]
+fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
+    state.no_fire.status()
+}
+#[tauri::command]
+fn no_fire_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
+    state.no_fire.cancel(id)
+}
+#[tauri::command]
+fn no_fire_candidates(state: State<'_, AppState>, id: u64, offset: usize) -> Result<Vec<u32>, String> {
+    state.no_fire.candidates(id, offset)
+}
+
 #[tauri::command]
 fn pov_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
     let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
@@ -359,6 +381,10 @@ pub fn run_app() {
             link_start,
             link_status,
             link_cancel,
+            no_fire_start,
+            no_fire_status,
+            no_fire_cancel,
+            no_fire_candidates,
             pov_start,
             pov_status,
             pov_cancel,

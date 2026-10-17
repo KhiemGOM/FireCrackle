@@ -19,6 +19,7 @@ from portal_undo import load_texture,apply_portal,translucency_guard
 from veil_native import apply,library
 from colour_support import frames
 from prepare import ROOT,SOURCES
+from experiment import TITLE,WARNING,announce,metadata,html_notice
 
 
 def world_mask(h,w):
@@ -45,7 +46,7 @@ def counts(rows,key):
 
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--jar',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--scan',action='store_true');args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
+    ap=argparse.ArgumentParser(description=TITLE+'. '+WARNING);ap.add_argument('--jar',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--scan',action='store_true');args=ap.parse_args();announce();args.out.mkdir(parents=True,exist_ok=True)
     atlas=load_texture(args.jar);library()
     rawdir=ROOT/'.board/portal-undo/frames';rawdir.mkdir(parents=True,exist_ok=True)
     ids=[50760,51840,51930,52020]
@@ -85,8 +86,10 @@ def main():
             data=dict(pool.map(scan_source,['clip2','clip1','quad1','survival1'],[args.out]*4))
         evaluation=sum((data[n] for n in ['clip1','quad1','survival1']),[])
         report['guard_evaluation']={'original':counts(evaluation,'original_clear'),'guarded':counts(evaluation,'clear_with_guard'),'remaining_errors':[{'source':r['source'],'frame':r['frame']} for r in evaluation if r['clear_with_guard'] and r['truth']['substantial']],'note':'Original frozen capture-truth metrics; prior manual exceptions are not silently used as labels. Full fresh guardscan, reused unchanged component-score decisions.'}
+    report['experiment']=metadata()
     (args.out/'report.json').write_text(json.dumps(report,indent=2))
     page='<!doctype html><meta charset="utf-8"><title>Portal undo</title><style>body{background:#10151d;color:#e8edf7;font:15px system-ui;margin:22px}article{border:1px solid #354259;padding:16px;margin:20px 0;border-radius:12px}.wide{width:100%;max-width:1280px}.crops{display:flex;overflow:auto;gap:24px}figure{margin:8px;flex-shrink:0}figure img{image-rendering:pixelated;height:210px;max-width:none;margin-right:12px}a{color:#6dd6ff}</style><h1>Portal animation undo: original → recovered</h1><p>Automatic texture-phase/opacity fit; no fire labels used for fitting. Four exact native video frames. The no-fire algorithm abstains on suspected translucency; these reconstructions are for inspection.</p><p>Some grid seams and compression noise remain. GUI handling uses a temporary envelope proxy; valid-pixel maps are available alongside each image.</p>'+''.join(cards)
+    page=page.replace('<h1>',html_notice()+'<h1>',1)
     (args.out/'index.html').write_text(page,encoding='utf8');print(json.dumps(report.get('guard_evaluation',{})),flush=True)
 
 

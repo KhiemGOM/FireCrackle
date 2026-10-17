@@ -1,5 +1,5 @@
 """Frozen policy check on separate recordings, before manual review of decisions."""
-import json,subprocess
+import json,subprocess,argparse
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 import numpy as np
@@ -8,6 +8,7 @@ from retention_pilot import OUT,helper,close,evaluate
 from prepare import ROOT
 from gui_mask_native import mask
 from translucency import detect
+from experiment import TITLE,WARNING,announce,metadata
 
 VIDEOS=['2026-10-15 14-15-51.mkv','2026-10-17 17-04-31.mkv']
 
@@ -41,5 +42,6 @@ def scan(name):
  return rows
 
 if __name__=='__main__':
+ argparse.ArgumentParser(description=TITLE+'. '+WARNING).parse_args();announce()
  with ProcessPoolExecutor(max_workers=2) as pool:rows=sum(pool.map(scan,VIDEOS),[])
- (OUT/'validation.json').write_text(json.dumps({'policy':'Frozen restored-only menu saturated-orange128/24/8, materialv3, canonical GUI defaults. No thresholds changed after reading these recordings. Manual review pending.','cases':rows},indent=2))
+ (OUT/'validation.json').write_text(json.dumps({'experiment':metadata(),'policy':'Frozen restored-only menu saturated-orange128/24/8, materialv3, canonical GUI defaults. No thresholds changed after reading these recordings. Manual review pending.','cases':rows},indent=2))

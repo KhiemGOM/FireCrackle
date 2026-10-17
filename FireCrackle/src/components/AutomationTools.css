@@ -1,5 +1,14 @@
-.automation-tools { max-width: 620px; }
+.automation-tools { max-width: 760px; }
+.automation-tools .modal-head h2 { display: flex; align-items: center; gap: 8px; }
+.automation-tools .modal-body { max-height: 75vh; overflow-y: auto; }
 .automation-tools p { line-height: 1.5; }
 .automation-progress { display: grid; gap: 8px; margin: 18px 0; }
 .automation-progress progress { width: 100%; accent-color: var(--accent); }
 .automation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.automation-experiment { margin-top: 24px; padding: 16px; border: 1px solid #bb812c; border-radius: 8px; background: #2d251a; }
+.automation-experiment h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.experiment-badge { color: #ffd18a; font-size: 11px; padding: 3px 7px; border: 1px solid #bb812c; border-radius: 5px; }
+.experiment-warning { color: #ffdbac; font-weight: 600; }
+.experiment-assumptions summary { cursor: pointer; padding: 7px 0; font-weight: 600; }
+.experiment-assumptions details { margin: 8px 0 0 12px; }
+.experiment-assumptions li { margin: 9px 0; line-height: 1.5; }

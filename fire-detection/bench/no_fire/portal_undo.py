@@ -27,7 +27,9 @@ def decide_no_fire(rgb,candidate_clear,world_mask=None,known_translucent=None):
     """Mandatory guard for the research no-fire path; correction never overrides abstention."""
     guard=translucency_guard(rgb,world_mask,known_translucent)
     decision='review_translucency' if guard['abstain'] else 'clear' if candidate_clear else 'review_fire_evidence'
-    return {'decision':decision,'clear':decision=='clear','guard':guard}
+    return {'decision':decision,'clear':decision=='clear','guard':guard,
+            'status':'experimental_risky','requires_manual_review':True,'can_auto_confirm':False,
+            'clear_means':'candidate_no_fire_only','assumptions':'EXPERIMENTAL-ASSUMPTIONS.md'}
 
 
 def load_texture(jar):

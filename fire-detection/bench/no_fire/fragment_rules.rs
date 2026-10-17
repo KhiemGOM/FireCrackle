@@ -9,7 +9,7 @@ fn orange(c: &[u8]) -> bool {
     let (r, g, b) = (c[0] as f64, c[1] as f64, c[2] as f64);
     r >= 64. && g >= r * 0.23 && g <= r * 0.88 && b <= r * 0.5 && r - b >= 24.
 }
-fn mask(rgb: &[u8], w: usize, h: usize) -> Vec<u8> {
+pub(crate) fn mask(rgb: &[u8], w: usize, h: usize) -> Vec<u8> {
     let mut m = vec![0; w * h];
     for p in 12 * w..w * h {
         m[p] = orange(&rgb[3 * p..3 * p + 3]) as u8;
@@ -62,7 +62,7 @@ fn dilate(m: &[u8], w: usize, h: usize, r: usize) -> Vec<u8> {
     }
     out
 }
-fn largest(m: &[u8], w: usize, h: usize, r: usize) -> usize {
+pub(crate) fn largest(m: &[u8], w: usize, h: usize, r: usize) -> usize {
     let mut d = dilate(m, w, h, r);
     let mut queue = Vec::new();
     let mut best = 0;

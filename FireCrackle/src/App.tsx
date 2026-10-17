@@ -274,7 +274,7 @@ export default function App() {
               </IconButton>
               <span className="toolbar-divider" />
               <IconButton icon="keyboard" label="Keyboard shortcuts" aria-pressed={showKeys} onClick={() => setShowKeys((s) => !s)} />
-              <IconButton icon="fire" label="Optional automation tools" onClick={() => {setPlayback(STOPPED);setShowAutomation(true);}}>Auto label</IconButton>
+              <IconButton icon="robot" label="Automated tools" onClick={() => {setPlayback(STOPPED);setShowAutomation(true);}}>Automated tools</IconButton>
               <IconButton icon="settings" label="Settings" onClick={() => setShowSettings(true)} />
             </div>
           )}
@@ -422,7 +422,7 @@ export default function App() {
       {showSettings && <SettingsPanel settings={ws.settings} onSet={ws.setSetting} onClose={() => setShowSettings(false)} />}
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
       {showLink && <OpenLink backend={backend} initialUrl={/^https?:\/\//i.test(path.trim()) ? path : ""} onClose={() => setShowLink(false)} onOpen={async downloaded => { setShowLink(false); await openVideo(downloaded); }} />}
-      {showAutomation && view && <AutomationTools key={ws.videoPath} backend={backend} videoPath={ws.videoPath} onApply={ws.applyAutomation} onClose={()=>setShowAutomation(false)} />}
+      {showAutomation && view && <AutomationTools key={ws.videoPath} backend={backend} videoPath={ws.videoPath} onApply={ws.applyAutomation} onReview={(frame)=>{jumpToLabel(frame);setShowAutomation(false);}} onClose={()=>setShowAutomation(false)} />}
     </div>
   );
 }

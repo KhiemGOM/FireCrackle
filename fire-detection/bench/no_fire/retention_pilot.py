@@ -7,6 +7,7 @@ from PIL import Image,ImageDraw
 from prepare import ROOT,SOURCES
 from veil_native import apply
 from gui_mask_native import mask
+from experiment import TITLE,WARNING,announce,metadata
 
 OUT=ROOT/'.board/no-fire-parallel/fragment-review/retention'
 
@@ -39,7 +40,7 @@ def source(name):
  (OUT/f'{name}.json').write_text(json.dumps(rows,indent=2));return rows
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--single',action='store_true');ap.add_argument('--reuse-evidence',action='store_true');a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+ ap=argparse.ArgumentParser(description=TITLE+'. '+WARNING);ap.add_argument('--single',action='store_true');ap.add_argument('--reuse-evidence',action='store_true');a=ap.parse_args();announce();OUT.mkdir(parents=True,exist_ok=True)
  if a.single:
   p=helper();e=evaluate(np.asarray(Image.open(OUT/'41850.png').convert('RGB')),p);close(p);print(json.dumps(e));return
  if a.reuse_evidence:
@@ -51,6 +52,7 @@ def main():
  assert len(rows)==104
  counts=lambda key:{'TP':sum(r[key] and not r['fire'] for r in rows),'FP':sum(r[key] and r['fire'] for r in rows)}
  report={'before':counts('clear_after_material'),'after':counts('clear_after_both'),'cases':rows,'rules_sha256':hashlib.sha256(Path(__file__).with_name('retention_rules.rs').read_bytes()).hexdigest(),'protocol':'Strong orange R>=96,.30R<=G<=.85R,B<=.25R,R-B>=80;8connected area>=128,width>=24,height>=8. Extra veto ONLY on restored RGB after confirmed shared automatic unveil, canonical GUI exclusion. Policy refined on original104clear cohort; development, not independent.'}
+ report['experiment']=metadata()
  (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps({'before':report['before'],'after':report['after'],'newly_retained':[(r['source'],r['frame'],r['fire']) for r in rows if r['clear_after_material'] and not r['clear_after_both']]}),flush=True)
 
 if __name__=='__main__':main()

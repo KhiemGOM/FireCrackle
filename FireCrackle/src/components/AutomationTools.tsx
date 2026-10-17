@@ -1,18 +1,40 @@
 import { useEffect, useState } from "react";
 import type { Backend, PovStatus } from "../lib/api";
 import { messageOf } from "../hooks/useWorkspace";
+import { Icon } from "./Icon";
 import "./AutomationTools.css";
 
-export function AutomationTools({backend,videoPath,onApply,onClose}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void}) {
+export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void;onReview?:(frame:number)=>void}) {
   const [status,setStatus]=useState<PovStatus|null>(null);
   const [error,setError]=useState<string|null>(null);
   const [pending,setPending]=useState(false);
+  const [noFire,setNoFire]=useState<PovStatus|null>(null);
+  const [noFireError,setNoFireError]=useState<string|null>(null);
+  const [noFirePending,setNoFirePending]=useState(false);
+  const [confirmed,setConfirmed]=useState(false);
+  const [offset,setOffset]=useState(0);
+  const [frames,setFrames]=useState<number[]>([]);
+  const [selected,setSelected]=useState(0);
   useEffect(()=>{
     let live=true;
     const refresh=async()=>{try{const next=await backend.povStatus?.();if(live)setStatus(next && next.video_path===videoPath?next:null);}catch(e){if(live)setError(messageOf(e));}};
-    void refresh();const timer=setInterval(()=>void refresh(),700);
+    const refreshNoFire=async()=>{try{const next=await backend.noFireStatus?.();if(live)setNoFire(next && next.video_path===videoPath?next:null);}catch(e){if(live)setNoFireError(messageOf(e));}};
+    void refresh();void refreshNoFire();const timer=setInterval(()=>{void refresh();void refreshNoFire();},700);
     return()=>{live=false;clearInterval(timer);};
   },[backend,videoPath]);
+  useEffect(()=>{
+    let live=true;setFrames([]);setSelected(0);
+    if(noFire?.state==="done") void backend.noFireCandidates?.(noFire.id,offset).then(rows=>{if(live)setFrames(rows);}).catch(e=>{if(live)setNoFireError(messageOf(e));});
+    return()=>{live=false;};
+  },[backend,noFire?.id,noFire?.state,offset]);
+  async function scanNoFire() {
+    setNoFirePending(true);setNoFireError(null);setOffset(0);setFrames([]);
+    try {
+      // This explicit checkbox is the per-video vanilla-GUI confirmation.
+      if(await backend.guiAnswerGet?.()!=="yes") await backend.guiAnswerSet?.("yes");
+      setNoFire(await backend.noFireStart!());
+    } catch(e){setNoFireError(messageOf(e));}finally{setNoFirePending(false);}
+  }
   async function perform(action:()=>Promise<unknown>) {
     setPending(true);setError(null);
     try{await action();const next=await backend.povStatus?.();setStatus(next && next.video_path===videoPath?next:null);}
@@ -21,13 +43,12 @@ export function AutomationTools({backend,videoPath,onApply,onClose}:{backend:Bac
   const running=status?.state==="running";
   const supported=!!backend.povStart;
   return <div className="modal-backdrop" onMouseDown={onClose}>
-    <div className="modal automation-tools" role="dialog" aria-modal="true" aria-label="Optional automation tools" onMouseDown={e=>e.stopPropagation()}>
-      <div className="modal-head"><h2>Optional automation</h2><button onClick={onClose}>Close</button></div>
+    <div className="modal automation-tools" role="dialog" aria-modal="true" aria-label="Automated tools" onMouseDown={e=>e.stopPropagation()}>
+      <div className="modal-head"><h2><Icon name="robot" /> Automated tools</h2><button onClick={onClose}>Close</button></div>
       <div className="modal-body">
         <h3>First-person fire labeller</h3>
-        <p>Finds the fire animation covering the first-person view. Run it whenever you want, after opening a video.</p>
-        <p>No false positives were observed in the two tested clips, and every accepted row was correct. You can apply accepted matches in one batch. Use the Phase chart to spot unusual timing: if something looks odd near an automatically labelled frame, check that automatic label first.</p>
-        <p className="dim">For the full, uncropped vanilla Minecraft 1.16.5 view. Uncertain frames stay untouched. Existing labels are preserved. Results are marked “First-person tool”, not “Human checked”.</p>
+        <p>Finds first-person fire sprites. Check automatic labels afterward, especially near unusual timing.</p>
+        <p className="dim">Best with full, uncropped vanilla Minecraft 1.16.5 footage. Existing labels stay unchanged; uncertain frames are left alone.</p>
         {!supported&&<p>This tool is available in the desktop app.</p>}
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
@@ -42,6 +63,34 @@ export function AutomationTools({backend,videoPath,onApply,onClose}:{backend:Bac
         </div>
         <p className="dim">Applying fills empty frames only and can be undone in one step. Closing this panel lets the scan continue.</p>
         {status?.applied ? <p>Open the Phase chart to spot unusual timing. If it looks odd near an automatically labelled frame, check that automatic label first. Use the source filter to isolate tool results. Independently choosing and confirming the same sprite adds “Human checked” while keeping the tool source.</p> : null}
+        <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
+          <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Experimental · Risky</span></h3>
+          <p className="experiment-warning">Can miss fire. Check every suggested frame afterward. Scanning does not save labels.</p>
+          <p>Best results with:</p>
+          <ul>
+            <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
+            <li>Default textures and HUD; no shaders, resource packs, cropping or colour edits.</li>
+            <li>Clear gameplay with a visible hotbar. Menus, tiny/distant fire and transparent blocks can confuse it.</li>
+          </ul>
+          <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> This video uses the vanilla 1.16.5 GUI described above.</label>
+          <div className="automation-actions">
+            <button disabled={!backend.noFireStart||!videoPath||!confirmed||noFire?.state==="running"||noFirePending||running} onClick={()=>void scanNoFire()}>Scan for no fire</button>
+            {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Cancel no-fire scan</button>}
+          </div>
+          {noFire&&<div className="automation-progress" role="status">
+            <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
+            <span>{noFire.state==="running"?"Scanning":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} suggestions</span>
+          </div>}
+          {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
+          {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}
+          {noFire?.state==="done"&&frames.length>0&&<div className="automation-actions">
+            <select aria-label="Suggested no-fire frame" value={selected} onChange={e=>setSelected(Number(e.target.value))}>{frames.map((frame,i)=><option key={frame} value={i}>Frame {frame.toLocaleString()}</option>)}</select>
+            <button disabled={!onReview} onClick={()=>onReview?.(frames[selected])}>Review frame</button>
+            <button disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-100))}>Previous results</button>
+            <button disabled={offset+100>=noFire.accepted} onClick={()=>setOffset(offset+100)}>Next results</button>
+          </div>}
+          {noFire?.state==="done"&&<p className="dim">{noFire.accepted===0?"No candidates found. Other frames remain unreviewed.":"Review opens the frame in Label. Choose No fire and press Enter only after checking it."}</p>}
+        </section>
       </div>
     </div>
   </div>;
