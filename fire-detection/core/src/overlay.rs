@@ -440,12 +440,12 @@ impl SilhouetteMatcher {
     }
 
     pub fn match_frame(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled(frame, false, None)
+        self.match_sampled::<false>(frame, false, None)
     }
 
     /// Exact equivalent to match_frame(unveil_rows(frame)), without a full-frame allocation/pass.
     pub fn match_frame_veiled(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled(frame, true, None)
+        self.match_sampled::<false>(frame, true, None)
     }
 
     /// Experimental exclusion mask: nonzero pixels contribute neither agreement nor disagreement.
@@ -459,10 +459,10 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h {
             return Err("exclusion mask dimensions do not match frame".into());
         }
-        self.match_sampled(frame, veiled, Some(excluded))
+        self.match_sampled::<true>(frame, veiled, Some(excluded))
     }
 
-    fn match_sampled(
+    fn match_sampled<const MASKED: bool>(
         &self,
         frame: &[u8],
         veiled: bool,
@@ -477,17 +477,28 @@ impl SilhouetteMatcher {
                 frame.len()
             ));
         }
-        let active: Vec<bool> = self
-            .offsets
-            .iter()
-            .map(|&o| excluded.is_none_or(|m| m[o / 3] == 0))
-            .collect();
-        let mut usable = vec![0u64; self.disc.len().div_ceil(64)];
-        let mut disc_count = 0usize;
-        for (i, &k) in self.disc.iter().enumerate() {
-            if active[k] {
-                usable[i / 64] |= 1u64 << (i % 64);
-                disc_count += 1;
+        // Compile the existing unmasked entry points without mask allocation or filtering.
+        let active: Vec<bool> = if MASKED {
+            self.offsets
+                .iter()
+                .map(|&o| excluded.unwrap()[o / 3] == 0)
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let mut usable = if MASKED {
+            vec![0u64; self.disc.len().div_ceil(64)]
+        } else {
+            Vec::new()
+        };
+        let mut disc_count = self.disc.len();
+        if MASKED {
+            disc_count = 0;
+            for (i, &k) in self.disc.iter().enumerate() {
+                if active[k] {
+                    usable[i / 64] |= 1u64 << (i % 64);
+                    disc_count += 1;
+                }
             }
         }
         let mut warm = Vec::with_capacity(self.offsets.len());
@@ -514,12 +525,20 @@ impl SilhouetteMatcher {
         }
         let mut ranked: Vec<(u8, f64)> = (0..ROWS)
             .map(|row| {
-                let differences: usize = self.disc_bits[row]
-                    .iter()
-                    .zip(&observed)
-                    .zip(&usable)
-                    .map(|((a, b), mask)| ((a ^ b) & mask).count_ones() as usize)
-                    .sum();
+                let differences: usize = if MASKED {
+                    self.disc_bits[row]
+                        .iter()
+                        .zip(&observed)
+                        .zip(&usable)
+                        .map(|((a, b), mask)| ((a ^ b) & mask).count_ones() as usize)
+                        .sum()
+                } else {
+                    self.disc_bits[row]
+                        .iter()
+                        .zip(&observed)
+                        .map(|(a, b)| (a ^ b).count_ones() as usize)
+                        .sum()
+                };
                 let agree = disc_count - differences;
                 (row as u8, agree as f64 / disc_count.max(1) as f64)
             })
@@ -528,7 +547,7 @@ impl SilhouetteMatcher {
         let best = &self.pred[ranked[0].0 as usize];
         let (mut on, mut on_warm, mut off, mut off_warm) = (0usize, 0usize, 0usize, 0usize);
         for (k, &p) in best.iter().enumerate() {
-            if !active[k] {
+            if MASKED && !active[k] {
                 continue;
             }
             if p {
@@ -555,13 +574,17 @@ impl SilhouetteMatcher {
         let mut evidence = vec![0.0f64; ROWS];
         for row in 0..ROWS {
             let probes = &self.colour_probes[row];
-            let count = probes.iter().filter(|&&(k, _)| active[k]).count();
+            let count = if MASKED {
+                probes.iter().filter(|&&(k, _)| active[k]).count()
+            } else {
+                probes.len()
+            };
             if count < MIN_COLOUR_PROBES {
                 continue;
             }
             let mut score = 0.0;
             for &(k, expected) in probes {
-                if !active[k] {
+                if MASKED && !active[k] {
                     continue;
                 }
                 let hit = (ratios[k] - expected).abs() < CHROMA_TOL;

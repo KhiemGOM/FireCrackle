@@ -120,9 +120,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     );
-    let _ = child.kill();
-    let _ = child.wait();
-    result?;
+    if result.is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        result?;
+    }
+    if !child.wait()?.success() {
+        return Err("ffmpeg failed".into());
+    }
     if let Some(e) = write_error {
         return Err(e.into());
     }
