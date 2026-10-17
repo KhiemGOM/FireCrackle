@@ -31,6 +31,9 @@ export interface KeyInfo {
   repeat: boolean;
   /** The event target is editable; only global navigation/confirm keys may fire. */
   targetEditable: boolean;
+  /** The target is a field that uses Enter and the arrows itself (marked `data-owns-keys`, e.g. the jump box): no key
+   * is global there. */
+  targetOwnsKeys?: boolean;
 }
 
 /** Canonical binding ids: `Ctrl+Alt+Shift+<key>`, letters lower case, space as `Space`. */
@@ -88,8 +91,14 @@ export function isGlobalKey(e: Pick<KeyInfo, "key" | "ctrlKey" | "altKey" | "met
   return !e.ctrlKey && !e.altKey && !e.metaKey && ["ArrowLeft", "ArrowRight", "Enter"].includes(e.key);
 }
 
+/** A global key the Label workspace takes before the focused control sees it (never inside a field that owns its keys). */
+export function reservedGlobally(e: Pick<KeyInfo, "key" | "ctrlKey" | "altKey" | "metaKey" | "targetOwnsKeys">): boolean {
+  return !e.targetOwnsKeys && isGlobalKey(e);
+}
+
 /** The action for a key event, or null (not bound, scoped typing, or unwanted auto-repeat). */
 export function actionFor(e: KeyInfo, bindings: Bindings = DEFAULT_BINDINGS): Action | null {
+  if (e.targetOwnsKeys) return null;
   if (e.targetEditable && !isGlobalKey(e)) return null;
   const id = bindingId(e);
   if (!Object.prototype.hasOwnProperty.call(bindings, id)) return null;

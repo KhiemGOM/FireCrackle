@@ -8,7 +8,9 @@ import type { EdgeFilter } from "../lib/atlasFilter";
 import { readPreferences, writePreferences } from "../lib/preferences";
 import "./QuadMatchControls.css";
 
-interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void }
+interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void;
+  /** Increases to ask for a match run (the M key). */ runToken?:number;
+  /** A request to preview the nth candidate (M then 1, 2, 3); `n` makes each request distinct. */ pick?:{index:number;n:number}|null }
 function readImage(src:string):Promise<MatchImage> {
   return new Promise((resolve,reject)=> {
     const image=new Image();
@@ -46,7 +48,7 @@ function hideDetails(e:SyntheticEvent<HTMLButtonElement>) {
   tip?.hidePopover?.();
 }
 
-export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter}:Props) {
+export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null}:Props) {
   const saved=readPreferences();
   const [adjustQuad,setAdjustQuad]=useState(saved.matchAdjustQuad);
   const [onlyFiltered,setOnlyFiltered]=useState(saved.matchOnlyFiltered);
@@ -56,10 +58,25 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter}:Prop
   const cancel=useRef<null|(()=>void)>(null);
   const [busy,setBusy]=useState<string|null>(null);
   const [result,setResult]=useState<{key:string;data?:QuadMatch;error?:string;selected?:QuadCandidate}|null>(null);
+  const current=result?.key===key?result:null;
   useEffect(()=>()=>{token.current++;cancel.current?.();},[]);
   useEffect(()=>()=>{cancel.current?.();},[key,disabled]);
+  const handledRun=useRef(0),handledPick=useRef(0);
+  // M: run the match once the picture is ready (and again when asked again after a run finished)
+  // (started from a timer: a run begun inside the effect itself is cancelled by React's mount/unmount replay in development)
+  useEffect(()=>{
+    if(!runToken||runToken===handledRun.current||disabled||busy===key)return;
+    const timer=window.setTimeout(()=>{handledRun.current=runToken;void find();},0);
+    return()=>window.clearTimeout(timer);
+  },[runToken,disabled,busy,key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // M then 1, 2, 3: preview that candidate as soon as it exists
+  useEffect(()=>{
+    if(!pick||pick.n===handledPick.current||disabled)return;
+    const candidate=current?.data?.candidates[pick.index];
+    if(!candidate)return;
+    handledPick.current=pick.n;preview(candidate);
+  },[pick,current,disabled]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{writePreferences({matchAdjustQuad:adjustQuad,matchOnlyFiltered:onlyFiltered});},[adjustQuad,onlyFiltered]);
-  const current=result?.key===key?result:null;
   async function find() {
     const mine=++token.current,start=key;
     cancel.current?.();cancel.current=null;

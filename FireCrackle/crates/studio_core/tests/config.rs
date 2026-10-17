@@ -1,6 +1,6 @@
 use studio_core::config::*;
 
-const KEYS: [&str; 46] = [
+const KEYS: [&str; 49] = [
     "phase.min_run",
     "phase.tick_rate",
     "phase.window_ticks",
@@ -27,6 +27,9 @@ const KEYS: [&str; 46] = [
     "label.suggest_capture_frames",
     "label.max_play_speed",
     "label.min_play_tick_ms",
+    "label.veil_min_share",
+    "label.veil_margin",
+    "label.veil_slack",
     "decode.window_back",
     "decode.window_ahead",
     "decode.prefetch_fraction",
@@ -70,6 +73,9 @@ fn defaults_are_the_documented_values() {
     assert_eq!(s.label.suggest_max_seconds, 30.0);
     assert_eq!(s.label.max_play_speed, 8);
     assert_eq!(s.label.min_play_tick_ms, 16);
+    assert_eq!(s.label.veil_min_share, 0.9);
+    assert_eq!(s.label.veil_margin, 0.2);
+    assert_eq!(s.label.veil_slack, 2.0);
     assert_eq!(s.decode.window_back, 30);
     assert_eq!(s.decode.window_ahead, 90);
     assert_eq!(s.decode.prefetch_fraction, 0.5);
@@ -158,6 +164,9 @@ fn set_changes_exactly_the_named_field() {
     s.set("label.suggest_max_seconds", 12.5).unwrap();
     s.set("label.max_play_speed", 4.0).unwrap();
     s.set("label.min_play_tick_ms", 33.0).unwrap();
+    s.set("label.veil_min_share", 0.75).unwrap();
+    s.set("label.veil_margin", 0.3).unwrap();
+    s.set("label.veil_slack", 4.0).unwrap();
     s.set("decode.window_back", 10.0).unwrap();
     s.set("decode.window_ahead", 200.0).unwrap();
     s.set("decode.prefetch_fraction", 0.25).unwrap();
@@ -185,6 +194,9 @@ fn set_changes_exactly_the_named_field() {
     assert_eq!(s.label.suggest_max_seconds, 12.5);
     assert_eq!(s.label.max_play_speed, 4);
     assert_eq!(s.label.min_play_tick_ms, 33);
+    assert_eq!(s.label.veil_min_share, 0.75);
+    assert_eq!(s.label.veil_margin, 0.3);
+    assert_eq!(s.label.veil_slack, 4.0);
     assert_eq!(s.decode.window_back, 10);
     assert_eq!(s.decode.window_ahead, 200);
     assert_eq!(s.decode.prefetch_fraction, 0.25);
@@ -317,6 +329,12 @@ fn out_of_range_values_are_rejected_and_change_nothing() {
         ("label.max_play_speed", 65.0),
         ("label.min_play_tick_ms", 3.0),
         ("label.min_play_tick_ms", 201.0),
+        ("label.veil_min_share", 0.0),
+        ("label.veil_min_share", 1.01),
+        ("label.veil_margin", 0.0),
+        ("label.veil_margin", 0.51),
+        ("label.veil_slack", -1.0),
+        ("label.veil_slack", 17.0),
         ("decode.window_ahead", 0.0),
         ("decode.prefetch_fraction", 1.5),
         ("decode.cache_mb", 8.0),

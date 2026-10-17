@@ -168,6 +168,12 @@ pub struct LabelConfig {
     pub max_play_speed: u32,
     /// Shortest time between two playback steps in milliseconds; faster playback steps several frames at once.
     pub min_play_tick_ms: u32,
+    /// Veil undo: share of the judged pixels that must look veiled for a frame to count as veiled.
+    pub veil_min_share: f64,
+    /// Veil undo: width of the left and right margins that are judged, as a share of the frame width.
+    pub veil_margin: f64,
+    /// Veil undo: levels of tolerance at both ends of the legal veiled range.
+    pub veil_slack: f64,
 }
 
 impl Default for LabelConfig {
@@ -182,6 +188,9 @@ impl Default for LabelConfig {
             suggest_capture_frames: 0.5,
             max_play_speed: 8,
             min_play_tick_ms: 16,
+            veil_min_share: 0.9,
+            veil_margin: 0.2,
+            veil_slack: 2.0,
         }
     }
 }
@@ -338,7 +347,7 @@ struct Spec {
     set: fn(&mut Settings, f64),
 }
 
-static SPECS: [Spec; 46] = [
+static SPECS: [Spec; 49] = [
     Spec {
         key: "phase.min_run",
         label: "Phase: shortest believable run (frames)",
@@ -587,6 +596,36 @@ than that (for example 8x of a 60 fps video) moves several frames per step inste
 overloading the screen and the decoder. 16 ms is one refresh of a 60 Hz monitor.",
         get: |s| s.label.min_play_tick_ms as f64,
         set: |s, v| s.label.min_play_tick_ms = v as u32,
+    },
+    Spec {
+        key: "label.veil_min_share",
+        label: "Veil undo: share of pixels that must look veiled",
+        min: 0.05,
+        max: 1.0,
+        integer: false,
+        explanation: "Minecraft darkens everything behind an open screen (pause menu, inventory) with a fixed translucent grey, so a veiled frame has almost no pixel outside a known brightness range. This is how much of the judged pixels must lie inside that range before 'Auto' treats a frame as veiled. Higher is stricter (fewer false undos, but a busy screen may be missed); 0.9 was validated on real recordings.",
+        get: |s| s.label.veil_min_share,
+        set: |s, v| s.label.veil_min_share = v,
+    },
+    Spec {
+        key: "label.veil_margin",
+        label: "Veil undo: judged margin width (share of the frame)",
+        min: 0.02,
+        max: 0.5,
+        integer: false,
+        explanation: "Only this share of the frame width on the left and on the right is checked for the veil, because inventory panels, crafting grids, buttons and the hotbar sit in the middle and would hide it. 0.2 means the outer 20% on each side; 0.5 judges the whole frame.",
+        get: |s| s.label.veil_margin,
+        set: |s, v| s.label.veil_margin = v,
+    },
+    Spec {
+        key: "label.veil_slack",
+        label: "Veil undo: tolerance on the brightness range (levels)",
+        min: 0.0,
+        max: 16.0,
+        integer: false,
+        explanation: "How many brightness levels (out of 255) a pixel may lie outside the exact veiled range and still count as veiled. Video compression and rounding blur the range a little; 2 is enough for the recordings tested. Raise it for heavily compressed footage, lower it to be stricter.",
+        get: |s| s.label.veil_slack,
+        set: |s, v| s.label.veil_slack = v,
     },
     Spec {
         key: "decode.window_back",

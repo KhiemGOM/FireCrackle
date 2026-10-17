@@ -12,6 +12,7 @@ use tauri::ipc::Response;
 mod comparison_proof;
 mod compression;
 mod external_tools;
+mod gui;
 mod jolt;
 mod pov;
 mod url_import;
@@ -376,6 +377,10 @@ pub fn run_app() {
             thumbs_status,
             thumb_nearest,
             thumb,
+            gui::gui_answer_get,
+            gui::gui_answer_set,
+            gui::gui_mask,
+            gui::gui_mask_pixels,
             settings_describe,
             settings_set
         ])

@@ -25,11 +25,14 @@ import { useWorkspace } from "./hooks/useWorkspace";
 import { FLAGS_LIMITS, SIDE_LIMITS, VIDEO_LIMITS, clampSize, pickerCellSize, upperBound } from "./lib/layout";
 import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback } from "./lib/actions";
 import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from "./lib/api";
-import { actionFor, isGlobalKey } from "./lib/keymap";
+import { veilOptionsFromSettings } from "./lib/veil";
+import { wouldConsumeToolKey } from "./lib/toolKeys";
+import { actionFor, reservedGlobally } from "./lib/keymap";
 import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
 
 const KEY_HELP: Array<[string, string]> = [
+  ["Q · H · M · U", "video tools: quad mask · first-person fire · sprite matcher · ruler"],
   ["M · Hold M + 1–3", "find best match · preview matches 1–3"],
   ["← →", "previous / next frame (hold to repeat)"],
   ["↑ ↓", "previous / next animation phase"],
@@ -115,6 +118,7 @@ export default function App() {
   const maxSpeed = settingValue(ws.settings, "label.max_play_speed", 8);
   const minTick = settingValue(ws.settings, "label.min_play_tick_ms", 16);
   const typeTimeout = settingValue(ws.settings, "label.row_type_timeout_ms", 700);
+  const veilOptions = veilOptionsFromSettings(ws.settings);
 
   // hotkeys
   useEffect(() => {
@@ -132,8 +136,12 @@ export default function App() {
   useEffect(() => {
     if (!view || home || tab !== "label" || showAutomation || showLink) return;
     const onKey = (e: KeyboardEvent) => {
-      // Reserve navigation/confirmation before focused inputs and buttons handle them.
-      if (isGlobalKey(e)) {
+      // A video tool key (Q H M U, or the 1-3 that follow M) belongs to the video pane: do not read it as a row digit.
+      const t = e.target as HTMLElement | null;
+      if (wouldConsumeToolKey({ key: e.key, type: "down", ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
+        targetEditable: !!t?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t?.tagName ?? "") })) return;
+      // Reserve navigation/confirmation before focused inputs and buttons handle them (not in a field that owns its keys).
+      if (reservedGlobally({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, targetOwnsKeys: t?.dataset?.ownsKeys === "true" })) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
@@ -312,7 +320,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onError={(m) => console.error(m)} />
+            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onError={(m) => console.error(m)} />
             <Splitter
               direction="row"
               label="Video height"

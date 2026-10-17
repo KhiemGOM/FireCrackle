@@ -9,6 +9,7 @@ pub mod chart;
 pub mod config;
 pub mod decode_plan;
 pub mod frames;
+pub mod gui;
 pub mod import;
 pub mod index;
 pub mod label;

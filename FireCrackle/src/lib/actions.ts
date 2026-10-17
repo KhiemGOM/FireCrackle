@@ -62,6 +62,8 @@ export function toUiAction(a: Action): UiAction | null {
 export interface EventTargetLike {
   tagName?: string;
   isContentEditable?: boolean;
+  /** `data-owns-keys` marks a field that uses Enter and the arrows itself (the jump box). */
+  dataset?: { ownsKeys?: string };
 }
 
 /** True when a key press should go to a text field instead of the hotkeys. */
@@ -91,6 +93,7 @@ export function keyInfo(e: KeyboardEventLike): KeyInfo {
     metaKey: e.metaKey,
     repeat: e.repeat,
     targetEditable: isEditableTarget(e.target),
+    ...(e.target?.dataset?.ownsKeys === "true" ? { targetOwnsKeys: true } : {}),
   };
 }
 

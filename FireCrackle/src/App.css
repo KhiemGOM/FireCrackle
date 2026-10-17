@@ -392,6 +392,17 @@ input {
   font-size: 12px;
   color: var(--amber);
 }
+.veil-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--blue);
+  pointer-events: none;
+}
 .label-chip,
 .typed-chip,
 .suggest-chip {
@@ -725,4 +736,16 @@ kbd {
 .fatal {
   padding: 40px;
   color: var(--amber);
+}
+
+.video-tools .tool-spacer { flex: 1 1 auto; }
+.video-tools kbd {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--dim);
+  background: var(--panel2);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BINDINGS, REPEATABLE, actionFor, bindingId, type Action, type KeyInfo } from "./keymap";
+import { DEFAULT_BINDINGS, REPEATABLE, actionFor, bindingId, reservedGlobally, type Action, type KeyInfo } from "./keymap";
 
 function key(k: string, mods: Partial<KeyInfo> = {}): KeyInfo {
   return {
@@ -164,5 +164,29 @@ describe("custom bindings", () => {
     expect(actionFor(key("d", { targetEditable: true }), custom)).toBeNull();
     expect(actionFor(key("d", { repeat: true }), custom)).toEqual({ type: "step", frames: 1 });
     expect(actionFor(key("e", { repeat: true }), custom)).toBeNull();
+  });
+});
+
+describe("fields that own their keys", () => {
+  it("get Enter and the arrows: no global action fires and nothing is reserved", () => {
+    for (const k of ["Enter", "ArrowLeft", "ArrowRight", "Escape", "5", " "]) {
+      const e = key(k, { targetEditable: true, targetOwnsKeys: true });
+      expect(actionFor(e)).toBeNull();
+      expect(reservedGlobally(e)).toBe(false);
+    }
+  });
+
+  it("other text fields still let Enter and the arrows through as global keys", () => {
+    const e = key("Enter", { targetEditable: true });
+    expect(actionFor(e)).toEqual({ type: "acceptSuggestion" });
+    expect(reservedGlobally(e)).toBe(true);
+    expect(reservedGlobally(key("ArrowRight", { targetEditable: true }))).toBe(true);
+    expect(reservedGlobally(key("a", { targetEditable: true }))).toBe(false);
+  });
+
+  it("outside any field nothing changes", () => {
+    expect(actionFor(key("Enter"))).toEqual({ type: "acceptSuggestion" });
+    expect(reservedGlobally(key("ArrowLeft"))).toBe(true);
+    expect(reservedGlobally(key("Enter", { ctrlKey: true }))).toBe(false);
   });
 });

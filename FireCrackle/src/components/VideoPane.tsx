@@ -25,6 +25,11 @@ import { scopedStorage } from "../lib/scopedStorage";
 import { VideoRotation } from "./VideoRotation";
 import { createComparisonProof, copyComparisonProof, type ProofMask } from "../lib/comparisonProof";
 import { spriteText } from "../lib/labelCandidate";
+import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
+import { canvasFrameIo, processFrame } from "../lib/veilFrame";
+import { GuiMaskOverlay, GuiMaskPanel, useGuiMask } from "./GuiMaskControls";
+import { JumpBox } from "./JumpBox";
+import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
 
 export interface VideoPreviewHandle {
   /** True when an enabled preview consumes the selection without a label write. */
@@ -59,10 +64,14 @@ interface Props {
   onPreviewChange?: (sprite:PreviewSprite|null)=>void;
   onMatchCandidate?: (sprite:PreviewSprite)=>void;
   onStep?: (frames: number) => void;
+  /** Jump to a frame typed in the status bar (a frame number or HH:MM:SS|FF). */
+  onGoTo?: (frame: number) => void;
+  /** Thresholds for undoing the GUI veil (the settings); the validated defaults when absent. */
+  veil?: VeilOptions;
 }
 
 /** The current frame, with its number, time and label over it. */
-export function VideoPane({ backend, view, onError, previewRef, onPreviewChange, onMatchCandidate, onStep, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage }: Props) {
+export function VideoPane({ backend, view, onError, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
@@ -121,6 +130,74 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
   const [animationOpen, setAnimationOpen] = useState(saved.manualEnabled && readPreferences(toolStorage).animationOpen);
   const [animationStop, setAnimationStop] = useState(0);
   useEffect(() => { writePreferences({ animationOpen }, toolStorage); }, [animationOpen]);
+  const [veilMode, setVeilMode] = useState<VeilMode>(() => readPreferences(toolStorage).veilMode);
+  useEffect(() => { writePreferences({ veilMode }, toolStorage); }, [veilMode]);
+  const [veilApplied, setVeilApplied] = useState(false);
+  // GUI mask: videos only (photos have no project to keep the vanilla answer in)
+  const [guiMaskOn, setGuiMaskOn] = useState(false);
+  const guiMask = useGuiMask(backend, view.current, !stillImage && shown === view.current && !!url, guiMaskOn && !stillImage);
+  const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
+  const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
+
+  // the four tools, shared by the buttons and the keys (Q, H, M, U; M then 1-3)
+  const [findToken, setFindToken] = useState(0);
+  const [matchPick, setMatchPick] = useState<{ index: number; n: number } | null>(null);
+  function toggleRuler() { setRuler(current => ({ ...current, enabled: !current.enabled })); }
+  function toggleFirstPerson() {
+    setAnimationOpen(false);
+    setMatchingEnabled(false);
+    setHudEnabled(!hudEnabled);
+    if (!hudEnabled) { setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
+  }
+  function toggleQuad() {
+    setManualEnabled(!manualEnabled);
+    if (manualEnabled) setMatchingEnabled(false);
+    if (manualEnabled) setAnimationOpen(false);
+    if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
+  }
+  function toggleMatcher() {
+    if (!matchingEnabled) setAnimationOpen(false);
+    setMatchingEnabled(!matchingEnabled);
+    if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
+  }
+  /** The M key: open the matcher if needed and ask for a match run. */
+  function runMatcher() {
+    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
+    setFindToken(n => n + 1);
+  }
+  const runTool = (action: ToolAction) => {
+    if (action.type === "quad") toggleQuad();
+    else if (action.type === "firstPerson") toggleFirstPerson();
+    else if (action.type === "matcher") runMatcher();
+    else if (action.type === "ruler") toggleRuler();
+    else setMatchPick(current => ({ index: action.index, n: (current?.n ?? 0) + 1 }));
+  };
+  const toolsRef = useRef(runTool);
+  toolsRef.current = runTool;
+  useEffect(() => {
+    const handle = (type: "down" | "up") => (e: KeyboardEvent) => {
+      // a release always counts (a held M must never get stuck); a press only when this pane is showing and no dialog is open
+      const pane = frameRef.current;
+      if (type === "down" && (!pane || pane.offsetParent === null || document.querySelector(".modal-backdrop"))) return;
+      const target = e.target as HTMLElement | null;
+      const result = dispatchToolKey({ key: e.key, type, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
+        targetEditable: !!target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "") });
+      if (!result.consumed) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (result.action) toolsRef.current(result.action);
+    };
+    const down = handle("down"), up = handle("up");
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
+    window.addEventListener("blur", resetToolKeys); // the release of a held M may never arrive
+    return () => {
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
+      window.removeEventListener("blur", resetToolKeys);
+      resetToolKeys();
+    };
+  }, []);
 
   function selectPreview(sprite: PreviewSprite): boolean {
     setAnimationStop(value => value + 1);
@@ -146,20 +223,29 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
 
   useEffect(() => {
     const mine = ++token.current;
-    if (stillImage) { setUrl(stillImage.url); setShown(view.current); return; }
-    backend
-      .frame(view.current)
-      .then((bytes) => {
+    if (stillImage && veilMode === "off") {
+      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+      setUrl(stillImage.url); setShown(view.current); setVeilApplied(false); return;
+    }
+    // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
+    const source: Promise<{ bytes: ArrayBuffer; original: Blob }> = stillImage
+      ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original }; })
+      : backend.frame(view.current).then((bytes) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }) }));
+    source
+      .then(async ({ bytes, original }) => {
+        const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
-        const next = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+        if (made.error) onError(`Veil undo: ${made.error}`);
+        const next = URL.createObjectURL(made.blob);
         const old = urlRef.current;
         urlRef.current = next;
         setUrl(next);
         setShown(view.current);
+        setVeilApplied(made.applied);
         if (old) URL.revokeObjectURL(old);
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
-  }, [backend, view.current, stillImage?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backend, view.current, stillImage?.url, veilMode, veilKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(
     () => () => {
@@ -258,6 +344,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
             placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
           {ruler.enabled && url && imageSize.width > 0 && <VideoRuler {...imageSize} zoom={xf.scale} points={ruler.points} locked={ruler.locked} onSelect={setRulerSelected} onChange={points => setRuler(current => ({ ...current, points }))} />}
+          {guiMaskOn && !stillImage && <GuiMaskOverlay state={guiMask} frame={view.current} />}
         </div>
         <VideoRotation frameRef={frameRef} onRotate={(degrees, x, y) => setXf(current => rotateView(current, x, y, degrees))} />
         {(xf.scale !== 1 || xf.x !== 0 || xf.y !== 0 || !!xf.angle) && <div className="zoom-tag video-view-controls">
@@ -265,6 +352,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           {!!xf.angle && <IconButton icon="reset" label="Reset video rotation" title="Reset video rotation to 0°" onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()} onClick={() => setXf(current => rotateView(current, boxOf().w / 2, boxOf().h / 2, -(current.angle ?? 0)))}>Unrotate</IconButton>}
         </div>}
         {shown !== view.current && url && <div className="loading-tag">loading frame {view.current}…</div>}
+        {veilApplied && shown === view.current && <div className="veil-tag" title="The darkening behind an open screen is reversed on this picture">GUI veil undone</div>}
         {!stillImage && <div className={`label-chip ${labelClass(view.label)}`}>{describeLabel(view.label)}</div>}
         {view.typed_pending !== null && <div className="typed-chip">row: {view.typed_pending}_</div>}
         {s && (
@@ -276,28 +364,17 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
         )}
       </div>
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
-        <IconButton icon="ruler" label="Toggle calibrated ruler" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={() => setRuler(current => ({ ...current, enabled: !current.enabled }))}>Ruler</IconButton>
-        <IconButton icon="fire" label="Toggle first-person fire" aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={() => {
-          setAnimationOpen(false);
-          setMatchingEnabled(false);
-          setHudEnabled(!hudEnabled);
-          if (!hudEnabled) { setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
-        }}>First-person fire</IconButton>
-        <IconButton icon="quad" label="Toggle manual fire quad mask" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={() => {
-          setManualEnabled(!manualEnabled);
-          if (manualEnabled) setMatchingEnabled(false);
-          if (manualEnabled) setAnimationOpen(false);
-          if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
-        }}>Quad mask</IconButton>
-        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: find best match · Hold M + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={() => {
-          if (!matchingEnabled) setAnimationOpen(false);
-          setMatchingEnabled(!matchingEnabled);
-          if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
-        }}>Match</IconButton>
+        <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
+        <IconButton icon="fire" label="Toggle first-person fire" title="First-person fire · H" aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
+        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: find best match · Hold M + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
+        <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
+        <span className="tool-spacer" aria-hidden="true" />
         <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
           setAnimationOpen(!animationOpen);
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
+        {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="GUI mask: shows which pixels are vanilla HUD (asks once per video whether the footage has vanilla 1.16.5 GUI)" aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
+        <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>
         <IconButton icon="copy" label="Comparison proof" title="Copy original and mask side by side to the clipboard, with the displayed sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
@@ -349,20 +426,26 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
       </div>}
       {matchingEnabled && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
-        {url ? <QuadMatchControls frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} onPreview={candidate=> {
+        {url ? <QuadMatchControls frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {
           setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
           onMatchCandidate?.({sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
         }} /> : <span className="hud-hint">Open a video to match sprites</span>}
+      </div>}
+      {guiMaskOn && !stillImage && <div className="hud-controls" aria-label="GUI mask settings" onKeyDown={e => e.stopPropagation()}>
+        <GuiMaskPanel state={guiMask} frame={view.current} />
       </div>}
       <div className="video-meta">
         <span className="frame-step-controls" role="group" aria-label={stillImage ? "Photo navigation" : "Frame navigation"}>
           <IconButton icon="left" label={stillImage ? "Previous photo" : "Previous frame"} disabled={!onStep || view.current <= 0} onClick={() => onStep?.(-1)} />
           <IconButton icon="right" label={stillImage ? "Next photo" : "Next frame"} disabled={!onStep || view.current >= view.frame_count - 1} onClick={() => onStep?.(1)} />
         </span>
-        {stillImage ? <><span>Photo {view.current + 1} / {view.frame_count}</span><span className="image-name" title={stillImage.name}>{stillImage.name}</span><span>{imageSize.width} × {imageSize.height} px</span></> : <><span>
+        {stillImage ? <><span>Photo {view.current + 1} / {view.frame_count}</span><span className="image-name" title={stillImage.name}>{stillImage.name}</span><span>{imageSize.width} × {imageSize.height} px</span></> : <>{onGoTo
+          ? <JumpBox current={view.current} frameCount={view.frame_count} pts={view.pts} fps={view.fps} onJump={onGoTo}
+              locate={backend.joltFrame && videoKey ? (seconds) => backend.joltFrame!(videoKey, seconds) : undefined} />
+          : <><span>
           frame <b>{view.current}</b> / {view.frame_count - 1}
         </span>
-        <span>{formatTimecode(view.pts, view.fps)}</span>
+        <span>{formatTimecode(view.pts, view.fps)}</span></>}
         <span>{view.fps.toFixed(2)} fps</span>
         <span>
           labelled <b>{view.labelled_count}</b>

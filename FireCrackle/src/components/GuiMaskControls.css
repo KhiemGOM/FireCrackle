@@ -1,0 +1,3 @@
+/* The GUI mask drawn over the frame: same box as the picture (object-fit like the image), never catches the mouse. */
+.gui-mask-overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; image-rendering: pixelated; }
+.gui-question, .gui-mask-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }

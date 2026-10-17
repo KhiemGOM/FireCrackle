@@ -34,6 +34,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
+name = "fire_core"
+version = "0.1.0"
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -139,6 +143,7 @@ dependencies = [
 name = "studio_core"
 version = "0.1.0"
 dependencies = [
+ "fire_core",
  "jpeg-decoder",
  "serde",
  "serde_json",

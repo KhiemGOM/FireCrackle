@@ -84,6 +84,14 @@ describe("keyInfo", () => {
     });
     expect(keyInfo({ ...e, target: null }).targetEditable).toBe(false);
   });
+
+  it("marks a field that owns its keys (data-owns-keys), and only that", () => {
+    const base = { key: "Enter", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, repeat: false };
+    expect(keyInfo({ ...base, target: { tagName: "INPUT", dataset: { ownsKeys: "true" } } }).targetOwnsKeys).toBe(true);
+    expect(keyInfo({ ...base, target: { tagName: "INPUT", dataset: {} } }).targetOwnsKeys).toBeFalsy();
+    expect(keyInfo({ ...base, target: { tagName: "BUTTON" } }).targetOwnsKeys).toBeFalsy();
+    expect(keyInfo({ ...base, target: null }).targetOwnsKeys).toBeFalsy();
+  });
 });
 
 describe("playback", () => {

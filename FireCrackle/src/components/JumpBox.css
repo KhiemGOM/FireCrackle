@@ -1,0 +1,42 @@
+/* The status bar's frame number and timecode: plain text until clicked, then a box to type a frame or a time. */
+.jump-target {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  padding: 0 3px;
+  cursor: text;
+}
+.jump-target:hover,
+.jump-target:focus-visible {
+  border-color: var(--line);
+  outline: none;
+}
+.jump-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.jump-input {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  width: 15ch;
+  padding: 1px 6px;
+  color: var(--text);
+  background: var(--bg, #10131a);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.jump-input:focus {
+  outline: none;
+  border-color: var(--accent, #6ea8fe);
+}
+.jump-input.bad {
+  border-color: var(--amber);
+}
+.jump-error {
+  color: var(--amber);
+}

@@ -5,6 +5,7 @@ import type { UiAction } from "./actions";
 import type { PhaseChart } from "./chart";
 import type { Label } from "./grid";
 import type { ThumbStatus } from "./thumbs";
+import type { GuiAnswer, GuiMaskReply } from "./guiMask";
 
 export interface PickState {
   sheet: number;
@@ -104,6 +105,12 @@ export interface Backend {
   povStatus?(): Promise<PovStatus | null>;
   povCancel?(id:number): Promise<void>;
   povApply?(id:number): Promise<View>;
+  /** The per-video "vanilla 1.16.5 GUI?" answer (desktop app only). */
+  guiAnswerGet?(): Promise<GuiAnswer | null>;
+  guiAnswerSet?(answer: GuiAnswer): Promise<void>;
+  /** The GUI mask of a frame; refused unless the answer is "yes". Pixels come raw, one byte each. */
+  guiMask?(frame: number): Promise<GuiMaskReply>;
+  guiMaskPixels?(frame: number): Promise<ArrayBuffer>;
 }
 
 export interface LinkStatus { id:number; state:"running"|"done"|"cancelled"|"failed"; message:string; path:string|null; error:string|null; }
@@ -143,6 +150,10 @@ export async function createBackend(): Promise<Backend> {
     povStatus: () => invoke<PovStatus|null>("pov_status"),
     povCancel: (id) => invoke<void>("pov_cancel",{id}),
     povApply: (id) => invoke<View>("pov_apply",{id}),
+    guiAnswerGet: () => invoke<GuiAnswer | null>("gui_answer_get"),
+    guiAnswerSet: (answer) => invoke<void>("gui_answer_set", { answer }),
+    guiMask: (frame) => invoke<GuiMaskReply>("gui_mask", { frame }),
+    guiMaskPixels: (frame) => invoke<ArrayBuffer>("gui_mask_pixels", { frame }),
     async transferLabels(kind) {
       const filters = [{ name: "FireCrackle labels", extensions: ["json"] }];
       const path = kind === "export"

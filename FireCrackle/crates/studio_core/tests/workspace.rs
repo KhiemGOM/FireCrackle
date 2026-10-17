@@ -632,7 +632,7 @@ fn unreadable_settings_fall_back_to_the_defaults_with_a_warning() {
 fn the_settings_are_described_with_their_explanations() {
     let (dir, w) = ws("describe", 50);
     let d = w.describe_settings();
-    assert_eq!(d.len(), 46);
+    assert_eq!(d.len(), 49);
     assert!(d.iter().all(|s| !s.explanation.is_empty()));
     let _ = std::fs::remove_dir_all(&dir);
 }

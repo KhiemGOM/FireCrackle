@@ -7,6 +7,8 @@ edition = "2021"
 serde = { version = "1", features = ["derive"] }
 # float_roundtrip: the default float parser can be 1 ULP off, which would corrupt saved frame timestamps
 serde_json = { version = "1", features = ["float_roundtrip"] }
+# the shared GUI mask (PLAN-GUI-MASK.md) and the decoder for the frames it runs on
+fire_core = { path = "../../../fire-detection/core" }
+jpeg-decoder = "0.3"
 
 [dev-dependencies]
-jpeg-decoder = "0.3"
