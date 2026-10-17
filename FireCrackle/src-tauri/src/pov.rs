@@ -1,7 +1,8 @@
 //! Optional, cancellable scan with canonical GUI-neutral first-person matching.
+use crate::scan_cache::Journal;
 use fire_core::{
     pov::PovMatcher,
-    video::{parallel_frames, scan_workers},
+    video::{parallel_frames_indexed, scan_workers},
 };
 use serde::Serialize;
 use std::{
@@ -36,6 +37,7 @@ struct Job {
     rows: Vec<(u32, u8)>,
     cancel: Arc<AtomicBool>,
     child: Arc<Mutex<Option<Child>>>,
+    cache: Option<Journal>,
 }
 #[derive(Clone, Default)]
 pub struct Jobs {
@@ -44,6 +46,42 @@ pub struct Jobs {
 }
 
 impl Jobs {
+    /// Recover progress/results for the open video without starting work during status polling.
+    pub fn restore(&self, project: &Project, no_fire: bool) -> Result<Option<Status>, String> {
+        let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
+        if let Some(job) = state.as_ref() {
+            if job.project == *project {
+                return Ok(Some(job.status.clone()));
+            }
+            if matches!(job.status.state.as_str(), "running" | "saving") {
+                return Ok(None);
+            }
+        }
+        let Some(cache) = Journal::load(project, no_fire) else {
+            *state = None;
+            return Ok(None);
+        };
+        let rows = cache.rows();
+        let status = Status {
+            id: self.next.fetch_add(1, Ordering::Relaxed) + 1,
+            video_path: project.video_path.clone(),
+            state: if cache.finished { "done" } else { "cancelled" }.into(),
+            processed: cache.processed(),
+            total: project.frames.len() as u32,
+            accepted: rows.len(),
+            applied: cache.applied,
+            error: None,
+        };
+        *state = Some(Job {
+            project: project.clone(),
+            status: status.clone(),
+            rows,
+            cancel: Arc::new(AtomicBool::new(false)),
+            child: Arc::new(Mutex::new(None)),
+            cache: Some(cache),
+        });
+        Ok(Some(status))
+    }
     pub fn status(&self) -> Result<Option<Status>, String> {
         Ok(self
             .current
@@ -75,6 +113,7 @@ impl Jobs {
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
         self.start_impl(project, tools, false, None)
     }
+    #[cfg(test)]
     pub fn start_no_fire(&self, project: Project, tools: Tools) -> Result<Status, String> {
         self.start_no_fire_with(project, tools, None)
     }
@@ -128,15 +167,29 @@ impl Jobs {
         {
             return Err("A scan for this tool is already running".into());
         }
+        if let Some(job) = state.as_mut()
+            && let Some(cache) = job.cache.as_mut()
+        {
+            cache.close()?;
+        }
+        let cache = Journal::open(&project, no_fire)?;
+        let already_finished = cache.finished;
+        let decisions = cache.decisions.clone();
+        let rows = cache.rows();
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let status = Status {
             id,
             video_path: project.video_path.clone(),
-            state: "running".into(),
-            processed: 0,
+            state: if cache.finished && complete.is_none() {
+                "done"
+            } else {
+                "running"
+            }
+            .into(),
+            processed: cache.processed(),
             total: project.frames.len() as u32,
-            accepted: 0,
-            applied: 0,
+            accepted: rows.len(),
+            applied: cache.applied,
             error: None,
         };
         let cancel = Arc::new(AtomicBool::new(false));
@@ -144,10 +197,14 @@ impl Jobs {
         *state = Some(Job {
             project: project.clone(),
             status: status.clone(),
-            rows: Vec::new(),
+            rows,
             cancel: cancel.clone(),
             child: child.clone(),
+            cache: Some(cache),
         });
+        if status.state == "done" {
+            return Ok(status);
+        }
         let shared = self.current.clone();
         let jobs = self.clone();
         std::thread::spawn(move || {
@@ -155,6 +212,17 @@ impl Jobs {
                 if let Ok(mut state) = shared.lock()
                     && let Some(job) = state.as_mut().filter(|j| j.status.id == id)
                 {
+                    if let Some(cache) = job.cache.as_mut() {
+                        match cache.record(frame, row) {
+                            Ok(false) => return, // Already completed before the restart.
+                            Ok(true) => {}
+                            Err(error) => {
+                                job.status.error = Some(error);
+                                job.cancel.store(true, Ordering::Relaxed);
+                                return;
+                            }
+                        }
+                    }
                     job.status.processed += 1;
                     if let Some(row) = row {
                         job.rows.push((frame, row));
@@ -162,10 +230,25 @@ impl Jobs {
                     }
                 }
             };
-            let result = if no_fire {
-                crate::no_fire::scan(&project, &tools, &cancel, &child, update)
+            let result = if already_finished {
+                Ok(()) // Explicitly reapply completed no-fire results without decoding/inference.
+            } else if decisions.iter().all(Option::is_some) {
+                // All decisions may have arrived before decoder EOF validation or a crash.
+                // Verify the final output/EOF without loading AI or redoing any inference.
+                scan_with_workers_resuming(
+                    &project,
+                    &tools,
+                    &cancel,
+                    &child,
+                    1,
+                    &decisions,
+                    |_| unreachable!("all frames are cached"),
+                    update,
+                )
+            } else if no_fire {
+                crate::no_fire::scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
             } else {
-                scan(&project, &tools, &cancel, &child, update)
+                scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
             };
             // Kill and reap on success, failure, cancellation, or premature EOF.
             if let Ok(mut slot) = child.lock()
@@ -193,16 +276,43 @@ impl Jobs {
                 .filter(|j| j.status.id == id && j.status.state == "running")
                 .ok_or("Scan is no longer running")?;
             if job.cancel.load(Ordering::Relaxed) {
-                job.status.state = "cancelled".into();
+                if let Some(cache) = job.cache.as_mut()
+                    && let Err(error) = cache.close()
+                {
+                    job.status.error = Some(error);
+                }
+                job.status.state = if job.status.error.is_some() {
+                    "failed"
+                } else {
+                    "cancelled"
+                }
+                .into();
                 return Ok(());
             }
             if let Err(error) = result {
+                if let Some(cache) = job.cache.as_mut() {
+                    let _ = cache.close();
+                }
                 job.status.state = "failed".into();
                 job.status.error = Some(error);
                 return Ok(());
             }
             job.rows.sort_unstable_by_key(|r| r.0);
+            if job.status.processed != job.status.total {
+                job.status.state = "failed".into();
+                job.status.error = Some(
+                    "Scan stopped before every frame was processed; progress is saved.".into(),
+                );
+                return Ok(());
+            }
             if complete.is_none() {
+                if let Some(cache) = job.cache.as_mut()
+                    && let Err(error) = cache.finish(job.status.applied)
+                {
+                    job.status.state = "failed".into();
+                    job.status.error = Some(error);
+                    return Ok(());
+                }
                 job.status.state = "done".into();
                 return Ok(());
             }
@@ -218,6 +328,13 @@ impl Jobs {
         match saved {
             Ok(count) => {
                 job.status.applied = count;
+                if let Some(cache) = job.cache.as_mut()
+                    && let Err(error) = cache.finish(count)
+                {
+                    job.status.state = "failed".into();
+                    job.status.error = Some(error);
+                    return Ok(());
+                }
                 job.status.state = "done".into();
             }
             Err(error) => {
@@ -249,6 +366,11 @@ impl Jobs {
         }
         let (value, count) = f(&job.rows)?;
         job.status.applied += count;
+        if let Some(cache) = job.cache.as_mut()
+            && let Err(error) = cache.finish(job.status.applied)
+        {
+            job.status.error = Some(error);
+        }
         Ok(value)
     }
 }
@@ -258,6 +380,7 @@ fn accepted(row: u8, evidence: f64) -> Option<u8> {
     (row < 32 && evidence.is_finite() && evidence >= THRESHOLD).then_some(row)
 }
 
+#[cfg(test)]
 fn scan(
     project: &Project,
     tools: &Tools,
@@ -265,52 +388,56 @@ fn scan(
     slot: &Mutex<Option<Child>>,
     update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
+    scan_resuming(project, tools, cancel, slot, &[], update)
+}
+
+fn scan_resuming(
+    project: &Project,
+    tools: &Tools,
+    cancel: &AtomicBool,
+    slot: &Mutex<Option<Child>>,
+    completed: &[Option<i16>],
+    update: impl FnMut(u32, Option<u8>),
+) -> Result<(), String> {
     let (w, h) = (project.meta.width, project.meta.height);
     let matcher = PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?;
-    scan_with(
+    scan_with_workers_resuming(
         project,
         tools,
         cancel,
         slot,
+        scan_workers(w * h * 3),
+        completed,
         |frame| Ok(matcher.match_frame(frame)?.row),
         update,
     )
 }
 
-pub(crate) fn scan_with(
-    project: &Project,
-    tools: &Tools,
-    cancel: &AtomicBool,
-    slot: &Mutex<Option<Child>>,
-    process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
-    update: impl FnMut(u32, Option<u8>),
-) -> Result<(), String> {
-    let bytes = project
-        .meta
-        .width
-        .checked_mul(project.meta.height)
-        .and_then(|n| n.checked_mul(3))
-        .ok_or("Video dimensions overflow")?;
-    scan_with_workers(
-        project,
-        tools,
-        cancel,
-        slot,
-        scan_workers(bytes),
-        process,
-        update,
-    )
-}
-
-pub(crate) fn scan_with_workers(
+#[allow(clippy::too_many_arguments)] // Decoder ownership, resume state and the two closures are independent.
+pub(crate) fn scan_with_workers_resuming(
     project: &Project,
     tools: &Tools,
     cancel: &AtomicBool,
     slot: &Mutex<Option<Child>>,
     workers: usize,
+    completed: &[Option<i16>],
     process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
-    update: impl FnMut(u32, Option<u8>),
+    mut update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
+    if !completed.is_empty() && completed.len() != project.frames.len() {
+        return Err("Scan cache has the wrong frame count".into());
+    }
+    let start = completed
+        .iter()
+        .position(Option::is_none)
+        .unwrap_or(if completed.is_empty() {
+            0
+        } else {
+            completed.len().saturating_sub(1)
+        });
+    if start == project.frames.len() {
+        return Ok(());
+    }
     let (w, h) = (project.meta.width, project.meta.height);
     let frame_bytes = w
         .checked_mul(h)
@@ -321,6 +448,8 @@ pub(crate) fn scan_with_workers(
         .args(["-nostdin", "-v", "error", "-i"])
         .arg(&project.video_path)
         .args(["-map", "0:v:0"])
+        // Trim by display-frame index (not approximate timestamp seeking), preserving VFR frame identity.
+        .args(["-vf", &format!("trim=start_frame={start}")])
         .args(studio_core::import::passthrough_args(&tools.ffmpeg))
         .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
         .stdout(Stdio::piped())
@@ -349,14 +478,17 @@ pub(crate) fn scan_with_workers(
         String::from_utf8_lossy(&saved).into_owned()
     });
     *slot.lock().map_err(|_| "Decoder state unavailable")? = Some(child);
-    parallel_frames(
+    parallel_frames_indexed(
         pipe,
         frame_bytes,
-        project.frames.len() as u32,
+        (project.frames.len() - start) as u32,
         workers.clamp(1, 4),
         cancel,
-        process,
-        update,
+        |n, rgb| match completed.get(start + n as usize).copied().flatten() {
+            Some(row) => Ok((row >= 0).then_some(row as u8)),
+            None => process(rgb),
+        },
+        |n, row| update(n + start as u32, row),
     )?;
     if cancel.load(Ordering::Relaxed) {
         return Ok(());
@@ -379,6 +511,204 @@ pub(crate) fn scan_with_workers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovers_partial_and_completed_jobs_with_stable_candidate_frames() {
+        let f = crate::scan_cache::tests::fixture(3);
+        let mut cache = Journal::open(&f.project, false).unwrap();
+        cache.record(2, Some(4)).unwrap();
+        cache.record(0, None).unwrap();
+        drop(cache);
+        let jobs = Jobs::default();
+        let paused = jobs.restore(&f.project, false).unwrap().unwrap();
+        assert_eq!(
+            (paused.state.as_str(), paused.processed, paused.accepted),
+            ("cancelled", 2, 1)
+        );
+        assert!(jobs.candidates(paused.id, 0).is_err());
+        let mut cache = Journal::open(&f.project, false).unwrap();
+        cache.record(1, None).unwrap();
+        cache.finish(0).unwrap();
+        drop(cache);
+        let recovered = Jobs::default();
+        let done = recovered.restore(&f.project, false).unwrap().unwrap();
+        assert_eq!((done.state.as_str(), done.processed), ("done", 3));
+        assert_eq!(recovered.candidates(done.id, 0).unwrap(), vec![2]);
+        recovered
+            .apply(done.id, &f.project, |rows| {
+                assert_eq!(rows, &[(2, 4)]);
+                Ok(((), 1))
+            })
+            .unwrap();
+        drop(recovered);
+        assert_eq!(
+            Jobs::default()
+                .restore(&f.project, false)
+                .unwrap()
+                .unwrap()
+                .applied,
+            1
+        );
+        // A completed compatible cache returns without attempting to launch a decoder.
+        assert_eq!(
+            Jobs::default()
+                .start(f.project.clone(), Tools::default())
+                .unwrap()
+                .state,
+            "done"
+        );
+    }
+    #[test]
+    fn completed_no_fire_reapplication_does_not_load_ai_or_decode_again() {
+        use std::sync::atomic::AtomicUsize;
+        let mut f = crate::scan_cache::tests::fixture(2);
+        f.project.meta.width = 1920;
+        f.project.meta.height = 1080;
+        let mut cache = Journal::open(&f.project, true).unwrap();
+        cache.record(0, Some(0)).unwrap();
+        cache.record(1, None).unwrap();
+        cache.finish(1).unwrap();
+        drop(cache);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let called = calls.clone();
+        let jobs = Jobs::default();
+        jobs.start_no_fire_saving(
+            f.project.clone(),
+            Tools::default(),
+            Box::new(move |_, rows| {
+                called.fetch_add(1, Ordering::Relaxed);
+                assert_eq!(rows, &[(0, 0)]);
+                Ok(1)
+            }),
+        )
+        .unwrap();
+        let started = std::time::Instant::now();
+        loop {
+            let status = jobs.status().unwrap().unwrap();
+            if status.state != "running" && status.state != "saving" {
+                assert_eq!(status.state, "done", "{:?}", status.error);
+                break;
+            }
+            assert!(started.elapsed().as_secs() < 5);
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
+    #[test]
+    fn ffmpeg_resume_preserves_original_frame_numbers_and_skips_cached_inference() {
+        use std::sync::atomic::AtomicUsize;
+        let f = crate::scan_cache::tests::fixture(6);
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let ffmpeg = root.join(if cfg!(windows) {
+            "ffmpeg.exe"
+        } else {
+            "ffmpeg"
+        });
+        let ffmpeg = if ffmpeg.is_file() {
+            ffmpeg.into_os_string()
+        } else {
+            "ffmpeg".into()
+        };
+        let tools = Tools {
+            ffmpeg: ffmpeg.clone(),
+            ffprobe: "ffprobe".into(),
+        };
+        let raw = f.root.join("frames.rgb");
+        let data: Vec<u8> = (0..6u8).flat_map(|n| vec![n; 16 * 16 * 3]).collect();
+        std::fs::write(&raw, data).unwrap();
+        let result = studio_core::proc::ffmpeg_command(&ffmpeg)
+            .args([
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pixel_format",
+                "rgb24",
+                "-video_size",
+                "16x16",
+                "-framerate",
+                "20",
+                "-i",
+            ])
+            .arg(raw)
+            .args(["-c:v", "ffv1", "-pix_fmt", "bgr0"])
+            .arg(&f.project.video_path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let completed = vec![Some(0), None, Some(-1), None, Some(4), None];
+        let calls = AtomicUsize::new(0);
+        let slot = Mutex::new(None);
+        let mut rows = Vec::new();
+        scan_with_workers_resuming(
+            &f.project,
+            &tools,
+            &AtomicBool::new(false),
+            &slot,
+            2,
+            &completed,
+            |rgb| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(Some(rgb[0]))
+            },
+            |n, row| rows.push((n, row)),
+        )
+        .unwrap();
+        if let Some(mut child) = slot.lock().unwrap().take() {
+            let _ = child.wait();
+        }
+        rows.sort_unstable_by_key(|r| r.0);
+        assert_eq!(
+            rows,
+            vec![
+                (1, Some(1)),
+                (2, None),
+                (3, Some(3)),
+                (4, Some(4)),
+                (5, Some(5))
+            ]
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        let all_cached: Vec<_> = (0..6).map(Some).collect();
+        let mut final_rows = Vec::new();
+        scan_with_workers_resuming(
+            &f.project,
+            &tools,
+            &AtomicBool::new(false),
+            &slot,
+            1,
+            &all_cached,
+            |_| panic!("fully cached inference must not run"),
+            |n, row| final_rows.push((n, row)),
+        )
+        .unwrap();
+        if let Some(mut child) = slot.lock().unwrap().take() {
+            let _ = child.wait();
+        }
+        assert_eq!(final_rows, vec![(5, Some(5))]);
+        let mut wrong_index = f.project.clone();
+        wrong_index.frames.truncate(5);
+        let error = scan_with_workers_resuming(
+            &wrong_index,
+            &tools,
+            &AtomicBool::new(false),
+            &slot,
+            1,
+            &all_cached[..5],
+            |_| panic!("cached inference must not run"),
+            |_, _| {},
+        )
+        .unwrap_err();
+        if let Some(mut child) = slot.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        assert!(error.contains("more frames"), "{error}");
+    }
     #[test]
     fn uncertain_or_invalid_evidence_abstains() {
         assert_eq!(accepted(2, 0.5), Some(2));
@@ -488,6 +818,7 @@ mod tests {
             rows: vec![(0, 4)],
             cancel: Arc::new(AtomicBool::new(false)),
             child: Arc::new(Mutex::new(None)),
+            cache: None,
         });
         jobs
     }

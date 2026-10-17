@@ -1,4 +1,7 @@
 //! AI + orange-fragment ensemble. One full scan saves one undoable no-fire batch.
+#[cfg(any(test, target_os = "linux"))]
+#[path = "no_fire_runtime.rs"]
+mod runtime_pack;
 use fire_core::gui_mask::{GuiDetector, GuiOptions, GuiTextures};
 use no_fire_cnn::{Engine, policy};
 use std::{
@@ -13,6 +16,12 @@ static ENGINE: Mutex<Option<Engine>> = Mutex::new(None);
 pub(crate) fn configure(folder: PathBuf) {
     let _ = RESOURCES.set(folder);
 }
+#[cfg(target_os = "linux")]
+static CACHE: OnceLock<PathBuf> = OnceLock::new();
+#[cfg(target_os = "linux")]
+pub(crate) fn configure_cache(folder: PathBuf) {
+    let _ = CACHE.set(folder);
+}
 fn runtime() -> Result<PathBuf, String> {
     #[cfg(target_os = "linux")]
     if let Some(path) = std::env::var_os("FIRECRACKLE_AI_RUNTIME") {
@@ -26,6 +35,13 @@ fn runtime() -> Result<PathBuf, String> {
     let name = "onnxruntime.dll";
     #[cfg(not(windows))]
     let name = "libonnxruntime.so";
+    #[cfg(target_os = "linux")]
+    if folder.join("native.zip").is_file() {
+        return runtime_pack::unpack(
+            &folder.join("native.zip"),
+            CACHE.get().ok_or("AI cache unavailable")?,
+        );
+    }
     let file = folder.join(name);
     #[cfg(debug_assertions)]
     if !file.is_file() {
@@ -54,11 +70,12 @@ fn textures() -> Result<GuiTextures, String> {
     .with_extras(Some(asset!("bars.rgba")), Some(asset!("ascii.rgba")))
 }
 
-pub(crate) fn scan(
+pub(crate) fn scan_resuming(
     project: &Project,
     tools: &Tools,
     cancel: &AtomicBool,
     slot: &Mutex<Option<Child>>,
+    completed: &[Option<i16>],
     update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
     let detector = GuiDetector::new(textures()?, GuiOptions::default())?;
@@ -73,12 +90,13 @@ pub(crate) fn scan(
         "AI no-fire: {}",
         engine.lock().map_err(|_| "AI state unavailable")?.provider
     );
-    let result = crate::pov::scan_with_workers(
+    let result = crate::pov::scan_with_workers_resuming(
         project,
         tools,
         cancel,
         slot,
         2,
+        completed,
         |rgb| {
             let clear = policy::candidate_prepared(
                 rgb,

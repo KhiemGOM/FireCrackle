@@ -16,6 +16,7 @@ mod gui;
 mod jolt;
 mod no_fire;
 mod pov;
+mod scan_cache;
 mod url_import;
 
 #[tauri::command]
@@ -103,7 +104,11 @@ fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
 }
 #[tauri::command]
 fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
-    state.no_fire.status()
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let Some(workspace) = guard.as_ref() else {
+        return Ok(None);
+    };
+    state.no_fire.restore(&workspace.automation_project(), true)
 }
 #[tauri::command]
 fn no_fire_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
@@ -130,7 +135,11 @@ fn pov_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
 
 #[tauri::command]
 fn pov_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
-    state.pov.status()
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let Some(workspace) = guard.as_ref() else {
+        return Ok(None);
+    };
+    state.pov.restore(&workspace.automation_project(), false)
 }
 
 #[tauri::command]
@@ -402,6 +411,8 @@ pub fn run_app() {
             use tauri::Manager;
             external_tools::configure(app.path().app_local_data_dir()?);
             no_fire::configure(app.path().resource_dir()?.join("ai"));
+            #[cfg(target_os = "linux")]
+            no_fire::configure_cache(app.path().app_local_data_dir()?.join("ai"));
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

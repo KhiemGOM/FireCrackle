@@ -18,7 +18,7 @@ pub fn parallel_frames<R, T, F, U>(
     workers: usize,
     cancel: &std::sync::atomic::AtomicBool,
     process: F,
-    mut update: U,
+    update: U,
 ) -> Result<(), String>
 where
     R: Read + Send,
@@ -26,8 +26,35 @@ where
     F: Fn(&[u8]) -> Result<T, String> + Sync,
     U: FnMut(u32, T),
 {
+    parallel_frames_indexed(
+        reader,
+        frame_bytes,
+        total,
+        workers,
+        cancel,
+        |_, frame| process(frame),
+        update,
+    )
+}
+
+/// As `parallel_frames`, exposing the original output index so resumed scans can reuse individual decisions.
+pub fn parallel_frames_indexed<R, T, F, U>(
+    reader: R,
+    frame_bytes: usize,
+    total: u32,
+    workers: usize,
+    cancel: &std::sync::atomic::AtomicBool,
+    process: F,
+    mut update: U,
+) -> Result<(), String>
+where
+    R: Read + Send,
+    T: Send,
+    F: Fn(u32, &[u8]) -> Result<T, String> + Sync,
+    U: FnMut(u32, T),
+{
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{mpsc, Arc, Mutex};
+    use std::sync::{Arc, Mutex, mpsc};
     if frame_bytes == 0 {
         return Err("Frame size must be positive".into());
     }
@@ -92,30 +119,32 @@ where
             let output = result_tx.clone();
             let recycle = free_tx.clone();
             let process = &process;
-            scope.spawn(move || loop {
-                let received = match input.lock() {
-                    Ok(rx) => rx.recv(),
-                    Err(_) => {
-                        let _ = output.send(Err("Frame queue unavailable".into()));
+            scope.spawn(move || {
+                loop {
+                    let received = match input.lock() {
+                        Ok(rx) => rx.recv(),
+                        Err(_) => {
+                            let _ = output.send(Err("Frame queue unavailable".into()));
+                            break;
+                        }
+                    };
+                    let Ok((n, frame)) = received else {
+                        break;
+                    };
+                    if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
+                        let _ = recycle.send(frame);
                         break;
                     }
-                };
-                let Ok((n, frame)) = received else {
-                    break;
-                };
-                if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
+                    let result = process(n, &frame).map(|value| (n, value));
+                    if result.is_err() {
+                        stopped.store(true, Ordering::Relaxed);
+                    }
+                    let failed = result.is_err();
+                    let _ = output.send(result);
                     let _ = recycle.send(frame);
-                    break;
-                }
-                let result = process(&frame).map(|value| (n, value));
-                if result.is_err() {
-                    stopped.store(true, Ordering::Relaxed);
-                }
-                let failed = result.is_err();
-                let _ = output.send(result);
-                let _ = recycle.send(frame);
-                if failed {
-                    break;
+                    if failed {
+                        break;
+                    }
                 }
             });
         }

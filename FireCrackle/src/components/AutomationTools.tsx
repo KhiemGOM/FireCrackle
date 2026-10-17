@@ -51,16 +51,16 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         {!supported&&<p>This tool is available in the desktop app.</p>}
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
-          <span>{status.state==="running"?"Scanning":status.state==="done"?"Scan complete":status.state==="cancelled"?"Cancelled":"Scan failed"} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
+          <span>{status.state==="running"?"Scanning":status.state==="done"?"Scan complete":status.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
           <span>{status.accepted.toLocaleString()} accepted matches{status.applied>0?` · ${status.applied.toLocaleString()} added`:""}</span>
         </div>}
         {(error||status?.error)&&<p role="alert">{error??status?.error}</p>}
         <div className="automation-actions">
-          <button disabled={!supported||running||pending} onClick={()=>void perform(async()=>{setStatus(await backend.povStart!());})}>{status?"Scan again":"Scan video"}</button>
-          {running&&<button disabled={pending} onClick={()=>void perform(()=>backend.povCancel!(status!.id))}>Cancel scan</button>}
-          {status?.state==="done"&&<button disabled={pending||status.accepted===0||status.applied>0} onClick={()=>void perform(()=>onApply(status.id))}>Apply accepted matches</button>}
+          <button disabled={!supported||running||pending||status?.state==="done"} onClick={()=>void perform(async()=>{setStatus(await backend.povStart!());})}>{status?.state==="done"?"Results cached":status?"Resume scan":"Scan video"}</button>
+          {running&&<button disabled={pending} onClick={()=>void perform(()=>backend.povCancel!(status!.id))}>Pause scan</button>}
+          {status?.state==="done"&&<button disabled={pending||status.accepted===0} onClick={()=>void perform(()=>onApply(status.id))}>Apply accepted matches</button>}
         </div>
-        <p className="dim">Applying fills empty frames only and can be undone in one step. Closing this panel lets the scan continue.</p>
+        <p className="dim">Progress and results are saved locally. After a restart, resume where you left off. Changed videos or detector/model versions start fresh. Applying fills empty frames only and can be undone in one step. Closing this panel lets the scan continue.</p>
         {status?.applied ? <p>Open the Phase chart to spot unusual timing. If it looks odd near an automatically labelled frame, check that automatic label first. Use the source filter to isolate tool results. Independently choosing and confirming the same sprite adds “Human checked” while keeping the tool source.</p> : null}
         <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
           <h3 id="no-fire-experiment-heading">AI no-fire <span className="experiment-badge">Beta</span></h3>
@@ -78,12 +78,12 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
             <li>Clear gameplay with a visible hotbar. Menus, tiny/distant fire and transparent blocks can confuse it.</li>
           </ul>
           <div className="automation-actions">
-            <button disabled={!backend.noFireStart||!videoPath||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>Scan &amp; label no fire</button>
-            {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Cancel no-fire scan</button>}
+            <button disabled={!backend.noFireStart||!videoPath||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>{noFire?.state==="done"?"Apply cached no-fire":noFire?"Resume no-fire scan":"Scan & label no fire"}</button>
+            {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Pause no-fire scan</button>}
           </div>
           {noFire&&<div className="automation-progress" role="status">
             <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
-            <span>{noFire.state==="running"?(noFire.processed===0?"Preparing AI":"Scanning"):noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
+            <span>{noFire.state==="running"?(noFire.processed===0?"Preparing AI":"Scanning"):noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
           {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}
