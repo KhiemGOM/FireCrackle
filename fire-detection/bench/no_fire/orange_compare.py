@@ -33,4 +33,3 @@ errors=[{'source':r['source'],'frame':r['frame'],'boxes':r['truth']['boxes'],'sc
 report={'samples':len(all_rows),'fire':sum(r['truth']['substantial'] for r in all_rows),'clear_eligible':sum(not r['truth']['substantial'] for r in all_rows),'evaluation':evaluation,'primary_errors':errors,'hashes':hashes,'baseline_config':config,'shared_veil_sha256':hashlib.sha256((ROOT/'fire-detection/core/src/veil.rs').read_bytes()).hexdigest(),'limits':'Frozen historical thresholds; full fresh stride90 decode; familiar recordings, exploratory rule selection and unions, no independent holdout. HUD-excluded results diagnostic only. Width24 is a training proxy, not human readability measurement.'}
 (here/'comparison.json').write_text(json.dumps(report,indent=2))
 print(json.dumps({k:v for k,v in report.items() if k not in ['hashes','primary_errors']},indent=2))
-
