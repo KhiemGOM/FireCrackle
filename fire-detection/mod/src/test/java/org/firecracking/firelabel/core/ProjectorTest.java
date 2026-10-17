@@ -86,4 +86,16 @@ class ProjectorTest {
     void nanInputGivesNoPoint() {
         assertNull(standard().project(Double.NaN, 0, -4));
     }
+
+    @org.junit.jupiter.api.Test
+    void allocationFreeProjectionMatchesArrayApi() {
+        Projector p=new Projector(perspective(70,16.0/9.0,.05,512),1920,1080);
+        double[] out=new double[3];java.util.Random random=new java.util.Random(73);
+        for(int i=0;i<1000;i++){
+            double x=random.nextDouble()*20-10,y=random.nextDouble()*20-10,z=random.nextDouble()*40-20;
+            double[] old=p.project(x,y,z);boolean visible=p.projectInto(x,y,z,out);
+            assertEquals(old!=null,visible);if(visible)assertArrayEquals(old,out);
+        }
+        assertFalse(p.projectInto(Double.NaN,0,-1,out));
+    }
 }

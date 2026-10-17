@@ -9,6 +9,9 @@ import org.lwjgl.opengl.*;
 public final class OwnershipRenderer implements AutoCloseable {
     public final int width, height, depthFormat;
     private final int framebuffer, colour, depth, program, feedback, uncertainFramebuffer, uncertainColour;
+    private int readbackBuffer;
+    private long readbackFence;
+    private ByteBuffer mappedReadback;
     private final int textureUniform, texturedUniform, alphaUniform, alphaFuncUniform, blendedUniform;
     private final int fireUniform, baseUniform, bounds0Uniform, bounds1Uniform, uncertaintyOnlyUniform;
 
@@ -201,6 +204,58 @@ public final class OwnershipRenderer implements AutoCloseable {
         try {GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,framebuffer);GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);}
         finally {GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,old);}
     }
+    /** Queue all three images to a reusable PBO. No CPU pixel read or GPU wait here. */
+    public void requestReadback(int sourceFramebuffer) {
+        if (readbackFence != 0 || mappedReadback != null) throw new IllegalStateException("Readback already pending");
+        int oldRead=GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        int oldPack=GL11.glGetInteger(GL21.GL_PIXEL_PACK_BUFFER_BINDING);
+        GL11.glPushClientAttrib(GL11.GL_CLIENT_PIXEL_STORE_BIT);GL11.glPushAttrib(GL11.GL_PIXEL_MODE_BIT);
+        try {
+            if(readbackBuffer==0){
+                readbackBuffer=GL15.glGenBuffers();GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,readbackBuffer);
+                GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER,(long)width*height*4*3,GL15.GL_STREAM_READ);
+            } else GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,readbackBuffer);
+            GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT,1);GL11.glPixelStorei(GL11.GL_PACK_ROW_LENGTH,0);
+            GL11.glPixelStorei(GL11.GL_PACK_SKIP_ROWS,0);GL11.glPixelStorei(GL11.GL_PACK_SKIP_PIXELS,0);
+            int[] sources={sourceFramebuffer,framebuffer,uncertainFramebuffer};
+            for(int i=0;i<3;i++){
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,sources[i]);GL11.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
+                GL11.glReadPixels(0,0,width,height,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,(long)i*width*height*4);
+            }
+            readbackFence=GL32.glFenceSync(GL32.GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+            GL11.glFlush();
+        } finally {
+            GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,oldPack);GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,oldRead);
+            GL11.glPopAttrib();GL11.glPopClientAttrib();
+        }
+    }
+    /** Returns null while the GPU is busy; polling never waits. Mapping occurs only after the fence signals. */
+    public ByteBuffer[] pollReadback() {
+        if(readbackFence==0)return null;
+        int status=GL32.glClientWaitSync(readbackFence,0,0);
+        if(status==GL32.GL_TIMEOUT_EXPIRED)return null;
+        if(status==GL32.GL_WAIT_FAILED)throw new IllegalStateException("Ownership GPU fence failed");
+        int oldPack=GL11.glGetInteger(GL21.GL_PIXEL_PACK_BUFFER_BINDING);
+        try {
+            GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,readbackBuffer);
+            mappedReadback=GL15.glMapBuffer(GL21.GL_PIXEL_PACK_BUFFER,GL15.GL_READ_ONLY,(long)width*height*4*3,null);
+            if(mappedReadback==null)throw new IllegalStateException("Ownership PBO mapping failed");
+            ByteBuffer[] out=new ByteBuffer[3];int bytes=width*height*4;
+            for(int i=0;i<3;i++){
+                ByteBuffer view=mappedReadback.duplicate();view.position(i*bytes);view.limit((i+1)*bytes);out[i]=view.slice();
+            }
+            GL32.glDeleteSync(readbackFence);readbackFence=0;return out;
+        } finally {GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,oldPack);}
+    }
+    /** Called only after the worker has copied/consumed its mapped views. */
+    public void releaseReadback(){
+        if(mappedReadback==null)return;
+        int oldPack=GL11.glGetInteger(GL21.GL_PIXEL_PACK_BUFFER_BINDING);
+        try {GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,readbackBuffer);GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER);mappedReadback=null;}
+        finally {GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,oldPack);}
+    }
+    public ByteBuffer readRawIds(){return readRgba(framebuffer,width,height);}
+    public ByteBuffer readUncertainty(){return readRgba(uncertainFramebuffer,width,height);}
     public ByteBuffer read(){
         ByteBuffer ids=readRgba(framebuffer,width,height),unknown=readRgba(uncertainFramebuffer,width,height);
         for(int i=0;i<width*height*4;i+=4)if((unknown.get(i)&255)!=0){
@@ -224,5 +279,5 @@ public final class OwnershipRenderer implements AutoCloseable {
         }
     }
     private static void restoreFramebuffer(int draw,int read){GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,draw);GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,read);}
-    public void close(){GL20.glDeleteProgram(program);GL15.glDeleteBuffers(feedback);GL30.glDeleteFramebuffers(framebuffer);GL30.glDeleteRenderbuffers(colour);GL30.glDeleteRenderbuffers(depth);GL30.glDeleteFramebuffers(uncertainFramebuffer);GL30.glDeleteRenderbuffers(uncertainColour);}
+    public void close(){releaseReadback();if(readbackFence!=0)GL32.glDeleteSync(readbackFence);if(readbackBuffer!=0)GL15.glDeleteBuffers(readbackBuffer);GL20.glDeleteProgram(program);GL15.glDeleteBuffers(feedback);GL30.glDeleteFramebuffers(framebuffer);GL30.glDeleteRenderbuffers(colour);GL30.glDeleteRenderbuffers(depth);GL30.glDeleteFramebuffers(uncertainFramebuffer);GL30.glDeleteRenderbuffers(uncertainColour);}
 }

@@ -81,6 +81,11 @@ public final class OwnershipSmoke {
             reset();scene(false);ByteBuffer baseline=OwnershipRenderer.readRgba(target,W,H);
             reset();scene(true);ByteBuffer replay=OwnershipRenderer.readRgba(target,W,H);
             for(int i=0;i<W*H*4;i++)check(baseline.get(i)==replay.get(i),"source RGBA byte "+i);
+            renderer.requestReadback(target);GL11.glFinish();
+            ByteBuffer[] queued=renderer.pollReadback();check(queued!=null,"PBO fence and mapping");
+            for(int i=0;i<W*H*4;i++)check(queued[0].get(i)==replay.get(i),"PBO RGB parity "+i);
+            renderer.releaseReadback();
+            renderer.requestReadback(target);GL11.glFinish();check(renderer.pollReadback()!=null,"PBO reuse");renderer.releaseReadback();
             check(GL11.glGetError()==GL11.GL_NO_ERROR,"no OpenGL error");
             System.out.println("PASS: "+checks+" assertions; overlap, wall, cutout, blend, depth clear, geometry, state, unchanged source RGBA");
         } finally {

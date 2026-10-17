@@ -1,5 +1,7 @@
 package org.firecracking.firelabel.core;
 
+import java.nio.ByteBuffer;
+
 /**
  * A rectangle of the framebuffer's alpha channel as the GUI left it (the world pass clears alpha to 0, the GUI
  * writes the alpha of what it draws), as 0..1 coverage per pixel.
@@ -40,6 +42,24 @@ public final class AlphaMask implements ScreenMask {
             System.arraycopy(bottomUp, (height - 1 - row) * width, topDown, row * width, width);
         }
         return new AlphaMask(x0, yTop, width, height, topDown);
+    }
+
+    /** Read-only ROI view over a shared bottom-up RGBA readback. Valid until that buffer is reused. */
+    public static ScreenMask rgbaView(ByteBuffer rgba, int framebufferWidth, int framebufferHeight,
+            int x0, int y0, int width, int height) {
+        if (framebufferWidth < 1 || framebufferHeight < 1 || (long) framebufferWidth * framebufferHeight * 4 > rgba.limit()) {
+            throw new IllegalArgumentException("RGBA buffer too small");
+        }
+        if (width < 1 || height < 1 || x0 < 0 || y0 < 0 || x0 + width > framebufferWidth || y0 + height > framebufferHeight) {
+            throw new IllegalArgumentException("invalid ROI");
+        }
+        return (x, y) -> {
+            if (!Double.isFinite(x) || !Double.isFinite(y)) return 0;
+            double px = Math.floor(x), py = Math.floor(y);
+            if (px < x0 || py < y0 || px >= x0 + width || py >= y0 + height) return 0;
+            int i = ((framebufferHeight - 1 - (int) py) * framebufferWidth + (int) px) * 4 + 3;
+            return (rgba.get(i) & 255) / 255.0;
+        };
     }
 
     @Override

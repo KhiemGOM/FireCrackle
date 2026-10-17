@@ -51,6 +51,7 @@ public final class FrameCapture {
 
     /** Start of the world pass: records the matrices and arms entity fire capture. */
     public static void beginWorld(Matrix4f view, Matrix4f projection, Vec3d cam) {
+        if (!FireLabel.usesLegacyLabels()) return;
         double[] v = rowMajor(view);
         double[] p = rowMajor(projection);
         double[] mvp = new double[16];
@@ -89,11 +90,13 @@ public final class FrameCapture {
 
     /** Called whenever GameRenderer loads a projection matrix: remember which one is in effect. */
     public static void noteProjection(Matrix4f projection) {
+        if (!FireLabel.usesLegacyLabels()) return;
         currentProjectionRowMajor = rowMajor(projection);
     }
 
     /** Called at the start of the first-person fire overlay draw with the matrix it starts from. */
     public static void captureOverlay(Matrix4f model) {
+        if (!FireLabel.usesLegacyLabels()) return;
         overlayModel = rowMajor(model);
         overlayProjection = currentProjectionRowMajor == null ? null : transpose(currentProjectionRowMajor);
     }

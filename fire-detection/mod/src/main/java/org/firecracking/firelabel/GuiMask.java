@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.firecracking.firelabel.core.AlphaMask;
 import org.firecracking.firelabel.core.BBox;
+import org.firecracking.firelabel.core.ScreenMask;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
@@ -27,6 +28,8 @@ public final class GuiMask {
     private static boolean selfTested;
     private static String brokenReason;
     private static ByteBuffer buffer;
+    private static boolean readThisFrame;
+    private static final boolean DEBUG = Boolean.getBoolean("firelabel.debug");
 
     // debug statistics (alpha histogram of everything read), logged by FireLabeler in debug mode
     static long statReads;
@@ -56,6 +59,7 @@ public final class GuiMask {
                     LOGGER.info("GUI mask self-test passed: the framebuffer alpha channel can be cleared and read.");
                 }
             }
+            readThisFrame = false;
             armed = true;
         } catch (RuntimeException e) {
             brokenReason = "arming the GUI mask threw " + e;
@@ -83,10 +87,11 @@ public final class GuiMask {
 
     static void endFrame() {
         armed = false;
+        readThisFrame = false;
     }
 
     /** The GUI coverage in the given screen rectangle (top-left pixels), or null if the rectangle is empty. */
-    static AlphaMask read(int fbWidth, int fbHeight, BBox region) {
+    static ScreenMask read(int fbWidth, int fbHeight, BBox region) {
         if (region.isEmpty()) {
             return null;
         }
@@ -99,33 +104,28 @@ public final class GuiMask {
         if (w <= 0 || h <= 0) {
             return null;
         }
-        int needed = w * h * 4;
-        if (buffer == null || buffer.capacity() < needed) {
-            buffer = BufferUtils.createByteBuffer(Math.max(needed, 1 << 20));
-        }
-        buffer.clear();
-        int oldAlign = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT);
-        GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
-        GL11.glReadPixels(x0, fbHeight - y1, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
-        GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, oldAlign);
-
-        byte[] alpha = new byte[w * h];
-        for (int i = 0; i < alpha.length; i++) {
-            int a = buffer.get(i * 4 + 3) & 0xFF;
-            alpha[i] = (byte) a;
-            if (a > 0) {
-                if (a == 255) {
-                    statOpaque++;
-                } else if (a >= STAT_SPLIT) {
-                    statHigh++;
-                } else {
-                    statLow++;
+        if (!readThisFrame) {
+            int needed = Math.multiplyExact(Math.multiplyExact(fbWidth, fbHeight), 4);
+            if (buffer == null || buffer.capacity() < needed) buffer = BufferUtils.createByteBuffer(needed);
+            buffer.clear();
+            int oldAlign = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT);
+            try {
+                GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
+                GL11.glReadPixels(0, 0, fbWidth, fbHeight, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
+            } finally { GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, oldAlign); }
+            readThisFrame = true;
+            statReads++;
+            statPixels += (long) fbWidth * fbHeight;
+            if (DEBUG) {
+                for (int i = 3; i < needed; i += 4) {
+                    int a = buffer.get(i) & 255;
+                    if (a == 255) statOpaque++;
+                    else if (a >= STAT_SPLIT) statHigh++;
+                    else if (a > 0) statLow++;
                 }
             }
         }
-        statReads++;
-        statPixels += alpha.length;
-        return AlphaMask.fromBottomUpRows(x0, y0, w, h, alpha);
+        return AlphaMask.rgbaView(buffer, fbWidth, fbHeight, x0, y0, w, h);
     }
 
     private static int readAlphaPixel(int x, int y) {

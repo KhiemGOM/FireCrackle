@@ -103,4 +103,15 @@ class AlphaMaskTest {
         a[0] = 0;
         assertEquals(1.0, m.alpha(0.5, 0.5), 1e-12);
     }
+
+    @org.junit.jupiter.api.Test
+    void sharedRgbaViewMatchesOldRegionCopyAtEverySample() {
+        int w=5,h=4;java.nio.ByteBuffer rgba=java.nio.ByteBuffer.allocate(w*h*4);
+        for(int y=0;y<h;y++)for(int x=0;x<w;x++)rgba.put(((h-1-y)*w+x)*4+3,(byte)(x*29+y*13));
+        byte[] region=new byte[3*2];for(int y=0;y<2;y++)for(int x=0;x<3;x++)region[y*3+x]=(byte)((x+1)*29+(y+1)*13);
+        AlphaMask old=new AlphaMask(1,1,3,2,region);
+        ScreenMask view=AlphaMask.rgbaView(rgba,w,h,1,1,3,2);
+        for(double y=-1;y<6;y+=.25)for(double x=-1;x<7;x+=.25)assertEquals(old.alpha(x,y),view.alpha(x,y));
+        assertEquals(0,view.alpha(Double.NaN,0));assertEquals(0,view.alpha(0,Double.POSITIVE_INFINITY));
+    }
 }

@@ -34,13 +34,19 @@ public final class Projector {
 
     /** {@code {pixelX, pixelY, ndcDepth}}, or null if the point is behind or on the camera plane. */
     public double[] project(double x, double y, double z) {
+        double[] out = new double[3];
+        return projectInto(x, y, z, out) ? out : null;
+    }
+
+    /** Same projection without allocating a result array for each texel corner. */
+    public boolean projectInto(double x, double y, double z, double[] out) {
         if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(z)
                 || Double.isInfinite(x) || Double.isInfinite(y) || Double.isInfinite(z)) {
-            return null;
+            return false;
         }
         double cw = m[3] * x + m[7] * y + m[11] * z + m[15];
         if (!(cw > MIN_W)) {
-            return null;
+            return false;
         }
         double cx = m[0] * x + m[4] * y + m[8] * z + m[12];
         double cy = m[1] * x + m[5] * y + m[9] * z + m[13];
@@ -48,6 +54,9 @@ public final class Projector {
         double ndcX = cx / cw;
         double ndcY = cy / cw;
         double ndcZ = cz / cw;
-        return new double[] {(ndcX * 0.5 + 0.5) * width, (0.5 - ndcY * 0.5) * height, ndcZ};
+        out[0] = (ndcX * 0.5 + 0.5) * width;
+        out[1] = (0.5 - ndcY * 0.5) * height;
+        out[2] = ndcZ;
+        return true;
     }
 }

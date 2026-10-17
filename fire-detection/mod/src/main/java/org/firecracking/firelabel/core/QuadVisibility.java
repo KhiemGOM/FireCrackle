@@ -97,6 +97,7 @@ public final class QuadVisibility {
         double half = 0.5 / texels;
         double[] point = new double[3];
         double[] rel = new double[3];
+        double[] projected = new double[3];
 
         for (int ty = 0; ty < texels; ty++) {
             for (int tx = 0; tx < texels; tx++) {
@@ -126,27 +127,28 @@ public final class QuadVisibility {
                     double v = cv + ((k & 2) == 0 ? -half : half);
                     double ss = ((u - u0) * d - b * (v - w0)) / det;
                     double tt = (a * (v - w0) - c * (u - u0)) / det;
-                    double[] p = projector.project(
+                    boolean projectedOk = projector.projectInto(
                             v0[0] + ss * e1[0] + tt * e3[0] - cam[0],
                             v0[1] + ss * e1[1] + tt * e3[1] - cam[1],
-                            v0[2] + ss * e1[2] + tt * e3[2] - cam[2]);
-                    if (p == null) {
+                            v0[2] + ss * e1[2] + tt * e3[2] - cam[2], projected);
+                    if (!projectedOk) {
                         ok = false;
                     } else {
-                        minX = Math.min(minX, p[0]);
-                        maxX = Math.max(maxX, p[0]);
-                        minY = Math.min(minY, p[1]);
-                        maxY = Math.max(maxY, p[1]);
+                        minX = Math.min(minX, projected[0]);
+                        maxX = Math.max(maxX, projected[0]);
+                        minY = Math.min(minY, projected[1]);
+                        maxY = Math.max(maxY, projected[1]);
                     }
                 }
                 if (!ok || maxX - minX < EPS || maxY - minY < EPS) {
                     continue; // partly behind the camera, or zero area
                 }
-                BBox screen = new BBox();
-                screen.add(minX, minY);
-                screen.add(maxX, maxY);
-                BBox onScreen = screen.clamped(projectorWidth(projector), projectorHeight(projector));
-                if (onScreen.isEmpty() || onScreen.x1() - onScreen.x0() < EPS || onScreen.y1() - onScreen.y0() < EPS) {
+                if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(maxX) || !Double.isFinite(maxY)) {
+                    throw new IllegalArgumentException("non-finite projected cell");
+                }
+                double x0 = Math.max(minX, 0), y0 = Math.max(minY, 0);
+                double x1 = Math.min(maxX, projectorWidth(projector)), y1 = Math.min(maxY, projectorHeight(projector));
+                if (x0 > x1 || y0 > y1 || x1 - x0 < EPS || y1 - y0 < EPS) {
                     continue; // outside the frame
                 }
 
@@ -154,7 +156,7 @@ public final class QuadVisibility {
                 // translucent one leaves it visible and is recorded as a veil.
                 double veil = 0.0;
                 if (gui != null) {
-                    veil = guiVeil(gui, onScreen);
+                    veil = guiVeil(gui, x0, y0, x1, y1);
                     if (veil < 0) {
                         continue;
                     }
@@ -183,7 +185,8 @@ public final class QuadVisibility {
                     continue;
                 }
 
-                res.box.add(onScreen);
+                res.box.add(x0, y0);
+                res.box.add(x1, y1);
                 res.visibleTexels++;
                 res.veilSum += veil;
             }
@@ -195,13 +198,13 @@ public final class QuadVisibility {
      * 3x3 samples inside the box (at 1/6, 1/2, 5/6). Returns -1 if at least 5 of the 9 are opaque (the cell is
      * hidden), otherwise the mean GUI alpha of the nine samples (the veil over the cell, 0 when nothing is over it).
      */
-    private static double guiVeil(ScreenMask gui, BBox box) {
+    private static double guiVeil(ScreenMask gui, double x0, double y0, double x1, double y1) {
         int opaque = 0;
         double sum = 0.0;
         for (int iy = 0; iy < 3; iy++) {
-            double y = box.y0() + (box.y1() - box.y0()) * (2 * iy + 1) / 6.0;
+            double y = y0 + (y1 - y0) * (2 * iy + 1) / 6.0;
             for (int ix = 0; ix < 3; ix++) {
-                double x = box.x0() + (box.x1() - box.x0()) * (2 * ix + 1) / 6.0;
+                double x = x0 + (x1 - x0) * (2 * ix + 1) / 6.0;
                 double a = gui.alpha(x, y);
                 if (Double.isNaN(a) || a < 0.0) {
                     a = 0.0;

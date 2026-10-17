@@ -34,6 +34,9 @@ public final class FireLabel {
 
     /** Dev only (set by the runClient config): outline the labelled boxes on screen to check them by eye. */
     private static final boolean DEBUG = Boolean.getBoolean("firelabel.debug");
+    private static final boolean LEGACY_LABELS = Boolean.parseBoolean(System.getProperty("firelabel.legacyLabels", "true"));
+
+    public static boolean usesLegacyLabels() { return LEGACY_LABELS; }
 
     private FireLabel() {}
 
@@ -53,14 +56,24 @@ public final class FireLabel {
         // (drawn below) would write alpha too.
         FrameRecord record = null;
         RuntimeException failure = null;
+        long labelStart = System.nanoTime();
         try {
-            record = FireLabeler.label(
-                    client, id, ticks, spriteFrame(ModelLoader.FIRE_0), spriteFrame(ModelLoader.FIRE_1));
+            if (LEGACY_LABELS) {
+                record = FireLabeler.label(
+                        client, id, ticks, spriteFrame(ModelLoader.FIRE_0), spriteFrame(ModelLoader.FIRE_1));
+            }
         } catch (RuntimeException e) {
             failure = e;
         }
+        double labelMs = (System.nanoTime() - labelStart) / 1e6;
+        if (Boolean.getBoolean("firelabel.profile") && id % 120 == 0) LOGGER.info("Label CPU: {} ms", labelMs);
         OwnershipExport.finish(id, ticks, spriteFrame(ModelLoader.FIRE_0), spriteFrame(ModelLoader.FIRE_1));
         StripRenderer.draw(fbWidth, fbHeight, StripPattern.wrapTick(ticks), id); // always, even if labelling failed
+        if (!LEGACY_LABELS) {
+            // Mask-only recordings have sample JSON, not guessed empty per-frame visibility labels.
+            GuiMask.endFrame();
+            return;
+        }
         if (failure != null) {
             // Never write a guessed "no fire" row: a missing frame id is detectable, a false negative is not.
             if (!labelerFailed) {

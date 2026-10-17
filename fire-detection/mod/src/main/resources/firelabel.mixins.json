@@ -11,6 +11,8 @@
     "InGameOverlayRendererMixin",
     "SpriteAccessor",
     "OwnershipDrawMixin",
+    "OwnershipBufferMixin",
+    "OwnershipVertexBufferMixin",
     "WorldChunkMixin",
     "WorldRendererMixin"
   ],

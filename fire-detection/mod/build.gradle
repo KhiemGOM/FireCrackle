@@ -16,7 +16,8 @@ loom {
             // For RECORDING footage turn it off: gradlew runClient -PfirelabelDebug=false
             property 'firelabel.debug', (findProperty('firelabelDebug') ?: 'true').toString()
             property 'firelabel.ownership', (findProperty('firelabelOwnership') ?: 'false').toString()
-            property 'firelabel.ownershipEvery', (findProperty('firelabelOwnershipEvery') ?: '120').toString()
+            property 'firelabel.ownershipEvery', (findProperty('firelabelOwnershipEvery') ?: '180').toString()
+            property 'firelabel.legacyLabels', (findProperty('firelabelLegacyLabels') ?: 'true').toString()
             property 'firelabel.ownershipLimit', (findProperty('firelabelOwnershipLimit') ?: '8').toString()
         }
     }

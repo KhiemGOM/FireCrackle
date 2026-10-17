@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.firecracking.firelabel.core.BBox;
 import org.firecracking.firelabel.core.BoxCulling;
 import org.firecracking.firelabel.core.FirePart;
+import org.firecracking.firelabel.core.EntityOcclusionIndex;
 import org.firecracking.firelabel.core.FireQuadLabel;
 import org.firecracking.firelabel.core.FireQuadProjection;
 import org.firecracking.firelabel.core.FireSourceLabel;
@@ -448,11 +449,11 @@ final class FireLabeler {
      * and a burning entity is excluded for its own fire.
      */
     private static final class EntityOccluder {
-        private final List<Integer> ids = new ArrayList<Integer>();
-        private final List<double[]> mins = new ArrayList<double[]>();
-        private final List<double[]> maxs = new ArrayList<double[]>();
+        private final EntityOcclusionIndex index;
+        private final int count;
 
         EntityOccluder(ClientWorld world, double[] cam) {
+            List<EntityOcclusionIndex.Entry> entries = new ArrayList<EntityOcclusionIndex.Entry>();
             for (Entity e : world.getEntities()) {
                 if (e.isInvisible() || e.isSpectator()) {
                     continue;
@@ -464,33 +465,19 @@ final class FireLabeler {
                 if (dx * dx + dy * dy + dz * dz > (MAX_DIST + 8) * (MAX_DIST + 8)) {
                     continue;
                 }
-                ids.add(e.getEntityId());
-                mins.add(new double[] {b.minX, b.minY, b.minZ});
-                maxs.add(new double[] {b.maxX, b.maxY, b.maxZ});
+                entries.add(new EntityOcclusionIndex.Entry(e.getEntityId(),
+                        new double[] {b.minX, b.minY, b.minZ}, new double[] {b.maxX, b.maxY, b.maxZ}));
             }
+            count = entries.size();
+            index = new EntityOcclusionIndex(entries);
         }
 
         int count() {
-            return ids.size();
+            return count;
         }
 
         boolean blocked(double[] cam, double[] target, int excludeId) {
-            for (int i = 0; i < ids.size(); i++) {
-                if (ids.get(i) == excludeId) {
-                    continue;
-                }
-                double[] min = mins.get(i);
-                double[] max = maxs.get(i);
-                if (cam[0] >= min[0] && cam[0] <= max[0] && cam[1] >= min[1] && cam[1] <= max[1]
-                        && cam[2] >= min[2] && cam[2] <= max[2]) {
-                    continue; // the camera is inside this entity (e.g. the player in first person)
-                }
-                double t = RayBox.entryFraction(cam, target, min, max);
-                if (t >= 0 && t < 1.0 - 1e-6) {
-                    return true;
-                }
-            }
-            return false;
+            return index.blocked(cam, target, excludeId);
         }
     }
 }
