@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { version as appVersion } from "../package.json";
 import "./App.css";
 import { FlagsPanel } from "./components/FlagsPanel";
 import { AutomationTools } from "./components/AutomationTools";
@@ -242,6 +243,7 @@ export default function App() {
         <div className="brand">
           <img className="brand-icon" src="/favicon.png" alt="" draggable={false} />
           FireCrackle
+          <span className="tag" title={`FireCrackle version ${appVersion}`}>v{appVersion}</span>
           {backend.mock && <span className="tag mock">mock backend</span>}
         </div>
         <nav className="tabs" aria-label="Workspace tabs">
