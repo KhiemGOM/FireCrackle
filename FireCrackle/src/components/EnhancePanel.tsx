@@ -3,6 +3,7 @@ import { displayOrder, moveEnabled, rowNumbers } from "../lib/post/order";
 import { PRESETS, applyPreset, presetOf } from "../lib/post/presets";
 import { PORTAL_FRAMES, clampParam, repairManual, type PostSettings, type RowId, type StageId } from "../lib/post/settings";
 import { STAGES } from "../lib/post/stages";
+import { POST_TOGGLE_KEY } from "../lib/post/keys";
 import { Icon } from "./Icon";
 import "./EnhancePanel.css";
 
@@ -16,6 +17,8 @@ const ROW_HELP: Partial<Record<RowId, string>> = {
   portal: "Assumes portal rendering like vanilla 1.16.5; custom textures or shaders may change the result. Auto fits the frame and opacity; Manual applies the ones you pick, even where Auto finds no fit. GUI pixels are protected when a mask is available.",
   ...Object.fromEntries((Object.keys(STAGES) as StageId[]).filter(id => STAGES[id].help).map(id => [id, STAGES[id].help])),
 };
+
+const MASTER_TITLE = `Post-processing on/off · ${POST_TOGGLE_KEY.toUpperCase()} · view only: detection and exports use the original frames`;
 
 interface Props {
   settings: PostSettings;
@@ -156,8 +159,8 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
     <div className={`enhance-panel${settings.enabled ? "" : " master-off"}`}>
       <div className="post-head">
         <label className="post-preset">
-          <Icon name="settings" />
-          <select aria-label="Preset" title="Preset" value={current} onChange={e => {
+          Presets
+          <select aria-label="Preset" title={`Presets: ${PRESETS.map(p => p.name).join(", ")}. A preset switches on a set of effects at once.`} value={current} onChange={e => {
             if (e.target.value === "custom") return;
             const next = applyPreset(settings, e.target.value);
             if (next !== settings) onChange(next);
@@ -168,6 +171,7 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
           </select>
         </label>
         {iconButton("Reset effects", "reset", onReset)}
+        <button type="button" role="switch" className="post-switch post-master" aria-label="Post-processing" title={MASTER_TITLE} aria-checked={settings.enabled} onClick={() => onChange({ ...settings, enabled: !settings.enabled })} />
       </div>
       <ul className="post-list">{rows.map(row)}</ul>
     </div>

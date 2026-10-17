@@ -315,17 +315,18 @@ it("goes back to the label tools from the Enhance panel", () => {
   expect(find(ui.tree, e => e.type === "aside")!.props.className).not.toContain("enhancing");
 });
 
-it("has a post-processing on/off button in both views that shows its state and toggles the global switch", () => {
+it("keeps the post-processing on/off out of the tab row: it lives inside the Enhance panel", () => {
   fixture.post = postFixture({ ...DEFAULT_POST, enabled: false });
   let ui = render();
-  const button = sideButton(ui.tree, "Toggle post-processing")!;
-  expect(button.props["aria-pressed"]).toBe(false);
-  expect(button.props.title).toContain("V");
-  button.props.onClick();
-  expect(fixture.post.toggle).toHaveBeenCalledOnce();
+  expect(sideButton(ui.tree, "Toggle post-processing")).toBeUndefined();
+  expect(find(ui.tree, e => e.props.className === "side-switch")).toBeDefined();
   sideButton(ui.tree, "Show Enhance panel")!.props.onClick();
   ui = render();
-  expect(sideButton(ui.tree, "Toggle post-processing")).toBeDefined();
+  expect(sideButton(ui.tree, "Toggle post-processing")).toBeUndefined();
+  const panel = find(ui.tree, e => e.type === EnhancePanel)!;
+  expect(panel.props.settings.enabled).toBe(false);
+  panel.props.onChange({ ...panel.props.settings, enabled: true }); // the panel's own switch goes through the settings hook
+  expect(fixture.post.change).toHaveBeenCalledWith({ ...DEFAULT_POST, enabled: true });
 });
 
 it("gives the video the picture settings and a place to report the portal status", () => {
@@ -344,3 +345,26 @@ it("hands the last portal fit between the video and the Enhance panel", () => {
   const panel = find(render().tree, e => e.type === EnhancePanel)!;
   expect(panel.props.portalFit).toEqual({ phase: 20, opacity: 0.39 });
 });
+
+it("never runs the playhead ahead of the picture during slow delivery or after a seek", async () => {
+  vi.useFakeTimers({toFake:["setInterval","clearInterval","performance"]});
+  try {
+    let ui=render();key(" ");ui=render();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fixture.act).not.toHaveBeenCalled();
+    expect(ui.video.props.onFramePresented).toBeTypeOf("function");
+    fixture.act.mockImplementation(async (action:any)=>{fixture.view.current+=action.frames;});
+    ui.video.props.onFramePresented(10);
+    await vi.advanceTimersByTimeAsync(80);
+    expect(fixture.act).toHaveBeenCalledTimes(1);
+    expect(Math.abs((fixture.act.mock.calls[0][0] as any).frames)).toBeLessThanOrEqual(1);
+    ui=render();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fixture.act).toHaveBeenCalledTimes(1);
+    fixture.view={...fixture.view,current:70};ui=render();
+    ui.video.props.onFramePresented(11); // a stale seek result cannot unlock playback
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fixture.act).toHaveBeenCalledTimes(1);
+  } finally {vi.useRealTimers();fixture.act.mockImplementation(async()=>{});}
+});
+

@@ -68,11 +68,16 @@ describe("Enhance panel: the list", () => {
 });
 
 describe("Enhance panel: switches live inside the rows", () => {
-  it("has no master switch of its own: the one in the right-side header is the only global on/off", () => {
-    const { root } = panel();
-    expect(byLabel(root, "Post-processing")).toBeUndefined();
-    expect(byLabel(root, "Toggle post-processing")).toBeUndefined();
-    expect(all(root, e => e.props.role === "switch").length).toBe(6 + 2); // one per row: veil, portal and the six effects
+  it("has the one global on/off inside the panel, as a switch with the key in its tooltip", () => {
+    const { root, onChange } = panel();
+    const master = byLabel(root, "Post-processing");
+    expect(master.props.role).toBe("switch");
+    expect(master.props["aria-checked"]).toBe(true);
+    expect(String(master.props.title)).toContain("V");
+    expect(text(master)).toBe("");
+    master.props.onClick();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...DEFAULT_POST, enabled: false });
+    expect(all(root, e => e.props.role === "switch").length).toBe(1 + 6 + 2); // the master, then one per row
   });
 
   it("turns veil on as Auto and back off, and portal likewise", () => {
@@ -374,9 +379,9 @@ describe("Enhance panel: icons and short text", () => {
     expect(text(root).toLowerCase()).not.toContain("viewing only");
   });
 
-  it("labels the preset choice by an icon, not a word", () => {
+  it("labels the preset choice with the word Presets, so it is clear what the dropdown is for", () => {
     const { root } = panel();
-    expect(byLabel(root, "Preset").props.title).toBe("Preset");
-    expect(text(all(root, e => e.props.className === "post-preset"))).not.toMatch(/^Preset/);
+    expect(byLabel(root, "Preset").props.title).toContain("Dark scene");
+    expect(text(all(root, e => e.props.className === "post-preset")[0].props.children[0])).toBe("Presets");
   });
 });

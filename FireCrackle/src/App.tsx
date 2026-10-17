@@ -397,7 +397,6 @@ export default function App() {
             <div className="side-switch">
               <button type="button" aria-label="Show label tools" aria-pressed={side === "label"} className={side === "label" ? "on" : ""} title="Label tools" onClick={() => setSide("label")}><Icon name="atlas" />Label</button>
               <button type="button" aria-label="Show Enhance panel" aria-pressed={side === "enhance"} className={side === "enhance" ? "on" : ""} title="Enhance" onClick={() => setSide("enhance")}><Icon name="enhance" />Enhance</button>
-              <button type="button" aria-label="Toggle post-processing" aria-pressed={post.settings.enabled} className={`post-toggle${post.settings.enabled ? " on" : ""}`} title={`Post-processing on/off · ${post.toggleKey.toUpperCase()} · view only: detection and exports use the original frames`} onClick={post.toggle} />
             </div>
             {side === "enhance" && <EnhancePanel settings={post.settings} selected={post.selected} onSelect={post.setSelected} onChange={post.change} onReset={post.reset} portalStatus={post.portalStatus} portalFit={post.portalFit} />}
             <div className="pick-state">
