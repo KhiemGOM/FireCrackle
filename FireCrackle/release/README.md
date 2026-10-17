@@ -1,5 +1,16 @@
 # Releasing FireCrackle
 
+If both platform builds passed but publication failed, reuse their artifacts with
+`gh workflow run firecrackle-publish.yml --ref main -f commit=FULL_FROZEN_SHA -f windows_run=RUN_ID -f linux_run=RUN_ID`.
+This uses current publisher tooling with the frozen version/notes, checks every job attempt,
+and still requires matching commit provenance and all artifact/server checksums. A newer failed
+platform build cannot be replaced by an older success. Existing published bytes are never overwritten.
+The same run ID can supply both platforms. No package rebuild is required.
+
+If GitHub's workflow token cannot create a release tag for an older commit, create the tag at
+the verified frozen SHA with the authenticated local GitHub CLI, then run publish-only recovery.
+Do not move an existing tag. Cancel the redundant tag-triggered package run when reusing passed builds.
+
 Run from the repository root with Git, Python 3 and an authenticated GitHub CLI:
 
 ```powershell

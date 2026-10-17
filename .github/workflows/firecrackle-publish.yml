@@ -1,0 +1,46 @@
+name: FireCrackle publish existing builds
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full frozen release commit SHA
+        required: true
+        type: string
+      windows_run:
+        description: Successful Windows artifact run ID
+        required: true
+        type: string
+      linux_run:
+        description: Successful Linux artifact run ID
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: publish-existing-${{ inputs.commit }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: release-tools
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          path: release-source
+      - name: Verify existing artifacts and publish through a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          WINDOWS_RUN: ${{ inputs.windows_run }}
+          LINUX_RUN: ${{ inputs.linux_run }}
+        run: >-
+          python3 release-tools/FireCrackle/scripts/publish_release.py publish
+          --source-root release-source --repo "$GITHUB_REPOSITORY" --commit "$RELEASE_COMMIT"
+          --windows-run "$WINDOWS_RUN" --linux-run "$LINUX_RUN"

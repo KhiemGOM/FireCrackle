@@ -2,6 +2,8 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -10,6 +12,47 @@ import publish_release as release
 
 
 class ReleaseSafetyTests(unittest.TestCase):
+    def test_publish_retry_checks_all_attempts_and_accepts_latest_successful_platform_job(self):
+        jobs = [{"id": 1, "name": "windows", "run_attempt": 1, "conclusion": "success"},
+                {"id": 2, "name": "publish", "run_attempt": 2, "conclusion": "failure"},
+                {"id": 3, "name": "windows", "run_attempt": 2, "conclusion": "success"}]
+        with patch.object(release, "api", side_effect=[{"head_sha": "a" * 40}, {"jobs": jobs}]) as api:
+            release.verify_run("owner/repo", 42, "a" * 40, "windows")
+            self.assertIn("filter=all", api.call_args[0][1])
+
+    def test_publish_retry_never_falls_back_to_an_older_success_after_a_failed_build(self):
+        jobs = [{"id": 1, "name": "windows", "run_attempt": 1, "conclusion": "success"},
+                {"id": 3, "name": "windows", "run_attempt": 2, "conclusion": "failure"}]
+        with patch.object(release, "api", side_effect=[{"head_sha": "a" * 40}, {"jobs": jobs}]):
+            with self.assertRaisesRegex(ValueError, "not successful"):
+                release.verify_run("owner/repo", 42, "a" * 40, "windows")
+
+    def test_publish_retry_rejects_a_different_frozen_commit(self):
+        with patch.object(release, "api", return_value={"head_sha": "b" * 40}):
+            with self.assertRaisesRegex(ValueError, "frozen release commit"):
+                release.verify_run("owner/repo", 42, "a" * 40, "windows")
+
+    def test_publish_retry_pages_past_other_jobs(self):
+        first = [{"id": i, "name": "publish", "run_attempt": i, "conclusion": "failure"} for i in range(100)]
+        last = [{"id": 101, "name": "linux", "run_attempt": 1, "conclusion": "success"}]
+        with patch.object(release, "api", side_effect=[{"head_sha": "a" * 40}, {"jobs": first}, {"jobs": last}]) as api:
+            release.verify_run("owner/repo", 42, "a" * 40, "linux")
+            self.assertIn("page=2", api.call_args[0][1])
+
+    def test_command_errors_include_the_actual_github_diagnostic(self):
+        error = subprocess.CalledProcessError(1, ["gh"], stderr="permission denied")
+        with patch.object(release.subprocess, "run", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "permission denied"):
+                release.command("gh", "release", "create")
+
+    def test_recovery_can_use_frozen_release_sources_with_current_publisher(self):
+        with patch.object(release, "ROOT", self.root), patch.object(sys, "argv", ["publish_release.py", "publish",
+                "--repo", "owner/repo", "--commit", "a" * 40, "--windows-run", "42", "--linux-run", "42",
+                "--source-root", str(self.root / "frozen")]), patch.object(release, "publish") as publish:
+            release.main()
+            self.assertEqual(release.ROOT, (self.root / "frozen").resolve())
+            publish.assert_called_once()
+
     def test_waits_for_draft_assets_and_published_state_with_a_bounded_retry(self):
         draft = {"draft": True, "assets": []}
         final = {"draft": False, "assets": [{"name": "app"}]}

@@ -18,7 +18,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def command(*args):
-    return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+    try:
+        return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError((exc.stderr or exc.stdout or str(exc)).strip()) from exc
 
 
 def api(repo, endpoint):
@@ -131,10 +134,21 @@ def artifact_folder(download, marker):
 
 
 def verify_run(repo, run_id, commit, platform):
-    run = json.loads(command("gh", "run", "view", str(run_id), "--repo", repo,
-                             "--json", "headSha,jobs"))
-    matching = [job for job in run["jobs"] if job["name"] == platform]
-    if run["headSha"] != commit or len(matching) != 1 or matching[0]["conclusion"] != "success":
+    if not str(run_id).isdigit():
+        raise ValueError("Specify a numeric workflow run ID")
+    run = api(repo, f"actions/runs/{run_id}")
+    if run["head_sha"] != commit:
+        raise ValueError(f"{platform} build is not successful at the frozen release commit")
+    jobs = []
+    page = 1
+    while True:
+        batch = api(repo, f"actions/runs/{run_id}/jobs?filter=all&per_page=100&page={page}")["jobs"]
+        jobs.extend(job for job in batch if job["name"] == platform)
+        if len(batch) < 100:
+            break
+        page += 1
+    latest = max(jobs, key=lambda job: (job["run_attempt"], job["id"]), default=None)
+    if latest is None or latest["conclusion"] != "success":
         raise ValueError(f"{platform} build is not successful at the frozen release commit")
 
 
@@ -176,7 +190,7 @@ def verify_uploaded(repo, tag, files, info, temporary):
 def publish(args):
     if not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repo) or not re.fullmatch(r"[0-9a-f]{40}", args.commit):
         raise ValueError("Specify an owner/repository and full frozen commit SHA")
-    version = source_version()
+    version = source_version(ROOT)
     tag = f"v{version}"
     for platform, run_id in (("windows", args.windows_run), ("linux", args.linux_run)):
         verify_run(args.repo, run_id, args.commit, platform)
@@ -217,6 +231,7 @@ def publish(args):
 
 
 def main():
+    global ROOT
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
     validate = sub.add_parser("validate")
@@ -228,10 +243,13 @@ def main():
     release.add_argument("--commit", required=True)
     release.add_argument("--windows-run", required=True)
     release.add_argument("--linux-run", required=True)
+    release.add_argument("--source-root", type=Path, help="Frozen release checkout when recovering with newer publisher tools")
     args = parser.parse_args()
     if args.action == "validate":
         print("version=" + validate_plan(args.platform, args.publish == "true", args.ref))
     else:
+        if args.source_root is not None:
+            ROOT = args.source_root.resolve()
         publish(args)
 
 
