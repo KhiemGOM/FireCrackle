@@ -1,0 +1,28 @@
+.enhance-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; font-size: 13px; }
+.enhance-panel.master-off .post-list { opacity: 0.5; }
+.post-head { display: flex; align-items: center; gap: 8px; }
+.post-key { color: var(--dim, #8b96ab); font-size: 12px; }
+.post-master { margin-left: auto; }
+.post-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.post-row { border: 1px solid var(--line, #2a3142); border-radius: 6px; background: var(--panel, #161b24); }
+.post-row.off .post-select { color: var(--dim, #8b96ab); }
+.post-row.selected { border-color: var(--accent, #f08a24); }
+.post-row-head { display: flex; align-items: center; gap: 6px; padding: 4px 6px; }
+.post-badge, .post-badge-gap { flex: none; width: 20px; height: 20px; }
+.post-badge { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent, #f08a24); color: #111; font-size: 12px; font-weight: 700; }
+.post-select { flex: 1; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; }
+.post-moves { display: inline-flex; gap: 2px; }
+.post-moves button { padding: 0 5px; font-size: 10px; line-height: 18px; }
+.post-switch { min-width: 44px; }
+.post-switch[aria-checked="true"] { background: var(--green, #4cc38a); color: #111; }
+.post-controls { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid var(--line, #2a3142); }
+.post-slider { display: grid; grid-template-columns: 88px 1fr 40px; align-items: center; gap: 6px; }
+.post-slider output { text-align: right; color: var(--dim, #8b96ab); font-variant-numeric: tabular-nums; }
+.post-help, .post-status { margin: 0; color: var(--dim, #8b96ab); font-size: 12px; line-height: 1.4; }
+.post-controls > button, .post-reset { align-self: flex-start; }
+.side-switch { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.side-switch button.on { background: var(--accent, #f08a24); color: #111; }
+.side-switch .post-toggle { margin-left: auto; }
+.side-switch .post-toggle.on { background: var(--green, #4cc38a); color: #111; }
+.right.enhancing > :not(.side-switch):not(.enhance-panel) { display: none; }
+.veil-tag.enhance-tag { top: 36px; }

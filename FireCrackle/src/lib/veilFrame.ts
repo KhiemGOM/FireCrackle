@@ -17,14 +17,19 @@ export interface ProcessedFrame {
   /** Why a requested stage failed; successful earlier stages can still be shown. */
   error?: string;
   portalApplied?: boolean;
+  /** True when an enhancement stage (tone and the like) changed the picture. */
+  enhanced?: boolean;
 }
 
+/** An enhancement stage run after veil and portal: pure pixels in, pixels out, `applied` false when nothing changed. */
+export type EnhanceStage = (image: PortalImage) => { data: Uint8ClampedArray; applied: boolean };
+
 /**
- * Decode once, undo veil, optionally undo portal, then encode once. If neither stage applies, preserve the
- * original blob. A portal failure preserves a successful unveil. Never throws or returns a blank picture.
+ * Decode once, undo veil, optionally undo portal, optionally enhance, then encode once. If no stage applies, preserve
+ * the original blob. A portal or enhancement failure preserves the earlier stages. Never throws or returns a blank picture.
  */
-export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>): Promise<ProcessedFrame> {
-  if (mode === "off" && !portal) return { blob: original, applied: false };
+export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>, enhanceStage?: EnhanceStage): Promise<ProcessedFrame> {
+  if (mode === "off" && !portal && !enhanceStage) return { blob: original, applied: false };
   try {
     await initVeil();
     const img = await io.decode(bytes);
@@ -32,8 +37,12 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
     if (result.error) return { blob: original, applied: false, error: result.error };
     let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
     if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=String(e);}}
-    if (!result.applied && !portalApplied) return { blob: original, applied: false, portalApplied, error };
-    return { blob: await io.encode(data, img.width, img.height), applied: result.applied, portalApplied, error };
+    let enhanced = false;
+    if (enhanceStage) {
+      try { const e = enhanceStage({ ...img, data }); if (e.applied) { data = e.data; enhanced = true; } } catch (e) { error = error ? `${error}; ${String(e)}` : String(e); }
+    }
+    if (!result.applied && !portalApplied && !enhanced) return { blob: original, applied: false, portalApplied, enhanced: false, error };
+    return { blob: await io.encode(data, img.width, img.height), applied: result.applied, portalApplied, enhanced, error };
   } catch (e) {
     return { blob: original, applied: false, error: e instanceof Error ? e.message : String(e) };
   }

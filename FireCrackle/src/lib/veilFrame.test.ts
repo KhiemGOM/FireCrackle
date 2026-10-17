@@ -152,3 +152,86 @@ describe("veil mode preference", () => {
     expect(readPreferences({ getItem: () => '{"veilMode":3}' }).veilMode).toBe("off");
   });
 });
+
+describe("processFrame with an enhancement stage", () => {
+  const brighten = (image: { data: Uint8ClampedArray }) => ({ data: image.data.map((v, i) => (i % 4 === 3 ? v : Math.min(255, v + 10))) as unknown as Uint8ClampedArray, applied: true });
+  const portalNone = async (image: { data: Uint8ClampedArray }) => ({ data: image.data, applied: false, valid: new Uint8Array(W * H), phase: 0, opacity: 0 });
+
+  it("with veil off and no portal, decodes, enhances and encodes exactly once", async () => {
+    const pixels = normalPixels(), fake = io(pixels), stage = vi.fn(brighten);
+    const r = await processFrame(bytes, original(), "off", DEFAULT_VEIL_OPTIONS, fake, undefined, stage);
+    expect(stage).toHaveBeenCalledOnce();
+    expect(fake.encode).toHaveBeenCalledOnce();
+    expect(fake.encoded[0][0]).toBe(210);
+    expect(fake.encoded[0][3]).toBe(255);
+    expect(r).toMatchObject({ enhanced: true, applied: false });
+  });
+
+  it("gives the original blob, with no encoding, when the stage changes nothing", async () => {
+    const fake = io(normalPixels()), orig = original();
+    const r = await processFrame(bytes, orig, "off", DEFAULT_VEIL_OPTIONS, fake, undefined, image => ({ data: image.data, applied: false }));
+    expect(r.blob).toBe(orig);
+    expect(r.enhanced).toBe(false);
+    expect(fake.encode).not.toHaveBeenCalled();
+  });
+
+  it("runs after the veil is undone and receives the unveiled pixels", async () => {
+    const pixels = veiledPixels(), fake = io(pixels), expected = unveilRgba(pixels, W, H);
+    const stage = vi.fn((image: { data: Uint8ClampedArray }) => {
+      expect(image.data).toEqual(expected);
+      return brighten(image);
+    });
+    const r = await processFrame(bytes, original(), "on", DEFAULT_VEIL_OPTIONS, fake, undefined, stage);
+    expect(fake.encode).toHaveBeenCalledOnce();
+    expect(r).toMatchObject({ applied: true, enhanced: true });
+    expect(fake.encoded[0][0]).toBe(Math.min(255, expected[0] + 10));
+  });
+
+  it("runs after the portal stage and receives its output", async () => {
+    const pixels = normalPixels(), fake = io(pixels);
+    const portal = vi.fn(async (image: { data: Uint8ClampedArray }) => ({ data: image.data.map((v, i) => (i % 4 === 3 ? v : 100)) as unknown as Uint8ClampedArray, applied: true, valid: new Uint8Array(W * H), phase: 1, opacity: 0.5 }));
+    const stage = vi.fn((image: { data: Uint8ClampedArray }) => { expect(image.data[0]).toBe(100); return brighten(image); });
+    const r = await processFrame(bytes, original(), "off", DEFAULT_VEIL_OPTIONS, fake, portal, stage);
+    expect(fake.encode).toHaveBeenCalledOnce();
+    expect(r).toMatchObject({ portalApplied: true, enhanced: true });
+    expect(fake.encoded[0][0]).toBe(110);
+  });
+
+  it("still encodes once and reports enhanced when portal finds nothing but the stage applies", async () => {
+    const fake = io(normalPixels());
+    const r = await processFrame(bytes, original(), "off", DEFAULT_VEIL_OPTIONS, fake, portalNone, brighten);
+    expect(fake.encode).toHaveBeenCalledOnce();
+    expect(r).toMatchObject({ portalApplied: false, enhanced: true });
+  });
+
+  it("keeps a successful unveil and reports the error when the stage throws", async () => {
+    const pixels = veiledPixels(), fake = io(pixels), expected = unveilRgba(pixels, W, H);
+    const r = await processFrame(bytes, original(), "on", DEFAULT_VEIL_OPTIONS, fake, undefined, () => { throw new Error("boom"); });
+    expect(r).toMatchObject({ applied: true, enhanced: false });
+    expect(r.error).toContain("boom");
+    expect(fake.encoded[0]).toEqual(expected);
+  });
+
+  it("returns the original blob with the error when the stage throws and nothing else applied", async () => {
+    const fake = io(normalPixels()), orig = original();
+    const r = await processFrame(bytes, orig, "off", DEFAULT_VEIL_OPTIONS, fake, undefined, () => { throw new Error("boom"); });
+    expect(r.blob).toBe(orig);
+    expect(r.error).toContain("boom");
+    expect(fake.encode).not.toHaveBeenCalled();
+  });
+
+  it("does not call the stage when the veil stage fails", async () => {
+    const fake = io(veiledPixels()), stage = vi.fn(brighten);
+    const r = await processFrame(bytes, original(), "auto", { ...DEFAULT_VEIL_OPTIONS, minShare: 0 }, fake, undefined, stage);
+    expect(r.error).toBeTruthy();
+    expect(stage).not.toHaveBeenCalled();
+  });
+
+  it("never calls the stage when none is given, and still returns the original untouched for veil off", async () => {
+    const fake = io(normalPixels()), orig = original();
+    const r = await processFrame(bytes, orig, "off", DEFAULT_VEIL_OPTIONS, fake);
+    expect(r.blob).toBe(orig);
+    expect(fake.decode).not.toHaveBeenCalled();
+    expect(r.enhanced).toBeFalsy();
+  });
+});
