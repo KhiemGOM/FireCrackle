@@ -572,3 +572,62 @@ fn inspection_components_reproduce_canonical_scores_without_affecting_normal_cal
         }
     }
 }
+
+#[test]
+fn exported_probe_hits_cells_and_silhouette_reconstruct_canonical_components() {
+    let (w, h) = (320, 180);
+    let m = SilhouetteMatcher::new(S1, w, h, 70.).unwrap();
+    let layout = m.research_layout(S1, 70.).unwrap();
+    let frame = render(7, w, h, background(w, h, 81), 1.);
+    let mut excluded = vec![0; w * h];
+    for x in 0..w / 2 {
+        for y in h / 2..h {
+            excluded[y * w + x] = 1;
+        }
+    }
+    for veiled in [false, true] {
+        let obs = m.research_observations(&frame, veiled).unwrap();
+        for mask in [None, Some(excluded.as_slice())] {
+            let got = m.inspect_frame(&frame, mask, veiled).unwrap();
+            let d = got.diagnostics.as_ref().unwrap();
+            let active = |k: usize| mask.is_none_or(|a| a[layout.offsets[k] / 3] == 0);
+            for row in 0..32 {
+                let probes: Vec<_> = layout.colour_indices[row]
+                    .iter()
+                    .copied()
+                    .filter(|&k| active(k))
+                    .collect();
+                assert_eq!(probes.len(), d.colour_used[row]);
+                assert_eq!(
+                    layout.colour_cells[row].len(),
+                    layout.colour_indices[row].len()
+                );
+                assert!(layout.colour_cells[row].iter().all(|&c| c < 512));
+                if probes.len() >= 5 {
+                    let hits = probes
+                        .iter()
+                        .filter(|&&k| obs.colour_hits[k] & (1u32 << row) != 0)
+                        .count();
+                    assert_eq!((2 * hits) as f64 - probes.len() as f64, d.colour_sum[row]);
+                }
+                let disc: Vec<_> = layout.disc.iter().copied().filter(|&k| active(k)).collect();
+                let agree = disc
+                    .iter()
+                    .filter(|&&k| layout.pred[row][k] == obs.warm[k])
+                    .count();
+                let expected = agree as f64 / disc.len().max(1) as f64;
+                assert_eq!(
+                    expected.to_bits(),
+                    got.ranked
+                        .iter()
+                        .find(|r| r.0 == row as u8)
+                        .unwrap()
+                        .1
+                        .to_bits()
+                );
+            }
+        }
+    }
+    assert!(m.research_layout(S1, 0.).is_err());
+    assert!(m.research_observations(&[], false).is_err());
+}

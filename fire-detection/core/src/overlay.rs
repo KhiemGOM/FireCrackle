@@ -269,6 +269,21 @@ pub struct SilhouetteMatcher {
     veil_math: Vec<(f64, f64)>,
 }
 
+/// Static, opt-in research layout. Cell IDs distinguish the two rendered planes.
+pub struct ProbeLayout {
+    pub offsets: Vec<usize>,
+    pub disc: Vec<usize>,
+    pub pred: Vec<Vec<u8>>,
+    pub colour_indices: Vec<Vec<usize>>,
+    pub colour_cells: Vec<Vec<u16>>,
+}
+
+/// Observations use the same chroma, warm and veil rules as normal matching.
+pub struct ProbeObservations {
+    pub warm: Vec<u8>,
+    pub colour_hits: Vec<u32>,
+}
+
 /// Opt-in research diagnostics. No extra probe buffers are allocated by normal scans.
 #[derive(Debug, Clone)]
 pub struct MatchDiagnostics {
@@ -333,6 +348,96 @@ fn is_warm(r: u8, g: u8, b: u8) -> bool {
 }
 
 impl SilhouetteMatcher {
+    pub fn research_layout(&self, sheet: &[u8], fov_deg: f64) -> Result<ProbeLayout, String> {
+        if sheet.len() != SHEET_LEN || !fov_deg.is_finite() || fov_deg <= 0.0 || fov_deg >= 180.0 {
+            return Err("invalid research texture/FOV".into());
+        }
+        let quads = overlay_quads();
+        let mut cells = vec![Vec::new(); ROWS];
+        for (row, probes) in self.colour_probes.iter().enumerate() {
+            for &(k, expected) in probes {
+                let pixel = self.offsets[k] / 3;
+                let (x, y) = ((pixel % self.w) as f64 + 0.5, (pixel / self.w) as f64 + 0.5);
+                let mut owner = None;
+                for plane in [1, 0] {
+                    if let Some((tx, ty)) =
+                        texel_at_pixel(&quads[plane], x, y, fov_deg, self.w, self.h)
+                    {
+                        let ti = ty * TEX + tx;
+                        let o = (row * TEX * TEX + ti) * 4;
+                        if sheet[o + 3] != 0 {
+                            let ratio = sheet[o + 1] as f64 / (sheet[o] as f64).max(1.0);
+                            if (ratio - expected).abs() > 1e-12 {
+                                return Err("research FOV/texture does not match matcher".into());
+                            }
+                            owner = Some((plane * TEX * TEX + ti) as u16);
+                            break;
+                        }
+                    }
+                }
+                cells[row].push(owner.ok_or("missing opaque research cell")?);
+            }
+        }
+        Ok(ProbeLayout {
+            offsets: self.offsets.clone(),
+            disc: self.disc.clone(),
+            pred: self
+                .pred
+                .iter()
+                .map(|r| r.iter().map(|&v| u8::from(v)).collect())
+                .collect(),
+            colour_indices: self
+                .colour_probes
+                .iter()
+                .map(|r| r.iter().map(|p| p.0).collect())
+                .collect(),
+            colour_cells: cells,
+        })
+    }
+
+    pub fn research_observations(
+        &self,
+        frame: &[u8],
+        veiled: bool,
+    ) -> Result<ProbeObservations, String> {
+        if frame.len() != self.w * self.h * 3 {
+            return Err("research frame size mismatch".into());
+        }
+        let (warm, ratios) = self.sample_colours(frame, veiled);
+        let mut hits = vec![0u32; self.offsets.len()];
+        for (row, probes) in self.colour_probes.iter().enumerate() {
+            for &(k, expected) in probes {
+                if (ratios[k] - expected).abs() < CHROMA_TOL {
+                    hits[k] |= 1u32 << row;
+                }
+            }
+        }
+        Ok(ProbeObservations {
+            warm: warm.into_iter().map(u8::from).collect(),
+            colour_hits: hits,
+        })
+    }
+
+    fn sample_colours(&self, frame: &[u8], veiled: bool) -> (Vec<bool>, Vec<f64>) {
+        let mut warm = Vec::with_capacity(self.offsets.len());
+        let mut ratios = Vec::with_capacity(self.offsets.len());
+        for (k, &o) in self.offsets.iter().enumerate() {
+            let rgb = if veiled {
+                let (bias, inv) = self.veil_math[k];
+                std::array::from_fn(|i| crate::veil::restore_channel(frame[o + i], bias, inv))
+            } else {
+                [frame[o], frame[o + 1], frame[o + 2]]
+            };
+            warm.push(is_warm(rgb[0], rgb[1], rgb[2]));
+            ratios.push(if rgb[0] as f64 >= CHROMA_MIN_RED {
+                rgb[1] as f64 / rgb[0] as f64
+            } else {
+                f64::NAN
+            });
+        }
+        (warm, ratios)
+    }
+
     pub fn new(
         sheet1: &[u8],
         w: usize,
@@ -534,22 +639,7 @@ impl SilhouetteMatcher {
                 }
             }
         }
-        let mut warm = Vec::with_capacity(self.offsets.len());
-        let mut ratios = Vec::with_capacity(self.offsets.len());
-        for (k, &o) in self.offsets.iter().enumerate() {
-            let rgb = if veiled {
-                let (bias, inv) = self.veil_math[k];
-                std::array::from_fn(|i| crate::veil::restore_channel(frame[o + i], bias, inv))
-            } else {
-                [frame[o], frame[o + 1], frame[o + 2]]
-            };
-            warm.push(is_warm(rgb[0], rgb[1], rgb[2]));
-            ratios.push(if rgb[0] as f64 >= CHROMA_MIN_RED {
-                rgb[1] as f64 / rgb[0] as f64
-            } else {
-                f64::NAN
-            });
-        }
+        let (warm, ratios) = self.sample_colours(frame, veiled);
         let mut observed = vec![0u64; self.disc.len().div_ceil(64)];
         for (i, &k) in self.disc.iter().enumerate() {
             if warm[k] {
