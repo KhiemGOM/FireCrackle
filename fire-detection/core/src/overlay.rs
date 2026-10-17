@@ -278,6 +278,9 @@ pub struct MatchDiagnostics {
     pub colour_used: Vec<usize>,
     pub colour_total: Vec<usize>,
     pub colour_weight: f64,
+    /// Research-only 4x4 screen bins. Empty when fewer than five probes remain.
+    pub colour_spatial_used: Vec<[usize; 16]>,
+    pub colour_spatial_hits: Vec<[usize; 16]>,
 }
 
 #[derive(Debug, Clone)]
@@ -607,6 +610,16 @@ impl SilhouetteMatcher {
         } else {
             Vec::new()
         };
+        let mut spatial_used = if TRACE {
+            vec![[0usize; 16]; ROWS]
+        } else {
+            Vec::new()
+        };
+        let mut spatial_hits = if TRACE {
+            vec![[0usize; 16]; ROWS]
+        } else {
+            Vec::new()
+        };
         for row in 0..ROWS {
             let probes = &self.colour_probes[row];
             let count = if MASKED {
@@ -627,6 +640,12 @@ impl SilhouetteMatcher {
                 }
                 let hit = (ratios[k] - expected).abs() < CHROMA_TOL;
                 score += if hit { 1.0 } else { -1.0 };
+                if TRACE {
+                    let pixel = self.offsets[k] / 3;
+                    let bin = ((pixel / self.w) * 4 / self.h) * 4 + ((pixel % self.w) * 4 / self.w);
+                    spatial_used[row][bin] += 1;
+                    spatial_hits[row][bin] += usize::from(hit);
+                }
             }
             m[row] = score;
             evidence[row] = score / count as f64;
@@ -653,6 +672,8 @@ impl SilhouetteMatcher {
                     colour_used: used_counts,
                     colour_total: self.colour_probes.iter().map(Vec::len).collect(),
                     colour_weight: COLOUR_WEIGHT,
+                    colour_spatial_used: spatial_used,
+                    colour_spatial_hits: spatial_hits,
                 }))
             } else {
                 None

@@ -560,6 +560,15 @@ fn inspection_components_reproduce_canonical_scores_without_affecting_normal_cal
         assert_eq!(expected.to_bits(), got.colour_evidence.to_bits());
         for row in 0..32 {
             assert!(d.colour_used[row] <= d.colour_total[row]);
+            if d.colour_used[row] >= 5 {
+                let used: usize = d.colour_spatial_used[row].iter().sum();
+                let hits: usize = d.colour_spatial_hits[row].iter().sum();
+                assert_eq!(used, d.colour_used[row]);
+                assert_eq!((2 * hits) as f64 - used as f64, d.colour_sum[row]);
+                for bin in 0..16 {
+                    assert!(d.colour_spatial_hits[row][bin] <= d.colour_spatial_used[row][bin]);
+                }
+            }
         }
     }
 }
