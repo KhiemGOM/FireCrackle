@@ -288,7 +288,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         g.fillRect(x0, laneY, w, LANE_H);
         g.globalAlpha = 1;
       }
-      paintAutomaticStrips(g, b, x0, laneY + LANE_H - 7, w);
+      paintAutomaticStrips(g, b, x0, laneY, w, LANE_H);
       if (!review && b.flag) {
         g.fillStyle = b.flag === "hard" ? COLORS.hard : COLORS.soft;
         g.fillRect(x0, flagY, w, 8);
@@ -354,7 +354,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         onLostPointerCapture={() => { drag.current = null; }}
       />
       <div className="timeline-flag-key"><span style={{color:"#ff4d4f"}}>━ Hard fire flag</span> · <span style={{color:"#bd8bff"}}>━ Jolt report flag</span></div>
-      <div className="timeline-flag-key" aria-label="Automatic label strip colours">Auto strip: {AUTOMATIC_TOOLS.map(tool=><span key={tool.source} style={{borderBottom:`3px solid ${tool.color}`,marginRight:10}}>{tool.name}</span>)} <span>Human checked: no strip</span></div>
+      <div className="timeline-flag-key" aria-label="Automatic label stripe colours">Auto stripes: {AUTOMATIC_TOOLS.map(tool=><span key={tool.source} style={{marginRight:10}}><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:`repeating-linear-gradient(135deg, transparent 0 3px, ${tool.color} 3px 4px, transparent 4px 6px)`}} />{tool.name}</span>)} <span>Human checked: no stripes</span></div>
       <div className="timeline-hint">scroll: move timeline · Ctrl+scroll: zoom · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</div>
     </div>
   );
