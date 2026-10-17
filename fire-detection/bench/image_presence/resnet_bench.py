@@ -30,10 +30,10 @@ def set_trainable(model,fine):
             for param in block.parameters():param.requires_grad_(True)
 
 
-def fit(name,out,baseline,crop_run,base,rows,crops,protocol,device):
+def fit(name,out,baseline,crop_run,base,rows,crops,protocol,device,model_factory=None,trainable_fn=None):
     dest=out/name;dest.mkdir()
     random.seed(321);np.random.seed(321);torch.manual_seed(321)
-    model=ResNetBag(name).to(device)
+    model=(model_factory() if model_factory else ResNetBag(name)).to(device)
     train=[r for r in rows if r['role']=='train'];dev=[r for r in rows if r['role']=='development']
     if len(train)!=350 or len(dev)!=83:raise ValueError('Frame split changed')
     pos=sum(r['fire'] for r in train);weights=[len(train)/(2*(len(train)-pos)),len(train)/(2*pos)]
@@ -41,7 +41,7 @@ def fit(name,out,baseline,crop_run,base,rows,crops,protocol,device):
     arrays=[np.load(crop_run/r['file']) for r in crops];rng=np.random.default_rng(944)
     best=float('inf');history=[];started=time.time()
     for epoch in range(1,protocol['epochs']+1):
-        model.train();model.features.eval();set_trainable(model,epoch>2);order=np.random.permutation(len(train));losses=[]
+        model.train();model.features.eval();(trainable_fn or set_trainable)(model,epoch>2);order=np.random.permutation(len(train));losses=[]
         for start in range(0,len(order),4):
             batch=[train[i] for i in order[start:start+4]];bags=[]
             for row in batch:

@@ -1,4 +1,4 @@
-"""Apply frozen shared gates, compare ensemble additions and time GPU model inference."""
+"""Apply frozen shared gates to ResNet/ViT trials and compare gains and GPU timing."""
 import argparse,json,time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -27,15 +27,20 @@ def timed(model,arrays,base,device):
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('run',type=Path)
     ap.add_argument('--data-root',type=Path,required=True);ap.add_argument('--baseline-run',type=Path,required=True)
-    ap.add_argument('--comparison',type=Path,required=True);ap.add_argument('--v3-run',type=Path,required=True);args=ap.parse_args()
+    ap.add_argument('--comparison',type=Path,required=True);ap.add_argument('--v3-run',type=Path,required=True)
+    ap.add_argument('--architecture',action='append',choices=['resnet18','resnet50','vit_b_16'])
+    ap.add_argument('--extra-evidence',type=Path);args=ap.parse_args()
+    names=args.architecture or ['resnet18','resnet50']
     root=args.data_root.resolve();run=args.run.resolve();baseline=args.baseline_run.resolve();comp=args.comparison.resolve()
     base=load_base(Path(__file__).with_name('pipeline.py'),root);torch.set_num_threads(4)
     reference=json.loads((comp/'predictions.json').read_text());evidence={r['frame']:r['evidence'] for r in reference if r['evidence']}
+    if args.extra_evidence:
+        for e in json.loads(args.extra_evidence.read_text()):evidence.setdefault(e['frame'],e)
     guard_protocol=json.loads((comp/'protocol.json').read_text())
     for name,expected in guard_protocol['source_sha256'].items():
         if base.sha(root/'fire-detection/bench/no_fire'/name)!=expected:raise ValueError('Shared gate source changed')
     models={};pending={}
-    for name in ['resnet18','resnet50']:
+    for name in names:
         folder=run/name;cal=json.loads((folder/'calibration.json').read_text())
         if cal['weights_sha256']!=base.sha(folder/'best.pt'):raise ValueError('Weights/calibration mismatch')
         rows=json.loads((folder/'test-predictions.json').read_text());models[name]=(rows,cal['threshold'])
@@ -47,6 +52,7 @@ def main():
     protocol={'status':'Familiar919frame diagnostic only, no retuning; excluded from0.2.1',
         'existing_ensemble':'Rules+MobileNetV3 with identical shared gates:43TP/0FP',
         'new_candidate_checks':len(pending),'gate_protocol_sha256':base.sha(comp/'protocol.json'),
+        'extra_evidence_sha256':base.sha(args.extra_evidence) if args.extra_evidence else None,
         'latency':'Same32sampled919testframes;3passes;FP32;cachedimages;includes9or18tiles,nomaterial/decodecost'}
     (run/'assessment-protocol.json').write_text(json.dumps(protocol,indent=2))
     if pending:
@@ -63,7 +69,7 @@ def main():
             row=rows[index];e=evidence.get(r['frame'])
             r[name]=bool(row['score']<threshold and e and not e['common_blocked'])
             r[name+'_new']=r[name] and not r['old_ensemble'];r[name+'_ensemble']=r[name] or r['old_ensemble']
-        r['all_ensemble']=r['old_ensemble'] or r['resnet18'] or r['resnet50'];newrows.append(r)
+        r['all_ensemble']=r['old_ensemble'] or any(r[n] for n in names);newrows.append(r)
     for name,(rows,threshold) in models.items():
         report['models'][name]={'standalone':counts(newrows,name),'new_beyond_old':counts(newrows,name+'_new'),
             'ensemble':counts(newrows,name+'_ensemble'),'raw_original_guard':json.loads((run/name/'report.json').read_text())['roles']['test']}
@@ -75,10 +81,13 @@ def main():
     (run/'matched-predictions.json').write_text(json.dumps(newrows,indent=2))
     device=torch.device('cuda');indices=np.linspace(0,len(reference)-1,32).round().astype(int)
     arrays=[np.load(baseline/reference[i]['file']) for i in indices];report['latency']={}
-    for name in ['mobilenet_v3','resnet18','resnet50']:
+    for name in ['mobilenet_v3',*names]:
         folder=args.v3_run if name=='mobilenet_v3' else run/name
         cp=torch.load(folder/'best.pt',map_location=device,weights_only=False)
-        model=base.make_model(pretrained=False) if name=='mobilenet_v3' else ResNetBag(name,False)
+        if name=='vit_b_16':
+            from vit_bench import ViTBag
+            model=ViTBag(False)
+        else:model=base.make_model(pretrained=False) if name=='mobilenet_v3' else ResNetBag(name,False)
         model=model.to(device);model.load_state_dict(cp['state']);report['latency'][name]=timed(model,arrays,base,device)
         del model;torch.cuda.empty_cache()
     (run/'assessment.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True)

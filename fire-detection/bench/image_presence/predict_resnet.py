@@ -1,4 +1,4 @@
-"""Run frozen ResNet image inference, returning only a review candidate."""
+"""Run frozen ResNet or ViT image inference, returning only a review candidate."""
 import argparse,json
 from pathlib import Path
 import numpy as np
@@ -16,7 +16,11 @@ def main():
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu');cp=torch.load(args.run/'best.pt',map_location=device,weights_only=False)
     for name,expected in cp['protocol']['preprocessing_sha256'].items():
         if base.sha(base.ROOT/'fire-detection/core/src'/name)!=expected:raise ValueError('Preprocessing changed')
-    model=ResNetBag(cp['architecture'],False).to(device).eval();model.load_state_dict(cp['state'])
+    if cp['architecture']=='vit_b_16':
+        from vit_bench import ViTBag
+        model=ViTBag(False)
+    else:model=ResNetBag(cp['architecture'],False)
+    model=model.to(device).eval();model.load_state_dict(cp['state'])
     rgb=np.asarray(Image.open(args.image).convert('RGB').resize((1920,1080)))
     fixed,used,_=base.unveil(rgb,y0=12);guard=base.translucency_guard(rgb)
     arr=np.concatenate([base.views(rgb),base.views(fixed)]) if used else base.views(rgb)
