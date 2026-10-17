@@ -37,3 +37,9 @@ React, Tauri, Rust crates, Python packages, Fabric/Loom and Gradle retain their 
 ## Recordings and experiment outputs
 
 Recordings, labels and measured benchmark tables may contain personal paths or content owned by their creators. Generated/private datasets are not part of the source distribution. Published research summaries state their inputs and limitations; they do not grant access to private recordings.
+
+## No-fire AI inference
+
+The no-fire model uses a MobileNetV3 Small backbone from torchvision, fine-tuned for FireCrackle. torchvision source is BSD-3-Clause licensed; its pretrained backbone originates from ImageNet. These upstream materials retain their own terms and provenance. The model's source-checkpoint and exported ONNX hashes are pinned in `FireCrackle/release/no-fire-model.json`; weights are release resources, not vendored source or game assets.
+
+ONNX Runtime 1.22.0 is distributed under its upstream MIT license with its third-party notices. Windows packages also include Microsoft DirectML 1.15.4 under the accompanying Microsoft redistributable terms. The exact upstream LICENSE, LICENSE-CODE and third-party notices extracted from the pinned official archives are included beside the native libraries in `ai/`. Linux packages include ONNX Runtime with CPU and CUDA providers and its notices; CUDA/cuDNN are separately installed vendor runtime dependencies. These licenses are not replaced by the project's MIT grant. End users do not install Python, torchvision or CUDA to run the app.

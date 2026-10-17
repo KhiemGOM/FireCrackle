@@ -1,6 +1,6 @@
 [package]
 name = "firecrackle"
-version = "0.2.2"
+version = "0.3.0"
 description = "Frame-by-frame Minecraft fire annotation and animation timing analysis"
 edition = "2024"
 
@@ -20,6 +20,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 studio_core = { path = "../crates/studio_core" }
+no_fire_cnn = { path = "../crates/no_fire_cnn" }
 fire_core = { path = "../../fire-detection/core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -38,4 +39,7 @@ strip = true
 
 # Interactive development must not run the per-frame detector as unoptimized Rust.
 [profile.dev.package.fire_core]
+opt-level = 3
+
+[profile.dev.package.no_fire_cnn]
 opt-level = 3

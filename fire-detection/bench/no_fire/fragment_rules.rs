@@ -63,6 +63,13 @@ fn dilate(m: &[u8], w: usize, h: usize, r: usize) -> Vec<u8> {
     out
 }
 pub(crate) fn largest(m: &[u8], w: usize, h: usize, r: usize) -> usize {
+    largest_capped(m, w, h, r, usize::MAX)
+}
+/// Exact threshold decision without traversing the rest of an already-large component.
+pub(crate) fn reaches(m: &[u8], w: usize, h: usize, r: usize, threshold: usize) -> bool {
+    largest_capped(m, w, h, r, threshold) >= threshold
+}
+fn largest_capped(m: &[u8], w: usize, h: usize, r: usize, limit: usize) -> usize {
     let mut d = dilate(m, w, h, r);
     let mut queue = Vec::new();
     let mut best = 0;
@@ -79,6 +86,9 @@ pub(crate) fn largest(m: &[u8], w: usize, h: usize, r: usize) -> usize {
             let p = queue[i];
             i += 1;
             area += m[p] as usize;
+            if area >= limit {
+                return area;
+            }
             let (x, y) = (p % w, p / w);
             for yy in y.saturating_sub(1)..=(y + 1).min(h - 1) {
                 for xx in x.saturating_sub(1)..=(x + 1).min(w - 1) {
@@ -168,5 +178,25 @@ mod tests {
         let mut m = vec![0; 100];
         m[99] = 1;
         assert_eq!(dilate(&m, 10, 10, 1).iter().sum::<u8>(), 4);
+    }
+}
+#[cfg(test)]
+mod capped_tests {
+    use super::*;
+    #[test]
+    fn capped_components_equal_full_threshold_decisions() {
+        for seed in 0..10 {
+            let m: Vec<_> = (0..64 * 48)
+                .map(|i| ((i * 31 + seed * 17) % 37 < seed) as u8)
+                .collect();
+            for radius in [0, 1, 4] {
+                for threshold in [1, 15, 128, 2198] {
+                    assert_eq!(
+                        reaches(&m, 64, 48, radius, threshold),
+                        largest(&m, 64, 48, radius) >= threshold
+                    );
+                }
+            }
+        }
     }
 }

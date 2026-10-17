@@ -4,9 +4,7 @@
 use super::{AppState, err, run};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
-use studio_core::gui::{
-    GuiAnalyzer, GuiAnswer, GuiMaskReply, read_answer, write_answer,
-};
+use studio_core::gui::{GuiAnalyzer, GuiAnswer, GuiMaskReply, read_answer, write_answer};
 use tauri::State;
 use tauri::ipc::Response;
 

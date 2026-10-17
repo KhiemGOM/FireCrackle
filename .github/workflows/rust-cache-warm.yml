@@ -48,7 +48,10 @@ jobs:
           path: FireCrackle/.release-cache
           key: ffmpeg-${{ hashFiles('FireCrackle/release/runtime-lock.json') }}
       - name: Download the pinned FFmpeg package into the cache
-        run: ./scripts/prepare-runtime.ps1
+        run: |
+          python scripts/prepare-no-fire.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/prepare-runtime.ps1
       - name: Build the dependencies the release restores
         run: |
           npm ci

@@ -26,3 +26,10 @@ it("reviews the original candidate frame and cancels without saving labels",asyn
   hooks.values[3]={...status,state:"running"};noFireCancel.mockResolvedValue(undefined);
   find(render(),"Cancel no-fire scan")!.props.onClick();expect(noFireCancel).toHaveBeenCalledExactlyOnceWith(2);
 });
+it("identifies the AI no-fire tool and keeps benchmark denominators explicit",()=>{
+  const text=JSON.stringify(render());
+  expect(text).toContain('AI no-fire');
+  expect(text).toContain('8,908');
+  expect(text).toContain('10,645');
+  expect(text).toContain('7.58%');
+});

@@ -37,3 +37,17 @@ Do not share recordings or labels unless you intend others to see them.
 Original code is MIT-licensed. Minecraft-derived assets keep separate rights;
 see LICENSE.txt and THIRD_PARTY_NOTICES.txt. FFmpeg is provided and licensed
 separately by your distribution. SHA256SUMS-linux-x64.txt verifies the downloads.
+
+AI no-fire acceleration
+-----------------------
+The app includes ONNX Runtime with CPU fallback and the NVIDIA CUDA backend.
+For NVIDIA GPU acceleration, install compatible CUDA 12 and cuDNN 9 runtime
+libraries through your distribution/vendor's supported installation method.
+They must be visible to the system dynamic loader. No Python is required.
+Missing or unsuitable GPU libraries leave CPU scanning available. The app
+checks speed and score agreement before selecting a GPU.
+
+Other GPU vendors require a compatible ONNX Runtime build with OpenVINO (Intel)
+or MIGraphX (AMD). These are not bundled or hardware-validated in this release.
+Advanced users can point FIRECRACKLE_AI_RUNTIME at that runtime's
+libonnxruntime.so before starting the app; compatible ABI 1.22 is required.

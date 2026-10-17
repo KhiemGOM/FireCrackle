@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "model": {
+    "name": "FireCrackle MobileNetV3 no-fire V3",
+    "url": "https://github.com/KhiemGOM/FireCrackle/releases/download/no-fire-model-v1/no-fire-v3.onnx",
+    "sha256": "1c74f08c7f8680244e20731fbb02eda71f4726b34746660d05b0b0e48a41a097",
+    "checkpoint_sha256": "4542be2d4ac9f9f9df5dbb9b0a7d1a05a94241b6292cb7e7259ea8bed0d1548a",
+    "threshold": -1.7570972442626953,
+    "calibration": "Same218reserved clip2frames (125fire/93eligible), recalibrated CPU ONNX after TF32 portability audit; maximum CPU/DirectML score difference0.00001034",
+    "rounding_abstention_margin": 0.0001,
+    "architecture": "torchvision MobileNetV3 Small features + 576/128/1 head; RGB float32 224x224 NHWC",
+    "provenance": "ImageNet-pretrained backbone fine-tuned on local Minecraft fire-presence frame bags; no recordings or game textures in weights"
+  },
+  "platforms": {
+    "windows-x64": [
+      {
+        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
+        "sha256": "29f9872d786236b79aa83f94482f3a17c14297e4833768d6d0ed4883ee732e60",
+        "members": {
+          "runtimes/win-x64/native/onnxruntime.dll": "onnxruntime.dll",
+          "runtimes/win-x64/native/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",
+          "LICENSE": "ONNX-Runtime-LICENSE.txt",
+          "ThirdPartyNotices.txt": "ONNX-Runtime-ThirdPartyNotices.txt"
+        }
+      },
+      {
+        "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+        "sha256": "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
+        "members": {
+          "bin/x64-win/DirectML.dll": "DirectML.dll",
+          "LICENSE.txt": "DirectML-LICENSE.txt",
+          "LICENSE-CODE.txt": "DirectML-LICENSE-CODE.txt",
+          "ThirdPartyNotices.txt": "DirectML-ThirdPartyNotices.txt"
+        }
+      }
+    ],
+    "linux-x64": [
+      {
+        "url": "https://files.pythonhosted.org/packages/27/76/81de592072d6a41553b1523e15447f0ef94392e8f4cb98fda42909f24f9b/onnxruntime_gpu-1.22.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "sha256": "965da7d33a54917e8e5176f292cc22640819f328370f4fb86087908745b03708",
+        "members": {
+          "onnxruntime/capi/libonnxruntime.so.1.22.0": "libonnxruntime.so",
+          "onnxruntime/capi/libonnxruntime_providers_cuda.so": "libonnxruntime_providers_cuda.so",
+          "onnxruntime/capi/libonnxruntime_providers_shared.so": "libonnxruntime_providers_shared.so",
+          "onnxruntime/LICENSE": "ONNX-Runtime-LICENSE.txt",
+          "onnxruntime/ThirdPartyNotices.txt": "ONNX-Runtime-ThirdPartyNotices.txt"
+        }
+      }
+    ]
+  },
+  "linux_gpu_requirements": "NVIDIA CUDA12 and cuDNN9 libraries visible to dynamic loader; missing/slow/inconsistent GPU falls back to CPU. No Python required. OpenVINO/MIGraphX require a compatible user-supplied runtime and are not bundled/tested hardware."
+}

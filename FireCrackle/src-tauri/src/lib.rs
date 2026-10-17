@@ -80,16 +80,26 @@ fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
     let project = workspace.automation_project();
     drop(guard);
     let ws = state.ws.clone();
-    state.no_fire.start_no_fire_saving(project, external_tools::video_tools()?, Box::new(move |project, rows| {
-        let mut guard = ws.lock().map_err(|_| "Workspace unavailable")?;
-        let workspace = guard.as_mut().ok_or("No video is open")?;
-        let current = workspace.automation_project();
-        if current.video_path != project.video_path || current.fingerprint != project.fingerprint || current.frames.len() != project.frames.len() {
-            return Err("Video changed before no-fire labels could be saved".into());
-        }
-        let frames: Vec<u32> = rows.iter().map(|&(frame, _)| frame).collect();
-        workspace.add_auto_no_fire(&frames).map(|(_, count)| count).map_err(err)
-    }))
+    state.no_fire.start_no_fire_saving(
+        project,
+        external_tools::video_tools()?,
+        Box::new(move |project, rows| {
+            let mut guard = ws.lock().map_err(|_| "Workspace unavailable")?;
+            let workspace = guard.as_mut().ok_or("No video is open")?;
+            let current = workspace.automation_project();
+            if current.video_path != project.video_path
+                || current.fingerprint != project.fingerprint
+                || current.frames.len() != project.frames.len()
+            {
+                return Err("Video changed before no-fire labels could be saved".into());
+            }
+            let frames: Vec<u32> = rows.iter().map(|&(frame, _)| frame).collect();
+            workspace
+                .add_auto_no_fire(&frames)
+                .map(|(_, count)| count)
+                .map_err(err)
+        }),
+    )
 }
 #[tauri::command]
 fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
@@ -391,6 +401,7 @@ pub fn run_app() {
         .setup(|app| {
             use tauri::Manager;
             external_tools::configure(app.path().app_local_data_dir()?);
+            no_fire::configure(app.path().resource_dir()?.join("ai"));
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

@@ -34,6 +34,8 @@ jobs:
           shared-key: ci-windows
       - name: Prepare pinned video tools
         run: |
+          python FireCrackle/scripts/prepare-no-fire.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./FireCrackle/scripts/prepare-runtime.ps1
           "$PWD/FireCrackle/src-tauri/runtime" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Shared unveil WebAssembly target
@@ -48,7 +50,7 @@ jobs:
           npm run build
       - name: Rust source and tests
         run: |
-          $crates = @('FireCrackle/crates/studio_core/Cargo.toml', 'fire-detection/core/Cargo.toml', 'FireCrackle/src-tauri/Cargo.toml')
+          $crates = @('FireCrackle/crates/studio_core/Cargo.toml', 'fire-detection/core/Cargo.toml', 'FireCrackle/crates/no_fire_cnn/Cargo.toml', 'FireCrackle/src-tauri/Cargo.toml')
           foreach ($crate in $crates) {
             cargo fmt --manifest-path $crate -- --check
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -4,6 +4,7 @@
     "category": "Video",
     "licenseFile": "../../LICENSE",
     "resources": {
+      "runtime/ai/": "ai/",
       "../../LICENSE": "LICENSE.txt",
       "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.txt",
       "../release/README-linux.txt": "README-linux.txt"

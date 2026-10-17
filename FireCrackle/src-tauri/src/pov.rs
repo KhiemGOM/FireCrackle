@@ -1,13 +1,12 @@
-//! Optional, cancellable video scan using the existing first-person matcher unchanged.
+//! Optional, cancellable scan with canonical GUI-neutral first-person matching.
 use fire_core::{
-    overlay::SilhouetteMatcher,
-    veil::detect_veil,
+    pov::PovMatcher,
     video::{parallel_frames, scan_workers},
 };
 use serde::Serialize;
 use std::{
     io::Read,
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -16,6 +15,7 @@ use std::{
 use studio_core::{import::Tools, project::Project};
 
 const SHEET: &[u8] = include_bytes!("../../../fire-detection/data/assets/fire_1.rgba");
+#[cfg(test)]
 const THRESHOLD: f64 = 0.5;
 type Completion = Box<dyn FnOnce(&Project, &[(u32, u8)]) -> Result<usize, String> + Send>;
 
@@ -78,14 +78,22 @@ impl Jobs {
     pub fn start_no_fire(&self, project: Project, tools: Tools) -> Result<Status, String> {
         self.start_no_fire_with(project, tools, None)
     }
-    pub fn start_no_fire_saving(&self, project: Project, tools: Tools, complete: Completion) -> Result<Status, String> {
+    pub fn start_no_fire_saving(
+        &self,
+        project: Project,
+        tools: Tools,
+        complete: Completion,
+    ) -> Result<Status, String> {
         self.start_no_fire_with(project, tools, Some(complete))
     }
-    fn start_no_fire_with(&self, project: Project, tools: Tools, complete: Option<Completion>) -> Result<Status, String> {
+    fn start_no_fire_with(
+        &self,
+        project: Project,
+        tools: Tools,
+        complete: Option<Completion>,
+    ) -> Result<Status, String> {
         if project.meta.width != 1920 || project.meta.height != 1080 {
-            return Err(
-                "No-fire scanning currently requires native 1920×1080 footage".into(),
-            );
+            return Err("No-fire scanning currently requires native 1920×1080 footage".into());
         }
         self.start_impl(project, tools, true, complete)
     }
@@ -106,9 +114,18 @@ impl Jobs {
             .map(|r| r.0)
             .collect())
     }
-    fn start_impl(&self, project: Project, tools: Tools, no_fire: bool, complete: Option<Completion>) -> Result<Status, String> {
+    fn start_impl(
+        &self,
+        project: Project,
+        tools: Tools,
+        no_fire: bool,
+        complete: Option<Completion>,
+    ) -> Result<Status, String> {
         let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
-        if state.as_ref().is_some_and(|j| matches!(j.status.state.as_str(), "running" | "saving")) {
+        if state
+            .as_ref()
+            .is_some_and(|j| matches!(j.status.state.as_str(), "running" | "saving"))
+        {
             return Err("A scan for this tool is already running".into());
         }
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
@@ -163,16 +180,25 @@ impl Jobs {
     }
     // Release the scan mutex before saving into the workspace (which has its own mutex).
     // Completion executes once, only after a successful, uncancelled full scan.
-    fn finish(&self, id: u64, result: Result<(), String>, complete: Option<Completion>) -> Result<(), String> {
+    fn finish(
+        &self,
+        id: u64,
+        result: Result<(), String>,
+        complete: Option<Completion>,
+    ) -> Result<(), String> {
         let (project, rows) = {
             let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
-            let job = state.as_mut().filter(|j| j.status.id == id && j.status.state == "running").ok_or("Scan is no longer running")?;
+            let job = state
+                .as_mut()
+                .filter(|j| j.status.id == id && j.status.state == "running")
+                .ok_or("Scan is no longer running")?;
             if job.cancel.load(Ordering::Relaxed) {
                 job.status.state = "cancelled".into();
                 return Ok(());
             }
             if let Err(error) = result {
-                job.status.state = "failed".into();job.status.error = Some(error);
+                job.status.state = "failed".into();
+                job.status.error = Some(error);
                 return Ok(());
             }
             job.rows.sort_unstable_by_key(|r| r.0);
@@ -185,10 +211,19 @@ impl Jobs {
         };
         let saved = complete.unwrap()(&project, &rows);
         let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
-        let job = state.as_mut().filter(|j| j.status.id == id).ok_or("Scan is no longer current")?;
+        let job = state
+            .as_mut()
+            .filter(|j| j.status.id == id)
+            .ok_or("Scan is no longer current")?;
         match saved {
-            Ok(count) => {job.status.applied = count;job.status.state = "done".into();}
-            Err(error) => {job.status.state = "failed".into();job.status.error = Some(error);}
+            Ok(count) => {
+                job.status.applied = count;
+                job.status.state = "done".into();
+            }
+            Err(error) => {
+                job.status.state = "failed".into();
+                job.status.error = Some(error);
+            }
         }
         Ok(())
     }
@@ -218,6 +253,7 @@ impl Jobs {
     }
 }
 
+#[cfg(test)]
 fn accepted(row: u8, evidence: f64) -> Option<u8> {
     (row < 32 && evidence.is_finite() && evidence >= THRESHOLD).then_some(row)
 }
@@ -230,32 +266,13 @@ fn scan(
     update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
     let (w, h) = (project.meta.width, project.meta.height);
-    let matcher70 = SilhouetteMatcher::new(SHEET, w, h, 70.0)?;
-    let matcher60 = SilhouetteMatcher::new(SHEET, w, h, 60.0)?;
+    let matcher = PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?;
     scan_with(
         project,
         tools,
         cancel,
         slot,
-        |frame| {
-            let veiled = detect_veil(frame, w, h, 16.min(h.saturating_sub(1)))?;
-            let a = if veiled {
-                matcher70.match_frame_veiled(frame)?
-            } else {
-                matcher70.match_frame(frame)?
-            };
-            let b = if veiled {
-                matcher60.match_frame_veiled(frame)?
-            } else {
-                matcher60.match_frame(frame)?
-            };
-            let best = if b.colour_evidence > a.colour_evidence {
-                b
-            } else {
-                a
-            };
-            Ok(accepted(best.ranked_colour[0].0, best.colour_evidence))
-        },
+        |frame| Ok(matcher.match_frame(frame)?.row),
         update,
     )
 }
@@ -268,12 +285,38 @@ pub(crate) fn scan_with(
     process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
     update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
+    let bytes = project
+        .meta
+        .width
+        .checked_mul(project.meta.height)
+        .and_then(|n| n.checked_mul(3))
+        .ok_or("Video dimensions overflow")?;
+    scan_with_workers(
+        project,
+        tools,
+        cancel,
+        slot,
+        scan_workers(bytes),
+        process,
+        update,
+    )
+}
+
+pub(crate) fn scan_with_workers(
+    project: &Project,
+    tools: &Tools,
+    cancel: &AtomicBool,
+    slot: &Mutex<Option<Child>>,
+    workers: usize,
+    process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
+    update: impl FnMut(u32, Option<u8>),
+) -> Result<(), String> {
     let (w, h) = (project.meta.width, project.meta.height);
     let frame_bytes = w
         .checked_mul(h)
         .and_then(|n| n.checked_mul(3))
         .ok_or("Video dimensions overflow")?;
-    let mut command = Command::new(&tools.ffmpeg);
+    let mut command = studio_core::proc::ffmpeg_command(&tools.ffmpeg);
     command
         .args(["-nostdin", "-v", "error", "-i"])
         .arg(&project.video_path)
@@ -310,7 +353,7 @@ pub(crate) fn scan_with(
         pipe,
         frame_bytes,
         project.frames.len() as u32,
-        scan_workers(frame_bytes),
+        workers.clamp(1, 4),
         cancel,
         process,
         update,
@@ -347,29 +390,56 @@ mod tests {
     fn completion_saves_once_without_holding_scan_lock_and_reports_errors() {
         let jobs = job("running");
         let observer = jobs.clone();
-        jobs.finish(1,Ok(()),Some(Box::new(move |_,rows| {
-            assert_eq!(observer.status().unwrap().unwrap().state,"saving");
-            assert!(observer.cancel(1).is_err());
-            assert!(observer.start(project(),Tools::default()).is_err());
-            assert_eq!(rows,&[(0,4)]);
-            Ok(1)
-        }))).unwrap();
+        jobs.finish(
+            1,
+            Ok(()),
+            Some(Box::new(move |_, rows| {
+                assert_eq!(observer.status().unwrap().unwrap().state, "saving");
+                assert!(observer.cancel(1).is_err());
+                assert!(observer.start(project(), Tools::default()).is_err());
+                assert_eq!(rows, &[(0, 4)]);
+                Ok(1)
+            })),
+        )
+        .unwrap();
         let status = jobs.status().unwrap().unwrap();
-        assert_eq!((status.state.as_str(),status.applied),("done",1));
-        assert!(jobs.finish(1,Ok(()),Some(Box::new(|_,_| panic!("must not save twice")))).is_err());
+        assert_eq!((status.state.as_str(), status.applied), ("done", 1));
+        assert!(
+            jobs.finish(
+                1,
+                Ok(()),
+                Some(Box::new(|_, _| panic!("must not save twice")))
+            )
+            .is_err()
+        );
         let jobs = job("running");
-        jobs.finish(1,Ok(()),Some(Box::new(|_,_|Err("Video changed".into())))).unwrap();
-        assert_eq!(jobs.status().unwrap().unwrap().error.as_deref(),Some("Video changed"));
-        assert_eq!(jobs.status().unwrap().unwrap().applied,0);
+        jobs.finish(
+            1,
+            Ok(()),
+            Some(Box::new(|_, _| Err("Video changed".into()))),
+        )
+        .unwrap();
+        assert_eq!(
+            jobs.status().unwrap().unwrap().error.as_deref(),
+            Some("Video changed")
+        );
+        assert_eq!(jobs.status().unwrap().unwrap().applied, 0);
     }
     #[test]
     fn cancelled_or_failed_scan_never_saves_partial_candidates() {
-        let jobs = job("running");jobs.cancel(1).unwrap();
-        jobs.finish(1,Ok(()),Some(Box::new(|_,_|panic!("cancelled")))).unwrap();
-        assert_eq!(jobs.status().unwrap().unwrap().state,"cancelled");
         let jobs = job("running");
-        jobs.finish(1,Err("decoder failed".into()),Some(Box::new(|_,_|panic!("failed")))).unwrap();
-        assert_eq!(jobs.status().unwrap().unwrap().state,"failed");
+        jobs.cancel(1).unwrap();
+        jobs.finish(1, Ok(()), Some(Box::new(|_, _| panic!("cancelled"))))
+            .unwrap();
+        assert_eq!(jobs.status().unwrap().unwrap().state, "cancelled");
+        let jobs = job("running");
+        jobs.finish(
+            1,
+            Err("decoder failed".into()),
+            Some(Box::new(|_, _| panic!("failed"))),
+        )
+        .unwrap();
+        assert_eq!(jobs.status().unwrap().unwrap().state, "failed");
     }
     fn project() -> Project {
         use studio_core::{

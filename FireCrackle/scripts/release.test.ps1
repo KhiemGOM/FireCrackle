@@ -58,10 +58,16 @@ if ($ArchivePath) {
         foreach ($name in @('FireCrackle.exe','README.txt','LICENSE.txt','THIRD_PARTY_NOTICES.txt','release.json','SHA256SUMS.txt')) {
             if (!$zip.GetEntry("$prefix$name")) { throw "Missing packaged file: $name" }
         }
+        $aiManifest = Get-Content -LiteralPath (Join-Path $project 'release/no-fire-model.json') -Raw | ConvertFrom-Json
+        $aiFiles = @('ai/no-fire-v3.onnx','ai/model.json')
+        foreach ($artifact in $aiManifest.platforms.'windows-x64') {
+            $aiFiles += @($artifact.members.PSObject.Properties | ForEach-Object { "ai/$($_.Value)" })
+        }
+        foreach ($name in $aiFiles) { if (!$zip.GetEntry("$prefix$name")) { throw "Missing AI resource: $name" } }
         foreach ($entry in $zip.Entries) {
             if (!$entry.FullName.StartsWith($prefix) -or $entry.FullName -match '\.\.|labels\.jsonl|project\.json|\.mkv$') { throw "Unexpected archive entry: $($entry.FullName)" }
             $relative = $entry.FullName.Substring($prefix.Length)
-            if ($relative -and $relative -notin @('FireCrackle.exe','README.txt','LICENSE.txt','THIRD_PARTY_NOTICES.txt','release.json','SHA256SUMS.txt')) { throw "Unexpected app file (third-party tools must be downloaded separately): $relative" }
+            if ($relative -and $relative -notin $aiFiles -and $relative -notin @('FireCrackle.exe','README.txt','LICENSE.txt','THIRD_PARTY_NOTICES.txt','release.json','SHA256SUMS.txt')) { throw "Unexpected app file (third-party tools must be downloaded separately): $relative" }
         }
         $reader = New-Object IO.StreamReader($zip.GetEntry("${prefix}SHA256SUMS.txt").Open())
         try { $lines = $reader.ReadToEnd() -split '\r?\n' } finally { $reader.Dispose() }

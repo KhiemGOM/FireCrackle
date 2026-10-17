@@ -25,10 +25,13 @@ fi
 [[ $# == 0 ]] || { echo 'Usage: release-linux.sh [--validate-only]' >&2; exit 1; }
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$project/src-tauri/target}"
 export FIRECRACKLE_TEST_FFMPEG="$(command -v ffmpeg)"
+python3 scripts/prepare-no-fire.py
+export FIRECRACKLE_TEST_ORT="$project/src-tauri/runtime/ai/libonnxruntime.so"
+export FIRECRACKLE_TEST_MODEL="$project/src-tauri/runtime/ai/no-fire-v3.onnx"
 npm ci
 npm test
 npm run build
-for manifest in crates/studio_core/Cargo.toml ../fire-detection/core/Cargo.toml; do
+for manifest in crates/studio_core/Cargo.toml ../fire-detection/core/Cargo.toml crates/no_fire_cnn/Cargo.toml; do
   cargo test --manifest-path "$manifest"
 done
 cargo test --manifest-path src-tauri/Cargo.toml --lib

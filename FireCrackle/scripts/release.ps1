@@ -41,9 +41,10 @@ if ($Format -eq 'rar') {
 if ($ValidateOnly) { Write-Host "Release configuration valid: FireCrackle v$version (Windows x64, $Format)"; return }
 $oldPath = $env:PATH
 $oldTarget = $env:CARGO_TARGET_DIR
-$target = Join-Path $project 'src-tauri/target'
+$target = if ($oldTarget) { $oldTarget } else { Join-Path $project 'src-tauri/target' }
 Push-Location $project
 try {
+    Invoke-Checked 'python' @((Join-Path $PSScriptRoot 'prepare-no-fire.py'))
     & (Join-Path $PSScriptRoot 'prepare-runtime.ps1')
     $env:PATH = "$(Join-Path $project 'src-tauri/runtime');$oldPath"
     $env:CARGO_TARGET_DIR = $target
@@ -58,6 +59,9 @@ try {
     if (!$SkipChecks) {
         Invoke-Checked 'npm.cmd' @('test')
         Invoke-Checked 'cargo' @('test', '--manifest-path', 'crates/studio_core/Cargo.toml', '--lib', '--tests')
+        $env:FIRECRACKLE_TEST_ORT = (Resolve-Path 'src-tauri/runtime/ai/onnxruntime.dll').Path
+        $env:FIRECRACKLE_TEST_MODEL = (Resolve-Path 'src-tauri/runtime/ai/no-fire-v3.onnx').Path
+        Invoke-Checked 'cargo' @('test', '--manifest-path', 'crates/no_fire_cnn/Cargo.toml')
     }
     $buildArgs = @('run', 'tauri', '--', 'build', '--config', 'src-tauri/tauri.release.conf.json')
     if ($Installer) { $buildArgs += @('--bundles', 'nsis') } else { $buildArgs += '--no-bundle' }
@@ -71,6 +75,7 @@ try {
     $stage = Join-Path $output $name
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
     Copy-Item -LiteralPath $exe -Destination (Join-Path $stage 'FireCrackle.exe')
+    Copy-Item -LiteralPath (Join-Path $project 'src-tauri/runtime/ai') -Destination (Join-Path $stage 'ai') -Recurse
     $readme = (Get-Content -LiteralPath (Join-Path $project 'release/README-template.txt') -Raw).Replace('{{VERSION}}', $version)
     $readme | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding UTF8
     $repo = Split-Path $project -Parent

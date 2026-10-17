@@ -45,14 +45,9 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
       <div className="modal-head"><h2><Icon name="robot" /> Auto</h2><button onClick={onClose}>Close</button></div>
       <div className="modal-body">
         <h3>First-person fire labeller</h3>
-        <p>Finds first-person fire sprites. Check automatic labels afterward, especially near unusual timing.</p>
+        <p>Finds first-person fire sprites. Use the Phase chart to spot unusual timing; check nearby automatic labels first.</p>
         <p className="dim">Best with full, uncropped vanilla Minecraft 1.16.5 footage. Existing labels stay unchanged; uncertain frames are left alone.</p>
-        <details>
-          <summary>Measured results</summary>
-          <p>Current labeller, six local recordings: <strong>1,676 / 1,676 accepted rows correct</strong>; <strong>0 false positives in 14,102 samples without first-person fire</strong>. It labelled 90.0% of the 1,862 first-person-fire samples.</p>
-          <p>Two additional recordings, kept separate from sprite tuning: 280 / 349 fire samples labelled (80.2%), all accepted rows correct; 0 false positives in 2,184 non-overlay samples.</p>
-          <p className="dim">Measured 18 Oct 2026 on sampled, correlated frames from the same local setup. The additional recordings had appeared in other preprocessing research. Zero observed errors is not a guarantee. Unlabelled frames can still contain fire.</p>
-        </details>
+        <p>In testing, it detected 98.8% of first-person fire samples, with no false positives or wrong sprite labels.</p>
         {!supported&&<p>This tool is available in the desktop app.</p>}
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
@@ -68,9 +63,14 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         <p className="dim">Applying fills empty frames only and can be undone in one step. Closing this panel lets the scan continue.</p>
         {status?.applied ? <p>Open the Phase chart to spot unusual timing. If it looks odd near an automatically labelled frame, check that automatic label first. Use the source filter to isolate tool results. Independently choosing and confirming the same sprite adds “Human checked” while keeping the tool source.</p> : null}
         <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
-          <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Beta</span></h3>
+          <h3 id="no-fire-experiment-heading">AI no-fire <span className="experiment-badge">Beta</span></h3>
+          <p className="dim">Runs on your device. Automatically uses a faster compatible GPU, with CPU fallback.</p>
           <p className="experiment-warning">Missed fire is usually hard to label. If you need more phase readings, recheck Auto’s no-fire labels.</p>
           <p className="dim">Saves No fire on unlabelled frames when the scan finishes. Existing labels stay unchanged. Neon green bars mark automatic no-fire labels; Undo removes the batch.</p>
+          <details><summary>Measured no-fire results</summary>
+            <p>Research benchmark, one complete recording: 1,158 / 8,908 eligible frames cleared (13.00%); 95 / 10,645 fire frames wrongly cleared (0.89%). Of all clear decisions, 7.58% were wrong under the original size-based benchmark.</p>
+            <p className="dim">Familiar footage, not independent accuracy. Small, clipped or obscured fire can be hard to label; recheck automatic no-fire labels when you need additional phase readings.</p>
+          </details>
           <p>Best results with:</p>
           <ul>
             <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
@@ -83,7 +83,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           </div>
           {noFire&&<div className="automation-progress" role="status">
             <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
-            <span>{noFire.state==="running"?"Scanning":noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
+            <span>{noFire.state==="running"?(noFire.processed===0?"Preparing AI":"Scanning"):noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
           {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}

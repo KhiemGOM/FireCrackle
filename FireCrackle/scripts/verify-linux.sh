@@ -15,6 +15,9 @@ work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
 dpkg-deb --extract "$deb" "$work/deb"
 binary="$work/deb/usr/bin/firecrackle"
+for resource in no-fire-v3.onnx libonnxruntime.so libonnxruntime_providers_cuda.so ONNX-Runtime-LICENSE.txt; do
+  [[ -n $(find "$work/deb" -type f -name "$resource" -print -quit) ]] || { echo "Missing AI resource: $resource" >&2; exit 1; }
+done
 test -x "$binary"
 file "$binary" | grep -q 'ELF 64-bit.*x86-64'
 ldd "$binary" > "$work/dependencies.txt"
@@ -36,6 +39,12 @@ for notice in LICENSE.txt THIRD_PARTY_NOTICES.txt README-linux.txt; do
     echo "Missing AppImage notice: $notice" >&2; exit 1;
   }
 done
+# Load the actual extracted package's AI model/runtime on CPU, even on runners without GPUs.
+ai_runtime="$(find "$work/deb" -type f -name libonnxruntime.so -print -quit)"
+ai_model="$(find "$work/deb" -type f -name no-fire-v3.onnx -print -quit)"
+python3 -c 'import sys; open(sys.argv[1],"wb").write(bytes(224*224*3))' "$work/black.rgb"
+cargo build --release --manifest-path "$project/crates/no_fire_cnn/Cargo.toml" --example infer
+"$CARGO_TARGET_DIR/release/examples/infer" "$ai_runtime" "$ai_model" "$work/black.rgb" cpu
 # Remote CI only: exercise both packages under a virtual display, without touching the user's desktop.
 for app in "$binary" "$work/squashfs-root/AppRun"; do
   status=0
