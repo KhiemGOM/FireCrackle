@@ -682,6 +682,12 @@ impl Workspace {
         Ok((self.view(), added))
     }
 
+    pub fn add_auto_no_fire(&mut self, frames: &[u32]) -> Result<(View, usize), WorkspaceError> {
+        let added = self.session.add_auto_no_fire(frames).map_err(WorkspaceError::Session)?;
+        self.flush();
+        Ok((self.view(), added))
+    }
+
     pub fn export_labels(&self) -> String {
         self.session
             .store()

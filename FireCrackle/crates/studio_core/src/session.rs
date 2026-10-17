@@ -220,6 +220,22 @@ impl Session {
         self.import_labels(&text)
     }
 
+    /// Save only untouched frames, preserving detector provenance and one grouped undo step.
+    pub fn add_auto_no_fire(&mut self, frames: &[u32]) -> Result<usize, SessionError> {
+        let mut entries = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        for &frame in frames {
+            if frame >= self.store.frame_count() {
+                return Err(LabelError::FrameOutOfRange {frame, count:self.store.frame_count()}.into());
+            }
+            if seen.insert(frame) && self.store.get(frame) == Label::Unset {
+                entries.push(serde_json::json!({"version":2,"frame":frame,"label":Label::NoFire,"sources":["no_fire"]}));
+            }
+        }
+        let text = serde_json::json!({"format":"firecrackle-labels","version":2,"fingerprint":self.project.fingerprint,"frame_count":self.store.frame_count(),"labels":entries}).to_string();
+        self.import_labels(&text)
+    }
+
     pub fn set_settings(&mut self, settings: Settings) {
         self.settings = settings;
         self.analysis = None; // the phase thresholds may have changed

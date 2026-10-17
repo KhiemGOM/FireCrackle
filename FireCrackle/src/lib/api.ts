@@ -54,6 +54,9 @@ export interface Bucket {
   fire: number;
   no_fire: number;
   skip: number;
+  auto_first_person?: number;
+  auto_no_fire?: number;
+  auto_time_guess?: number;
   flag: Severity | null;
 }
 
@@ -121,12 +124,12 @@ export interface LinkStatus { id:number; state:"running"|"done"|"cancelled"|"fai
 export interface ToolProgress { name:string; downloaded:number; total:number|null; }
 
 export interface PovStatus {
-  id:number; video_path:string; state:"running"|"done"|"cancelled"|"failed";
+  id:number; video_path:string; state:"running"|"saving"|"done"|"cancelled"|"failed";
   processed:number; total:number; accepted:number; applied:number; error:string|null;
 }
 
-export type LabelSource="manual"|"first_person"|"time_guess";
-export const LABEL_SOURCE_NAMES:Record<LabelSource,string>={manual:"Human checked",first_person:"First-person tool",time_guess:"Time guess"};
+export type LabelSource="manual"|"first_person"|"time_guess"|"no_fire";
+export const LABEL_SOURCE_NAMES:Record<LabelSource,string>={manual:"Human checked",first_person:"First-person tool",time_guess:"Time guess",no_fire:"No-fire checker"};
 
 export function inTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

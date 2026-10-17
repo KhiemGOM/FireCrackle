@@ -78,10 +78,19 @@ fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
     let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
     let workspace = guard.as_ref().ok_or("No video is open")?;
     studio_core::gui::ensure_allowed(studio_core::gui::read_answer(workspace.dir()))?;
-    state.no_fire.start_no_fire(
-        workspace.automation_project(),
-        external_tools::video_tools()?,
-    )
+    let project = workspace.automation_project();
+    drop(guard);
+    let ws = state.ws.clone();
+    state.no_fire.start_no_fire_saving(project, external_tools::video_tools()?, Box::new(move |project, rows| {
+        let mut guard = ws.lock().map_err(|_| "Workspace unavailable")?;
+        let workspace = guard.as_mut().ok_or("No video is open")?;
+        let current = workspace.automation_project();
+        if current.video_path != project.video_path || current.fingerprint != project.fingerprint || current.frames.len() != project.frames.len() {
+            return Err("Video changed before no-fire labels could be saved".into());
+        }
+        let frames: Vec<u32> = rows.iter().map(|&(frame, _)| frame).collect();
+        workspace.add_auto_no_fire(&frames).map(|(_, count)| count).map_err(err)
+    }))
 }
 #[tauri::command]
 fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
@@ -328,6 +337,7 @@ async fn phase_chart(
         Some("manual") => Some(LabelSource::Manual),
         Some("first_person") => Some(LabelSource::FirstPerson),
         Some("time_guess") => Some(LabelSource::TimeGuess),
+        Some("no_fire") => Some(LabelSource::NoFire),
         _ => return Err("Unknown label source".into()),
     };
     run(state.ws.clone(), move |w| {

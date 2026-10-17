@@ -96,6 +96,7 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
   }
   useEffect(() => () => projectWrite.current?.flush(), []);
   const busy = useRef(false);
+  const seenNoFire = useRef(new Set<string>());
   const applyAutomation = useCallback(async (id:number) => {
     if (!backend?.povApply || busy.current) return;
     busy.current=true;
@@ -275,6 +276,34 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
     },
     [backend],
   );
+
+  // Native completion saves even with Auto closed; refresh the visible workspace once per job.
+  useEffect(() => {
+    if (!backend?.noFireStatus || !isOpen) return;
+    let live = true, checking = false;
+    const refresh = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const status = await backend.noFireStatus!();
+        if (!live || !status || status.video_path !== videoPath.current || !["done","failed"].includes(status.state)) return;
+        const key = status.video_path + ":" + status.id;
+        if (seenNoFire.current.has(key) || busy.current) return;
+        busy.current = true;
+        try {
+          const next = await backend.view();
+          if (!live || videoPath.current !== status.video_path) return;
+          seenNoFire.current.add(key);
+          setView(next); setVersion(v=>v+1); remember(next);
+          setError(status.error ?? next.save_error);
+        } finally { busy.current = false; }
+      } catch (e) { if (live) setError(messageOf(e)); }
+      finally { checking = false; }
+    };
+    void refresh();
+    const timer = setInterval(()=>void refresh(),1000);
+    return () => {live=false;clearInterval(timer);};
+  },[backend,isOpen,remember]);
 
   return { view, projects, forgetProject, videoPath: videoPath.current ?? undefined, flags, settings, error, version, opening, saveStatus, save, transferLabels, transferring, applyAutomation, busy, open, act, setSetting, clearError: () => setError(null) };
 }

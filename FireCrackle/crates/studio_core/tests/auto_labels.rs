@@ -125,3 +125,40 @@ fn source_filters_recompute_evidence_and_old_logs_keep_their_meaning() {
         1
     );
 }
+
+#[test]
+fn automatic_no_fire_is_persistent_protected_and_one_undo_step() {
+    let mut s = session();
+    s.apply(Label::Skip).unwrap();
+    s.add_auto_predictions(&[(1,9)]).unwrap();
+    assert_eq!(s.add_auto_no_fire(&[0,1,2,2,3]).unwrap(),2);
+    assert_eq!(s.store().get(0),Label::Skip);
+    assert!(s.store().get(1).is_fire());
+    assert_eq!(s.store().sources(2).into_iter().collect::<Vec<_>>(),vec![LabelSource::NoFire]);
+    let export = s.store().export_json("fp");
+    let mut imported = LabelStore::new(30);
+    imported.import_json(&export,"fp").unwrap();
+    let replay = LabelStore::replay(&s.store().log_line(2),30).unwrap();
+    assert_eq!(imported.sources(2),s.store().sources(2));
+    assert_eq!(replay.store.sources(2),s.store().sources(2));
+    assert!(s.undo());
+    assert_eq!(s.store().get(2),Label::Unset);
+    assert_eq!(s.store().get(3),Label::Unset);
+    assert!(s.store().get(1).is_fire());
+    assert_eq!(s.store().get(0),Label::Skip);
+}
+
+#[test]
+fn no_fire_batch_validates_before_writing_and_human_review_preserves_history() {
+    let mut s = session();
+    assert!(s.add_auto_no_fire(&[1,30]).is_err());
+    assert_eq!(s.store().labelled_count(),0);
+    s.add_auto_no_fire(&[5]).unwrap();
+    s.go(Move::To(5));
+    s.apply(Label::NoFire).unwrap();
+    assert!(s.store().sources(5).contains(&LabelSource::Manual));
+    assert!(s.store().sources(5).contains(&LabelSource::NoFire));
+    assert!(s.undo());
+    assert_eq!(s.store().sources(5).into_iter().collect::<Vec<_>>(),vec![LabelSource::NoFire]);
+    assert_eq!(s.add_auto_no_fire(&[5]).unwrap(),0);
+}

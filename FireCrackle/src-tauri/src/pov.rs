@@ -17,6 +17,7 @@ use studio_core::{import::Tools, project::Project};
 
 const SHEET: &[u8] = include_bytes!("../../../fire-detection/data/assets/fire_1.rgba");
 const THRESHOLD: f64 = 0.5;
+type Completion = Box<dyn FnOnce(&Project, &[(u32, u8)]) -> Result<usize, String> + Send>;
 
 #[derive(Clone, Serialize)]
 pub struct Status {
@@ -57,6 +58,9 @@ impl Jobs {
             .as_ref()
             .filter(|j| j.status.id == id)
             .ok_or("Scan is no longer current")?;
+        if job.status.state == "saving" {
+            return Err("Scan results are already being saved".into());
+        }
         job.cancel.store(true, Ordering::Relaxed);
         if let Some(child) = job
             .child
@@ -69,15 +73,21 @@ impl Jobs {
         Ok(())
     }
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
-        self.start_impl(project, tools, false)
+        self.start_impl(project, tools, false, None)
     }
     pub fn start_no_fire(&self, project: Project, tools: Tools) -> Result<Status, String> {
+        self.start_no_fire_with(project, tools, None)
+    }
+    pub fn start_no_fire_saving(&self, project: Project, tools: Tools, complete: Completion) -> Result<Status, String> {
+        self.start_no_fire_with(project, tools, Some(complete))
+    }
+    fn start_no_fire_with(&self, project: Project, tools: Tools, complete: Option<Completion>) -> Result<Status, String> {
         if project.meta.width != 1920 || project.meta.height != 1080 {
             return Err(
-                "Experimental no-fire scanning currently requires native 1920×1080 footage".into(),
+                "No-fire scanning currently requires native 1920×1080 footage".into(),
             );
         }
-        self.start_impl(project, tools, true)
+        self.start_impl(project, tools, true, complete)
     }
     pub fn candidates(&self, id: u64, offset: usize) -> Result<Vec<u32>, String> {
         let state = self.current.lock().map_err(|_| "Scan state unavailable")?;
@@ -96,9 +106,9 @@ impl Jobs {
             .map(|r| r.0)
             .collect())
     }
-    fn start_impl(&self, project: Project, tools: Tools, no_fire: bool) -> Result<Status, String> {
+    fn start_impl(&self, project: Project, tools: Tools, no_fire: bool, complete: Option<Completion>) -> Result<Status, String> {
         let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
-        if state.as_ref().is_some_and(|j| j.status.state == "running") {
+        if state.as_ref().is_some_and(|j| matches!(j.status.state.as_str(), "running" | "saving")) {
             return Err("A scan for this tool is already running".into());
         }
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
@@ -122,6 +132,7 @@ impl Jobs {
             child: child.clone(),
         });
         let shared = self.current.clone();
+        let jobs = self.clone();
         std::thread::spawn(move || {
             let update = |frame, row| {
                 if let Ok(mut state) = shared.lock()
@@ -146,21 +157,40 @@ impl Jobs {
                 let _ = process.kill();
                 let _ = process.wait();
             }
-            if let Ok(mut state) = shared.lock()
-                && let Some(job) = state.as_mut().filter(|j| j.status.id == id)
-            {
-                if cancel.load(Ordering::Relaxed) {
-                    job.status.state = "cancelled".into();
-                } else if let Err(error) = result {
-                    job.status.state = "failed".into();
-                    job.status.error = Some(error);
-                } else {
-                    job.rows.sort_unstable_by_key(|row| row.0);
-                    job.status.state = "done".into();
-                }
-            }
+            let _ = jobs.finish(id, result, complete);
         });
         Ok(status)
+    }
+    // Release the scan mutex before saving into the workspace (which has its own mutex).
+    // Completion executes once, only after a successful, uncancelled full scan.
+    fn finish(&self, id: u64, result: Result<(), String>, complete: Option<Completion>) -> Result<(), String> {
+        let (project, rows) = {
+            let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
+            let job = state.as_mut().filter(|j| j.status.id == id && j.status.state == "running").ok_or("Scan is no longer running")?;
+            if job.cancel.load(Ordering::Relaxed) {
+                job.status.state = "cancelled".into();
+                return Ok(());
+            }
+            if let Err(error) = result {
+                job.status.state = "failed".into();job.status.error = Some(error);
+                return Ok(());
+            }
+            job.rows.sort_unstable_by_key(|r| r.0);
+            if complete.is_none() {
+                job.status.state = "done".into();
+                return Ok(());
+            }
+            job.status.state = "saving".into();
+            (job.project.clone(), job.rows.clone())
+        };
+        let saved = complete.unwrap()(&project, &rows);
+        let mut state = self.current.lock().map_err(|_| "Scan state unavailable")?;
+        let job = state.as_mut().filter(|j| j.status.id == id).ok_or("Scan is no longer current")?;
+        match saved {
+            Ok(count) => {job.status.applied = count;job.status.state = "done".into();}
+            Err(error) => {job.status.state = "failed".into();job.status.error = Some(error);}
+        }
+        Ok(())
     }
     pub fn apply<T>(
         &self,
@@ -312,6 +342,34 @@ mod tests {
         assert_eq!(accepted(2, 0.499), None);
         assert_eq!(accepted(32, 1.), None);
         assert_eq!(accepted(2, f64::NAN), None);
+    }
+    #[test]
+    fn completion_saves_once_without_holding_scan_lock_and_reports_errors() {
+        let jobs = job("running");
+        let observer = jobs.clone();
+        jobs.finish(1,Ok(()),Some(Box::new(move |_,rows| {
+            assert_eq!(observer.status().unwrap().unwrap().state,"saving");
+            assert!(observer.cancel(1).is_err());
+            assert!(observer.start(project(),Tools::default()).is_err());
+            assert_eq!(rows,&[(0,4)]);
+            Ok(1)
+        }))).unwrap();
+        let status = jobs.status().unwrap().unwrap();
+        assert_eq!((status.state.as_str(),status.applied),("done",1));
+        assert!(jobs.finish(1,Ok(()),Some(Box::new(|_,_| panic!("must not save twice")))).is_err());
+        let jobs = job("running");
+        jobs.finish(1,Ok(()),Some(Box::new(|_,_|Err("Video changed".into())))).unwrap();
+        assert_eq!(jobs.status().unwrap().unwrap().error.as_deref(),Some("Video changed"));
+        assert_eq!(jobs.status().unwrap().unwrap().applied,0);
+    }
+    #[test]
+    fn cancelled_or_failed_scan_never_saves_partial_candidates() {
+        let jobs = job("running");jobs.cancel(1).unwrap();
+        jobs.finish(1,Ok(()),Some(Box::new(|_,_|panic!("cancelled")))).unwrap();
+        assert_eq!(jobs.status().unwrap().unwrap().state,"cancelled");
+        let jobs = job("running");
+        jobs.finish(1,Err("decoder failed".into()),Some(Box::new(|_,_|panic!("failed")))).unwrap();
+        assert_eq!(jobs.status().unwrap().unwrap().state,"failed");
     }
     fn project() -> Project {
         use studio_core::{

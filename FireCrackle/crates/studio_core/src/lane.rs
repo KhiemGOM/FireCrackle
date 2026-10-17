@@ -1,6 +1,6 @@
 //! Timeline lane summaries: how a range of frames is labelled, one bucket per pixel column.
 
-use crate::label::{Label, LabelStore};
+use crate::label::{Label, LabelSource, LabelStore};
 use crate::phase::{Flag, Severity};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
@@ -11,6 +11,10 @@ pub struct Bucket {
     pub fire: u32,
     pub no_fire: u32,
     pub skip: u32,
+    /// Unchecked automatic labels only. Human confirmation keeps history but removes the strip.
+    pub auto_first_person: u32,
+    pub auto_no_fire: u32,
+    pub auto_time_guess: u32,
     /// The worst flag whose extent (`frame..=end_frame`) overlaps this bucket.
     pub flag: Option<Severity>,
 }
@@ -42,6 +46,12 @@ pub fn buckets(store: &LabelStore, flags: &[Flag], start: u32, end: u32, n: usiz
             Label::NoFire => b.no_fire += 1,
             Label::Skip => b.skip += 1,
             Label::Unset => {}
+        }
+        let sources = store.sources(frame);
+        if !sources.contains(&LabelSource::Manual) {
+            b.auto_first_person += sources.contains(&LabelSource::FirstPerson) as u32;
+            b.auto_no_fire += sources.contains(&LabelSource::NoFire) as u32;
+            b.auto_time_guess += sources.contains(&LabelSource::TimeGuess) as u32;
         }
     }
     for b in out.iter_mut() {

@@ -41,6 +41,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
     catch(e){setError(messageOf(e));}finally{setPending(false);}
   }
   const running=status?.state==="running";
+  const noFireRunning=noFire?.state==="running"||noFire?.state==="saving";
   const supported=!!backend.povStart;
   return <div className="modal-backdrop" onMouseDown={onClose}>
     <div className="modal automation-tools" role="dialog" aria-modal="true" aria-label="Auto" onMouseDown={e=>e.stopPropagation()}>
@@ -65,7 +66,8 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         {status?.applied ? <p>Open the Phase chart to spot unusual timing. If it looks odd near an automatically labelled frame, check that automatic label first. Use the source filter to isolate tool results. Independently choosing and confirming the same sprite adds “Human checked” while keeping the tool source.</p> : null}
         <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
           <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Beta</span></h3>
-          <p className="experiment-warning">Missed fire is usually hard to label. If you need more phase readings, recheck Auto’s no-fire suggestions. Scanning does not save labels.</p>
+          <p className="experiment-warning">Missed fire is usually hard to label. If you need more phase readings, recheck Auto’s no-fire labels.</p>
+          <p className="dim">Saves No fire on unlabelled frames when the scan finishes. Existing labels stay unchanged. Teal strips mark automatic no-fire labels; Undo removes the batch.</p>
           <p>Best results with:</p>
           <ul>
             <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
@@ -74,12 +76,12 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           </ul>
           <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> This video uses the vanilla 1.16.5 GUI described above.</label>
           <div className="automation-actions">
-            <button disabled={!backend.noFireStart||!videoPath||!confirmed||noFire?.state==="running"||noFirePending||running} onClick={()=>void scanNoFire()}>Scan for no fire</button>
+            <button disabled={!backend.noFireStart||!videoPath||!confirmed||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>Scan &amp; label no fire</button>
             {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Cancel no-fire scan</button>}
           </div>
           {noFire&&<div className="automation-progress" role="status">
             <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
-            <span>{noFire.state==="running"?"Scanning":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} suggestions</span>
+            <span>{noFire.state==="running"?"Scanning":noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Cancelled":"Scan failed"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
           {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}
@@ -89,7 +91,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
             <button disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-100))}>Previous results</button>
             <button disabled={offset+100>=noFire.accepted} onClick={()=>setOffset(offset+100)}>Next results</button>
           </div>}
-          {noFire?.state==="done"&&<p className="dim">{noFire.accepted===0?"No candidates found. Other frames remain unreviewed.":"Review opens the frame in Label. Choose No fire and press Enter only after checking it."}</p>}
+          {noFire?.state==="done"&&<p className="dim">{noFire.accepted===0?"No candidates found. Other frames remain unreviewed.":"Review opens the frame in Label. Confirming it yourself removes the automatic strip and keeps its source history."}</p>}
         </section>
       </div>
     </div>

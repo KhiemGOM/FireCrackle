@@ -77,6 +77,7 @@ pub enum LabelSource {
     Manual,
     FirstPerson,
     TimeGuess,
+    NoFire,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -354,7 +355,7 @@ impl LabelStore {
         let mut step: UndoStep = Vec::new();
         for f in start..=end {
             let prev = self.get(f);
-            if prev != label || self.is_predicted(f) {
+            if prev != label || (label != Label::Unset && !self.sources(f).contains(&LabelSource::Manual)) {
                 let old_sources = self.sources(f);
                 let mut sources = if prev == label {
                     old_sources.clone()
