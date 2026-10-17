@@ -267,6 +267,95 @@ Known limits (flagged):
 - The app's `pack()` keeps 4 bits for the piece, so ids ≥ 16 (phase 2 and this) need the wider format before the app
   shows them.
 
+### 3.5 Sound captions (plan)
+
+Survival-vanilla option (Accessibility → Show Subtitles). The user's 2026-10-17 recording shows them in nearly every
+frame: up to ~10 lines, including "Fire crackles" and "Lava pops" boxes laid over lava. The box dims what is behind it
+to 0.2, so dark orange lava shows through, which matters for fire detection.
+
+Yarn 1.16.5 evidence (`SubtitlesHud` 30–106, drawn by `InGameHud` 301 after the action bar and title):
+- **Width:** every box has the same width. `j = max caption width + width("<") + width(" ") + width(">") +
+  width(" ")` = max width + 18 (font advances 5, 4, 5, 4), and `l = j/2`.
+- **Centre:** box *i* (i = 0 is the oldest, at the bottom) is centred at `(W − l − 2, H − 30 − 10i)` (`translatef`
+  85).
+- **Box:** `fill(−l−1, −4−1, l+1, 4+1)`, so GUI x `[W−2l−3, W−1)` and y `[H−35−10i, H−25−10i)`. Boxes stack with no
+  gaps, and the last GUI column stays uncovered.
+- **Colour:** black at `getTextBackgroundColor(0.8F)`. With the default `backgroundForChatOnly = true` that is alpha
+  `(int)(0.8·255)` = 204, so the world shows through at exactly 51/255 = 0.2. If a player switched that option off,
+  the alpha would be `textBackgroundOpacity` (default 0.5); this is not assumed, and such boxes go undetected
+  (flagged).
+- **Text:** caption at `(−o/2, −4)` → GUI rows `H−34−10i .. H−27−10i`, centred on the box. No shadow (`draw`). Grey
+  `p = floor(lerp(255 → 75))` over its 3 s lifetime, fully opaque.
+- **Arrows:** `<` at the box's left (x = L+1) or `>` ending at W−3 (x = W−7) when the sound is to a side and not in
+  front (`e ≤ 0.5`).
+
+Detection (all thresholds as documented `GuiOptions`):
+1. **Lines.** Walk up from i = 0. A box band qualifies when its pixels near the right edge are "dim or ink": max
+   channel ≤ `caption_dim_max`, or neutral grey ≥ 75. The stack stops at the first band that fails; it is always
+   contiguous because expired entries are removed.
+2. **Text per line.** The line's ink is the most common bright neutral grey in its band; the dim box keeps text
+   contrast high. A `>` at its fixed place, or a leading `<` that parses as the glyph, is set aside. The widest
+   line's ink extent gives the centre `c`; c−1, c and c+1 are tried. Each line must read as centred font glyphs
+   about c (the action bar's parse, with any centre).
+3. **Geometry.** `l = W − 2 − c`, `L = 2c − W + 1`. The widest reading must satisfy `2l ∈ {maxW + 18, maxW + 17}`;
+   otherwise the stack is rejected. Every box rectangle `[L, W−1) × 10 rows` must be ≥
+   `caption_min_dim_share` dim-or-ink.
+4. **Labels.** Box pixels are `translucent`; glyph and arrow pixels are `opaque`. One `PieceHit` per line, with the
+   text read.
+
+Failure cases (tests first):
+- one caption with an arrow, read back, with an exact box;
+- a stack of six with mixed greys and arrows;
+- over bright orange "lava" every box pixel is labelled;
+- dark night world: found through the text;
+- other scales and resizes;
+- JPEG;
+- together with the action bar;
+- nothing for no captions, a dark bottom-right rectangle without text, a dark rectangle with random grey strokes,
+  or chat at the left;
+- no world pixel outside a box is labelled;
+- hotbar and food still found.
+
+**Status: built (2026-10-17), not committed.** `PieceId::SoundCaption = 23`; `HudState.captions: Vec<Caption {text,
+grey, arrow: Option<CaptionArrow>}>`; options `caption_dim_max` (72), `caption_ink_tolerance` (24) and
+`caption_min_dim_share` (0.95). The glyph reading reuses the action bar's `parse_centred` with any centre, now guarded
+against a start right of the centre. `tests/gui_mask_captions.rs`: 12 tests, red first (API missing), unchanged since.
+Phase 1, phase 2 and action bar suites unchanged and green.
+
+As built:
+- **Box columns:** the top and bottom box rows never hold text and are always dim. A box column needs both dim and
+  its other rows dim or text-like.
+- **Line:** a line's ink is limited to the run of box columns reaching W−2. That keeps near-grey world beside the
+  box out, and the line's grey is voted only inside that run. The uncovered last column is never ink.
+- **Arrows:** `>` is set aside at W−7; a leading `<` is set aside when it matches the glyph and has a gap after it,
+  and it must then sit at x_box+1.
+
+**Phase-1 fit changes (found through captions; they fix real mis-fits):**
+- **Exact candidates** now include `videoH / H` as well as `videoW / W`, and a whole scale wins near-ties (a
+  native-resolution recording). On a 1280×720 scale-3 frame, scale 3.0 was never offered (1280/3 = 426.67) and the
+  fit drifted to 3.0006, touching the uncovered right column.
+- **Final pick across seeds:** near-ties (within 0.003 centre-sampled) now go to the better edge-sensitive score. On
+  the real recording one seed ended at 3.7647 (510×287) and beat 3.75 (512×288) by 0.0007 on the centre-sampled
+  score, while the edge-sensitive score clearly prefers 3.75 (0.958 vs 0.852). That mis-fit made every caption box
+  fail its geometry check. A "divides evenly" rule was tried here and rejected: it picks 4.5188 over the true 4.5
+  for 2560×1440 at GUI 6 × 0.75.
+
+Measured on `2026-10-17 18-28-42` (1 frame per 15 s, 36 frames, read only):
+- Every reliable frame has its captions found. Stacks run from 1 to 17 lines ("Lava pops", "Fire crackles", "Blaze
+  crackles", "Flint and Steel click", …).
+- Spot-checked line by line against the 24-frame tile: all match.
+- 34 of 35 frames fit at exactly 3.75; one at 3.7518, with its captions still read.
+- About 120–390 ms per 1920×1080 frame for the whole mask.
+- Three older recordings without subtitles (225 frames): 0 caption hits.
+
+Known limits (flagged):
+- **Box opacity:** if "chat background only" is switched off, the boxes use the text-background opacity (0.5)
+  instead of 0.8 and are not detected.
+- **Box width:** it comes from the text, so a stack whose every line fails to read is missed. Over dark ground the
+  box edge is invisible and the text is the only evidence.
+- **Long captions:** a box reaching the food row can hide those icons (the boxes are drawn after the HUD).
+- **App packing:** `pack()` in the app still has 4 bits for the piece.
+
 ### 3.2 Phase 1b: the app
 
 **Status: built (2026-10-17), not committed.** `studio_core::gui` (12 tests, red first: module missing; one runs ffmpeg

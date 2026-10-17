@@ -175,6 +175,7 @@ pub enum PieceId {
     DebugText = 21,
     // phase 3
     ActionBar = 22,
+    SoundCaption = 23,
 }
 
 #[repr(u8)]
@@ -251,6 +252,23 @@ pub struct HudState {
     pub action_bar_color: [u8; 3],
     /// Opacity while it fades out over its last 20 ticks (1: fully shown).
     pub action_bar_alpha: f32,
+    /// Sound captions (Accessibility > Show Subtitles), oldest (bottom) first.
+    pub captions: Vec<Caption>,
+}
+
+/// Which side a caption's sound comes from (no arrow when it is in front).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaptionArrow {
+    Left,
+    Right,
+}
+
+/// One sound caption: its text, its grey (255 when new, fading to 75 over 3 s) and its arrow.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Caption {
+    pub text: String,
+    pub grey: u8,
+    pub arrow: Option<CaptionArrow>,
 }
 
 /// A boss bar: colour index (pink, blue, red, green, yellow, purple, white = 0..6), progress 0..1, name.
@@ -294,6 +312,7 @@ impl Default for HudState {
             action_bar: None,
             action_bar_color: [255, 255, 255],
             action_bar_alpha: 1.0,
+            captions: Vec::new(),
         }
     }
 }
@@ -850,6 +869,13 @@ pub struct GuiOptions {
     /// pixels; a '.' or ''' laid over a bright world speck explains one or two, so with a cost above that, padding a
     /// line or filling a word gap with specks never pays.
     pub action_bar_glyph_cost: f64,
+    /// Captions: the brightest a pixel inside a caption box may be (levels, max channel) when it is not text. The box
+    /// is black at alpha 204, so the world shows at 0.2: at most 51, plus compression.
+    pub caption_dim_max: f64,
+    /// Captions: how far (levels of luma) a text pixel may be from its line's grey.
+    pub caption_ink_tolerance: f64,
+    /// Captions: the share of a box's GUI pixels that must be dim or text for the box to be accepted.
+    pub caption_min_dim_share: f64,
 }
 
 impl Default for GuiOptions {
@@ -868,6 +894,9 @@ impl Default for GuiOptions {
             action_bar_min_glyphs: 3,
             action_bar_glyph_cost: 4.0,
             action_bar_reread_tolerance: 24.0,
+            caption_dim_max: 72.0,
+            caption_ink_tolerance: 24.0,
+            caption_min_dim_share: 0.95,
         }
     }
 }
@@ -1075,6 +1104,20 @@ fn check_options(o: &GuiOptions) -> Result<(), String> {
             o.action_bar_reread_tolerance
         ));
     }
+    for (name, v) in [
+        ("caption_dim_max", o.caption_dim_max),
+        ("caption_ink_tolerance", o.caption_ink_tolerance),
+    ] {
+        if !(v.is_finite() && (0.0..=255.0).contains(&v)) {
+            return Err(format!("{name} must be in 0..255, got {v}"));
+        }
+    }
+    if !(o.caption_min_dim_share.is_finite() && (0.0..=1.0).contains(&o.caption_min_dim_share)) {
+        return Err(format!(
+            "caption_min_dim_share must be in 0..1, got {}",
+            o.caption_min_dim_share
+        ));
+    }
     if o.action_bar_min_glyphs == 0 {
         return Err("action_bar_min_glyphs must be at least 1".into());
     }
@@ -1185,7 +1228,16 @@ pub fn detect_gui(
     // uncropped (user-confirmed), so the anchor is exact up to the rounding of the video size: the offset stays 0 unless
     // a shift is clearly better. Plateaus of equal correlation are resolved to their centre.
     const TIE: f64 = 1e-3;
-    let mut best: Option<(f64, f64, f64, f64)> = None; // score, s, x, y
+    let mut best: Option<(f64, f64, f64, f64, f64)> = None; // score, edge score, s, x, y
+                                                            // how far a scale is from dividing the video evenly (0: both sides do; -1: a whole scale, a native recording)
+    let misfit_of = |se: f64| {
+        let frac = |d: f64| (d / se - (d / se).round()).abs();
+        if (se - se.round()).abs() < 1e-9 {
+            -1.0
+        } else {
+            frac(w as f64).max(frac(h as f64))
+        }
+    };
     for &(_, s0) in coarse.iter().take(5) {
         let (x0, y0, _) = anchor(s0);
         let Some(slot) = (0..9).max_by(|&a, &b| {
@@ -1244,34 +1296,44 @@ pub fn detect_gui(
         let s2 = centre_scale(odx, ody, s1 * 0.997, s1 * 1.003, 1.0001).unwrap_or(s1);
         // exact candidates: an uncropped video of a W-wide scaled window has scale exactly videoW / W (and videoH / H),
         // so near-ties are resolved towards a scale where both divide evenly instead of averaging two of them
+        // (the scaled size is ceil(framebuffer / scale), so often only one of them divides: 1280x720 at scale 3 is
+        // 426.67 x 240). A whole scale is preferred among near-ties: a native-resolution recording has exactly the
+        // GUI scale.
         let mut exact: Option<(f64, f64, f64)> = None; // score, misfit, s
         let (wf, hf) = (w as f64, h as f64);
-        let lo_w = (wf / (s2 * 1.01)).floor().max(1.0) as u32;
-        let hi_w = (wf / (s2 * 0.99)).ceil() as u32;
-        for sw in lo_w..=hi_w {
-            let se = wf / sw as f64;
+        let mut cands: Vec<f64> = Vec::new();
+        for dim in [wf, hf] {
+            let lo = (dim / (s2 * 1.01)).floor().max(1.0) as u32;
+            let hi = (dim / (s2 * 0.99)).ceil() as u32;
+            cands.extend((lo..=hi).map(|n| dim / n as f64));
+        }
+        for se in cands {
             let Some(v) = at_s(se, 0.0, 0.0) else {
                 continue;
             };
-            let misfit = (hf / se - (hf / se).round()).abs();
+            let misfit = misfit_of(se);
             if exact.is_none_or(|e| v > e.0 + TIE || (v >= e.0 - TIE && misfit < e.1)) {
                 exact = Some((v, misfit, se));
             }
         }
         let cont = at_s(s2, odx, ody).unwrap_or(-1.0);
-        let (s2, odx, ody) = match exact {
-            Some((v, _, se)) if v >= cont - TIE => (se, 0.0, 0.0),
-            _ => (s2, odx, ody),
+        let (s2, odx, ody, edge) = match exact {
+            Some((v, _, se)) if v >= cont - TIE => (se, 0.0, 0.0, v),
+            _ => (s2, odx, ody, cont),
         };
         let (x, y, _) = anchor(s2);
         // accept on the centre-sampled correlation (robust to resampling), not on the edge-sensitive one
         if let Some(v) = best_slot(&flat_t, x + odx, y + ody, s2, 1) {
-            if best.is_none_or(|b| v > b.0) {
-                best = Some((v, s2, x + odx, y + ody));
+            // seeds can end on neighbouring scales that score alike here (a scale 0.4 % off moves the hotbar's edges
+            // by under a pixel): among near-ties the edge-sensitive score, which does see it, decides
+            const NEAR: f64 = 3e-3;
+            let better = best.is_none_or(|b| v > b.0 + NEAR || (v >= b.0 - NEAR && edge > b.1));
+            if better {
+                best = Some((v, edge, s2, x + odx, y + ody));
             }
         }
     }
-    let Some((hot_score, s, hx, hy)) = best.filter(|b| b.0 >= opts.hotbar_min_score) else {
+    let Some((hot_score, _, s, hx, hy)) = best.filter(|b| b.0 >= opts.hotbar_min_score) else {
         mask.notes.push(format!(
             "no vanilla hotbar found at any scale between {:.2} and {:.2} video px per GUI px (best correlation {:.2})",
             opts.min_scale,
@@ -1683,10 +1745,13 @@ pub fn detect_gui(
     }
     detect_text(frame, w, h, &fit, opts, boss_found, &mut mask);
     match tex.font.as_ref() {
-        Some(font) => detect_action_bar(frame, w, h, &fit, opts, font, &mut mask),
+        Some(font) => {
+            detect_action_bar(frame, w, h, &fit, opts, font, &mut mask);
+            detect_captions(frame, w, h, &fit, opts, font, &mut mask);
+        }
         None => mask
             .notes
-            .push("no font texture: the action bar is not checked".into()),
+            .push("no font texture: the action bar and captions are not checked".into()),
     }
     Ok(mask)
 }
@@ -2019,6 +2084,73 @@ fn compose_text(
                 t,
                 st.action_bar_color,
                 alpha,
+                false,
+            );
+        }
+    }
+    // sound captions (SubtitlesHud 39-101): equal boxes of width 2l+2 at the right, stacked up from y = H-35
+    if !st.captions.is_empty() {
+        let maxw = st
+            .captions
+            .iter()
+            .map(|c| text_width(font, &c.text))
+            .max()
+            .unwrap_or(0);
+        let l = (maxw + text_width(font, "< > ")) / 2;
+        for (i, c) in st.captions.iter().enumerate() {
+            let (cx, cy) = (sw - l - 2, sh - 30 - 10 * i as i32);
+            fill_gui(
+                frame,
+                w,
+                h,
+                fit,
+                (
+                    (cx - l - 1) as f64,
+                    (cy - 5) as f64,
+                    (2 * l + 2) as f64,
+                    10.0,
+                ),
+                [0, 0, 0, 204],
+                truth,
+                PieceId::SoundCaption,
+                PixelClass::Translucent,
+            );
+            let grey = [c.grey; 3];
+            let arrow = match c.arrow {
+                Some(CaptionArrow::Right) => Some((">", cx + l - text_width(font, ">"))),
+                Some(CaptionArrow::Left) => Some(("<", cx - l)),
+                None => None,
+            };
+            if let Some((a, x)) = arrow {
+                draw_text(
+                    frame,
+                    w,
+                    h,
+                    fit,
+                    font,
+                    truth,
+                    PieceId::SoundCaption,
+                    x,
+                    cy - 4,
+                    1,
+                    a,
+                    grey,
+                    false,
+                );
+            }
+            draw_text(
+                frame,
+                w,
+                h,
+                fit,
+                font,
+                truth,
+                PieceId::SoundCaption,
+                cx + (-text_width(font, &c.text) / 2),
+                cy - 4,
+                1,
+                &c.text,
+                grey,
                 false,
             );
         }
@@ -2635,6 +2767,9 @@ fn parse_centred(
     glyph_cost: f64,
 ) -> Option<Parse> {
     let k = half - s;
+    if k < 1 {
+        return None;
+    }
     let len = (2 * k + 1) as usize;
     if s < 1 || s as usize + len > ink.len() {
         return None;
@@ -2856,4 +2991,288 @@ fn detect_action_bar(
         score: 1.0 - ratio,
         text: Some(text.trim_end().to_string()),
     });
+}
+
+// ================================================================ sound captions
+
+/// One caption line in its box band (10 GUI rows: bit r of a column is row `y_box + r`).
+struct CaptionLine {
+    ink: Vec<u16>,
+    /// Column of a `<` arrow set aside, if any.
+    left: Option<i32>,
+    /// A `>` arrow at its fixed place was set aside.
+    right: bool,
+    /// First and last inked column of the text.
+    a: i32,
+    b: i32,
+    /// The line's grey (luma).
+    grey: f64,
+}
+
+/// The cols of glyph `g` at `x` match the band's 8 text rows (bits 1..8) within one pixel.
+fn glyph_at(ink: &[u16], x: i32, g: &GlyphCols) -> bool {
+    x >= 0
+        && g.cols
+            .iter()
+            .enumerate()
+            .map(|(j, &c)| {
+                let col = ink.get((x + j as i32) as usize).copied().unwrap_or(0x1fe);
+                (((col >> 1) & 0xff) as u8 ^ c).count_ones()
+            })
+            .sum::<u32>()
+            <= 1
+}
+
+/// Sound captions (SubtitlesHud 39-101): boxes of one width `2l+2` at GUI x `[W-2l-3, W-1)`, rows
+/// `[H-35-10i, H-25-10i)` from the oldest (i = 0) up, black at alpha 204; grey unshadowed text centred on
+/// `c = W-l-2`, an optional `<` at the box's left or `>` ending at W-3. Accepted only when every line reads as font
+/// glyphs about one centre and that centre gives the widest line's width back (`2l` = width + 18 halved).
+fn detect_captions(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    fit: &GuiFit,
+    o: &GuiOptions,
+    font: &Texture,
+    mask: &mut GuiMask,
+) {
+    let (sw, sh) = (fit.scaled_width as i32, fit.scaled_height as i32);
+    if sw < 40 || sh < 40 {
+        return;
+    }
+    let px = |gx: i32, gy: i32| gui_px(frame, w, h, fit, gx, gy, 1);
+    let spread = |a: [f64; 3]| brightest(a) - a.iter().cloned().fold(255.0, f64::min);
+    let neutral_bright = |a: [f64; 3]| spread(a) <= o.caption_ink_tolerance && brightest(a) >= 64.0;
+    let dim = |a: [f64; 3]| brightest(a) <= o.caption_dim_max;
+    let glyphs = glyph_columns(font);
+    let find = |ch: char| glyphs.iter().find(|g| g.ch == ch).expect("printable glyph");
+    let (lt, gt) = (find('<'), find('>'));
+    let mut lines: Vec<CaptionLine> = Vec::new();
+    for i in 0..30 {
+        let y_box = sh - 35 - 10 * i;
+        if y_box < 0 {
+            break;
+        }
+        // the box reaches the right edge less one column: the pixels there are dim or text, and mostly dim (text
+        // strokes are a minority of any box area)
+        let (mut ok, mut dark) = (0, 0);
+        for gy in y_box..y_box + 10 {
+            for gx in sw - 12..sw - 1 {
+                if let Some(a) = px(gx, gy) {
+                    ok += (dim(a) || neutral_bright(a)) as usize;
+                    dark += dim(a) as usize;
+                }
+            }
+        }
+        if (ok as f64) < o.caption_min_dim_share * 110.0 || dark < 55 {
+            break;
+        }
+        // the box is the run of dim-or-text columns reaching the right edge; ink left of it is world
+        // (a box column: its top and bottom rows never hold text, so they are dim; the rest is dim or text)
+        let box_col = |x: i32| {
+            [0, 9].iter().all(|&r| px(x, y_box + r).is_some_and(dim))
+                && (1..9)
+                    .filter(|&r| px(x, y_box + r).is_some_and(|a| dim(a) || neutral_bright(a)))
+                    .count()
+                    >= 7
+        };
+        let mut run = sw - 1;
+        while run > 0 && box_col(run - 1) {
+            run -= 1;
+        }
+        if run > sw - 12 {
+            break;
+        }
+        // the line's grey: the most common bright neutral luma bin inside the box
+        let mut bins: std::collections::HashMap<u8, Vec<f64>> = Default::default();
+        for gy in y_box + 1..y_box + 9 {
+            for gx in run..sw - 1 {
+                if let Some(a) = px(gx, gy).filter(|&a| neutral_bright(a)) {
+                    let l = luma3(a);
+                    bins.entry((l as u8) >> 3).or_default().push(l);
+                }
+            }
+        }
+        let Some(mut top) = bins.into_values().max_by_key(|v| v.len()) else {
+            break;
+        };
+        if top.len() < 4 {
+            break;
+        }
+        top.sort_by(f64::total_cmp);
+        let grey = top[top.len() / 2];
+        let mut ink: Vec<u16> = (0..sw)
+            .map(|gx| {
+                (0..10).fold(0u16, |m, r| match px(gx, y_box + r) {
+                    Some(a)
+                        if neutral_bright(a)
+                            && (luma3(a) - grey).abs() <= o.caption_ink_tolerance =>
+                    {
+                        m | 1 << r
+                    }
+                    _ => m,
+                })
+            })
+            .collect();
+        // and it stops one column short of the right edge
+        for x in (0..run).chain(sw - 1..sw) {
+            ink[x as usize] = 0;
+        }
+        // set the arrows aside: `>` ends at W-3 (x = W-7); a `<` is the first glyph, with a gap after it
+        let right = glyph_at(&ink, sw - 7, gt);
+        if right {
+            for x in sw - 7..sw - 2 {
+                ink[x as usize] = 0;
+            }
+        }
+        let mut left = None;
+        if let Some(a) = (sw / 2..sw).find(|&x| ink[x as usize] & 0x1fe != 0) {
+            let gap = (a + 5..a + 8).all(|x| ink.get(x as usize).is_none_or(|c| c & 0x1fe == 0));
+            if gap && glyph_at(&ink, a, lt) {
+                left = Some(a);
+                for x in a..a + 5 {
+                    ink[x as usize] = 0;
+                }
+            }
+        }
+        let inked: Vec<i32> = (sw / 2..sw)
+            .filter(|&x| ink[x as usize] & 0x1fe != 0)
+            .collect();
+        let (Some(&a), Some(&b)) = (inked.first(), inked.last()) else {
+            break;
+        };
+        lines.push(CaptionLine {
+            ink,
+            left,
+            right,
+            a,
+            b,
+            grey,
+        });
+    }
+    if lines.is_empty() {
+        return;
+    }
+    // the widest line gives the centre; each line must read as glyphs centred on it
+    let widest = lines.iter().max_by_key(|l| l.b - l.a).expect("a line");
+    let c0 = widest.a + (widest.b - widest.a + 2) / 2;
+    // centre, the lines read there with their mismatch rates, and the ink they explain
+    type Reading = (i32, Vec<(Parse, f64)>, f64);
+    let mut best: Option<Reading> = None;
+    for c in [c0, c0 - 1, c0 + 1] {
+        let mut read = Vec::new();
+        let mut total = 0.0;
+        for l in &lines {
+            let Some(p) = parse_centred(&l.ink, c, l.a, &glyphs, o.action_bar_glyph_cost) else {
+                break;
+            };
+            let ratio = p.mismatch as f64 / p.ink.max(1) as f64;
+            let n = p.glyphs.iter().filter(|&&g| glyphs[g].ch != ' ').count();
+            if ratio > o.action_bar_max_mismatch || n < o.action_bar_min_glyphs {
+                break;
+            }
+            total += p.ink as f64 - p.mismatch as f64;
+            read.push((p, ratio));
+        }
+        let better = best
+            .as_ref()
+            .is_none_or(|b| read.len() > b.1.len() || (read.len() == b.1.len() && total > b.2));
+        if !read.is_empty() && better {
+            best = Some((c, read, total));
+        }
+    }
+    let Some((c, read, _)) = best else {
+        return;
+    };
+    // geometry: l = W-2-c, and the widest line read must give l back (j = width + 18, l = j/2)
+    let l = sw - 2 - c;
+    let width = |p: &Parse| {
+        p.glyphs
+            .iter()
+            .map(|&g| glyphs[g].cols.len() as i32)
+            .sum::<i32>()
+    };
+    let maxw = read.iter().map(|(p, _)| width(p)).max().unwrap_or(0);
+    let x_box = sw - 2 * l - 3;
+    if (maxw + text_width(font, "< > ")) / 2 != l || x_box < 0 {
+        mask.notes.push(format!(
+            "caption-like lines rejected: centre {c} gives a box {l} GUI px half-wide, the widest text is {maxw}"
+        ));
+        return;
+    }
+    // each box is dim or text all over, and a `<` sits at its left edge
+    let mut n_ok = 0;
+    for (i, line) in lines.iter().enumerate().take(read.len()) {
+        if line.left.is_some_and(|x| x != x_box + 1) {
+            break;
+        }
+        let y_box = sh - 35 - 10 * i as i32;
+        let (mut good, mut all) = (0usize, 0usize);
+        for gy in y_box..y_box + 10 {
+            for gx in x_box..sw - 1 {
+                all += 1;
+                let fits = px(gx, gy).is_some_and(|a| {
+                    dim(a)
+                        || (neutral_bright(a)
+                            && (luma3(a) - line.grey).abs() <= o.caption_ink_tolerance)
+                });
+                good += fits as usize;
+            }
+        }
+        if (good as f64) < o.caption_min_dim_share * all as f64 {
+            break;
+        }
+        n_ok += 1;
+    }
+    for (i, (p, ratio)) in read.iter().take(n_ok).enumerate() {
+        let line = &lines[i];
+        let y_box = sh - 35 - 10 * i as i32;
+        paint(
+            mask,
+            fit,
+            (x_box as f64, y_box as f64, (2 * l + 2) as f64, 10.0),
+            PieceId::SoundCaption,
+            PixelClass::Translucent,
+            o.edge_tolerance_px,
+        );
+        let mut placed: Vec<(i32, &GlyphCols)> = Vec::new();
+        let mut x = p.start;
+        for &g in &p.glyphs {
+            placed.push((x, &glyphs[g]));
+            x += glyphs[g].cols.len() as i32;
+        }
+        if let Some(xl) = line.left {
+            placed.push((xl, lt));
+        }
+        if line.right {
+            placed.push((sw - 7, gt));
+        }
+        for (gx, g) in placed {
+            for (j, &col) in g.cols.iter().enumerate() {
+                for r in 0..8 {
+                    if col >> r & 1 == 1 {
+                        paint(
+                            mask,
+                            fit,
+                            ((gx + j as i32) as f64, (y_box + 1 + r) as f64, 1.0, 1.0),
+                            PieceId::SoundCaption,
+                            PixelClass::Opaque,
+                            o.text_edge_tolerance_px,
+                        );
+                    }
+                }
+            }
+        }
+        let text: String = p.glyphs.iter().map(|&g| glyphs[g].ch).collect();
+        mask.hits.push(PieceHit {
+            piece: PieceId::SoundCaption,
+            index: i as u8,
+            x: (fit.origin_x + x_box as f64 * fit.scale).floor() as i32,
+            y: (fit.origin_y + y_box as f64 * fit.scale).floor() as i32,
+            w: ((2 * l + 2) as f64 * fit.scale).round() as u32,
+            h: (10.0 * fit.scale).round() as u32,
+            score: 1.0 - ratio,
+            text: Some(text.trim_end().to_string()),
+        });
+    }
 }
