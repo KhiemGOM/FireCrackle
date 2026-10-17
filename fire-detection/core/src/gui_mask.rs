@@ -7,6 +7,10 @@
 
 use std::path::Path;
 
+#[path = "gui_screens.rs"]
+mod screens;
+pub use screens::add_screen_masks;
+
 // ================================================================ textures
 
 #[derive(Clone, Debug)]
@@ -176,6 +180,9 @@ pub enum PieceId {
     // phase 3
     ActionBar = 22,
     SoundCaption = 23,
+    /// Opt-in screen exclusion; dynamic contents are unknown, not fire evidence.
+    InventoryPanel = 24,
+    MenuButton = 25,
 }
 
 #[repr(u8)]
