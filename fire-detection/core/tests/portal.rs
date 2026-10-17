@@ -1,4 +1,5 @@
 #[path = "../src/portal.rs"]
+#[allow(dead_code)] // Test-only inclusion exercises a subset of the shared module's public fields.
 mod portal;
 
 fn atlas() -> Vec<u8> {

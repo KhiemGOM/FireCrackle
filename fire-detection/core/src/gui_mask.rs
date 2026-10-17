@@ -1312,87 +1312,6 @@ fn luma(r: u8, g: u8, b: u8) -> f64 {
     0.299 * r as f64 + 0.587 * g as f64 + 0.114 * b as f64
 }
 
-#[cfg(test)]
-mod correlation_parity {
-    use super::*;
-    #[test]
-    fn cached_and_in_frame_paths_match_dense_reference_bits() {
-        let (w, h) = (40, 32);
-        let frame: Vec<_> = (0..w * h * 3)
-            .map(|i| ((i * 37 + i / 17) % 256) as u8)
-            .collect();
-        let dense: Vec<_> = frame
-            .chunks_exact(3)
-            .map(|p| luma(p[0], p[1], p[2]))
-            .collect();
-        let lum = LumaRows::new(&frame, w, h);
-        let t = Template::new(
-            (0..7)
-                .flat_map(|y| {
-                    (0..9).map(move |x| {
-                        (
-                            x as f64 + 0.15,
-                            y as f64 + 0.85,
-                            ((x * 19 + y * 31) % 255) as f64,
-                        )
-                    })
-                })
-                .collect(),
-        );
-        for (x, y, s) in [
-            (1., 2., 1.),
-            (-2., 1., 1.5),
-            (35., 4., 1.),
-            (2., 27., 0.8),
-            (0., 0., 2.5),
-        ] {
-            for step in [1, 3] {
-                let (mut n, mut inside, mut sa, mut sb, mut saa, mut sbb, mut sab) =
-                    (0usize, 0usize, 0., 0., 0., 0., 0.);
-                for &(u, v, a) in t.pts.iter().step_by(step) {
-                    n += 1;
-                    let px = x + u * s;
-                    let py = y + v * s;
-                    if px < 0. || py < 0. || px >= w as f64 || py >= h as f64 {
-                        continue;
-                    }
-                    inside += 1;
-                    let b = dense[py as usize * w + px as usize];
-                    sa += a;
-                    sb += b;
-                    saa += a * a;
-                    sbb += b * b;
-                    sab += a * b;
-                }
-                let m = inside as f64;
-                let va = saa - sa * sa / m;
-                let vb = sbb - sb * sb / m;
-                let reference = if n == 0
-                    || (inside as f64) < 0.6 * n as f64
-                    || va <= 1e-9 * m
-                    || vb <= 1e-6 * m
-                {
-                    None
-                } else {
-                    Some((sab - sa * sb / m) / (va * vb).sqrt())
-                };
-                assert_eq!(
-                    score(&lum, w, h, &t, x, y, s, step).map(f64::to_bits),
-                    reference.map(f64::to_bits)
-                );
-                if step == 3 {
-                    assert_eq!(
-                        CompiledTemplate::new(&t, x, y, s, w, h)
-                            .score(&lum)
-                            .map(f64::to_bits),
-                        reference.map(f64::to_bits)
-                    );
-                }
-            }
-        }
-    }
-}
-
 /// Opaque pixels of a piece picture; `flat_only` keeps those whose 8 neighbours are identical (robust to blur and
 /// sub-pixel misalignment), falling back to all opaque pixels when too few are flat.
 fn template(
@@ -1621,6 +1540,7 @@ pub fn detect_gui(
     detect_prepared(frame, w, h, tex, opts, &prepared, None, None, None)
 }
 
+#[allow(clippy::too_many_arguments)] // Explicit frame geometry and independent detector inputs.
 fn detect_prepared(
     frame: &[u8],
     w: usize,
@@ -1691,7 +1611,7 @@ fn detect_prepared(
         let mut s = opts.min_scale;
         while s <= max_scale {
             let (x, y, _) = anchor(s);
-            if let Some(v) = best_slot(&flat_t, x, y, s, 3) {
+            if let Some(v) = best_slot(flat_t, x, y, s, 3) {
                 coarse.push((v, s));
             }
             s *= 1.005;
@@ -1797,7 +1717,7 @@ fn detect_prepared(
         };
         let (x, y, _) = anchor(s2);
         // accept on the centre-sampled correlation (robust to resampling), not on the edge-sensitive one
-        if let Some(v) = best_slot(&flat_t, x + odx, y + ody, s2, 1) {
+        if let Some(v) = best_slot(flat_t, x + odx, y + ody, s2, 1) {
             // seeds can end on neighbouring scales that score alike here (a scale 0.4 % off moves the hotbar's edges
             // by under a pixel): among near-ties the edge-sensitive score, which does see it, decides
             const NEAR: f64 = 3e-3;
@@ -3028,6 +2948,7 @@ fn is_black(
 }
 
 /// Shadowed text in the places the game draws it, the XP number, and F3 lines.
+#[allow(clippy::too_many_arguments)] // Explicit frame geometry and independent detector inputs.
 fn detect_text(
     frame: &[u8],
     w: usize,
@@ -3832,5 +3753,86 @@ fn detect_captions(
             score: 1.0 - ratio,
             text: Some(text.trim_end().to_string()),
         });
+    }
+}
+
+#[cfg(test)]
+mod correlation_parity {
+    use super::*;
+    #[test]
+    fn cached_and_in_frame_paths_match_dense_reference_bits() {
+        let (w, h) = (40, 32);
+        let frame: Vec<_> = (0..w * h * 3)
+            .map(|i| ((i * 37 + i / 17) % 256) as u8)
+            .collect();
+        let dense: Vec<_> = frame
+            .chunks_exact(3)
+            .map(|p| luma(p[0], p[1], p[2]))
+            .collect();
+        let lum = LumaRows::new(&frame, w, h);
+        let t = Template::new(
+            (0..7)
+                .flat_map(|y| {
+                    (0..9).map(move |x| {
+                        (
+                            x as f64 + 0.15,
+                            y as f64 + 0.85,
+                            ((x * 19 + y * 31) % 255) as f64,
+                        )
+                    })
+                })
+                .collect(),
+        );
+        for (x, y, s) in [
+            (1., 2., 1.),
+            (-2., 1., 1.5),
+            (35., 4., 1.),
+            (2., 27., 0.8),
+            (0., 0., 2.5),
+        ] {
+            for step in [1, 3] {
+                let (mut n, mut inside, mut sa, mut sb, mut saa, mut sbb, mut sab) =
+                    (0usize, 0usize, 0., 0., 0., 0., 0.);
+                for &(u, v, a) in t.pts.iter().step_by(step) {
+                    n += 1;
+                    let px = x + u * s;
+                    let py = y + v * s;
+                    if px < 0. || py < 0. || px >= w as f64 || py >= h as f64 {
+                        continue;
+                    }
+                    inside += 1;
+                    let b = dense[py as usize * w + px as usize];
+                    sa += a;
+                    sb += b;
+                    saa += a * a;
+                    sbb += b * b;
+                    sab += a * b;
+                }
+                let m = inside as f64;
+                let va = saa - sa * sa / m;
+                let vb = sbb - sb * sb / m;
+                let reference = if n == 0
+                    || (inside as f64) < 0.6 * n as f64
+                    || va <= 1e-9 * m
+                    || vb <= 1e-6 * m
+                {
+                    None
+                } else {
+                    Some((sab - sa * sb / m) / (va * vb).sqrt())
+                };
+                assert_eq!(
+                    score(&lum, w, h, &t, x, y, s, step).map(f64::to_bits),
+                    reference.map(f64::to_bits)
+                );
+                if step == 3 {
+                    assert_eq!(
+                        CompiledTemplate::new(&t, x, y, s, w, h)
+                            .score(&lum)
+                            .map(f64::to_bits),
+                        reference.map(f64::to_bits)
+                    );
+                }
+            }
+        }
     }
 }

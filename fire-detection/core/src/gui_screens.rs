@@ -30,6 +30,7 @@ fn confirmed(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // Keep panel geometry and confirmation policy explicit.
 fn mark(
     mask: &mut GuiMask,
     fit: &GuiFit,
@@ -62,6 +63,7 @@ fn mark(
     });
 }
 
+#[allow(clippy::too_many_arguments)] // Keep panel geometry and confirmation policy explicit.
 fn panel_confirmation(
     frame: &[u8],
     w: usize,
@@ -158,10 +160,8 @@ pub fn add_screen_masks(
     let mut panel = Vec::new();
     for v in 0..166 {
         for u in 0..176 {
-            if (u < 5
-                || u >= 171
-                || v < 5
-                || v >= 161
+            if (!(5..171).contains(&u)
+                || !(5..161).contains(&v)
                 || [76, 77, 78, 79, 80, 81, 138, 139, 140].contains(&v))
                 && (u + v) % 2 == 0
             {
@@ -205,7 +205,7 @@ pub fn add_screen_masks(
             let mut border = Vec::new();
             for v in 0..166 {
                 for u in 0..147 {
-                    if (u < 5 || u >= 142 || v < 5 || v >= 161) && (u + v) % 2 == 0 {
+                    if (!(5..142).contains(&u) || !(5..161).contains(&v)) && (u + v) % 2 == 0 {
                         let c = recipe.texel(u as i64, v as i64);
                         if c[3] == 255 {
                             border.push((u, v, c));
@@ -273,7 +273,7 @@ pub fn add_screen_masks(
             let mut points = Vec::new();
             for v in 0..20 {
                 for u in 0..width {
-                    if (u < 4 || u >= width - 4 || v < 4 || v >= 16) && (u + v) % 2 == 0 {
+                    if (!(4..width - 4).contains(&u) || !(4..16).contains(&v)) && (u + v) % 2 == 0 {
                         let tx = if u < width / 2 { u } else { 200 - width + u };
                         let c = tex.widgets.texel(tx as i64, (46 + state * 20 + v) as i64);
                         if c[3] == 255 {

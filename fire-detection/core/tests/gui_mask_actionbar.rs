@@ -208,7 +208,7 @@ fn random_bright_strokes_centred_in_the_band_are_not_text() {
     let sh = 240usize;
     for gy in sh - 72..sh - 64 {
         for gx in 170..257 {
-            if rnd(&mut seed) % 3 == 0 {
+            if rnd(&mut seed).is_multiple_of(3) {
                 paint(&mut s, gx, gy, [255, 255, 255]);
             }
         }

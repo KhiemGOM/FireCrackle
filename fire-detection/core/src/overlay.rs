@@ -762,7 +762,7 @@ impl SilhouetteMatcher {
                 }
                 let hit = (ratios[k] - expected).abs() < CHROMA_TOL;
                 score += if hit { 1.0 } else { -1.0 };
-                if TRACE && SPATIAL && spatial_row.map_or(true, |r| r as usize == row) {
+                if TRACE && SPATIAL && spatial_row.is_none_or(|r| r as usize == row) {
                     let pixel = self.offsets[k] / 3;
                     let bin = ((pixel / self.w) * 4 / self.h) * 4 + ((pixel % self.w) * 4 / self.w);
                     spatial_used[row][bin] += 1;

@@ -24,6 +24,7 @@ fn setup(scale: u32) -> (Vec<u8>, GuiMask, GuiFit, usize, usize) {
         h,
     )
 }
+#[allow(clippy::too_many_arguments)] // Synthetic fixture geometry is explicit at each call.
 fn draw(
     frame: &mut [u8],
     w: usize,
@@ -90,6 +91,7 @@ fn recipe_shifted_inventory_is_confirmed() {
     assert!(mask.hits.iter().any(|p| p.piece == PieceId::InventoryPanel));
 }
 
+#[allow(clippy::too_many_arguments)] // Synthetic fixture geometry is explicit at each call.
 fn button(
     frame: &mut [u8],
     w: usize,

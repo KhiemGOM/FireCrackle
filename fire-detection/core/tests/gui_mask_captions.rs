@@ -298,7 +298,7 @@ fn a_dark_box_with_random_grey_strokes_is_not_a_caption() {
     let mut seed = 77u64;
     for gy in 240 - 44..240 - 26 {
         for gx in 368..418 {
-            if rnd(&mut seed) % 4 == 0 {
+            if rnd(&mut seed).is_multiple_of(4) {
                 for yy in 0..3 {
                     for xx in 0..3 {
                         let i = ((gy * 3 + yy) * s.w + gx * 3 + xx) * 3;
