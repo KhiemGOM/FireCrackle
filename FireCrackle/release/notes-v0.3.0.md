@@ -1,5 +1,7 @@
 FireCrackle 0.3.0 for Windows x64 and Linux x86_64.
 
+**AI & GPU compatibility:** Auto now uses AI and GPU acceleration where supported. Unusual hardware or driver setups may have limited compatibility or performance; GPU speedups aren't guaranteed, and Auto may fall back to CPU.
+
 - **AI no-fire scan:** Auto can now combine colour rules with a small image model to save no-fire labels. Runs locally, protects existing labels and supports Undo. Automatic labels have clear patterned tool colours.
 - **Measured behaviour:** a complete familiar 19,553-frame recording cleared 13.00% of eligible frames, with 0.89% of meaningful-fire frames wrongly cleared. Tiny, obscured or unreadable fire can still be cleared; review automatic labels if you need phase readings from those scenes. This is a benchmark, not an accuracy guarantee.
 - **Resumable Auto scans:** completed frame decisions are saved locally. Interrupted scans can resume after restarting the app; incompatible video or detector changes invalidate the cache.
