@@ -9,6 +9,7 @@ pub mod json;
 pub mod labels;
 pub mod overlay;
 pub mod patch;
+pub mod pov;
 pub mod presence;
 pub mod report;
 pub mod sync;

@@ -560,12 +560,12 @@ impl SilhouetteMatcher {
     }
 
     pub fn match_frame(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled::<false, false>(frame, false, None)
+        self.match_sampled::<false, false, false>(frame, false, None, None)
     }
 
     /// Exact equivalent to match_frame(unveil_rows(frame)), without a full-frame allocation/pass.
     pub fn match_frame_veiled(&self, frame: &[u8]) -> Result<SilhouetteResult, String> {
-        self.match_sampled::<false, false>(frame, true, None)
+        self.match_sampled::<false, false, false>(frame, true, None, None)
     }
 
     /// Experimental exclusion mask: nonzero pixels contribute neither agreement nor disagreement.
@@ -579,7 +579,7 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h {
             return Err("exclusion mask dimensions do not match frame".into());
         }
-        self.match_sampled::<true, false>(frame, veiled, Some(excluded))
+        self.match_sampled::<true, false, false>(frame, veiled, Some(excluded), None)
     }
 
     /// Same canonical arithmetic, with per-row components for offline stage ablations.
@@ -594,17 +594,49 @@ impl SilhouetteMatcher {
                 if mask.len() != self.w * self.h {
                     return Err("exclusion mask dimensions do not match frame".into());
                 }
-                self.match_sampled::<true, true>(frame, veiled, Some(mask))
+                self.match_sampled::<true, true, true>(frame, veiled, Some(mask), None)
             }
-            None => self.match_sampled::<false, true>(frame, veiled, None),
+            None => self.match_sampled::<false, true, true>(frame, veiled, None, None),
         }
     }
 
-    fn match_sampled<const MASKED: bool, const TRACE: bool>(
+    /// Identical scores/counts, without unused spatial-bin work.
+    pub fn inspect_scores(
+        &self,
+        frame: &[u8],
+        excluded: Option<&[u8]>,
+        veiled: bool,
+    ) -> Result<SilhouetteResult, String> {
+        if excluded.is_some_and(|m| m.len() != self.w * self.h) {
+            return Err("exclusion mask dimensions do not match frame".into());
+        }
+        match excluded {
+            Some(mask) => self.match_sampled::<true, true, false>(frame, veiled, Some(mask), None),
+            None => self.match_sampled::<false, true, false>(frame, veiled, None, None),
+        }
+    }
+
+    /// Identical masked scores; spatial evidence is needed only for the already
+    /// selected raw candidate. Other rows' spatial bins remain zero.
+    pub fn inspect_candidate(
+        &self,
+        frame: &[u8],
+        excluded: &[u8],
+        veiled: bool,
+        row: u8,
+    ) -> Result<SilhouetteResult, String> {
+        if excluded.len() != self.w * self.h || row >= 32 {
+            return Err("invalid exclusion dimensions or candidate row".into());
+        }
+        self.match_sampled::<true, true, true>(frame, veiled, Some(excluded), Some(row))
+    }
+
+    fn match_sampled<const MASKED: bool, const TRACE: bool, const SPATIAL: bool>(
         &self,
         frame: &[u8],
         veiled: bool,
         excluded: Option<&[u8]>,
+        spatial_row: Option<u8>,
     ) -> Result<SilhouetteResult, String> {
         if frame.len() != self.w * self.h * 3 {
             return Err(format!(
@@ -700,12 +732,12 @@ impl SilhouetteMatcher {
         } else {
             Vec::new()
         };
-        let mut spatial_used = if TRACE {
+        let mut spatial_used = if TRACE && SPATIAL {
             vec![[0usize; 16]; ROWS]
         } else {
             Vec::new()
         };
-        let mut spatial_hits = if TRACE {
+        let mut spatial_hits = if TRACE && SPATIAL {
             vec![[0usize; 16]; ROWS]
         } else {
             Vec::new()
@@ -730,7 +762,7 @@ impl SilhouetteMatcher {
                 }
                 let hit = (ratios[k] - expected).abs() < CHROMA_TOL;
                 score += if hit { 1.0 } else { -1.0 };
-                if TRACE {
+                if TRACE && SPATIAL && spatial_row.map_or(true, |r| r as usize == row) {
                     let pixel = self.offsets[k] / 3;
                     let bin = ((pixel / self.w) * 4 / self.h) * 4 + ((pixel % self.w) * 4 / self.w);
                     spatial_used[row][bin] += 1;

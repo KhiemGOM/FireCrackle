@@ -3,7 +3,7 @@
 //! Vanilla 1.16.5 GUI compatibility is a stated assumption, not a user-confirmation gate.
 //! Legacy `<video>.firecrackle/gui.json` answers remain readable without controlling masking.
 
-use fire_core::gui_mask::{detect_gui, GuiOptions, GuiTextures, PieceId};
+use fire_core::gui_mask::{GuiDetector, GuiOptions, GuiTextures, PieceId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -96,11 +96,26 @@ static FONT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../fire-detection/data/assets/gui/ascii.rgba"
 ));
+static BARS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/bars.rgba"
+));
+static RECIPE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/recipe_book.rgba"
+));
+
+/// Exact vanilla sheets used by the validated first-person pipeline. The
+/// recipe sheet is generated locally by the frontend build prerequisite.
+pub fn pov_textures() -> Result<GuiTextures, String> {
+    GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
+        .with_extras(Some(BARS.to_vec()), Some(FONT.to_vec()))?
+        .with_recipe_book(Some(RECIPE.to_vec()))
+}
 
 /// Runs the shared mask with the vanilla textures built into the binary.
 pub struct GuiAnalyzer {
-    tex: GuiTextures,
-    opts: GuiOptions,
+    detector: GuiDetector,
 }
 
 impl GuiAnalyzer {
@@ -108,8 +123,7 @@ impl GuiAnalyzer {
         let tex = GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
             .with_extras(None, Some(FONT.to_vec()))?;
         Ok(GuiAnalyzer {
-            tex,
-            opts: GuiOptions::default(),
+            detector: GuiDetector::new(tex, GuiOptions::default())?,
         })
     }
 
@@ -129,7 +143,7 @@ impl GuiAnalyzer {
             jpeg_decoder::PixelFormat::L8 => px.iter().flat_map(|&v| [v, v, v]).collect(),
             other => return Err(format!("unsupported JPEG pixel format {other:?}")),
         };
-        let m = detect_gui(&rgb, w, h, &self.tex, &self.opts)?;
+        let m = self.detector.detect(&rgb, w, h)?;
         let mut counts: BTreeMap<String, usize> = BTreeMap::new();
         for hit in &m.hits {
             *counts.entry(format!("{:?}", hit.piece)).or_insert(0) += 1;

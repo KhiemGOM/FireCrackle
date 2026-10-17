@@ -88,6 +88,12 @@ it.each([{tagName: "DIV"}, {tagName: "BUTTON"}, {tagName: "INPUT", type: "range"
   expect(press("1").preventDefault).toHaveBeenCalledOnce();
   press("m", "keyup", {target: {tagName: "INPUT", type: "number"}});
   expect(press("1").preventDefault).not.toHaveBeenCalled();
+  press("m"); root = await tree();
+  expect(find(root, "Sprite matching settings")).toBeUndefined();
+  expect(find(root, "Quad mask settings")).toBeDefined();
+  press("m", "keyup");
+  press("m"); root = await tree();
+  expect(find(root, "Sprite matching settings")).toBeDefined();
   stop?.();
 });
 

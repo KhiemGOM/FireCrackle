@@ -12,7 +12,7 @@ These are separate first-person evaluation recordings, from the same local Minec
 
 Use the existing `pov_dual_veil` binary and sources from commit `2b43679967cadeee9082c0d7de4ae46f15b85be3`, with the same GUI assets as the completed V2 capture. Do not alter color/evidence thresholds, FOV selection, neutral-mask rules, the 0.03 detector-distance schedule or highest-eligible-evidence branch policy after seeing these predictions. No true rows, sync ticks or recorded veil state enter inference. True rows enter scoring only.
 
-Report the frozen expanded research method separately from the currently shipped automatic labeller, which still uses unmasked automatic-veil matching. Do not put the research method's numbers on a differently implemented tool.
+At the time this protocol was registered, the shipped automatic labeller used unmasked automatic-veil matching. The tables retain that historical baseline, named “Pre-integration app method” below. The expanded method has since been integrated for 0.3.0 and verified decision-for-decision on all six recordings; see [POV-INTEGRATION.md](POV-INTEGRATION.md). The cache method key `shipped` continues to identify the historical baseline, not the new implementation.
 
 ## Metrics
 
@@ -28,11 +28,11 @@ All 9,400 early-video frames and 3,263 later-video frames decoded, matched a cap
 
 | Separate recording | Method | Correct / overlay frames | Accepted wrong rows | False positives / non-overlay frames |
 |---|---|---:|---:|---:|
-| early | Current app method | 5/5 | 0 | 0/1,875 |
+| early | Pre-integration app method | 5/5 | 0 | 0/1,875 |
 | early | Expanded research method | 5/5 | 0 | 0/1,875 |
-| later | Current app method | 275/344 | 0 | 0/309 |
+| later | Pre-integration app method | 275/344 | 0 | 0/309 |
 | later | Expanded research method | 338/344 | 0 | 0/309 |
-| Both | Current app method | **280/349 (80.2%)** | **0** | **0/2,184** |
+| Both | Pre-integration app method | **280/349 (80.2%)** | **0** | **0/2,184** |
 | Both | Expanded research method | **343/349 (98.3%)** | **0** | **0/2,184** |
 
 Every accepted row was correct for both methods in these separate recordings. The early video has only five positive samples; it mainly adds specificity controls. The later video supplies most of the positive evidence. No constants were changed after either result.
@@ -45,15 +45,15 @@ The later video contains many duplicated render frames. Reporting one first samp
 
 ## Combined counts, with development clearly identified
 
-| Cohort | Current app correct-row coverage | Expanded research correct-row coverage | False positives for either method |
+| Cohort | Pre-integration app coverage | Expanded research correct-row coverage | False positives for either method |
 |---|---:|---:|---:|
 | Four reused development recordings | 1,396/1,513 (92.3%) | 1,496/1,513 (98.9%) | 0/11,918 |
 | Two separate recordings | 280/349 (80.2%) | 343/349 (98.3%) | 0/2,184 |
 | All six, pooled by frame counts | **1,676/1,862 (90.0%)** | **1,839/1,862 (98.8%)** | **0/14,102 (0% observed)** |
 
-Combined accepted-label precision is 1,676/1,676 for the current app method and 1,839/1,839 for the expanded method: **100% observed**, with zero wrong accepted rows. These denominators must accompany that phrase. The expanded method abstains on 23 positive samples; the current app abstains on 186. Overall frame-classification accuracy is not claimed because abstentions are not No-fire classifications.
+Combined accepted-label precision is 1,676/1,676 for the pre-integration app method and 1,839/1,839 for the expanded method: **100% observed**, with zero wrong accepted rows. These denominators must accompany that phrase. The expanded method abstains on 23 positive samples; the pre-integration app abstains on 186. Overall frame-classification accuracy is not claimed because abstentions are not No-fire classifications.
 
-The expanded result supports further integration, with substantially better acceptance coverage on these separate recordings and no observed acceptance errors. It is not yet the implementation in the Auto tool. The tool's collapsed “Measured results” section therefore describes only the current method, including its lower 80.2% separate-recording coverage and the data limitations. No badge or behavior on the No-fire checker was changed.
+The expanded method is now the first-person Auto implementation for 0.3.0, with exact production parity verified separately. The UI gives only the result summary: “In testing, it detected 98.8% of first-person fire samples, with no false positives or wrong sprite labels.” Detailed denominators and limitations remain here. This experiment does not change the separate No-fire checker.
 
 No population error confidence bound is claimed: reused development data, prior shared-preprocessing exposure, one local setup and temporal correlation prevent interpreting 14,102 negative frames as 14,102 independent generalization trials. A truly fresh recording from a different player/setup remains stronger evidence than these results. Do not advertise zero future false-positive probability or universal 100% accuracy.
 
@@ -61,7 +61,7 @@ No population error confidence bound is claimed: reused development data, prior 
 
 Use `fire-decode` with the video-specific capture logs, keeping the exact frame-ID/tick join. Raw logs are `labels-20261015-140934.jsonl` and `labels-20261017-170335.jsonl`. Run `pov_independent.py` for frozen native predictions, or `pov_independent.py --reuse` for scoring and combined development counts. No labels enter the native matcher.
 
-The frozen native executable and every inference-source/asset hash match the prior completed V2 capture. Prediction metadata records video, joined-label, raw-capture-label and native hashes. Independently ran the freshly built video-only `fire_pov` entry point on all 653 later-video samples: **zero accepted-row differences** from the app-method branch extracted from the paired capture. Its threshold, auto veil and FOV selection match the current app scan source. App scan source SHA-256: `ef21b8e76f7ef01cee57ab3aa783312dd64fb4ec772b40cf901aceb960a84509`.
+The frozen native executable and every inference-source/asset hash match the prior completed V2 capture. Prediction metadata records video, joined-label, raw-capture-label and native hashes. Independently ran the freshly built video-only `fire_pov` entry point on all 653 later-video samples: **zero accepted-row differences** from the historical app-method branch extracted from the paired capture. Its threshold, auto veil and FOV selection match the pre-integration app scan source. Historical app scan source SHA-256: `ef21b8e76f7ef01cee57ab3aa783312dd64fb4ec772b40cf901aceb960a84509`.
 
 | Input/output | SHA-256 |
 |---|---|

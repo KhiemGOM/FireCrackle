@@ -29,6 +29,19 @@ export async function preparePortalAsset(){
   const root=fileURLToPath(new URL('../../',import.meta.url));
   const output=path.join(root,'FireCrackle/public/portal.png');
   if(fs.existsSync(output))return;
+  const bytes=await minecraftClientBytes();
+  const png=zipEntry(bytes,'assets/minecraft/textures/block/nether_portal.png');
+  if(png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error('Invalid portal PNG');
+  fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,png);
+}
+
+// Shared build input for generated assets; no game archive is shipped.
+let clientBytes;
+export function minecraftClientBytes(){
+  return clientBytes??=loadMinecraftClientBytes();
+}
+async function loadMinecraftClientBytes(){
+  const root=fileURLToPath(new URL('../../',import.meta.url));
   let jar=process.env.MINECRAFT_CLIENT_JAR;
   if(!jar){
     const cache=path.join(root,'fire-detection/mod/.gradle/loom-cache/minecraftMaven');
@@ -47,7 +60,5 @@ export async function preparePortalAsset(){
     const client=JSON.parse(meta).downloads.client;bytes=await get(client.url);
     if(createHash('sha1').update(bytes).digest('hex')!==client.sha1)throw Error('Minecraft client hash mismatch');
   }
-  const png=zipEntry(bytes,'assets/minecraft/textures/block/nether_portal.png');
-  if(png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error('Invalid portal PNG');
-  fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,png);
+  return bytes;
 }

@@ -5,7 +5,12 @@
 //! `Window` (line numbers in the plan); presence and the scale are read from the pixels by matching the vanilla
 //! textures, never assumed. Only meant for footage the user confirmed to be vanilla 1.16.5.
 
-use std::path::Path;
+use std::{
+    cell::OnceCell,
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex, RwLock},
+};
 
 #[path = "gui_screens.rs"]
 mod screens;
@@ -221,7 +226,7 @@ pub enum Hand {
     Right,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Sheet {
     Widgets,
     Icons,
@@ -344,7 +349,7 @@ impl Default for HudState {
 }
 
 /// One texture rectangle drawn at the piece's origin (plus `dx`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Layer {
     pub sheet: Sheet,
     pub u: u32,
@@ -959,10 +964,433 @@ pub struct GuiMask {
 /// A template: luma of the piece's opaque pixels, at GUI pixel coordinates relative to the piece.
 struct Template {
     pts: Vec<(f64, f64, f64)>,
+    sum: f64,
+    squares: f64,
+    bounds: [f64; 4],
+}
+impl Template {
+    fn new(pts: Vec<(f64, f64, f64)>) -> Self {
+        let (mut sum, mut squares) = (0., 0.);
+        let mut bounds = [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ];
+        for &(u, v, a) in &pts {
+            sum += a;
+            squares += a * a;
+            bounds[0] = bounds[0].min(u);
+            bounds[1] = bounds[1].min(v);
+            bounds[2] = bounds[2].max(u);
+            bounds[3] = bounds[3].max(v);
+        }
+        Self {
+            pts,
+            sum,
+            squares,
+            bounds,
+        }
+    }
+}
+
+/// Per-frame row cache: calculate identical luminance only where templates
+/// sample it, rather than allocating/converting the entire video frame.
+struct LumaRows<'a> {
+    rgb: &'a [u8],
+    width: usize,
+    rows: Vec<OnceCell<Vec<f64>>>,
+}
+impl<'a> LumaRows<'a> {
+    fn new(rgb: &'a [u8], width: usize, height: usize) -> Self {
+        Self {
+            rgb,
+            width,
+            rows: (0..height).map(|_| OnceCell::new()).collect(),
+        }
+    }
+    fn at(&self, x: usize, y: usize) -> f64 {
+        self.row(y)[x]
+    }
+    fn row(&self, y: usize) -> &[f64] {
+        self.rows[y].get_or_init(|| {
+            self.rgb[y * self.width * 3..(y + 1) * self.width * 3]
+                .chunks_exact(3)
+                .map(|p| luma(p[0], p[1], p[2]))
+                .collect()
+        })
+    }
+}
+
+struct CompiledRow {
+    y: usize,
+    points: Vec<(usize, f64)>,
+}
+struct CompiledTemplate {
+    rows: Vec<CompiledRow>,
+    inside: usize,
+    sum: f64,
+    variance: f64,
+    valid: bool,
+}
+impl CompiledTemplate {
+    fn new(t: &Template, x: f64, y: f64, s: f64, w: usize, h: usize) -> Self {
+        let mut rows: Vec<CompiledRow> = Vec::new();
+        let (mut count, mut inside, mut sum, mut squares) = (0, 0, 0., 0.);
+        for &(u, v, a) in t.pts.iter().step_by(3) {
+            count += 1;
+            let px = x + u * s;
+            let py = y + v * s;
+            if px < 0. || py < 0. || px >= w as f64 || py >= h as f64 {
+                continue;
+            }
+            let py = py as usize;
+            if rows.last().is_none_or(|r| r.y != py) {
+                rows.push(CompiledRow {
+                    y: py,
+                    points: Vec::new(),
+                });
+            }
+            rows.last_mut().unwrap().points.push((px as usize, a));
+            inside += 1;
+            sum += a;
+            squares += a * a;
+        }
+        let variance = squares - sum * sum / inside.max(1) as f64;
+        let valid =
+            count > 0 && inside as f64 >= 0.6 * count as f64 && variance > 1e-9 * inside as f64;
+        Self {
+            rows,
+            inside,
+            sum,
+            variance,
+            valid,
+        }
+    }
+    fn score(&self, lum: &LumaRows<'_>) -> Option<f64> {
+        if !self.valid {
+            return None;
+        }
+        let (mut sum, mut squares, mut product) = (0., 0., 0.);
+        for r in &self.rows {
+            let row = lum.row(r.y);
+            for &(x, a) in &r.points {
+                let b = row[x];
+                sum += b;
+                squares += b * b;
+                product += a * b;
+            }
+        }
+        let m = self.inside as f64;
+        let variance = squares - sum * sum / m;
+        if variance <= 1e-6 * m {
+            return None;
+        }
+        Some((product - self.sum * sum / m) / (self.variance * variance).sqrt())
+    }
+}
+
+struct CoarsePlan {
+    width: usize,
+    height: usize,
+    scales: Vec<(f64, Vec<CompiledTemplate>)>,
+}
+impl CoarsePlan {
+    fn new(w: usize, h: usize, min: f64, hotbar: &HotbarTemplates) -> Self {
+        let mut scales = Vec::new();
+        let mut s = min;
+        while s <= w as f64 / 182. {
+            let f = GuiFit::for_video(s, w, h, 0., 0.);
+            let x = (f.scaled_width as i32 / 2 - 91) as f64 * s;
+            let y = (f.scaled_height as i32 - 22) as f64 * s;
+            let templates = hotbar
+                .flat
+                .iter()
+                .map(|t| CompiledTemplate::new(t, x - s, y - s, s, w, h))
+                .collect();
+            scales.push((s, templates));
+            s *= 1.005;
+        }
+        Self {
+            width: w,
+            height: h,
+            scales,
+        }
+    }
+}
+
+struct HotbarTemplates {
+    hotbar: Placed,
+    flat: Vec<Template>,
+    edges: Vec<Template>,
+}
+
+#[derive(Hash, PartialEq, Eq)]
+struct ShapeKey {
+    width: u32,
+    height: u32,
+    layers: Vec<Layer>,
+    unknown: Option<(i32, i32, u32, u32)>,
+}
+type ShapeCache = RwLock<HashMap<ShapeKey, Arc<Template>>>;
+fn piece_template(tex: &GuiTextures, p: &Placed, cache: Option<&ShapeCache>) -> Arc<Template> {
+    let build = || {
+        template(
+            &composite(tex, p),
+            p.w as usize,
+            p.h as usize,
+            false,
+            p.unknown,
+        )
+    };
+    let Some(cache) = cache else {
+        return Arc::new(build());
+    };
+    let key = ShapeKey {
+        width: p.w,
+        height: p.h,
+        layers: p.layers.clone(),
+        unknown: p.unknown,
+    };
+    if let Some(t) = cache.read().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return t.clone();
+    }
+    cache
+        .write()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(key)
+        .or_insert_with(|| Arc::new(build()))
+        .clone()
+}
+impl HotbarTemplates {
+    fn new(tex: &GuiTextures) -> Self {
+        let hotbar = hud_layout(
+            320,
+            240,
+            &HudState {
+                status_bars: false,
+                xp_bar: false,
+                ..HudState::default()
+            },
+        )
+        .into_iter()
+        .find(|p| p.piece == PieceId::Hotbar)
+        .expect("hotbar layout");
+        let pairs: Vec<_> = (0..9)
+            .map(|slot| {
+                let mut hot = lay(Sheet::Widgets, 0, 0, 182, 22);
+                (hot.dx, hot.dy) = (1, 1);
+                let mut sel = lay(Sheet::Widgets, 0, 22, 24, 22);
+                (sel.dx, sel.dy) = (20 * slot, 0);
+                composite(
+                    tex,
+                    &place(PieceId::Hotbar, 0, 0, 0, 184, 24, vec![hot, sel]),
+                )
+            })
+            .collect();
+        let flat = pairs
+            .iter()
+            .map(|img| template(img, 184, 24, true, None))
+            .collect();
+        let edges = pairs
+            .iter()
+            .map(|img| corners(&template(img, 184, 24, false, None)))
+            .collect();
+        Self {
+            hotbar,
+            flat,
+            edges,
+        }
+    }
+}
+
+/// Immutable, reusable GUI templates. Frames and their masks stay independent;
+/// no previous-frame fit or screen state is reused.
+pub struct GuiDetector {
+    textures: GuiTextures,
+    options: GuiOptions,
+    hotbar: HotbarTemplates,
+    coarse: Mutex<Option<Arc<CoarsePlan>>>,
+    shapes: ShapeCache,
+}
+#[derive(Debug, Default)]
+pub struct GuiTimings {
+    pub fit_ms: f64,
+    pub pieces_ms: f64,
+    pub text_ms: f64,
+}
+impl GuiDetector {
+    pub fn new(textures: GuiTextures, options: GuiOptions) -> Result<Self, String> {
+        check_options(&options)?;
+        let hotbar = HotbarTemplates::new(&textures);
+        Ok(Self {
+            textures,
+            options,
+            hotbar,
+            coarse: Mutex::new(None),
+            shapes: RwLock::new(HashMap::new()),
+        })
+    }
+    pub fn textures(&self) -> &GuiTextures {
+        &self.textures
+    }
+    fn plan(&self, width: usize, height: usize) -> Arc<CoarsePlan> {
+        let mut cache = self.coarse.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(plan) = cache
+            .as_ref()
+            .filter(|p| p.width == width && p.height == height)
+        {
+            return plan.clone();
+        }
+        let plan = Arc::new(CoarsePlan::new(
+            width,
+            height,
+            self.options.min_scale,
+            &self.hotbar,
+        ));
+        *cache = Some(plan.clone());
+        plan
+    }
+    /// Optional prewarm: all cached data is geometry/template-only.
+    pub fn prepare(&self, width: usize, height: usize) {
+        let _ = self.plan(width, height);
+    }
+    pub fn detect(&self, frame: &[u8], width: usize, height: usize) -> Result<GuiMask, String> {
+        if width == 0
+            || height == 0
+            || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        {
+            return Err("invalid GUI frame dimensions".into());
+        }
+        let plan = self.plan(width, height);
+        detect_prepared(
+            frame,
+            width,
+            height,
+            &self.textures,
+            &self.options,
+            &self.hotbar,
+            Some(&plan),
+            Some(&self.shapes),
+            None,
+        )
+    }
+    pub fn detect_timed(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+    ) -> Result<(GuiMask, GuiTimings), String> {
+        if width == 0
+            || height == 0
+            || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        {
+            return Err("invalid GUI frame dimensions".into());
+        }
+        let plan = self.plan(width, height);
+        let begin = std::time::Instant::now();
+        let mut times = GuiTimings::default();
+        let mask = detect_prepared(
+            frame,
+            width,
+            height,
+            &self.textures,
+            &self.options,
+            &self.hotbar,
+            Some(&plan),
+            Some(&self.shapes),
+            Some(&mut times),
+        )?;
+        if !mask.reliable {
+            times.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
+        }
+        Ok((mask, times))
+    }
 }
 
 fn luma(r: u8, g: u8, b: u8) -> f64 {
     0.299 * r as f64 + 0.587 * g as f64 + 0.114 * b as f64
+}
+
+#[cfg(test)]
+mod correlation_parity {
+    use super::*;
+    #[test]
+    fn cached_and_in_frame_paths_match_dense_reference_bits() {
+        let (w, h) = (40, 32);
+        let frame: Vec<_> = (0..w * h * 3)
+            .map(|i| ((i * 37 + i / 17) % 256) as u8)
+            .collect();
+        let dense: Vec<_> = frame
+            .chunks_exact(3)
+            .map(|p| luma(p[0], p[1], p[2]))
+            .collect();
+        let lum = LumaRows::new(&frame, w, h);
+        let t = Template::new(
+            (0..7)
+                .flat_map(|y| {
+                    (0..9).map(move |x| {
+                        (
+                            x as f64 + 0.15,
+                            y as f64 + 0.85,
+                            ((x * 19 + y * 31) % 255) as f64,
+                        )
+                    })
+                })
+                .collect(),
+        );
+        for (x, y, s) in [
+            (1., 2., 1.),
+            (-2., 1., 1.5),
+            (35., 4., 1.),
+            (2., 27., 0.8),
+            (0., 0., 2.5),
+        ] {
+            for step in [1, 3] {
+                let (mut n, mut inside, mut sa, mut sb, mut saa, mut sbb, mut sab) =
+                    (0usize, 0usize, 0., 0., 0., 0., 0.);
+                for &(u, v, a) in t.pts.iter().step_by(step) {
+                    n += 1;
+                    let px = x + u * s;
+                    let py = y + v * s;
+                    if px < 0. || py < 0. || px >= w as f64 || py >= h as f64 {
+                        continue;
+                    }
+                    inside += 1;
+                    let b = dense[py as usize * w + px as usize];
+                    sa += a;
+                    sb += b;
+                    saa += a * a;
+                    sbb += b * b;
+                    sab += a * b;
+                }
+                let m = inside as f64;
+                let va = saa - sa * sa / m;
+                let vb = sbb - sb * sb / m;
+                let reference = if n == 0
+                    || (inside as f64) < 0.6 * n as f64
+                    || va <= 1e-9 * m
+                    || vb <= 1e-6 * m
+                {
+                    None
+                } else {
+                    Some((sab - sa * sb / m) / (va * vb).sqrt())
+                };
+                assert_eq!(
+                    score(&lum, w, h, &t, x, y, s, step).map(f64::to_bits),
+                    reference.map(f64::to_bits)
+                );
+                if step == 3 {
+                    assert_eq!(
+                        CompiledTemplate::new(&t, x, y, s, w, h)
+                            .score(&lum)
+                            .map(f64::to_bits),
+                        reference.map(f64::to_bits)
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// Opaque pixels of a piece picture; `flat_only` keeps those whose 8 neighbours are identical (robust to blur and
@@ -1011,7 +1439,7 @@ fn template(
         let c = img[y * w + x];
         (x as f64 + 0.5, y as f64 + 0.5, luma(c[0], c[1], c[2]))
     });
-    Template { pts: pts.collect() }
+    Template::new(pts.collect())
 }
 
 /// The same points sampled near the four corners of each GUI pixel instead of its centre: any scale or offset error moves
@@ -1024,14 +1452,14 @@ fn corners(t: &Template) -> Template {
             pts.push((u + du, v + dv, a));
         }
     }
-    Template { pts }
+    Template::new(pts)
 }
 
 /// Zero-normalised cross-correlation of a template placed with its GUI origin at video (`x`, `y`), `s` video px per GUI
 /// px. `None` when fewer than 60% of the points fall inside the frame or either side is flat.
 #[allow(clippy::too_many_arguments)]
 fn score(
-    lum: &[f64],
+    lum: &LumaRows<'_>,
     w: usize,
     h: usize,
     t: &Template,
@@ -1040,6 +1468,31 @@ fn score(
     s: f64,
     step: usize,
 ) -> Option<f64> {
+    // All-in-frame templates have invariant reference sums. Preserve the exact
+    // point order for observed sums and dot products; clipped cases use the
+    // original per-point boundary arithmetic below.
+    if step == 1
+        && !t.pts.is_empty()
+        && x + t.bounds[0] * s >= 0.
+        && y + t.bounds[1] * s >= 0.
+        && x + t.bounds[2] * s < w as f64
+        && y + t.bounds[3] * s < h as f64
+    {
+        let (mut sb, mut sbb, mut sab) = (0., 0., 0.);
+        for &(u, v, a) in &t.pts {
+            let b = lum.at((x + u * s) as usize, (y + v * s) as usize);
+            sb += b;
+            sbb += b * b;
+            sab += a * b;
+        }
+        let m = t.pts.len() as f64;
+        let va = t.squares - t.sum * t.sum / m;
+        let vb = sbb - sb * sb / m;
+        if va <= 1e-9 * m || vb <= 1e-6 * m {
+            return None;
+        }
+        return Some((sab - t.sum * sb / m) / (va * vb).sqrt());
+    }
     let (mut n, mut inside, mut sa, mut sb, mut saa, mut sbb, mut sab) =
         (0usize, 0usize, 0.0, 0.0, 0.0, 0.0, 0.0);
     for &(u, v, a) in t.pts.iter().step_by(step.max(1)) {
@@ -1050,7 +1503,7 @@ fn score(
             continue;
         }
         inside += 1;
-        let b = lum[py as usize * w + px as usize];
+        let b = lum.at(px as usize, py as usize);
         sa += a;
         sb += b;
         saa += a * a;
@@ -1164,6 +1617,22 @@ pub fn detect_gui(
     tex: &GuiTextures,
     opts: &GuiOptions,
 ) -> Result<GuiMask, String> {
+    let prepared = HotbarTemplates::new(tex);
+    detect_prepared(frame, w, h, tex, opts, &prepared, None, None, None)
+}
+
+fn detect_prepared(
+    frame: &[u8],
+    w: usize,
+    h: usize,
+    tex: &GuiTextures,
+    opts: &GuiOptions,
+    prepared: &HotbarTemplates,
+    coarse_plan: Option<&CoarsePlan>,
+    shape_cache: Option<&ShapeCache>,
+    mut times: Option<&mut GuiTimings>,
+) -> Result<GuiMask, String> {
+    let begin = std::time::Instant::now();
     if w == 0 || h == 0 || frame.len() != w * h * 3 {
         return Err(format!(
             "frame must be {w}x{h} RGB24 ({} bytes), got {}",
@@ -1172,10 +1641,7 @@ pub fn detect_gui(
         ));
     }
     check_options(opts)?;
-    let lum: Vec<f64> = frame
-        .chunks_exact(3)
-        .map(|p| luma(p[0], p[1], p[2]))
-        .collect();
+    let lum = LumaRows::new(frame, w, h);
     let mut mask = GuiMask {
         width: w,
         height: h,
@@ -1188,39 +1654,9 @@ pub fn detect_gui(
     };
 
     // --- scale fit on the hotbar frame
-    let hotbar = hud_layout(
-        320,
-        240,
-        &HudState {
-            status_bars: false,
-            xp_bar: false,
-            ..HudState::default()
-        },
-    )
-    .into_iter()
-    .find(|p| p.piece == PieceId::Hotbar)
-    .expect("the hotbar is always laid out");
-    // the selected-slot highlight always covers part of the hotbar: fit the pair, one variant per slot
-    // (canvas 184x24 starting one GUI pixel up-left of the hotbar, InGameHud 473-474)
-    let pair = |slot: i32| -> Vec<[u8; 4]> {
-        let mut hot = lay(Sheet::Widgets, 0, 0, 182, 22);
-        (hot.dx, hot.dy) = (1, 1);
-        let mut sel = lay(Sheet::Widgets, 0, 22, 24, 22);
-        (sel.dx, sel.dy) = (20 * slot, 0);
-        composite(
-            tex,
-            &place(PieceId::Hotbar, 0, 0, 0, 184, 24, vec![hot, sel]),
-        )
-    };
-    let pairs: Vec<Vec<[u8; 4]>> = (0..9).map(pair).collect();
-    let flat_t: Vec<Template> = pairs
-        .iter()
-        .map(|img| template(img, 184, 24, true, None))
-        .collect();
-    let all_t: Vec<Template> = pairs
-        .iter()
-        .map(|img| corners(&template(img, 184, 24, false, None)))
-        .collect();
+    let hotbar = &prepared.hotbar;
+    let flat_t = &prepared.flat;
+    let all_t = &prepared.edges;
     let best_slot = |t: &[Template], x: f64, y: f64, s: f64, step: usize| -> Option<f64> {
         t.iter()
             .filter_map(|t| score(&lum, w, h, t, x - s, y - s, s, step))
@@ -1241,13 +1677,25 @@ pub fn detect_gui(
     };
     // coarse: 0.5% steps of scale, every 3rd template point
     let mut coarse: Vec<(f64, f64)> = Vec::new();
-    let mut s = opts.min_scale;
-    while s <= max_scale {
-        let (x, y, _) = anchor(s);
-        if let Some(v) = best_slot(&flat_t, x, y, s, 3) {
-            coarse.push((v, s));
+    if let Some(plan) = coarse_plan {
+        for (s, templates) in &plan.scales {
+            if let Some(v) = templates
+                .iter()
+                .filter_map(|t| t.score(&lum))
+                .reduce(f64::max)
+            {
+                coarse.push((v, *s));
+            }
         }
-        s *= 1.005;
+    } else {
+        let mut s = opts.min_scale;
+        while s <= max_scale {
+            let (x, y, _) = anchor(s);
+            if let Some(v) = best_slot(&flat_t, x, y, s, 3) {
+                coarse.push((v, s));
+            }
+            s *= 1.005;
+        }
     }
     coarse.sort_by(|a, b| b.0.total_cmp(&a.0));
     // fine: every opaque hotbar pixel sampled near its corners (edge-sensitive, so the peak is sharp). The footage is
@@ -1379,6 +1827,10 @@ pub fn detect_gui(
     );
     mask.fit = Some(fit);
     mask.reliable = true;
+    if let Some(t) = times.as_deref_mut() {
+        t.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
+    }
+    let begin = std::time::Instant::now();
 
     // --- the pieces, each confirmed against its texture at its place
     let mut fitted_hotbar = hotbar.clone();
@@ -1407,8 +1859,7 @@ pub fn detect_gui(
     let best_of = |cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
         let mut top: Option<(Placed, f64)> = None;
         for c in cands {
-            let img = composite(tex, &c);
-            let t = template(&img, c.w as usize, c.h as usize, false, c.unknown);
+            let t = piece_template(tex, &c, shape_cache);
             for &dy in dys {
                 let p = shift(c.clone(), dy);
                 let (x, y) = at(&p);
@@ -1769,6 +2220,10 @@ pub fn detect_gui(
             text: None,
         });
     }
+    if let Some(t) = times.as_deref_mut() {
+        t.pieces_ms = begin.elapsed().as_secs_f64() * 1000.;
+    }
+    let begin = std::time::Instant::now();
     detect_text(
         frame,
         w,
@@ -1787,6 +2242,9 @@ pub fn detect_gui(
         None => mask
             .notes
             .push("no font texture: the action bar and captions are not checked".into()),
+    }
+    if let Some(t) = times {
+        t.text_ms = begin.elapsed().as_secs_f64() * 1000.;
     }
     Ok(mask)
 }

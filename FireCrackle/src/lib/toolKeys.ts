@@ -38,7 +38,7 @@ export interface ToolKeyResult {
 export const TOOL_KEYS: ReadonlyArray<{ key: string; description: string }> = [
   { key: "q", description: "Quad mask: show or hide the manual fire quad" },
   { key: "h", description: "First-person fire: show or hide the HUD fire overlay" },
-  { key: "m", description: "Sprite matcher: open it and find the best match; hold M and press 1, 2 or 3 to preview a match" },
+  { key: "m", description: "Sprite matcher: open and find the best match, or close if already open; hold M while opening and press 1, 2 or 3 to preview a match" },
   { key: "u", description: "Ruler: show or hide the calibrated ruler" },
 ];
 

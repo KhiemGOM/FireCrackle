@@ -210,8 +210,9 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
     setMatchingEnabled(!matchingEnabled);
     if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
   }
-  /** The M key: open the matcher if needed and ask for a match run. */
+  /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
+    if (matchingEnabled) { setMatchingEnabled(false); return; }
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
     setFindToken(n => n + 1);
   }
@@ -412,7 +413,8 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       const svg = frameRef.current?.querySelector<SVGSVGElement>(manualEnabled ? "svg.fire-quad-mask" : "svg.hud-overlay");
       if (!picture || !svg || shown !== view.current || picture.getAttribute("src") !== url) throw Error("Wait for the picture and mask to load.");
       const sprite = manualEnabled ? { sheet: manualSheet, row: manualRow, mirrored: manualMirrored } : { sheet: 1, row: hudRow, mirrored: false };
-      const mask: ProofMask = { svg, description: `${manualEnabled ? "Quad" : "First-person"} · ${spriteText(sprite)}`,
+      const xs = manualQuad.map(([x]) => x * imageSize.width), ys = manualQuad.map(([, y]) => y * imageSize.height);
+      const mask: ProofMask = { svg, ...(manualEnabled ? {bounds: {x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys)}} : {}), description: `${manualEnabled ? "Quad" : "First-person"} · ${spriteText(sprite)}`,
         opacity: manualEnabled ? manualOpacity : hudOpacity,
         details: manualEnabled ? (compressionEnabled ? `H.264 · ${compressionHeight}p` : undefined) : `FOV ${hudFov}°` };
       const source = stillImage?.name ?? `Frame ${view.current} · ${formatTimecode(view.pts, view.fps)}`;
@@ -474,7 +476,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
         <IconButton icon="fire" label="Toggle first-person fire" title="First-person fire · H" aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
-        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: find best match · Hold M + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
+        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
         <span className="tool-spacer" aria-hidden="true" />
         <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
@@ -485,7 +487,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
-        <IconButton icon="copy" label="Comparison proof" title="Copy original and mask side by side to the clipboard, with the displayed sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
+        <IconButton icon="copy" label="Comparison proof" title="Copy a close-up of the aligned fire, original and mask side by side, with sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
           <label><input type="checkbox" checked={ruler.locked} onChange={e => setRuler(current => ({ ...current, locked: e.target.checked }))} /> Lock unit</label>
