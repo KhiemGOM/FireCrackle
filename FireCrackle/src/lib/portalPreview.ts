@@ -1,4 +1,4 @@
-import type {PortalImage,PortalResult} from './portal';
+import type {PortalImage,PortalManual,PortalResult} from './portal';
 
 /** Consume the GUI overlay's coverage only; no GUI detection rules live here. */
 export function portalWorldMask(gui:Uint8ClampedArray):Uint8Array{
@@ -9,7 +9,7 @@ export function portalWorldMask(gui:Uint8ClampedArray):Uint8Array{
 }
 
 /** A fresh worker is cancellable when the user seeks; fitting never blocks the UI thread. */
-export async function portalPreview(image:PortalImage,signal:AbortSignal,world?:Uint8Array):Promise<PortalResult>{
+export async function portalPreview(image:PortalImage,signal:AbortSignal,world?:Uint8Array,manual?:PortalManual):Promise<PortalResult>{
   if(signal.aborted)throw new DOMException('Cancelled','AbortError');
   const worker=new Worker(new URL('./portal.worker.ts',import.meta.url),{type:'module'});
   return new Promise((resolve,reject)=>{
@@ -18,6 +18,6 @@ export async function portalPreview(image:PortalImage,signal:AbortSignal,world?:
     signal.addEventListener('abort',abort,{once:true});
     worker.onmessage=e=>{finish();e.data.error?reject(Error(e.data.error)):resolve(e.data);};
     worker.onerror=e=>{finish();reject(Error(e.message));};
-    worker.postMessage({image,world});
+    worker.postMessage({image,world,manual});
   });
 }

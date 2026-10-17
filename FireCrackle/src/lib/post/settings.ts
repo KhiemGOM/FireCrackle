@@ -1,71 +1,79 @@
 // Post-processing settings: one global object, repaired on every read so an old, newer or hand-edited file never breaks the app.
 import { VEIL_MODES, type VeilMode } from "../veil";
-import { isToneIdentity } from "./tone";
+import type { PortalManual, PortalMode } from "../portal";
+import { STAGES, STAGE_IDS, clampParam, repairParams, type Params, type StageId } from "./stages";
+import { DEFAULT_TONE, type ToneParams } from "./tone";
 
-export type StageId = "tone";
+export { STAGE_IDS, DEFAULT_TONE };
+export type { StageId, Params, ToneParams };
+/** The portal overlay animation has 32 frames (the local 1.16.5 atlas), numbered 0 to 31. */
+export const PORTAL_FRAMES = 32;
 export type RowId = "veil" | "portal" | StageId;
-export const STAGE_IDS: StageId[] = ["tone"];
 
-export interface ToneParams { gamma: number; black: number; white: number; contrast: number; shadows: number }
-export const DEFAULT_TONE: ToneParams = { gamma: 1, black: 0, white: 255, contrast: 0, shadows: 0 };
-export const TONE_LIMITS: Record<keyof ToneParams, readonly [number, number]> = {
-  gamma: [0.3, 3], black: [0, 254], white: [1, 255], contrast: [-100, 100], shadows: [0, 100],
-};
+export interface StageState { on: boolean; params: Params }
 
 export interface PostSettings {
   /** The master switch: off shows the untouched picture while every setting below is kept. */
   enabled: boolean;
   veil: VeilMode;
-  portal: "off" | "auto";
+  portal: PortalMode;
+  /** The phase and opacity used when the portal mode is Manual. */
+  portalManual: PortalManual;
   /** The user's order of the effects (veil and portal always run first). Disabled effects keep their place in it. */
   order: StageId[];
-  stages: { tone: { on: boolean; params: ToneParams } };
+  stages: Record<StageId, StageState>;
 }
 
 export const POST_KEY = "firecrackle.post.v1";
-export const DEFAULT_POST: PostSettings = {
-  enabled: true, veil: "off", portal: "off", order: ["tone"], stages: { tone: { on: false, params: { ...DEFAULT_TONE } } },
-};
+
+const neutralStages = (): Record<StageId, StageState> =>
+  Object.fromEntries(STAGE_IDS.map(id => [id, { on: false, params: { ...STAGES[id].defaults } }])) as Record<StageId, StageState>;
+
+export const DEFAULT_POST: PostSettings = { enabled: true, veil: "off", portal: "off", portalManual: { phase: 0, opacity: 0.5 }, order: [...STAGE_IDS], stages: neutralStages() };
+
+/** Every effect off with its neutral controls (what a preset starts from). */
+export const neutralEffects = neutralStages;
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 export interface LegacyPrefs { veilMode?: unknown; portalMode?: unknown }
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const veilOf = (v: unknown): VeilMode => (VEIL_MODES.includes(v as VeilMode) ? (v as VeilMode) : "off");
-const portalOf = (v: unknown): "off" | "auto" => (v === "auto" ? "auto" : "off");
+const portalOf = (v: unknown): PortalMode => (v === "auto" || v === "manual" ? v : "off");
+
+/** A phase (whole number inside the animation) and an opacity (0 to 1), with a bad or missing one replaced by its default. */
+export function repairManual(raw: unknown): PortalManual {
+  const r = isObject(raw) ? raw : {};
+  const phase = typeof r.phase === "number" && Number.isFinite(r.phase) ? Math.min(PORTAL_FRAMES - 1, Math.max(0, Math.round(r.phase))) : 0;
+  const opacity = typeof r.opacity === "number" && Number.isFinite(r.opacity) ? Math.min(1, Math.max(0, r.opacity)) : 0.5;
+  return { phase, opacity };
+}
 
 /** A tone control moved to `value`, kept inside its limits and with black always below white. */
 export function clampTone(key: keyof ToneParams, value: number, params: ToneParams): ToneParams {
-  const [lo, hi] = TONE_LIMITS[key];
-  let v = Math.min(hi, Math.max(lo, value));
-  if (key === "black") v = Math.min(v, params.white - 1);
-  if (key === "white") v = Math.max(v, params.black + 1);
-  return { ...params, [key]: v };
+  return clampParam("tone", key, value, params as unknown as Params) as unknown as ToneParams;
 }
 
-function repairTone(raw: unknown): ToneParams {
-  const r = isObject(raw) ? raw : {};
-  const out = { ...DEFAULT_TONE };
-  for (const key of Object.keys(DEFAULT_TONE) as Array<keyof ToneParams>) {
-    const v = r[key];
-    if (typeof v === "number" && Number.isFinite(v)) out[key] = Math.min(TONE_LIMITS[key][1], Math.max(TONE_LIMITS[key][0], v));
-  }
-  if (out.black >= out.white) { out.black = DEFAULT_TONE.black; out.white = DEFAULT_TONE.white; }
-  return out;
-}
+export { clampParam };
 
 export function repairPostSettings(raw: unknown, legacy?: LegacyPrefs): PostSettings {
   const r = isObject(raw) ? raw : {};
-  const tone = isObject(r.stages) && isObject(r.stages.tone) ? r.stages.tone : {};
+  const given = isObject(r.stages) ? r.stages : {};
   const order: StageId[] = [];
   if (Array.isArray(r.order)) for (const id of r.order) if (STAGE_IDS.includes(id as StageId) && !order.includes(id as StageId)) order.push(id as StageId);
   for (const id of STAGE_IDS) if (!order.includes(id)) order.push(id);
+  const stages = {} as Record<StageId, StageState>;
+  for (const id of STAGE_IDS) {
+    const one = isObject(given[id]) ? (given[id] as Record<string, unknown>) : {};
+    stages[id] = { on: one.on === true, params: repairParams(id, one.params) };
+  }
   return {
     enabled: typeof r.enabled === "boolean" ? r.enabled : true,
     veil: veilOf("veil" in r ? r.veil : legacy?.veilMode),
     portal: portalOf("portal" in r ? r.portal : legacy?.portalMode),
+    portalManual: repairManual(r.portalManual),
     order,
-    stages: { tone: { on: tone.on === true, params: repairTone(tone.params) } },
+    stages,
   };
 }
 
@@ -85,9 +93,14 @@ export function writePostSettings(settings: PostSettings, storage?: Store): void
   try { (storage ?? localStorage).setItem(POST_KEY, JSON.stringify(settings)); } catch { /* Storage may be blocked or full. */ }
 }
 
+/** Is any switched-on effect doing something? (An effect left at its neutral values changes nothing.) */
+export function hasActiveEffect(s: PostSettings): boolean {
+  return STAGE_IDS.some(id => s.stages[id].on && !STAGES[id].isIdentity(s.stages[id].params));
+}
+
 /** Does the picture need any work at all? False means the original frame is shown as it is. */
 export function needsProcessing(s: PostSettings): boolean {
-  return s.enabled && (s.veil !== "off" || s.portal !== "off" || (s.stages.tone.on && !isToneIdentity(s.stages.tone.params)));
+  return s.enabled && (s.veil !== "off" || s.portal !== "off" || hasActiveEffect(s));
 }
 
 /** What the picture is drawn with: the settings, or nothing at all while the master switch is off. */
@@ -99,9 +112,9 @@ export function toggleEnabled(s: PostSettings): PostSettings {
   return { ...s, enabled: !s.enabled };
 }
 
-/** Only tone controls moved (a slider drag): the picture waits a moment for these, but never for a switch. */
-export function onlyToneParamsChanged(a: PostSettings, b: PostSettings): boolean {
-  const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
-  return a.enabled === b.enabled && a.veil === b.veil && a.portal === b.portal && same(a.order, b.order)
-    && a.stages.tone.on === b.stages.tone.on && !same(a.stages.tone.params, b.stages.tone.params);
+/** Only effect controls moved (a slider drag): the picture waits a moment for these, but never for a switch. */
+export function onlyParamsChanged(a: PostSettings, b: PostSettings): boolean {
+  const flat = (s: PostSettings) => JSON.stringify({ ...s, stages: Object.fromEntries(STAGE_IDS.map(id => [id, s.stages[id].on])) });
+  const params = (s: PostSettings) => JSON.stringify(STAGE_IDS.map(id => s.stages[id].params));
+  return flat(a) === flat(b) && params(a) !== params(b);
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { readPreferences } from "../lib/preferences";
 import { POST_TOGGLE_KEY, isTypingTarget, postKeyAction } from "../lib/post/keys";
 import {
-  DEFAULT_POST, onlyToneParamsChanged, pictureSettings, readPostSettings, toggleEnabled, writePostSettings, type PostSettings, type RowId,
+  DEFAULT_POST, onlyParamsChanged, pictureSettings, readPostSettings, toggleEnabled, writePostSettings, type PostSettings, type RowId,
 } from "../lib/post/settings";
 
 /** How long the picture waits for a slider to stop moving. Switches apply at once. */
@@ -18,6 +18,7 @@ export function usePostSettings() {
   const [applied, setApplied] = useState<PostSettings>(settings);
   const [selected, setSelected] = useState<RowId>("veil");
   const [portalStatus, setPortalStatus] = useState("");
+  const [portalFit, setPortalFit] = useState<{ phase: number; opacity: number } | null>(null);
   const appliedRef = useRef(applied);
   appliedRef.current = applied;
 
@@ -25,7 +26,7 @@ export function usePostSettings() {
 
   useEffect(() => {
     if (appliedRef.current === settings) return;
-    if (!onlyToneParamsChanged(appliedRef.current, settings)) { setApplied(settings); return; }
+    if (!onlyParamsChanged(appliedRef.current, settings)) { setApplied(settings); return; }
     const timer = setTimeout(() => setApplied(settings), SLIDER_DELAY_MS);
     return () => clearTimeout(timer);
   }, [settings]);
@@ -49,7 +50,7 @@ export function usePostSettings() {
   /** Every effect back to its neutral state; the master switch is left as it is. */
   const reset = useCallback(() => setSettings(current => ({ ...DEFAULT_POST, enabled: current.enabled })), []);
 
-  return { settings, picture: pictureSettings(applied), selected, setSelected, change, toggle, reset, portalStatus, setPortalStatus, toggleKey: POST_TOGGLE_KEY };
+  return { settings, picture: pictureSettings(applied), selected, setSelected, change, toggle, reset, portalStatus, setPortalStatus, portalFit, setPortalFit, toggleKey: POST_TOGGLE_KEY };
 }
 
 export type PostController = ReturnType<typeof usePostSettings>;

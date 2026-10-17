@@ -97,6 +97,34 @@ drag and button reorder, compare hold. App: Label|Enhance toggle, original frame
   `hooks/usePostSettings.ts`, `processFrame`'s new enhancement stage, `VideoPane` `post`/`onPortalStatus` props, App's
   Label | Enhance switch.
 
+## Phases 1 to 3: what was built, what was not
+
+Built (tests first, all green):
+- Effects are now a table (`lib/post/stages.ts`): name, neutral values, controls, identity test, apply. Settings, pipeline,
+  presets and the panel all read it, so a new effect is one entry. Effect rows: Tone, Denoise, Deblur, Sharpen, Fire view,
+  Channels (default order in that sequence; the user can reorder the ones that are on).
+- Sharpen: unsharp mask on brightness only (no colour fringes). Deblur: Richardson-Lucy on brightness, capped at ten
+  iterations, clamped to 0..255. Denoise: bilateral filter (strength, radius 1 to 3). Fire view: keeps orange, dims the rest;
+  labelled a view aid and never used by detection. Channels: R, G, B or brightness as grey.
+- Presets (Dark scene, Compressed footage, Fire focus) in the panel header; they set the effects only.
+- Portal Manual: Off / Auto / Manual. Manual applies the chosen phase (0 to 31) and opacity with the existing
+  `portal_inverse` ABI (`undoPortalManual`), through the same GUI-protecting world mask, and "Use last fit" copies what the
+  last automatic fit found (reported by VideoPane through `onPortalFit`).
+
+Measured cost on the main thread (this machine): 1080p, tone 5 ms, fire view 25 ms, sharpen 64 ms, all three 137 ms;
+4K, sharpen 317 ms, all three 498 ms. Fine for a paused picture; a worker is the next step if 4K feels slow.
+
+Not built, and why:
+- **Auto fallback "reuse the last good fit"**: `bench/no_fire/PORTAL-RESULTS.md` shows the overlay opacity follows
+  0.2 + 0.8 * t^4 and moved from 0.39 to 0.48 to 0.99 within about 20 seconds of one video. Opacity is not constant across
+  a clip, so carrying a fit to a distant frame would be wrong. Only adjacent frames could share an opacity, and that needs
+  a core change (fit the phase with opacity fixed) validated on real portal footage. Manual covers the case where Auto
+  fails; revisit with footage.
+- **Zoom with texture grid**: VideoPane already has zoom and a pixel grid.
+- **Difference to the previous frame**: needs the neighbouring frame decoded next to the current one, which depends on the
+  frame-buffer work that is still being finished (job 171).
+- **Worker for the heavy effects**, and dragging to reorder (the earlier/later buttons exist).
+
 ## Decisions for the user
 
 1. Global settings plus presets (recommended) or per video.

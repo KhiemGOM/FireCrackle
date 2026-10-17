@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { EnhancePanel } from "./EnhancePanel";
 import { DEFAULT_POST, DEFAULT_TONE, type PostSettings, type RowId } from "../lib/post/settings";
+import { PRESETS, applyPreset } from "../lib/post/presets";
 
 type El = ReactElement<Record<string, any>>;
 function all(node: unknown, pred: (e: El) => boolean): El[] {
@@ -20,7 +21,8 @@ const byLabel = (root: El, label: string) => all(root, e => e.props["aria-label"
 const row = (root: El, id: RowId) => all(root, e => e.props["data-row"] === id)[0];
 const within = (r: El, label: string) => all(r, e => e.props["aria-label"] === label)[0];
 
-const tone = (patch: Partial<PostSettings["stages"]["tone"]["params"]>, on = true): PostSettings["stages"] => ({ tone: { on, params: { ...DEFAULT_TONE, ...patch } } });
+const tone = (patch: Partial<PostSettings["stages"]["tone"]["params"]>, on = true): PostSettings["stages"] => ({ ...DEFAULT_POST.stages, tone: { on, params: { ...DEFAULT_TONE, ...patch } } });
+const stage = (id: keyof PostSettings["stages"], params: Record<string, number>, on = true): PostSettings["stages"] => ({ ...DEFAULT_POST.stages, [id]: { on, params: { ...DEFAULT_POST.stages[id].params, ...params } } });
 
 function panel(settings: PostSettings = DEFAULT_POST, selected: RowId = "veil", over: Record<string, unknown> = {}) {
   const handlers = { onSelect: vi.fn(), onChange: vi.fn(), onReset: vi.fn() };
@@ -29,10 +31,21 @@ function panel(settings: PostSettings = DEFAULT_POST, selected: RowId = "veil", 
 }
 
 describe("Enhance panel: the list", () => {
-  it("lists GUI veil, Portal and Tone, in that order, veil and portal always first", () => {
+  it("lists GUI veil and Portal first, then the effects in their order", () => {
     const { root } = panel();
     const rows = all(root, e => e.props["data-row"] !== undefined).map(e => e.props["data-row"]);
-    expect(rows).toEqual(["veil", "portal", "tone"]);
+    expect(rows).toEqual(["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+  });
+
+  it("moves a switched-on effect up in front of the switched-off ones", () => {
+    const { root } = panel({ ...DEFAULT_POST, stages: stage("channels", { mode: 2 }) });
+    const rows = all(root, e => e.props["data-row"] !== undefined).map(e => e.props["data-row"]);
+    expect(rows).toEqual(["veil", "portal", "channels", "tone", "denoise", "deblur", "sharpen", "fire"]);
+  });
+
+  it("names every effect", () => {
+    const { root } = panel();
+    for (const name of ["Tone", "Denoise", "Deblur", "Sharpen", "Fire view", "Channels"]) expect(within(root, `Show ${name} controls`)).toBeDefined();
   });
 
   it("puts a switched-on effect before a switched-off one and shows the order numbers on the ones that are on", () => {
@@ -118,11 +131,46 @@ describe("Enhance panel: the selected row's controls", () => {
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, veil: "on" });
   });
 
+  it("offers Manual next to Off and Auto, and shows the phase and opacity controls only in Manual", () => {
+    const auto = panel({ ...DEFAULT_POST, portal: "auto" }, "portal").root;
+    expect(all(byLabel(auto, "Undo portal overlay"), e => e.type === "option").map(o => o.props.value)).toEqual(["off", "auto", "manual"]);
+    expect(byLabel(auto, "Portal phase")).toBeUndefined();
+    const manual = panel({ ...DEFAULT_POST, portal: "manual", portalManual: { phase: 12, opacity: 0.62 } }, "portal").root;
+    expect(byLabel(manual, "Portal phase").props.value).toBe(12);
+    expect(byLabel(manual, "Portal phase").props.max).toBe(31);
+    expect(byLabel(manual, "Portal opacity").props.value).toBe(0.62);
+  });
+
+  it("changes the manual phase and opacity, keeping them inside their limits", () => {
+    const settings = { ...DEFAULT_POST, portal: "manual" as const, portalManual: { phase: 4, opacity: 0.4 } };
+    const { root, onChange } = panel(settings, "portal");
+    byLabel(root, "Portal phase").props.onChange({ target: { value: "9" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...settings, portalManual: { phase: 9, opacity: 0.4 } });
+    byLabel(root, "Portal phase").props.onChange({ target: { value: "99" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...settings, portalManual: { phase: 31, opacity: 0.4 } });
+    byLabel(root, "Portal opacity").props.onChange({ target: { value: "0.8" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...settings, portalManual: { phase: 4, opacity: 0.8 } });
+    onChange.mockClear();
+    byLabel(root, "Portal opacity").props.onChange({ target: { value: "abc" } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("starts the manual values from the last automatic fit, and only when there is one", () => {
+    const settings = { ...DEFAULT_POST, portal: "manual" as const };
+    const without = panel(settings, "portal").root;
+    const useFit = (root: El) => all(root, e => e.type === "button" && text(e) === "Use last fit")[0];
+    expect(useFit(without).props.disabled).toBe(true);
+    const { root, onChange } = panel(settings, "portal", { portalFit: { phase: 20, opacity: 0.39 } });
+    expect(useFit(root).props.disabled).toBe(false);
+    useFit(root).props.onClick();
+    expect(onChange).toHaveBeenCalledWith({ ...settings, portalManual: { phase: 20, opacity: 0.39 } });
+  });
+
   it("shows the portal choice and the portal status text when portal is selected", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, portal: "auto" }, "portal", { portalStatus: "No confident portal fit" });
     const select = byLabel(root, "Undo portal overlay");
     expect(select.props.value).toBe("auto");
-    expect(all(select, e => e.type === "option").map(o => o.props.value)).toEqual(["off", "auto"]);
+    expect(all(select, e => e.type === "option").map(o => o.props.value)).toEqual(["off", "auto", "manual"]);
     expect(text(row(root, "portal"))).toContain("No confident portal fit");
     select.props.onChange({ target: { value: "off" } });
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, portal: "off" });
@@ -187,5 +235,100 @@ describe("Enhance panel: order controls and reset", () => {
 
   it("shows the key that toggles post-processing", () => {
     expect(text(all(panel().root, e => e.props.className === "post-key"))).toContain("V");
+  });
+});
+
+describe("Enhance panel: the other effects", () => {
+  it("shows sharpen's three sliders and changes one", () => {
+    const settings = { ...DEFAULT_POST, stages: stage("sharpen", { amount: 80, radius: 2, threshold: 4 }) };
+    const { root, onChange } = panel(settings, "sharpen");
+    expect(["Amount", "Radius", "Threshold"].map(l => byLabel(root, l).props.value)).toEqual([80, 2, 4]);
+    byLabel(root, "Amount").props.onChange({ target: { value: "120" } });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 120, radius: 2, threshold: 4 }) });
+  });
+
+  it("clamps a slider to its limits", () => {
+    const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 50 }) }, "sharpen");
+    byLabel(root, "Amount").props.onChange({ target: { value: "9999" } });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 300 }) });
+  });
+
+  it("explains that the fire view is a view aid, not detection", () => {
+    const { root } = panel({ ...DEFAULT_POST, stages: stage("fire", { strength: 50 }) }, "fire");
+    expect(byLabel(root, "Strength").props.value).toBe(50);
+    expect(text(row(root, "fire")).toLowerCase()).toContain("not a detector");
+  });
+
+  it("shows the channel view as a choice and changes it by number", () => {
+    const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("channels", { mode: 1 }) }, "channels");
+    const select = byLabel(root, "Channel");
+    expect(select.type).toBe("select");
+    expect(select.props.value).toBe(1);
+    expect(all(select, e => e.type === "option").map(o => text(o))).toEqual(["All", "Red", "Green", "Blue", "Brightness"]);
+    select.props.onChange({ target: { value: "3" } });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("channels", { mode: 3 }) });
+    onChange.mockClear();
+    select.props.onChange({ target: { value: "banana" } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("resets only the selected effect's controls", () => {
+    const settings = { ...DEFAULT_POST, stages: { ...stage("sharpen", { amount: 90 }), tone: { on: true, params: { ...DEFAULT_TONE, gamma: 2 } } } };
+    const { root, onChange } = panel(settings, "sharpen");
+    all(root, e => e.type === "button" && text(e) === "Reset sharpen")[0].props.onClick();
+    expect(onChange).toHaveBeenCalledWith({ ...settings, stages: { ...settings.stages, sharpen: { on: true, params: { ...DEFAULT_POST.stages.sharpen.params } } } });
+  });
+
+  it("moves an effect later past another that is on, by its button", () => {
+    const settings = { ...DEFAULT_POST, stages: { ...tone({ gamma: 2 }), sharpen: { on: true, params: { amount: 80, radius: 1.5, threshold: 0 } } } };
+    const { root, onChange } = panel(settings, "tone");
+    const later = within(row(root, "tone"), "Move Tone later");
+    expect(later.props.disabled).toBe(false);
+    later.props.onClick();
+    expect((onChange.mock.calls[0][0] as PostSettings).order).toEqual(["sharpen", "denoise", "deblur", "tone", "fire", "channels"]);
+    expect(within(row(root, "sharpen"), "Move Sharpen later").props.disabled).toBe(true);
+  });
+});
+
+describe("Enhance panel: presets", () => {
+  it("offers None and every preset, and shows the one that matches", () => {
+    const { root } = panel(applyPreset(DEFAULT_POST, "dark"));
+    const select = byLabel(root, "Preset");
+    expect(select.props.value).toBe("dark");
+    const values = all(select, e => e.type === "option").map(o => o.props.value);
+    expect(values).toEqual(["none", ...PRESETS.map(p => p.id)]);
+  });
+
+  it("shows Custom when the settings match no preset", () => {
+    const base = applyPreset(DEFAULT_POST, "dark");
+    const nudged = { ...base, stages: { ...base.stages, tone: { ...base.stages.tone, params: { ...base.stages.tone.params, gamma: 1.123 } } } };
+    const select = byLabel(panel(nudged).root, "Preset");
+    expect(select.props.value).toBe("custom");
+    expect(all(select, e => e.type === "option").map(o => o.props.value)).toContain("custom");
+  });
+
+  it("applies the chosen preset through onChange, and ignores Custom", () => {
+    const { root, onChange } = panel();
+    byLabel(root, "Preset").props.onChange({ target: { value: "dark" } });
+    expect(onChange).toHaveBeenCalledWith(applyPreset(DEFAULT_POST, "dark"));
+    onChange.mockClear();
+    byLabel(root, "Preset").props.onChange({ target: { value: "custom" } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("Enhance panel: denoise and deblur", () => {
+  it("shows denoise's strength and radius, and keeps the radius a whole number", () => {
+    const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("denoise", { strength: 40, radius: 2 }) }, "denoise");
+    expect([byLabel(root, "Strength").props.value, byLabel(root, "Radius").props.value]).toEqual([40, 2]);
+    expect(byLabel(root, "Radius").props.step).toBe(1);
+    byLabel(root, "Strength").props.onChange({ target: { value: "70" } });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("denoise", { strength: 70, radius: 2 }) });
+  });
+
+  it("shows deblur's iterations and radius, and warns that it can ring on compressed footage", () => {
+    const { root } = panel({ ...DEFAULT_POST, stages: stage("deblur", { iterations: 4, radius: 1.5 }) }, "deblur");
+    expect([byLabel(root, "Iterations").props.value, byLabel(root, "Blur size").props.value]).toEqual([4, 1.5]);
+    expect(text(row(root, "deblur")).toLowerCase()).toContain("ring");
   });
 });

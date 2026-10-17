@@ -58,17 +58,25 @@ describe("moving an enabled effect earlier or later", () => {
   });
 });
 
-const base: PostSettings = { ...DEFAULT_POST, stages: { tone: { on: false, params: { ...DEFAULT_TONE } } } };
+const base: PostSettings = { ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, tone: { on: false, params: { ...DEFAULT_TONE } } } };
+const toneOn = { ...DEFAULT_POST.stages, tone: { on: true, params: { ...DEFAULT_TONE } } };
+const none = { veil: null, portal: null, tone: null, denoise: null, deblur: null, sharpen: null, fire: null, channels: null };
 
 describe("order numbers: the order the effects are applied", () => {
   it("numbers nothing when everything is off", () => {
-    expect(rowNumbers(base)).toEqual({ veil: null, portal: null, tone: null });
+    expect(rowNumbers(base)).toEqual(none);
   });
 
   it("counts veil, then portal, then the effects, skipping the ones that are off", () => {
-    expect(rowNumbers({ ...base, veil: "auto", stages: { tone: { on: true, params: base.stages.tone.params } } })).toEqual({ veil: 1, portal: null, tone: 2 });
-    expect(rowNumbers({ ...base, portal: "auto", stages: { tone: { on: true, params: base.stages.tone.params } } })).toEqual({ veil: null, portal: 1, tone: 2 });
-    expect(rowNumbers({ ...base, veil: "on", portal: "auto", stages: { tone: { on: true, params: base.stages.tone.params } } })).toEqual({ veil: 1, portal: 2, tone: 3 });
+    expect(rowNumbers({ ...base, veil: "auto", stages: toneOn })).toEqual({ ...none, veil: 1, tone: 2 });
+    expect(rowNumbers({ ...base, portal: "auto", stages: toneOn })).toEqual({ ...none, portal: 1, tone: 2 });
+    expect(rowNumbers({ ...base, veil: "on", portal: "auto", stages: toneOn })).toEqual({ ...none, veil: 1, portal: 2, tone: 3 });
+  });
+
+  it("numbers the effects that are on in the order they are applied, skipping the ones that are off", () => {
+    const stages = { ...DEFAULT_POST.stages, tone: { ...toneOn.tone }, channels: { on: true, params: { mode: 1 } }, fire: { on: true, params: { strength: 40 } } };
+    expect(rowNumbers({ ...base, order: ["channels", "tone", "sharpen", "fire"], stages })).toEqual({ ...none, channels: 1, tone: 2, fire: 3 });
+    expect(rowNumbers({ ...base, order: ["tone", "sharpen", "fire", "channels"], stages })).toEqual({ ...none, tone: 1, fire: 2, channels: 3 });
   });
 
   it("keeps the numbers when the master switch is off (the whole list is just dimmed)", () => {

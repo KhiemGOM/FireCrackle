@@ -1,5 +1,6 @@
 import type { EdgeFilter } from "./atlasFilter";
 import { VEIL_MODES, type VeilMode } from "./veil";
+import type { PortalMode } from "./portal";
 
 export interface Preferences {
   tab: "label" | "phase" | "images";
@@ -12,7 +13,7 @@ export interface Preferences {
   animationDelayMs: number;
   /** Undo the GUI veil on shown pictures: never, when detected, or always. */
   veilMode: VeilMode;
-  portalMode: "off" | "auto";
+  portalMode: PortalMode;
 }
 export const PREFERENCES_KEY = "firecrackle.preferences.v1";
 export const DEFAULT_PREFERENCES: Preferences = { tab: "label", atlasFilter: { left: null, right: null }, matchOpen: false, matchOnlyFiltered: true, matchAdjustQuad: true, animationOpen: false, animationOnlyFiltered: true, animationDelayMs: 250, veilMode: "off", portalMode: "off" };

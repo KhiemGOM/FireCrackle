@@ -1,5 +1,7 @@
 // Tone: levels, shadow lift, gamma and contrast folded into one 256-entry table, applied to red, green and blue only.
-import type { ToneParams } from "./settings";
+
+export interface ToneParams { gamma: number; black: number; white: number; contrast: number; shadows: number }
+export const DEFAULT_TONE: ToneParams = { gamma: 1, black: 0, white: 255, contrast: 0, shadows: 0 };
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 

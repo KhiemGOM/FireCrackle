@@ -1,5 +1,5 @@
 import {beforeAll,expect,it,vi} from 'vitest';
-import {initPortalRuntime,undoPortal} from './portal';
+import {initPortalRuntime,undoPortal,undoPortalManual} from './portal';
 import {portalWorldMask} from './portalPreview';
 
 beforeAll(async()=>{
@@ -51,4 +51,48 @@ it('excludes opaque, translucent and uncertain GUI coverage regardless of tint',
   const gui=new Uint8ClampedArray([0,0,0,0,255,0,0,120,0,0,255,120,255,255,0,110]);
   expect([...portalWorldMask(gui)]).toEqual([1,0,0,0]);
   expect(()=>portalWorldMask(new Uint8ClampedArray(3))).toThrow();
+});
+
+it('manual correction with the true phase and opacity restores the picture and protects the GUI',()=>{
+  const s=scene(true),r=undoPortalManual(s.image,s.atlas,s.side,2,.7,s.world);
+  expect(r.applied).toBe(true);expect(r.phase).toBe(2);expect(r.opacity).toBeCloseTo(.7,5);
+  let error=0,count=0;
+  for(let i=0;i<s.world.length;i++){
+    if(!s.world[i]){expect(r.valid[i]).toBe(0);expect(r.data.slice(i*4,i*4+4)).toEqual(s.image.data.slice(i*4,i*4+4));}
+    else if(r.valid[i])for(let c=0;c<3;c++){error+=Math.abs(r.data[i*4+c]-s.original[i*4+c]);count++;}
+  }
+  expect(count).toBeGreaterThan(10000);expect(error/count).toBeLessThan(4);
+});
+
+it('manual correction works on a picture the automatic fit would refuse (no portal fit needed)',()=>{
+  const s=scene(false),r=undoPortalManual(s.image,s.atlas,s.side,1,.5,s.world);
+  expect(r.applied).toBe(true);expect(r.data).not.toEqual(s.image.data); // the user asked for it, so it is applied
+});
+
+it('manual correction with zero opacity changes nothing',()=>{
+  const s=scene(true),r=undoPortalManual(s.image,s.atlas,s.side,0,0,s.world);
+  expect(r.data).toEqual(s.image.data);
+});
+
+it('manual correction keeps ill-conditioned pixels unchanged and marks them invalid',()=>{
+  const s=scene(true),r=undoPortalManual(s.image,s.atlas,s.side,2,1,s.world);
+  let kept=0;
+  for(let i=0;i<s.world.length;i++)if(s.world[i]&&!r.valid[i]){kept++;expect(r.data.slice(i*4,i*4+4)).toEqual(s.image.data.slice(i*4,i*4+4));}
+  expect(kept).toBeGreaterThanOrEqual(0);
+});
+
+it('manual correction refuses a phase outside the atlas, an opacity outside 0 to 1, and a wrong-size picture',()=>{
+  const s=scene(true);
+  expect(()=>undoPortalManual(s.image,s.atlas,s.side,3,.5,s.world)).toThrow();
+  expect(()=>undoPortalManual(s.image,s.atlas,s.side,-1,.5,s.world)).toThrow();
+  expect(()=>undoPortalManual(s.image,s.atlas,s.side,1,1.5,s.world)).toThrow();
+  expect(()=>undoPortalManual(s.image,s.atlas,s.side,1,NaN,s.world)).toThrow();
+  expect(()=>undoPortalManual({...s.image,width:10},s.atlas,s.side,1,.5,s.world)).toThrow();
+  expect(()=>undoPortalManual(s.image,s.atlas,s.side,1,.5,new Uint8Array(5))).toThrow();
+});
+
+it('manual correction does not change the picture it was given',()=>{
+  const s=scene(true),copy=new Uint8ClampedArray(s.image.data);
+  undoPortalManual(s.image,s.atlas,s.side,2,.7,s.world);
+  expect(s.image.data).toEqual(copy);
 });

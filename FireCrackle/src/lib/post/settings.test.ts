@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_POST, DEFAULT_TONE, POST_KEY, clampTone, needsProcessing, onlyToneParamsChanged, pictureSettings, readPostSettings, repairPostSettings, toggleEnabled, writePostSettings,
+  DEFAULT_POST, DEFAULT_TONE, PORTAL_FRAMES, POST_KEY, STAGE_IDS, clampTone, needsProcessing, onlyParamsChanged, pictureSettings, readPostSettings, repairPostSettings, toggleEnabled, writePostSettings,
   type PostSettings,
 } from "./settings";
 
@@ -9,7 +9,10 @@ function memory(initial: Record<string, string> = {}) {
   return { values, getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => { values.set(k, v); } };
 }
 const withTone = (tone: Partial<PostSettings["stages"]["tone"]["params"]>, on = true): PostSettings => ({
-  ...DEFAULT_POST, stages: { tone: { on, params: { ...DEFAULT_TONE, ...tone } } },
+  ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, tone: { on, params: { ...DEFAULT_TONE, ...tone } } },
+});
+const withStage = (id: keyof PostSettings["stages"], params: Record<string, number>, on = true): PostSettings => ({
+  ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, [id]: { on, params: { ...DEFAULT_POST.stages[id].params, ...params } } },
 });
 
 describe("post-processing defaults", () => {
@@ -18,7 +21,9 @@ describe("post-processing defaults", () => {
     expect(DEFAULT_POST.veil).toBe("off");
     expect(DEFAULT_POST.portal).toBe("off");
     expect(DEFAULT_POST.stages.tone.on).toBe(false);
-    expect(DEFAULT_POST.order).toEqual(["tone"]);
+    expect(DEFAULT_POST.order).toEqual(STAGE_IDS);
+    expect(STAGE_IDS).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+    for (const id of STAGE_IDS) expect(DEFAULT_POST.stages[id].on).toBe(false);
     expect(needsProcessing(DEFAULT_POST)).toBe(false);
   });
 });
@@ -75,14 +80,47 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
   });
 
   it("drops unknown stage ids from the order, removes duplicates and appends missing ones", () => {
-    expect(repairPostSettings({ order: ["blur", "tone", "tone", 4] }).order).toEqual(["tone"]);
-    expect(repairPostSettings({ order: [] }).order).toEqual(["tone"]);
-    expect(repairPostSettings({ order: "tone" }).order).toEqual(["tone"]);
+    expect(repairPostSettings({ order: ["blur", "tone", "tone", 4] }).order).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+    expect(repairPostSettings({ order: [] }).order).toEqual(STAGE_IDS);
+    expect(repairPostSettings({ order: "tone" }).order).toEqual(STAGE_IDS);
+  });
+
+  it("keeps the order the user chose and appends the effects that are missing", () => {
+    expect(repairPostSettings({ order: ["channels", "tone"] }).order).toEqual(["channels", "tone", "denoise", "deblur", "sharpen", "fire"]);
+    expect(repairPostSettings({ order: [...STAGE_IDS].reverse() }).order).toEqual([...STAGE_IDS].reverse());
+  });
+
+  it("gives every effect its state, even when the saved file only knew about some", () => {
+    const fixed = repairPostSettings({ stages: { tone: { on: true, params: { gamma: 2 } } } });
+    expect(Object.keys(fixed.stages).sort()).toEqual([...STAGE_IDS].sort());
+    expect(fixed.stages.sharpen).toEqual(DEFAULT_POST.stages.sharpen);
+  });
+
+  it("repairs the controls of the other effects too", () => {
+    const fixed = repairPostSettings({ stages: {
+      sharpen: { on: true, params: { amount: 999, radius: -3, threshold: "x" } },
+      fire: { on: true, params: { strength: -5 } },
+      channels: { on: true, params: { mode: 2.5 } },
+      denoise: { on: true, params: { strength: 500, radius: 9 } },
+      deblur: { on: true, params: { iterations: 99, radius: 0 } },
+    } });
+    expect(fixed.stages.denoise.params).toEqual({ strength: 100, radius: 3 });
+    expect(fixed.stages.deblur.params).toEqual({ iterations: 10, radius: 0.5 });
+    expect(fixed.stages.sharpen.params.amount).toBe(300);
+    expect(fixed.stages.sharpen.params.radius).toBe(0.5);
+    expect(fixed.stages.sharpen.params.threshold).toBe(0);
+    expect(fixed.stages.fire.params.strength).toBe(0);
+    expect(fixed.stages.channels.params.mode).toBe(0); // not one of the listed choices
+    expect(fixed.stages.sharpen.on).toBe(true);
+  });
+
+  it("keeps a valid choice", () => {
+    expect(repairPostSettings({ stages: { channels: { on: true, params: { mode: 3 } } } }).stages.channels.params.mode).toBe(3);
   });
 
   it("accepts only the veil and portal modes that exist", () => {
     expect(repairPostSettings({ veil: "on", portal: "auto" })).toMatchObject({ veil: "on", portal: "auto" });
-    expect(repairPostSettings({ portal: "manual" }).portal).toBe("off");
+    expect(repairPostSettings({ portal: "sideways" }).portal).toBe("off"); // (Manual used to be invalid; it is a mode now)
   });
 });
 
@@ -123,6 +161,19 @@ describe("when the picture needs processing", () => {
   it("is false for an effect that is switched off even when its controls were changed", () => {
     expect(needsProcessing(withTone({ gamma: 2 }, false))).toBe(false);
   });
+
+  it("counts the other effects too: on and changed means work to do, on but neutral does not", () => {
+    expect(needsProcessing(withStage("sharpen", { amount: 80 }))).toBe(true);
+    expect(needsProcessing(withStage("sharpen", { amount: 0 }))).toBe(false);
+    expect(needsProcessing(withStage("fire", { strength: 40 }))).toBe(true);
+    expect(needsProcessing(withStage("channels", { mode: 2 }))).toBe(true);
+    expect(needsProcessing(withStage("channels", { mode: 0 }))).toBe(false);
+    expect(needsProcessing(withStage("fire", { strength: 40 }, false))).toBe(false);
+    expect(needsProcessing(withStage("denoise", { strength: 30 }))).toBe(true);
+    expect(needsProcessing(withStage("denoise", { strength: 0 }))).toBe(false);
+    expect(needsProcessing(withStage("deblur", { iterations: 4 }))).toBe(true);
+    expect(needsProcessing(withStage("deblur", { iterations: 0 }))).toBe(false);
+  });
 });
 
 describe("the settings the picture is drawn with", () => {
@@ -152,20 +203,21 @@ describe("the settings the picture is drawn with", () => {
 });
 
 describe("telling a slider drag from a switch (the picture is only delayed for the slider)", () => {
-  it("is true only when nothing but the tone controls changed", () => {
+  it("is true only when nothing but effect controls changed", () => {
     const base = withTone({ gamma: 1.2 });
-    expect(onlyToneParamsChanged(base, withTone({ gamma: 1.4 }))).toBe(true);
-    expect(onlyToneParamsChanged(base, withTone({ gamma: 1.2, contrast: 5 }))).toBe(true);
+    expect(onlyParamsChanged(base, withTone({ gamma: 1.4 }))).toBe(true);
+    expect(onlyParamsChanged(base, withTone({ gamma: 1.2, contrast: 5 }))).toBe(true);
+    expect(onlyParamsChanged(withStage("sharpen", { amount: 50 }), withStage("sharpen", { amount: 80 }))).toBe(true);
   });
 
   it("is false for the master switch, an effect switch, veil, portal, the order, or no change at all", () => {
     const base = withTone({ gamma: 1.2 });
-    expect(onlyToneParamsChanged(base, { ...base, enabled: false })).toBe(false);
-    expect(onlyToneParamsChanged(base, withTone({ gamma: 1.2 }, false))).toBe(false);
-    expect(onlyToneParamsChanged(base, { ...base, veil: "auto" })).toBe(false);
-    expect(onlyToneParamsChanged(base, { ...base, portal: "auto" })).toBe(false);
-    expect(onlyToneParamsChanged(base, { ...base, order: [...base.order].reverse() })).toBe(false);
-    expect(onlyToneParamsChanged(base, withTone({ gamma: 1.2 }))).toBe(false);
+    expect(onlyParamsChanged(base, { ...base, enabled: false })).toBe(false);
+    expect(onlyParamsChanged(base, withTone({ gamma: 1.2 }, false))).toBe(false);
+    expect(onlyParamsChanged(base, { ...base, veil: "auto" })).toBe(false);
+    expect(onlyParamsChanged(base, { ...base, portal: "auto" })).toBe(false);
+    expect(onlyParamsChanged(base, { ...base, order: [...base.order].reverse() })).toBe(false);
+    expect(onlyParamsChanged(base, withTone({ gamma: 1.2 }))).toBe(false);
   });
 });
 
@@ -181,5 +233,44 @@ describe("keeping a tone control inside its limits", () => {
     expect(clampTone("black", 200, p)).toEqual({ ...p, black: 99 });
     expect(clampTone("white", 5, p)).toEqual({ ...p, white: 21 });
     expect(clampTone("contrast", 10, p)).toEqual({ ...p, contrast: 10 });
+  });
+});
+
+describe("manual portal settings", () => {
+  it("default to a neutral phase and a middling opacity, with off still the portal mode", () => {
+    expect(DEFAULT_POST.portal).toBe("off");
+    expect(DEFAULT_POST.portalManual).toEqual({ phase: 0, opacity: 0.5 });
+    expect(PORTAL_FRAMES).toBe(32);
+  });
+
+  it("accepts Manual as a portal mode and rejects anything else", () => {
+    expect(repairPostSettings({ portal: "manual" }).portal).toBe("manual");
+    expect(repairPostSettings({ portal: "Manual" }).portal).toBe("off");
+    expect(repairPostSettings({ portal: 1 }).portal).toBe("off");
+  });
+
+  it("keeps the phase a whole number inside the animation and the opacity inside 0 to 1", () => {
+    expect(repairPostSettings({ portalManual: { phase: 7.6, opacity: 0.25 } }).portalManual).toEqual({ phase: 8, opacity: 0.25 });
+    expect(repairPostSettings({ portalManual: { phase: 99, opacity: 3 } }).portalManual).toEqual({ phase: 31, opacity: 1 });
+    expect(repairPostSettings({ portalManual: { phase: -4, opacity: -1 } }).portalManual).toEqual({ phase: 0, opacity: 0 });
+  });
+
+  it("replaces a missing or bad manual value on its own and keeps the other", () => {
+    expect(repairPostSettings({ portalManual: { phase: "x", opacity: 0.9 } }).portalManual).toEqual({ phase: 0, opacity: 0.9 });
+    expect(repairPostSettings({ portalManual: { phase: 5 } }).portalManual).toEqual({ phase: 5, opacity: 0.5 });
+    expect(repairPostSettings({ portalManual: null }).portalManual).toEqual({ phase: 0, opacity: 0.5 });
+    expect(repairPostSettings({ portalManual: { phase: NaN, opacity: Infinity } }).portalManual).toEqual({ phase: 0, opacity: 0.5 });
+  });
+
+  it("round-trips through storage", () => {
+    const store = memory();
+    const s: PostSettings = { ...DEFAULT_POST, portal: "manual", portalManual: { phase: 12, opacity: 0.62 } };
+    writePostSettings(s, store);
+    expect(readPostSettings(store)).toEqual(s);
+  });
+
+  it("counts a manual portal as work to do, and the master switch still turns it off", () => {
+    expect(needsProcessing({ ...DEFAULT_POST, portal: "manual" })).toBe(true);
+    expect(pictureSettings({ ...DEFAULT_POST, portal: "manual", enabled: false }).portal).toBe("off");
   });
 });

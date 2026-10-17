@@ -1,5 +1,5 @@
-import {initPortalRuntime,undoPortal,type PortalImage} from './portal';
-self.onmessage=async(e:MessageEvent<{image:PortalImage;world?:Uint8Array}>)=>{
+import {initPortalRuntime,undoPortal,undoPortalManual,type PortalImage,type PortalManual} from './portal';
+self.onmessage=async(e:MessageEvent<{image:PortalImage;world?:Uint8Array;manual?:PortalManual}>)=>{
   try{
     await initPortalRuntime();
     const response=await fetch('/portal.png');if(!response.ok)throw Error('Portal texture is unavailable; rebuild the app assets');
@@ -12,6 +12,7 @@ self.onmessage=async(e:MessageEvent<{image:PortalImage;world?:Uint8Array}>)=>{
       if(!g)throw Error('Portal worker canvas unavailable');g.drawImage(bitmap,0,0);
       atlas=g.getImageData(0,0,side,bitmap.height).data;
     }finally{bitmap.close();}
-    self.postMessage(undoPortal(e.data.image,atlas,side,e.data.world));
+    const {image,world,manual}=e.data;
+    self.postMessage(manual?undoPortalManual(image,atlas,side,manual.phase,manual.opacity,world):undoPortal(image,atlas,side,world));
   }catch(e){self.postMessage({error:String(e)});}
 };
