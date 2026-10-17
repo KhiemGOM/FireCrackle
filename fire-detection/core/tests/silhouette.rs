@@ -475,3 +475,47 @@ fn sampled_unveiling_matches_full_image_unveiling_bit_for_bit() {
         }
     }
 }
+
+#[test]
+fn exclusion_mask_empty_is_exact_baseline_and_full_abstains() {
+    let (w, h) = (320, 180);
+    let m = SilhouetteMatcher::new(S1, w, h, 70.).unwrap();
+    let frame = background(w, h, 37);
+    let a = m.match_frame(&frame).unwrap();
+    let b = m
+        .match_frame_excluding(&frame, &vec![0; w * h], false)
+        .unwrap();
+    assert_eq!(a.ranked, b.ranked);
+    assert_eq!(a.ranked_colour, b.ranked_colour);
+    assert_eq!(a.presence.to_bits(), b.presence.to_bits());
+    assert_eq!(a.colour_evidence.to_bits(), b.colour_evidence.to_bits());
+    let all = m
+        .match_frame_excluding(&frame, &vec![1; w * h], false)
+        .unwrap();
+    assert!(all.colour_evidence < 0.5);
+    assert!(m.match_frame_excluding(&frame, &[0], false).is_err());
+}
+
+#[test]
+fn excluded_pixels_are_neutral_regardless_of_their_colours() {
+    let (w, h) = (320, 180);
+    let m = SilhouetteMatcher::new(S1, w, h, 70.).unwrap();
+    let a = render(13, w, h, background(w, h, 22), 1.);
+    let mut b = a.clone();
+    let mut mask = vec![0; w * h];
+    for y in h / 2..h {
+        for x in w / 4..3 * w / 4 {
+            let i = y * w + x;
+            mask[i] = 1;
+            b[i * 3..i * 3 + 3].copy_from_slice(&[255, 0, 255]);
+        }
+    }
+    for veiled in [false, true] {
+        let x = m.match_frame_excluding(&a, &mask, veiled).unwrap();
+        let y = m.match_frame_excluding(&b, &mask, veiled).unwrap();
+        assert_eq!(x.ranked, y.ranked);
+        assert_eq!(x.ranked_colour, y.ranked_colour);
+        assert_eq!(x.colour_evidence.to_bits(), y.colour_evidence.to_bits());
+        assert_eq!(x.presence.to_bits(), y.presence.to_bits());
+    }
+}
