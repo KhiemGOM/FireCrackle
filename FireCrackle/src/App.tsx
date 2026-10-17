@@ -30,6 +30,7 @@ import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
 
 const KEY_HELP: Array<[string, string]> = [
+  ["M · Hold M + 1–3", "find best match · preview matches 1–3"],
   ["← →", "previous / next frame (hold to repeat)"],
   ["↑ ↓", "previous / next animation phase"],
   ["Shift + ← →", "big step"],
@@ -45,6 +46,7 @@ const KEY_HELP: Array<[string, string]> = [
   ["F · Shift+F", "next / previous flag"],
   ["Esc", "discard the selected candidate"],
   ["Atlas click", "select candidate and preview; Confirm/Enter saves it"],
+  ["Atlas right-click", "toggle sprite as a non-candidate"],
   ["Ctrl + atlas click", "select sprite for the enabled fire preview without labeling"],
   ["Ctrl + quad drag", "move all four corners together"],
   ["Hold Shift", "quad transform box: corners resize proportionally, edges resize one axis, top handle rotates"],

@@ -289,7 +289,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           if (manualEnabled) setAnimationOpen(false);
           if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
         }}>Quad mask</IconButton>
-        <IconButton icon="zoomIn" label="Toggle sprite matching tool" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={() => {
+        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: find best match · Hold M + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={() => {
           if (!matchingEnabled) setAnimationOpen(false);
           setMatchingEnabled(!matchingEnabled);
           if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
