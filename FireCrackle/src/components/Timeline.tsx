@@ -353,10 +353,15 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         onPointerCancel={() => { drag.current = null; }}
         onLostPointerCapture={() => { drag.current = null; }}
       />
-      <div className="timeline-flag-key"><span style={{color:"#ff4d4f"}}>━ Hard fire flag</span> · <span style={{color:"#bd8bff"}}>━ Jolt report flag</span></div>
-      <div className="timeline-flag-key" aria-label="Label base colours">Base: <span><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:COLORS.fire}} />Fire</span> · <span><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:COLORS.noFire}} />No fire</span></div>
-      <div className="timeline-flag-key" aria-label="Automatic label stripe colours">Auto stripes: {AUTOMATIC_TOOLS.map(tool=><span key={tool.source} style={{marginRight:10}}><i aria-hidden="true" style={{display:"inline-block",width:24,height:16,marginRight:4,backgroundColor:tool.source==="no_fire"?COLORS.noFire:COLORS.fire,backgroundImage:`repeating-linear-gradient(to bottom, ${tool.color} 0 4px, transparent 4px 8px)`}} />{tool.name}</span>)} <span>Human checked: plain base colour</span></div>
-      <div className="timeline-hint">scroll: move timeline · Ctrl+scroll: zoom · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</div>
+      <div className="timeline-flag-key" aria-label="Timeline legend and controls" style={{display:"flex",flexWrap:"wrap",alignItems:"center",columnGap:12,rowGap:2}}>
+        <span style={{color:COLORS.hard,whiteSpace:"nowrap"}}>━ Hard fire flag</span>
+        <span style={{color:"#bd8bff",whiteSpace:"nowrap"}}>━ Jolt report flag</span>
+        <span style={{whiteSpace:"nowrap"}}><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:COLORS.fire}} />Fire</span>
+        <span style={{whiteSpace:"nowrap"}}><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:COLORS.noFire}} />No fire</span>
+        {AUTOMATIC_TOOLS.map(tool=><span key={tool.source} style={{whiteSpace:"nowrap"}}><i aria-hidden="true" style={{display:"inline-block",boxSizing:"border-box",width:24,height:16,marginRight:4,backgroundColor:tool.source==="no_fire"?COLORS.noFire:COLORS.fire,borderTop:`3px solid ${tool.color}`,borderBottom:`3px solid ${tool.color}`}} />{tool.name}</span>)}
+        <span style={{whiteSpace:"nowrap"}}>Human checked: plain colour</span>
+        <span className="timeline-hint" style={{margin:0}}>scroll: move timeline · Ctrl+scroll: zoom · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</span>
+      </div>
     </div>
   );
 }

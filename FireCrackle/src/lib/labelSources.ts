@@ -6,36 +6,17 @@ export const AUTOMATIC_TOOLS = [
   { source: "time_guess", name: "Time guess", color: "#ffd166", count: "auto_time_guess" },
 ] as const;
 
-const patterns = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasPattern>>();
-
-function stripePattern(g: CanvasRenderingContext2D, color: string): CanvasPattern | null {
-  let cache = patterns.get(g);
-  if (!cache) { cache = new Map(); patterns.set(g,cache); }
-  const cached = cache.get(color);
-  if (cached) return cached;
-  const tile = document.createElement("canvas");
-  tile.width = tile.height = 8;
-  const ink = tile.getContext("2d");
-  if (!ink) return null;
-  ink.fillStyle = color;
-  ink.globalAlpha = 0.85;
-  ink.fillRect(0,0,8,4);
-  const pattern = g.createPattern(tile,"repeat");
-  if (pattern) cache.set(color,pattern);
-  return pattern;
-}
-
-/** Repeating horizontal bars leave the base label colour visible between stripes.
- * Mixed zoomed-out buckets keep each tool in its own horizontal band. */
+/** Tool bars at both edges leave the label colour clear in the middle.
+ * Mixed zoomed-out buckets stack tool colours within each edge. */
 export function paintAutomaticStrips(
-  g: CanvasRenderingContext2D,
+  g: Pick<CanvasRenderingContext2D,"fillStyle"|"fillRect">,
   bucket: Bucket, x: number, y: number, width: number, height: number,
 ) {
   const tools = AUTOMATIC_TOOLS.filter(tool => (bucket[tool.count] ?? 0) > 0);
+  const thickness = Math.min(4,height/(tools.length*4));
   tools.forEach((tool,i) => {
-    const pattern = stripePattern(g,tool.color);
-    if (!pattern) return;
-    g.fillStyle = pattern;
-    g.fillRect(x, y + i*height/tools.length, width, height/tools.length);
+    g.fillStyle = tool.color;
+    g.fillRect(x,y+i*thickness,width,thickness);
+    g.fillRect(x,y+height-(i+1)*thickness,width,thickness);
   });
 }
