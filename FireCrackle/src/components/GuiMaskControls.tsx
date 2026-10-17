@@ -1,27 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import type { Backend } from "../lib/api";
-import { answerAllowsMask, maskStatus, needsQuestion, overlayRgba, type GuiAnswer, type GuiMaskReply } from "../lib/guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, type GuiMaskReply } from "../lib/guiMask";
 import "./GuiMaskControls.css";
 
 export interface GuiMaskState {
   supported: boolean;
-  answer: GuiAnswer | null;
-  /** The answer has been read from the project (null until then). */
-  loaded: boolean;
   reply: GuiMaskReply | null;
   /** The frame the mask belongs to (a mask is never drawn over another frame). */
   maskFrame: number | null;
   pixels: Uint8ClampedArray | null;
   busy: boolean;
   error: string | null;
-  setAnswer: (a: GuiAnswer) => Promise<void>;
 }
 
-/** The answer for the open video, and the mask of `frame` while `on` and allowed. */
+/** Detect the mask under the stated vanilla-GUI assumption while the tool is on. */
 export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: boolean): GuiMaskState {
-  const supported = !!(backend.guiAnswerGet && backend.guiAnswerSet && backend.guiMask && backend.guiMaskPixels);
-  const [answer, setAnswerState] = useState<GuiAnswer | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const supported = !!(backend.guiMask && backend.guiMaskPixels);
   const [reply, setReply] = useState<GuiMaskReply | null>(null);
   const [maskFrame, setMaskFrame] = useState<number | null>(null);
   const [pixels, setPixels] = useState<Uint8ClampedArray | null>(null);
@@ -30,13 +24,8 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
   const token = useRef(0);
 
   useEffect(() => {
-    if (!supported || !on || loaded) return;
-    backend.guiAnswerGet!().then((a) => { setAnswerState(a); setLoaded(true); }).catch((e) => setError(String(e)));
-  }, [backend, supported, on, loaded]);
-
-  useEffect(() => {
     const mine = ++token.current;
-    if (!supported || !on || !ready || !answerAllowsMask(answer)) return;
+    if (!supported || !on || !ready) return;
     setBusy(true);
     setError(null);
     (async () => {
@@ -53,45 +42,19 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
         if (mine === token.current) setBusy(false);
       }
     })();
-  }, [backend, supported, on, ready, answer, frame]);
+  }, [backend, supported, on, ready, frame]);
 
-  async function setAnswer(a: GuiAnswer) {
-    try {
-      await backend.guiAnswerSet!(a);
-      setAnswerState(a);
-      setLoaded(true);
-      if (!answerAllowsMask(a)) { setReply(null); setPixels(null); setMaskFrame(null); }
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
-  return { supported, answer, loaded, reply, maskFrame, pixels, busy, error, setAnswer };
+  return { supported, reply, maskFrame, pixels, busy, error };
 }
 
-/** The settings row: the vanilla question (once per video), then the status of the mask. */
+/** Detection status; compatibility is an assumption in the tooltip, not a confirmation. */
 export function GuiMaskPanel({ state, frame }: { state: GuiMaskState; frame: number }) {
-  const { supported, answer, loaded, reply, maskFrame, busy, error, setAnswer } = state;
-  const [asking, setAsking] = useState(false);
+  const { supported, reply, maskFrame, busy, error } = state;
   if (!supported) return <span className="hud-hint">The GUI mask is available in the desktop app.</span>;
-  if (!loaded) return <span className="hud-hint">Reading this video's GUI answer…</span>;
-  const question = (
-    <span className="gui-question" role="group" aria-label="Vanilla GUI question">
-      <span>Is this footage <b>vanilla Minecraft 1.16.5 GUI</b>: no resource pack, no HUD mods, not cropped?</span>
-      <button onClick={() => { void setAnswer("yes"); setAsking(false); }}>Yes</button>
-      <button onClick={() => { void setAnswer("no"); setAsking(false); }}>No</button>
-      <button onClick={() => { void setAnswer("not_sure"); setAsking(false); }}>Not sure</button>
-    </span>
-  );
-  if (needsQuestion(answer) || asking) return question;
-  if (!answerAllowsMask(answer)) {
-    return <span className="hud-hint">GUI mask off: this video is marked {answer === "no" ? "not vanilla" : "not known to be vanilla"}. <button onClick={() => setAsking(true)}>Change answer</button></span>;
-  }
   const status = error ? `GUI mask failed: ${error}` : busy || maskFrame !== frame || !reply ? "Finding the HUD…" : maskStatus(reply);
-  return <span className="gui-mask-status" role="status">
+  return <span className="gui-mask-status" role="status" title={GUI_ASSUMPTION}>
     <span>{status}</span>
     <span className="hud-hint">red opaque · blue translucent · yellow unknown</span>
-    <button onClick={() => setAsking(true)} title="Change the vanilla answer for this video">Vanilla: yes</button>
   </span>;
 }
 

@@ -55,30 +55,44 @@ beforeEach(() => {
 });
 afterEach(() => hooks.effects.forEach((e) => e?.cleanup?.()));
 
-it("asks first and runs nothing until the user answers yes", async () => {
+it("runs under the stated GUI assumption without asking or saving confirmation", async () => {
   const tree = await settle();
-  expect(text(tree)).toContain("vanilla Minecraft 1.16.5 GUI");
-  expect(backend.guiMask).not.toHaveBeenCalled();
-  await button(tree, "Yes")!.props.onClick();
-  const after = await settle();
-  expect(backend.guiAnswerSet).toHaveBeenCalledWith("yes");
+  expect(button(tree, "Yes")).toBeUndefined();
+  expect(backend.guiAnswerGet).not.toHaveBeenCalled();
+  expect(backend.guiAnswerSet).not.toHaveBeenCalled();
   expect(backend.guiMask).toHaveBeenCalledWith(5);
   expect(backend.guiMaskPixels).toHaveBeenCalledWith(5);
-  expect(text(after)).toContain("GUI scale 4.50");
-  expect(text(after)).toContain("10 Health");
+  expect(text(tree)).toContain("GUI scale 4.50");
+  expect(text(tree)).toContain("10 Health");
+  expect(tree.props.title).toContain("Assumes");
+  expect(tree.props.title).toContain("1.16.5");
 });
 
-it("an answer of no or not sure keeps the mask off and can be changed", async () => {
+it("legacy negative answers no longer gate the mask or get overwritten", async () => {
   for (const a of ["no", "not_sure"] as const) {
     hooks.states = []; hooks.refs = []; hooks.effects = [];
     answer = a;
     (backend.guiMask as any).mockClear();
     const tree = await settle();
-    expect(backend.guiMask).not.toHaveBeenCalled();
-    expect(text(tree)).toContain("GUI mask off");
-    button(tree, "Change answer")!.props.onClick();
-    expect(text(render())).toContain("vanilla Minecraft 1.16.5 GUI");
+    expect(backend.guiMask).toHaveBeenCalledWith(5);
+    expect(text(tree)).toContain("GUI scale");
+    expect(button(tree, "Change answer")).toBeUndefined();
+    expect(backend.guiAnswerSet).not.toHaveBeenCalled();
   }
+});
+
+it("works when the backend only provides masking, without legacy answer methods", async () => {
+  delete backend.guiAnswerGet;
+  delete backend.guiAnswerSet;
+  expect(text(await settle())).toContain("GUI scale");
+  expect(backend.guiMask).toHaveBeenCalledWith(5);
+});
+
+it("keeps an unreliable frame unmasked", async () => {
+  (backend.guiMask as any).mockResolvedValue({ ...REPLY, reliable: false, scale: null, notes: ["No reliable HUD fit"] });
+  expect(text(await settle())).toContain("No reliable HUD fit");
+  expect(backend.guiMaskPixels).not.toHaveBeenCalled();
+  expect(GuiMaskOverlay({ state: maskState, frame: 5 })).toBeNull();
 });
 
 it("does nothing at all while the tool is off", async () => {

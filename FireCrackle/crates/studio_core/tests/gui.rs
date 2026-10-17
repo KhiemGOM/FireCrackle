@@ -1,4 +1,4 @@
-//! The app side of the GUI mask (PLAN-GUI-MASK.md 3.2): the per-project "is this vanilla?" answer, and running the
+//! The app side of the GUI mask: legacy project-answer compatibility, and running the
 //! mask on the JPEG frame the app shows.
 
 use fire_core::gui_mask::{compose_hud, GuiFit, GuiTextures, HudState};
@@ -74,15 +74,6 @@ fn the_answer_has_stable_json_names() {
         serde_json::from_str::<GuiAnswer>("\"no\"").unwrap(),
         GuiAnswer::No
     );
-}
-
-#[test]
-fn only_yes_allows_the_mask() {
-    assert!(ensure_allowed(Some(GuiAnswer::Yes)).is_ok());
-    for a in [None, Some(GuiAnswer::No), Some(GuiAnswer::NotSure)] {
-        let e = ensure_allowed(a).unwrap_err();
-        assert!(e.to_lowercase().contains("vanilla"), "{a:?}: {e}");
-    }
 }
 
 // ================================================================ packing

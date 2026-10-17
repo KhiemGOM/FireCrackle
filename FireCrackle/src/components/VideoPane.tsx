@@ -229,9 +229,10 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
   useEffect(() => {
     const mine = ++token.current;
     const cancel = new AbortController();
-    const guiReady = guiMask.answer === "yes" && guiMask.maskFrame === view.current && !!guiMask.reply?.reliable && !!guiMask.pixels;
-    const runPortal = portalMode === "auto" && (!!stillImage || guiReady);
-    if (portalMode === "auto") setPortalStatus(runPortal ? "Checking portal…" : !guiMask.supported ? "GUI protection needs the desktop app" : guiMask.answer !== "yes" ? "Confirm GUI below" : guiMask.maskFrame === view.current && !guiMask.reply?.reliable ? "GUI not found · unchanged" : "Waiting for GUI mask");
+    const guiReady = !stillImage && guiMask.maskFrame === view.current && !!guiMask.reply?.reliable && !!guiMask.pixels;
+    const runPortal = portalMode === "auto";
+    let guiProtected = false;
+    if (runPortal) setPortalStatus(guiReady ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
     else setPortalStatus("");
     if (stillImage && veilMode === "off" && portalMode === "off") {
       if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
@@ -245,15 +246,15 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
       .then(async ({ bytes, original }) => {
         const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo, runPortal ? async image => {
           let world: Uint8Array | undefined;
-          if (!stillImage && guiMask.pixels && guiMask.reply) {
-            if (image.width !== guiMask.reply.width || image.height !== guiMask.reply.height) throw Error("GUI mask dimensions do not match this frame");
+          if (guiReady && guiMask.pixels && guiMask.reply && image.width === guiMask.reply.width && image.height === guiMask.reply.height) {
             world = portalWorldMask(guiMask.pixels);
+            guiProtected = true;
           }
           return portalPreview(image, cancel.signal, world);
         } : undefined);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
         if (made.error) onError(`Picture correction: ${made.error}`);
-        if (runPortal) setPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${stillImage ? " · no GUI protection" : " · GUI protected"}` : "No confident portal fit");
+        if (runPortal) setPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
         const next = URL.createObjectURL(made.blob);
         const old = urlRef.current;
         urlRef.current = next;
@@ -264,7 +265,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
     return () => { ++token.current; cancel.abort(); };
-  }, [backend, view.current, stillImage?.url, veilMode, veilKey, portalMode, guiMask.answer, guiMask.maskFrame, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backend, view.current, stillImage?.url, veilMode, veilKey, portalMode, guiMask.maskFrame, guiMask.reply, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(
     () => () => {
@@ -392,9 +393,9 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           setAnimationOpen(!animationOpen);
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
-        {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="GUI mask: shows which pixels are vanilla HUD (asks once per video whether the footage has vanilla 1.16.5 GUI)" aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
+        {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, no HUD-changing packs or mods, and uncropped footage. Shows GUI pixels only when the HUD fit is reliable." aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
         <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>
-        <label className="veil-mode" title="Undo a confidently fitted full-screen vanilla portal overlay. GUI pixels stay unchanged on videos; photos have no GUI protection. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>
+        <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>
         {portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
         <IconButton icon="copy" label="Comparison proof" title="Copy original and mask side by side to the clipboard, with the displayed sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
       </div>
@@ -452,7 +453,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           onMatchCandidate?.({sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
         }} /> : <span className="hud-hint">Open a video to match sprites</span>}
       </div>}
-      {(guiMaskOn || portalMode === "auto") && !stillImage && <div className="hud-controls" aria-label="GUI mask settings" onKeyDown={e => e.stopPropagation()}>
+      {guiMaskOn && !stillImage && <div className="hud-controls" aria-label="GUI mask settings" onKeyDown={e => e.stopPropagation()}>
         <GuiMaskPanel state={guiMask} frame={view.current} />
       </div>}
       <div className="video-meta">

@@ -1,11 +1,11 @@
-//! GUI mask commands (PLAN-GUI-MASK.md 3.2): the per-video "vanilla?" answer and the mask of a frame. Thin: the logic
-//! is `studio_core::gui` and `fire_core::gui_mask`. The mask is refused unless the answer for this video is "yes".
+//! GUI mask commands. Vanilla-GUI compatibility is a documented assumption; detection still
+//! reports unreliable fits. Legacy answer commands remain for project/API compatibility.
 
 use super::{AppState, err, run};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use studio_core::gui::{
-    GuiAnalyzer, GuiAnswer, GuiMaskReply, ensure_allowed, read_answer, write_answer,
+    GuiAnalyzer, GuiAnswer, GuiMaskReply, read_answer, write_answer,
 };
 use tauri::State;
 use tauri::ipc::Response;
@@ -34,7 +34,6 @@ pub async fn gui_answer_set(state: State<'_, AppState>, answer: GuiAnswer) -> Re
 #[tauri::command]
 pub async fn gui_mask(state: State<'_, AppState>, frame: u32) -> Result<GuiMaskReply, String> {
     run(state.ws.clone(), move |w| {
-        ensure_allowed(read_answer(w.dir()))?;
         let jpeg = w.frame_jpeg(frame).map_err(err)?;
         let (reply, packed) = analyzer()?.analyze_jpeg(&jpeg)?;
         *LAST.lock().map_err(err)? = Some((w.dir().to_path_buf(), frame, packed));
@@ -47,7 +46,6 @@ pub async fn gui_mask(state: State<'_, AppState>, frame: u32) -> Result<GuiMaskR
 #[tauri::command]
 pub async fn gui_mask_pixels(state: State<'_, AppState>, frame: u32) -> Result<Response, String> {
     run(state.ws.clone(), move |w| {
-        ensure_allowed(read_answer(w.dir()))?;
         let last = LAST.lock().map_err(err)?;
         match last.as_ref() {
             Some((dir, f, packed)) if dir == w.dir() && *f == frame => {

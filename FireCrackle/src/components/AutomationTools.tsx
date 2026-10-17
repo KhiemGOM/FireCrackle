@@ -11,7 +11,6 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
   const [noFire,setNoFire]=useState<PovStatus|null>(null);
   const [noFireError,setNoFireError]=useState<string|null>(null);
   const [noFirePending,setNoFirePending]=useState(false);
-  const [confirmed,setConfirmed]=useState(false);
   const [offset,setOffset]=useState(0);
   const [frames,setFrames]=useState<number[]>([]);
   const [selected,setSelected]=useState(0);
@@ -30,8 +29,6 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
   async function scanNoFire() {
     setNoFirePending(true);setNoFireError(null);setOffset(0);setFrames([]);
     try {
-      // This explicit checkbox is the per-video vanilla-GUI confirmation.
-      if(await backend.guiAnswerGet?.()!=="yes") await backend.guiAnswerSet?.("yes");
       setNoFire(await backend.noFireStart!());
     } catch(e){setNoFireError(messageOf(e));}finally{setNoFirePending(false);}
   }
@@ -74,9 +71,8 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
             <li>Default textures and HUD; no shaders, resource packs, cropping or colour edits.</li>
             <li>Clear gameplay with a visible hotbar. Menus, tiny/distant fire and transparent blocks can confuse it.</li>
           </ul>
-          <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> This video uses the vanilla 1.16.5 GUI described above.</label>
           <div className="automation-actions">
-            <button disabled={!backend.noFireStart||!videoPath||!confirmed||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>Scan &amp; label no fire</button>
+            <button disabled={!backend.noFireStart||!videoPath||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>Scan &amp; label no fire</button>
             {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Cancel no-fire scan</button>}
           </div>
           {noFire&&<div className="automation-progress" role="status">

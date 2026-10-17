@@ -1,7 +1,7 @@
 //! The app side of the shared GUI mask (`fire_core::gui_mask`, plan in `PLAN-GUI-MASK.md` 3.2).
 //!
-//! The mask only runs on footage the user confirmed to be vanilla 1.16.5 GUI: the answer is saved per project in
-//! `<video>.firecrackle/gui.json`, and anything but "yes" (including a missing or unreadable file) refuses the mask.
+//! Vanilla 1.16.5 GUI compatibility is a stated assumption, not a user-confirmation gate.
+//! Legacy `<video>.firecrackle/gui.json` answers remain readable without controlling masking.
 
 use fire_core::gui_mask::{detect_gui, GuiOptions, GuiTextures, PieceId};
 use serde::{Deserialize, Serialize};
@@ -24,8 +24,7 @@ struct AnswerFile {
 
 const ANSWER_FILE: &str = "gui.json";
 
-/// The saved answer for a project folder; `None` when there is none or the file cannot be read (asked again, never
-/// taken as yes).
+/// The legacy saved answer; missing/corrupt data is never rewritten as a user confirmation.
 pub fn read_answer(project_dir: &Path) -> Option<GuiAnswer> {
     let bytes = std::fs::read(project_dir.join(ANSWER_FILE)).ok()?;
     serde_json::from_slice::<AnswerFile>(&bytes)
@@ -48,16 +47,6 @@ pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String>
             project_dir.display()
         )
     })
-}
-
-/// The mask may run only after a "yes".
-pub fn ensure_allowed(answer: Option<GuiAnswer>) -> Result<(), String> {
-    match answer {
-        Some(GuiAnswer::Yes) => Ok(()),
-        Some(GuiAnswer::No) => Err("The GUI mask is off: this video was marked as not vanilla 1.16.5 GUI.".into()),
-        Some(GuiAnswer::NotSure) => Err("The GUI mask is off: it is not known whether this video has vanilla 1.16.5 GUI.".into()),
-        None => Err("Confirm first that this video has vanilla 1.16.5 GUI (no resource pack, no HUD mods, not cropped).".into()),
-    }
 }
 
 /// One byte per pixel: the pixel class (0 none, 1 opaque, 2 translucent, 3 unknown) in the high nibble, the piece id in

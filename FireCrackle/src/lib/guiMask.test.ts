@@ -1,19 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { answerAllowsMask, maskStatus, needsQuestion, overlayRgba, unpack, type GuiMaskReply } from "./guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, type GuiMaskReply } from "./guiMask";
 
 const reply = (over: Partial<GuiMaskReply> = {}): GuiMaskReply => ({
   width: 4, height: 1, reliable: true, scale: 4.5, scaled_width: 427, scaled_height: 240, notes: [],
   pieces: [{ piece: "Hotbar", count: 1 }, { piece: "Health", count: 10 }, { piece: "HotbarItem", count: 9 }], ...over,
 });
 
-describe("the vanilla answer", () => {
-  it("asks while there is no answer", () => {
-    expect(needsQuestion(null)).toBe(true);
-    for (const a of ["yes", "no", "not_sure"] as const) expect(needsQuestion(a)).toBe(false);
-  });
-  it("only yes allows the mask", () => {
-    expect(answerAllowsMask("yes")).toBe(true);
-    for (const a of [null, "no", "not_sure"] as const) expect(answerAllowsMask(a)).toBe(false);
+describe("the GUI compatibility assumption", () => {
+  it("states the reference GUI and reliable-fit requirement without asking a question", () => {
+    expect(GUI_ASSUMPTION).toContain("Assumes");
+    expect(GUI_ASSUMPTION).toContain("1.16.5");
+    expect(GUI_ASSUMPTION).toContain("reliable");
+    expect(GUI_ASSUMPTION).not.toContain("?");
   });
 });
 

@@ -77,7 +77,6 @@ fn link_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
 fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
     let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
     let workspace = guard.as_ref().ok_or("No video is open")?;
-    studio_core::gui::ensure_allowed(studio_core::gui::read_answer(workspace.dir()))?;
     let project = workspace.automation_project();
     drop(guard);
     let ws = state.ws.clone();

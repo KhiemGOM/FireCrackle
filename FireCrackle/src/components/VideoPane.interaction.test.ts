@@ -17,6 +17,9 @@ import { VideoPane } from "./VideoPane";
 import { OpacityControl } from "./OpacityControl";
 import { createMockBackend } from "../lib/mock";
 import { DEFAULT_MASK_STATE, MASK_STATE_KEY, readMaskState } from "../lib/maskState";
+import * as guiControls from "./GuiMaskControls";
+import * as frameProcessing from "../lib/veilFrame";
+import * as portalProcessing from "../lib/portalPreview";
 
 type Element = ReactElement<Record<string, any>>;
 function viewport(node: Element): Element | undefined {
@@ -50,7 +53,7 @@ function pointer(x: number, y: number, button = 0) {
   return { clientX: x, clientY: y, button, pointerId: 7, preventDefault: vi.fn(), currentTarget: { setPointerCapture: vi.fn() } };
 }
 beforeEach(() => { hooks.states = []; hooks.refs = []; });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 it("steps exactly one frame and disables navigation at the video boundaries", async () => {
   const backend = createMockBackend();
@@ -92,7 +95,7 @@ it("groups all tools and reveals only the enabled mask settings", async () => {
   expect(find(root, "Quad mask settings")).toBeUndefined();
 });
 
-it("offers portal undo beside veil and exposes the existing GUI gate when enabled", async () => {
+it("offers portal undo beside veil without opening a GUI confirmation panel", async () => {
   let root=await tree();
   const tools=find(root,"Video tools")!;
   expect(find(tools,"Undo GUI veil")).toBeDefined();
@@ -100,8 +103,36 @@ it("offers portal undo beside veil and exposes the existing GUI gate when enable
   expect(portal).toBeDefined();
   portal.props.onChange({target:{value:"auto"}});
   root=await tree();
-  expect(find(root,"GUI mask settings")).toBeDefined();
+  expect(find(root,"GUI mask settings")).toBeUndefined();
   expect(find(root,"Toggle GUI mask")!.props["aria-pressed"]).toBe(false);
+});
+it.each(["unsupported", "missing", "unreliable", "failed", "stale", "wrong size", "reliable"])("portal Auto uses the entire frame unless the GUI mask is usable: %s", async kind => {
+  const backend = createMockBackend();
+  vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(0));
+  const view = await backend.view();
+  const image = { data: new Uint8ClampedArray(8), width: 2, height: 1 };
+  const pixels = new Uint8ClampedArray([255, 0, 0, 160, 0, 0, 0, 0]);
+  const state = { supported: kind !== "unsupported", reply: { reliable: kind !== "unreliable", width: kind === "wrong size" ? 3 : 2, height: 1 }, maskFrame: kind === "stale" ? view.current - 1 : view.current, pixels: ["missing", "unsupported", "failed"].includes(kind) ? null : pixels, busy: false, error: kind === "failed" ? "Mask failed" : null };
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue(state as guiControls.GuiMaskState);
+  const portal = vi.spyOn(portalProcessing, "portalPreview").mockResolvedValue({ data: image.data, applied: true } as Awaited<ReturnType<typeof portalProcessing.portalPreview>>);
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_bytes, original, _mode, _options, _io, transform) => {
+    expect(transform).toBeDefined();
+    await transform!(image);
+    return { blob: original, applied: false, portalApplied: true };
+  });
+  const render = () => {
+    hooks.stateCursor = hooks.refCursor = 0; hooks.effects = [];
+    return VideoPane({ backend, view, onError: vi.fn() });
+  };
+  find(render(), "Undo portal overlay")!.props.onChange({ target: { value: "auto" } });
+  render();
+  const load = hooks.effects.find(effect => effect.toString().includes("const mine"));
+  expect(load).toBeDefined();
+  const stop = load!();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  expect(portal).toHaveBeenCalledOnce();
+  expect(portal.mock.calls[0][2]).toEqual(kind === "reliable" ? new Uint8Array([0, 1]) : undefined);
+  stop?.();
 });
 it("keeps quad controls visible while the independent matching tool is open", async () => {
   let root=await tree();

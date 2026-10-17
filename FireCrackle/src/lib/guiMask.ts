@@ -1,7 +1,9 @@
-// The GUI mask in the app (PLAN-GUI-MASK.md 3.2): the per-video "is this vanilla?" answer, the overlay colouring and
+// The GUI mask in the app: the documented compatibility assumption, the overlay colouring and
 // the status line. Pure functions (tested in guiMask.test.ts); the panel is components/GuiMaskControls.tsx.
 
 export type GuiAnswer = "yes" | "no" | "not_sure";
+
+export const GUI_ASSUMPTION = "Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, with no HUD-changing resource packs or mods and no cropped video. A mask is used only when the HUD fit is reliable.";
 
 export interface GuiMaskReply {
   width: number;
@@ -13,16 +15,6 @@ export interface GuiMaskReply {
   scaled_height: number | null;
   notes: string[];
   pieces: Array<{ piece: string; count: number }>;
-}
-
-/** Ask while the user has not answered for this video. */
-export function needsQuestion(answer: GuiAnswer | null): boolean {
-  return answer === null;
-}
-
-/** The mask runs only after a "yes" (the backend enforces the same). */
-export function answerAllowsMask(answer: GuiAnswer | null): boolean {
-  return answer === "yes";
 }
 
 /** Piece id (low nibble) and pixel class (high nibble: 0 none, 1 opaque, 2 translucent, 3 unknown). */
