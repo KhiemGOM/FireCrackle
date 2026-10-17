@@ -11,9 +11,8 @@ use crate::frames::{parse_showinfo, split_jpegs};
 use crate::import::Tools;
 use crate::index::FrameIndex;
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -291,45 +290,20 @@ fn run(
     tool: &std::ffi::OsStr,
     cancel: &AtomicBool,
 ) -> Result<(std::process::ExitStatus, Vec<u8>, String), ThumbError> {
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| ThumbError::ToolMissing(format!("could not run {tool:?}: {e}")))?;
-    let mut err_pipe = child.stderr.take().expect("stderr was piped");
-    let err_thread = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = err_pipe.read_to_end(&mut buf);
-        String::from_utf8_lossy(&buf).into_owned()
-    });
-    let mut out_pipe = child.stdout.take().expect("stdout was piped");
-    let mut bytes: Vec<u8> = Vec::new();
-    let mut chunk = vec![0u8; 1 << 16];
-    loop {
-        if cancel.load(Ordering::SeqCst) {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = err_thread.join();
-            return Err(ThumbError::Cancelled);
-        }
-        match out_pipe.read(&mut chunk) {
-            Ok(0) => break,
-            Ok(k) => bytes.extend_from_slice(&chunk[..k]),
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = err_thread.join();
-                return Err(io(e));
+    let output =
+        crate::proc::capture(&mut cmd, cancel, 128 * 1024 * 1024).map_err(|e| match e.kind() {
+            std::io::ErrorKind::Interrupted => ThumbError::Cancelled,
+            std::io::ErrorKind::NotFound => {
+                ThumbError::ToolMissing(format!("could not run {tool:?}: {e}"))
             }
-        }
-    }
-    let status = child.wait().map_err(io)?;
-    let stderr = err_thread.join().unwrap_or_default();
-    Ok((status, bytes, stderr))
+            _ => io(e),
+        })?;
+    Ok((
+        output.status,
+        output.stdout,
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    ))
 }
-
 /// One ffmpeg pass over the keyframes of `video`: a picture per selected keyframe, matched to the index by time.
 pub fn generate(
     tools: &Tools,
@@ -351,7 +325,7 @@ pub fn generate(
     }
     filter.push_str(&format!("scale=w=min({}\\,iw):h=-2,showinfo", plan.width));
 
-    let mut cmd = crate::proc::background_command(&tools.ffmpeg);
+    let mut cmd = crate::proc::ffmpeg_command(&tools.ffmpeg);
     cmd.args([
         "-nostdin",
         "-hide_banner",
@@ -366,7 +340,7 @@ pub fn generate(
     .args(crate::import::passthrough_args(&tools.ffmpeg))
     .arg("-vf")
     .arg(filter)
-    .args(["-f", "image2pipe", "-c:v", "mjpeg", "-q:v"])
+    .args(crate::proc::JPEG_OUTPUT)
     .arg(plan.quality.to_string())
     .arg("-");
     let (status, bytes, stderr) = run(cmd, &tools.ffmpeg, cancel)?;

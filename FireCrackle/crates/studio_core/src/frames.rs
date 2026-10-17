@@ -8,7 +8,6 @@ use crate::config::DecodeConfig;
 use crate::decode_plan::DecodeJob;
 use crate::import::Tools;
 use crate::index::FrameIndex;
-use std::io::Read;
 use std::ops::Range;
 use std::path::Path;
 use std::process::Stdio;
@@ -197,7 +196,7 @@ pub fn decode_job(
     gate.set_limit(cfg.max_parallel as usize);
     let _slot = gate.acquire(cancel).ok_or(DecodeError::Cancelled)?;
 
-    let mut cmd = crate::proc::background_command(&tools.ffmpeg);
+    let mut cmd = crate::proc::ffmpeg_command(&tools.ffmpeg);
     cmd.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-nostats"]);
     // ffmpeg reports frame times relative to the seek point (or to the first frame when there is no seek), so the
     // absolute time of decoded frame `k` is `time_base + showinfo time`. `-copyts` would keep absolute times but
@@ -219,50 +218,22 @@ pub fn decode_job(
         .arg(job.decode_count.to_string())
         .arg("-vf")
         .arg(format!("scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width))
-        .args(["-f", "image2pipe", "-c:v", "mjpeg", "-q:v"])
+        .args(crate::proc::JPEG_OUTPUT)
         .arg(cfg.jpeg_quality.to_string())
         .arg("-")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| DecodeError::ToolMissing(format!("could not run {:?}: {e}", tools.ffmpeg)))?;
-
-    // ffmpeg's log goes to stderr; drain it on its own thread so a full pipe cannot stall the video output
-    let mut err_pipe = child.stderr.take().expect("stderr was piped");
-    let err_thread = std::thread::spawn(move || {
-        let mut s = String::new();
-        let mut buf = Vec::new();
-        let _ = err_pipe.read_to_end(&mut buf);
-        s.push_str(&String::from_utf8_lossy(&buf));
-        s
-    });
-    let mut out_pipe = child.stdout.take().expect("stdout was piped");
-    let mut bytes: Vec<u8> = Vec::new();
-    let mut chunk = vec![0u8; 1 << 16];
-    loop {
-        if cancel.load(Ordering::SeqCst) {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = err_thread.join();
-            return Err(DecodeError::Cancelled);
-        }
-        match out_pipe.read(&mut chunk) {
-            Ok(0) => break,
-            Ok(k) => bytes.extend_from_slice(&chunk[..k]),
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = err_thread.join();
-                return Err(DecodeError::Io(e.to_string()));
+    let output =
+        crate::proc::capture(&mut cmd, cancel, 128 * 1024 * 1024).map_err(|e| match e.kind() {
+            std::io::ErrorKind::Interrupted => DecodeError::Cancelled,
+            std::io::ErrorKind::NotFound => {
+                DecodeError::ToolMissing(format!("could not run {:?}: {e}", tools.ffmpeg))
             }
-        }
-    }
-    let status = child.wait().map_err(|e| DecodeError::Io(e.to_string()))?;
-    let stderr = err_thread.join().unwrap_or_default();
-
+            _ => DecodeError::Io(e.to_string()),
+        })?;
+    let (status, bytes) = (output.status, output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     let split = split_jpegs(&bytes);
     let got = split.frames.len() as u32;
     if !status.success() {

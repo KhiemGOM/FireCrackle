@@ -124,10 +124,10 @@ describe("prefetch: what and in which order", () => {
     expect(r.maxInflight()).toBe(2);
   });
 
-  it("at speed 4 fetches every 4th frame, which are the ones that will be shown", () => {
+  it("at speed 4 keeps contiguous frames for arbitrary timer catch-up", () => {
     const r = rig(1000, { ahead: 6 });
     r.buffer.prefetch(100, { dir: 1, speed: 4 });
-    expect(r.fetched).toEqual([104, 108, 112]);
+    expect(r.fetched).toEqual([101, 102, 103]);
   });
 
   it("skips frames already buffered and does not fetch the one being shown again", async () => {

@@ -75,6 +75,10 @@ export default function App() {
   const ws = useWorkspace(backend);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
+  const presented = useRef<number | null>(null);
+  const playbackView = useRef(view);
+  playbackView.current = view;
+  const framePresented = useCallback((frame: number) => { presented.current = frame; }, []);
   const [showSettings, setShowSettings] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
@@ -224,13 +228,14 @@ export default function App() {
     const maxCatchUp = 30; // after a long stall, drop the rest instead of racing ahead
     let clock = startClock(performance.now());
     const id = setInterval(() => {
-      if (ws.busy.current) return;
-      const due = framesDue(performance.now(), clock, fps, playback.speed, maxCatchUp);
+      const ready = !ws.busy.current && presented.current === playbackView.current?.current;
+      const due = framesDue(performance.now(), clock, fps, playback.speed, maxCatchUp, ready);
       clock = due.clock;
       if (due.frames > 0) void act({ type: "step", frames: due.frames * playback.dir });
     }, tick.intervalMs);
     return () => clearInterval(id);
   }, [fps, playback, minTick, act, ws.busy]);
+  useEffect(() => { presented.current = null; }, [ws.videoPath]);
 
   // stop at the ends
   useEffect(() => {
@@ -350,7 +355,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={(m) => console.error(m)} />
+            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={(m) => console.error(m)} />
             <Splitter
               direction="row"
               label="Video height"

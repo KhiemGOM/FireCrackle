@@ -1,8 +1,5 @@
-/** Wall-clock playback. The play loop used to move one step for every timer tick that ran and to skip a tick that fired
- *  while the previous step was still in flight, so every skipped tick was lost time: any hiccup slowed the video for
- *  good (a 60 fps video leaves only 16.7 ms per tick). Here the frame the video should be at follows the clock; a late
- *  or skipped tick moves several frames at once, so the speed stays right and a slow moment drops frames instead of
- *  slowing everything down. */
+/** Presentation-gated media clock. Timer jitter may skip frames once a picture is ready;
+ * buffering pauses media time and discards catch-up debt. */
 export interface PlaybackClock {
   /** `performance.now()` when playback (at this speed and direction) started. */
   startMs: number;
@@ -25,7 +22,10 @@ export function framesDue(
   fps: number,
   speed: number,
   maxCatchUp: number,
+  ready = true,
 ): { frames: number; clock: PlaybackClock } {
+  // A missing picture pauses media time. Waiting never becomes catch-up debt.
+  if (!ready) return { frames: 0, clock: startClock(nowMs) };
   const rate = (fps * speed) / 1000; // frames per millisecond
   if (!Number.isFinite(rate) || !(rate > 0) || !Number.isFinite(nowMs)) return { frames: 0, clock };
   const owed = Math.floor((nowMs - clock.startMs) * rate) - clock.stepped;

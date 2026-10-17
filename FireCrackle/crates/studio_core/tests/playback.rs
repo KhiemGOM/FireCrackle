@@ -637,3 +637,62 @@ fn the_service_handle_shares_the_workspaces_cache() {
     handle.wait_idle();
     assert!(fake.calls().len() >= decodes);
 }
+
+#[test]
+fn simultaneous_cold_requests_share_one_decode() {
+    let fake = Arc::new(Fake {
+        delay_ms: 60,
+        ..Default::default()
+    });
+    let svc = service(100, cfg(0, 0, 0.0), &fake);
+    let barrier = Arc::new(std::sync::Barrier::new(4));
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            let (svc, barrier) = (svc.clone(), barrier.clone());
+            scope.spawn(move || {
+                barrier.wait();
+                assert_eq!(*svc.get(30).unwrap(), payload(30));
+            });
+        }
+    });
+    svc.wait_idle();
+    assert_eq!(
+        fake.calls().len(),
+        1,
+        "same frame must not start four identical FFmpeg runs"
+    );
+}
+#[test]
+fn cancelling_the_service_refuses_new_work() {
+    let fake = Arc::new(Fake::default());
+    let svc = service(100, cfg(0, 0, 0.0), &fake);
+    svc.cancel();
+    assert!(matches!(
+        svc.get(30),
+        Err(studio_core::workspace::FrameError::Decode(
+            DecodeError::Cancelled
+        ))
+    ));
+    svc.prefetch(40);
+    svc.wait_idle();
+    assert!(fake.calls().is_empty());
+}
+#[test]
+fn cached_pictures_are_not_blocked_by_an_unrelated_cold_decode() {
+    let fake = Arc::new(Fake {
+        delay_ms: 100,
+        ..Default::default()
+    });
+    let svc = service(100, cfg(0, 0, 0.0), &fake);
+    svc.get(1).unwrap();
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| svc.get(80).unwrap());
+        while fake.started.load(Ordering::SeqCst) < 2 {
+            std::thread::yield_now();
+        }
+        let start = Instant::now();
+        svc.get(1).unwrap();
+        assert!(start.elapsed() < Duration::from_millis(50));
+        worker.join().unwrap();
+    });
+}

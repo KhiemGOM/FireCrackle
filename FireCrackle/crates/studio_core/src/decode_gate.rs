@@ -1,10 +1,7 @@
 //! A limit on how many ffmpeg frame decodes run at the same time, for the whole process.
 //!
-//! Every request for a frame that is not in memory starts a decode of its own (a second or two of one-core-plus work at
-//! 1080p). After a seek the app could ask for the sought frame and its neighbours together, and each started a decode
-//! of about 120 frames: four at once where there had been one. On a busy laptop that is how a timeline skip took the
-//! whole machine down. The gate makes the extra requests wait for a free slot (and give up when they are cancelled)
-//! instead, so a burst of requests becomes a short queue and not a burst of processes.
+//! Requests once started overlapping multi-frame decodes after seeks. Bound both active
+//! processes and queued callers. The reported whole-PC shutdown has no proven cause.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, MutexGuard, OnceLock};
@@ -47,7 +44,7 @@ impl DecodeGate {
     pub fn with_starvation(limit: usize, starvation: Duration) -> DecodeGate {
         DecodeGate {
             state: Mutex::new(State {
-                limit: limit.max(1),
+                limit: limit.clamp(1, 8),
                 in_flight: 0,
                 next_ticket: 0,
                 waiting: Vec::new(),
@@ -68,7 +65,7 @@ impl DecodeGate {
 
     /// Change the limit. Decodes already running are left alone; waiting callers are let in if there is room now.
     pub fn set_limit(&self, limit: usize) {
-        self.lock().limit = limit.max(1);
+        self.lock().limit = limit.clamp(1, 8);
         self.freed.notify_all();
     }
 
@@ -90,9 +87,11 @@ impl DecodeGate {
         let mut state = self.lock();
         let ticket = state.next_ticket;
         state.next_ticket += 1;
+        if state.waiting.len() == 32 { state.waiting.remove(0); }
         state.waiting.push((ticket, Instant::now()));
+        self.freed.notify_all();
         loop {
-            if cancel.load(Ordering::SeqCst) {
+            if cancel.load(Ordering::SeqCst) || !state.waiting.iter().any(|w| w.0 == ticket) {
                 state.waiting.retain(|w| w.0 != ticket);
                 drop(state);
                 self.freed.notify_all(); // the next in line may be waiting behind this one

@@ -35,10 +35,8 @@ import { GuiMaskOverlay, GuiMaskPanel, useGuiMask } from "./GuiMaskControls";
 import { JumpBox } from "./JumpBox";
 import { DEFAULT_BUFFER_SETTINGS, FrameBuffer, type BufferSettings } from "../lib/frameBuffer";
 import { domBufferIo } from "../lib/frameBufferDom";
-import { PlaybackStats } from "../lib/playbackStats";
 import { shouldShowLate } from "../lib/lateFrame";
 import { correctsNow } from "../lib/correctionGate";
-import { PlaybackReadout } from "./PlaybackReadout";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
 
 export interface VideoPreviewHandle {
@@ -70,6 +68,8 @@ interface Props {
   backend: Backend;
   view: View;
   onError: (message: string) => void;
+  /** The image element finished loading this frame; media time may advance. */
+  onFramePresented?: (frame: number) => void;
   previewRef?: Ref<VideoPreviewHandle>;
   onPreviewChange?: (sprite:PreviewSprite|null)=>void;
   onMatchCandidate?: (sprite:PreviewSprite)=>void;
@@ -91,7 +91,7 @@ interface Props {
 }
 
 /** The current frame, with its number, time and label over it. */
-export function VideoPane({ backend, view, onError, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
+export function VideoPane({ backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
@@ -110,7 +110,6 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
   const playing = (motion?.dir ?? 0) !== 0;
   const bufferWanted = bufferSettings ?? DEFAULT_BUFFER_SETTINGS;
   const bufferKey = `${bufferWanted.ahead}|${bufferWanted.behind}|${bufferWanted.decodeAhead}|${bufferWanted.parallel}`;
-  const stats = useRef(new PlaybackStats());
   // created in an effect, not memoised: React StrictMode runs an effect's cleanup before its second run
   const [buffer, setBuffer] = useState<FrameBuffer | null>(null);
   const toolStorage = storageScope ? scopedStorage(storageScope, stateStorage) : stateStorage;
@@ -294,12 +293,11 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
       setUrl(stillImage.url); setShown(view.current); setVeilApplied(false); setEnhanceApplied(false); return;
     }
     if (!stillImage && buffer) {
-      stats.current.needed(view.current, performance.now(), { playing: motionRef.current.dir !== 0, speed: motionRef.current.speed });
       buffer.prefetch(view.current, motionRef.current);
       if (!correcting) {
         // no picture correction: show the frame buffer's own, already decoded, object URL
         const frame = view.current;
-        buffer.load(frame).then(({ fromBuffer }) => {
+        buffer.load(frame, cancel.signal).then(() => {
           // the playhead moved on while this frame was on its way: it is still shown when it is newer than the picture
           // on screen and not too far behind (lib/lateFrame.ts), so a slow moment slows the picture, not freezes it
           const late = mine !== token.current;
@@ -312,7 +310,6 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           shownRef.current = frame;
           setUrl(next); setShown(frame); setVeilApplied(false); setEnhanceApplied(false);
           if (old && !oldFromBuffer) URL.revokeObjectURL(old);
-          if (!late) stats.current.shown(frame, performance.now(), fromBuffer);
         }).catch((e) => mine === token.current && onError(`Could not decode frame ${frame}: ${String(e)}`));
         return () => { ++token.current; cancel.abort(); };
       }
@@ -320,10 +317,10 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
     const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
       ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original, fromBuffer: false }; })
-      : (buffer ? buffer.load(view.current) : backend.frame(view.current).then((bytes) => ({ bytes, fromBuffer: false })))
+      : (buffer ? buffer.load(view.current, cancel.signal) : backend.frame(view.current).then((bytes) => ({ bytes, fromBuffer: false })))
         .then(({ bytes, fromBuffer }) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }), fromBuffer }));
     source
-      .then(async ({ bytes, original, fromBuffer }) => {
+      .then(async ({ bytes, original }) => {
         const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo, runPortal ? async image => {
           let world: Uint8Array | undefined;
           if (guiReady && guiMask.pixels && guiMask.reply && image.width === guiMask.reply.width && image.height === guiMask.reply.height) {
@@ -346,7 +343,6 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
         setVeilApplied(made.applied);
         setEnhanceApplied(!!made.enhanced);
         if (old && !oldFromBuffer) URL.revokeObjectURL(old);
-        if (!stillImage) stats.current.shown(view.current, performance.now(), fromBuffer);
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
     return () => { ++token.current; cancel.abort(); };
@@ -443,7 +439,7 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
           className="video-zoom"
           style={{ transform: `translate(${xf.x}px, ${xf.y}px) rotate(${xf.angle ?? 0}deg) scale(${xf.scale})` }}
         >
-          {url ? <img src={url} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })} /> : <div className="placeholder">decoding…</div>}
+          {url ? <img src={url} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => { setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight }); if (!stillImage && shown !== null && e.currentTarget.getAttribute("src") === urlRef.current) onFramePresented?.(shown); }} /> : <div className="placeholder">decoding…</div>}
           {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
           {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
@@ -555,7 +551,6 @@ export function VideoPane({ backend, view, onError, previewRef, onPreviewChange,
         </span>
         <span>{formatTimecode(view.pts, view.fps)}</span></>}
         <span>{view.fps.toFixed(2)} fps</span>
-        {buffer && <PlaybackReadout stats={stats.current} buffer={buffer} fps={view.fps} current={view.current} dir={motion?.dir ?? 0} />}
         <span>
           labelled <b>{view.labelled_count}</b>
         </span>

@@ -416,3 +416,23 @@ it("marks the picture as enhanced only when a stage changed it", async () => {
   const second = await runLoad(postOf({}, { gamma: 2 }, true));
   expect(find(second.render(), "Picture enhanced")).toBeUndefined();
 });
+
+it("reports presentation only after the current image loads, never for a stale URL", async () => {
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  const onFramePresented = vi.fn();
+  const { render, view } = await runLoad(postOf({}), { onFramePresented });
+  function image(node: Element): Element | undefined {
+    if (node.type === "img") return node;
+    for (const child of [node.props.children].flat(Infinity)) {
+      if (child && typeof child === "object" && "props" in child) { const match = image(child); if (match) return match; }
+    }
+  }
+  const img = image(render())!;
+  expect(onFramePresented).not.toHaveBeenCalled();
+  const currentTarget = { naturalWidth: 1920, naturalHeight: 1080, getAttribute: () => "stale-url" };
+  img.props.onLoad({ currentTarget });
+  expect(onFramePresented).not.toHaveBeenCalled();
+  currentTarget.getAttribute = () => img.props.src;
+  img.props.onLoad({ currentTarget });
+  expect(onFramePresented).toHaveBeenCalledWith(view.current);
+});

@@ -1,6 +1,4 @@
-//! The decode gate: at most `limit` ffmpeg frame decodes run at once, however many are asked for. After a seek the
-//! frame service could start four decodes of 120 frames each at the same moment; on a busy laptop that is how a
-//! timeline skip took the whole machine down. Callers that cannot get a permit wait, and give up when cancelled.
+//! Decode admission remains bounded under bursts, cancellation and failures.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -322,12 +320,32 @@ fn frame_decodes_and_the_thumbnail_pass_start_at_background_priority() {
     for file in ["frames.rs", "thumbs.rs"] {
         let text = std::fs::read_to_string(dir.join(file)).unwrap();
         assert!(
-            text.contains("proc::background_command(&tools.ffmpeg)"),
-            "{file} must start ffmpeg through proc::background_command"
+            text.contains("proc::ffmpeg_command(&tools.ffmpeg)"),
+            "{file} must use the bounded background FFmpeg command"
         );
         assert!(
             !text.contains("proc::hidden_command(&tools.ffmpeg)"),
             "{file} starts ffmpeg at normal priority"
         );
     }
+}
+
+#[test]
+fn an_overload_has_a_hard_waiter_bound_and_cancels_cleanly() {
+    let gate=Arc::new(DecodeGate::new(1));let held_cancel=never();let held=gate.acquire(&held_cancel).unwrap();
+    let cancel=Arc::new(AtomicBool::new(false));
+    let handles:Vec<_>=(0..40).map(|_|{let g=gate.clone();let c=cancel.clone();thread::spawn(move||g.acquire(&c).is_none())}).collect();
+    thread::sleep(Duration::from_millis(200));
+    let queued=gate.waiting();
+    cancel.store(true,Ordering::SeqCst);
+    for h in handles {assert!(h.join().unwrap());}
+    drop(held);
+    assert!(queued<=32,"unbounded queued decodes: {queued}");
+    assert_eq!(gate.waiting(),0);assert_eq!(gate.in_flight(),0);
+}
+
+#[test]
+fn invalid_large_limits_cannot_disable_the_process_cap() {
+    let gate=DecodeGate::new(usize::MAX);assert!(gate.limit()<=8);
+    gate.set_limit(usize::MAX);assert!(gate.limit()<=8);
 }

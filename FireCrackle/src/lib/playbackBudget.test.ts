@@ -1,3 +1,4 @@
+// @ts-expect-error Node-only test API; the browser project intentionally excludes Node types.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 

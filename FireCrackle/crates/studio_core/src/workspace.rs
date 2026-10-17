@@ -112,7 +112,8 @@ struct Inner {
     background_done: Condvar,
     busy: AtomicBool,
     worker: Mutex<Option<JoinHandle<()>>>,
-    never_cancelled: AtomicBool,
+    cancelled: AtomicBool,
+    foreground: Mutex<()>,
 }
 
 impl Inner {
@@ -120,6 +121,7 @@ impl Inner {
     /// decoded. None when the window is full, or when the job would be for the playhead's own frame: a request is
     /// decoding that one.
     fn next_fill(&self) -> Option<DecodeJob> {
+        if self.cancelled.load(Ordering::SeqCst) { return None; }
         let cfg = *self.cfg.lock().expect("decode config lock");
         let around = self.latest.load(Ordering::SeqCst);
         let job = {
@@ -223,7 +225,8 @@ impl FrameService {
                 background_done: Condvar::new(),
                 busy: AtomicBool::new(false),
                 worker: Mutex::new(None),
-                never_cancelled: AtomicBool::new(false),
+                cancelled: AtomicBool::new(false),
+                foreground: Mutex::new(()),
             }),
         }
     }
@@ -237,7 +240,9 @@ impl FrameService {
         }
         inner.latest.store(frame, Ordering::SeqCst);
         let cfg = *inner.cfg.lock().expect("decode config lock");
+        let mut foreground = None;
         loop {
+            if inner.cancelled.load(Ordering::SeqCst) { return Err(FrameError::Decode(DecodeError::Cancelled)); }
             let plan = {
                 let st = inner.state.lock().expect("frame cache lock");
                 plan(&inner.index, &st.cache, frame, &cfg).map_err(FrameError::Plan)?
@@ -262,6 +267,10 @@ impl FrameService {
                 }
                 continue; // evicted between planning and reading: plan again
             }
+            if foreground.is_none() {
+                foreground = Some(inner.foreground.lock().expect("foreground decode lock"));
+                continue; // Recheck the cache: the preceding request may have filled this frame.
+            }
             // The frame's own job stops a short way around it, so it is shown after one short decode; the rest of the
             // window is filled in the background right after it (a decode costs about 300 ms plus 1.7 ms a frame).
             let job = trim_job(
@@ -273,7 +282,7 @@ impl FrameService {
             );
             let decoded = inner
                 .source
-                .decode(&job, &inner.never_cancelled)
+                .decode(&job, &inner.cancelled)
                 .map_err(FrameError::Decode)?;
             let kept = inner.insert(decoded, Some(frame)).ok_or_else(|| {
                 FrameError::Decode(DecodeError::BadStream(format!(
@@ -287,6 +296,7 @@ impl FrameService {
 
     /// Top the window up around `around` on a background thread (no-op while one is running or nothing is due).
     pub fn prefetch(&self, around: u32) {
+        if self.inner.cancelled.load(Ordering::SeqCst) { return; }
         self.inner.latest.store(around, Ordering::SeqCst);
         if self.inner.busy.swap(true, Ordering::SeqCst) {
             return;
@@ -305,7 +315,7 @@ impl FrameService {
             for _ in 0..8 {
                 let Some(current) = job.take() else { break };
                 // a failed prefetch is not an error: the next request plans again
-                let decoded = inner.source.decode(&current, &inner.never_cancelled);
+                let decoded = inner.source.decode(&current, &inner.cancelled);
                 let ok = decoded.is_ok();
                 if let Ok(frames) = decoded {
                     inner.insert(frames, None);
@@ -336,7 +346,7 @@ impl FrameService {
         let (_guard, timeout) = self
             .inner
             .background_done
-            .wait_timeout_while(guard, FILL_WAIT, |range| covers(range))
+            .wait_timeout_while(guard, FILL_WAIT, |range| covers(range) && !self.inner.cancelled.load(Ordering::SeqCst))
             .expect("background lock");
         !timeout.timed_out()
     }
@@ -344,6 +354,12 @@ impl FrameService {
     /// How far past a missing frame its own job decodes (0: the whole window at once).
     pub fn set_first_frames(&self, frames: u32) {
         self.inner.first_ahead.store(frames, Ordering::SeqCst);
+    }
+
+    /// Stop this workspace's queued/running frame work, including clones held by IPC requests.
+    pub fn cancel(&self) {
+        self.inner.cancelled.store(true, Ordering::SeqCst);
+        self.inner.background_done.notify_all();
     }
 
     /// Block until no background prefetch is running.
@@ -1059,6 +1075,7 @@ impl Workspace {
 impl Drop for Workspace {
     /// A running thumbnail pass is cancelled (ffmpeg is killed); it is not waited for.
     fn drop(&mut self) {
+        self.frames.cancel();
         self.thumb_shared.cancel.store(true, Ordering::SeqCst);
     }
 }

@@ -1,231 +1,184 @@
-/** A look-ahead buffer of video frames for the Label tab (PLAN-BUFFER.md). No DOM: fetching, object URLs and decoding are
- *  injected, so the policy runs (and is tested) without a browser.
- *
- *  It keeps the JPEG bytes of the frames around the playhead, so showing the next frame needs no request, and starts the
- *  decoding of the next few ahead of time, so showing one is a swap, not a decode. */
-
+/** Bounded JPEG look-ahead. IO is injected; foreground loads and prefetch share one scheduler. */
 export interface BufferSettings {
-  /** Frames fetched ahead, in the direction of play (and ahead of a paused playhead). */
   ahead: number;
-  /** Frames kept behind the playhead (and fetched while paused). */
   behind: number;
-  /** Of the frames ahead, how many are also decoded in advance. */
   decodeAhead: number;
-  /** Fetches in flight at once. */
   parallel: number;
-  /** For the pane, not the buffer: how far behind the playhead a late picture may still be shown (lib/lateFrame.ts). */
   lateShow?: number;
 }
-
-/** The defaults of the `label.buffer_*` settings (config.rs); the app passes the saved values. */
 export const DEFAULT_BUFFER_SETTINGS: BufferSettings = { ahead: 90, behind: 30, decodeAhead: 8, parallel: 3, lateShow: 30 };
-
 export interface BufferIo {
   fetch(frame: number): Promise<ArrayBuffer>;
   createUrl(bytes: ArrayBuffer): string;
   revokeUrl(url: string): void;
-  /** Load and decode the picture behind `url`, so that showing it later has no decoding left. */
   predecode(url: string): Promise<void>;
 }
-
-/** Which way the playhead moves (-1, 0 paused, 1) and how fast (a multiple of the frame rate). */
-export interface Motion {
-  dir: -1 | 0 | 1;
-  speed: number;
-}
-
-interface Entry {
-  bytes: ArrayBuffer;
-  url: string | null;
-  /** Its decode has been started. */
-  warm: boolean;
-}
-
-/** `v` rounded down into min..max; NaN counts as 0. */
+export interface Motion { dir: -1 | 0 | 1; speed: number }
+interface Entry { bytes: ArrayBuffer; url: string | null; warm: boolean }
+interface Waiting { promise: Promise<ArrayBuffer>; resolve(bytes: ArrayBuffer): void; reject(error: Error): void }
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(v) || 0));
+const CACHE_BYTES = 64 * 1024 * 1024, FRAME_BYTES = 16 * 1024 * 1024;
+const cancelled = () => new Error("frame request cancelled");
 
 export class FrameBuffer {
   private readonly entries = new Map<number, Entry>();
   private readonly inflight = new Map<number, Promise<ArrayBuffer>>();
-  /** Frames a caller waits for in `load`: kept even outside the window. */
-  private readonly forced = new Set<number>();
-  /** Frames whose prefetch failed: not asked for again until the playhead moves. */
+  private readonly queued = new Map<number, Waiting>();
+  private readonly forced = new Map<number, Set<object>>();
   private readonly failed = new Set<number>();
   private ahead = 0;
   private behind = 0;
   private decodeAhead = 0;
   private parallel = 1;
+  private warming = 0;
+  private bytes = 0;
   private current = 0;
   private motion: Motion = { dir: 0, speed: 1 };
   private shownFrame: number | null = null;
-  /** A seek waiting for its frame: nothing is asked for until that frame has arrived. */
   private waitingFor: { current: number; motion: Motion } | null = null;
   private started = false;
   private disposed = false;
 
-  /**
-   * `holdForCurrent` (the default): the look-ahead only starts once the frame at the playhead is in the buffer, so the
-   * caller has to `load` it. After a seek the backend has none of the neighbours either, and every request for a missing
-   * frame starts a decode of its own: asking for the neighbours together with the frame itself started four decodes at
-   * once. Asking for the frame alone lets that one decode fill the backend's cache, and the neighbours come out of it.
-   * Switch it off only to test the planner on its own.
-   */
-  constructor(
-    private readonly frameCount: number,
-    private readonly io: BufferIo,
-    settings: BufferSettings,
-    private readonly holdForCurrent = true,
-  ) {
-    this.setSettings(settings);
-  }
-
+  /** On a seek, fetch the target before neighbours: its native decode fills their cache too. */
+  constructor(private readonly frameCount: number, private readonly io: BufferIo,
+    settings: BufferSettings, private readonly holdForCurrent = true) { this.setSettings(settings); }
   setSettings(s: BufferSettings): void {
-    this.ahead = clamp(s.ahead, 0, 1200);
-    this.behind = clamp(s.behind, 0, 600);
-    this.decodeAhead = clamp(s.decodeAhead, 0, 64);
-    this.parallel = clamp(s.parallel, 1, 8);
+    this.ahead = clamp(s.ahead, 0, 1200); this.behind = clamp(s.behind, 0, 600);
+    this.decodeAhead = clamp(s.decodeAhead, 0, 8); this.parallel = clamp(s.parallel, 1, 8);
     this.pump();
   }
-
-  has(frame: number): boolean {
-    return this.entries.has(frame);
-  }
-
-  /** The frames in a row that are buffered right after `current`, in direction `dir` (paused counts as forward). */
+  has(frame: number): boolean { return this.entries.has(frame); }
   aheadCount(current: number, dir: -1 | 0 | 1): number {
-    const step = dir < 0 ? -1 : 1;
-    let n = 0;
+    const step = dir < 0 ? -1 : 1; let n = 0;
     while (this.entries.has(current + step * (n + 1))) n++;
     return n;
   }
-
-  /** The frame's bytes, from the buffer or fetched (one fetch however many ask). Rejects for a frame outside the video. */
-  async load(frame: number): Promise<{ bytes: ArrayBuffer; fromBuffer: boolean }> {
-    if (this.disposed) throw new Error("the frame buffer was closed");
+  async load(frame: number, signal?: AbortSignal): Promise<{ bytes: ArrayBuffer; fromBuffer: boolean }> {
+    if (this.disposed || signal?.aborted) throw cancelled();
     if (!Number.isInteger(frame) || frame < 0 || frame >= this.frameCount) throw new Error(`frame ${frame} is outside the video`);
     const held = this.entries.get(frame);
     if (held) return { bytes: held.bytes, fromBuffer: true };
-    this.forced.add(frame);
-    return { bytes: await this.fetchFrame(frame), fromBuffer: false };
+    const consumer = {}, consumers = this.forced.get(frame) ?? new Set<object>();
+    consumers.add(consumer); this.forced.set(frame, consumers);
+    let abort = () => {};
+    try {
+      const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+        abort = () => { this.unpin(frame, consumer); reject(cancelled()); };
+        signal?.addEventListener("abort", abort, { once: true });
+        this.request(frame).then(resolve, reject);
+      });
+      return { bytes, fromBuffer: false };
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (!signal?.aborted) this.unpin(frame, consumer);
+    }
   }
-
-  /** The object URL of a buffered frame (made on first use, kept until the frame leaves the buffer), else null. */
+  private unpin(frame: number, consumer: object): void {
+    const consumers = this.forced.get(frame);
+    if (!consumers?.delete(consumer) || consumers.size) return;
+    this.forced.delete(frame);
+    const queued = this.queued.get(frame);
+    if (queued) { this.queued.delete(frame); queued.reject(cancelled()); }
+  }
   urlFor(frame: number): string | null {
     const entry = this.entries.get(frame);
-    if (!entry || this.disposed) return null;
-    return (entry.url ??= this.io.createUrl(entry.bytes));
+    return !entry || this.disposed ? null : (entry.url ??= this.io.createUrl(entry.bytes));
   }
-
-  /** The frame on screen: never evicted, so its picture is not pulled away while it is shown. */
-  show(frame: number | null): void {
-    this.shownFrame = frame;
-  }
-
-  /** The playhead is at `current` moving as `motion`: drop what fell out of the window and fetch what comes next. */
+  show(frame: number | null): void { this.shownFrame = frame; }
   prefetch(current: number, motion: Motion): void {
     if (this.disposed || !Number.isInteger(current) || current < 0 || current >= this.frameCount) return;
-    if (this.holdForCurrent && !this.entries.has(current)) {
-      this.waitingFor = { current, motion }; // a seek or a start: wait for this frame, here and around the old place
-      return;
-    }
+    if (this.holdForCurrent && !this.entries.has(current)) { this.waitingFor = { current, motion }; return; }
     this.waitingFor = null;
     if (current !== this.current) this.failed.clear();
-    this.current = current;
-    this.motion = motion;
-    this.started = true;
-    this.evict();
-    this.warm();
-    this.pump();
+    this.current = current; this.motion = motion; this.started = true;
+    this.evict(); this.warm(); this.pump();
   }
-
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const entry of this.entries.values()) if (entry.url) this.io.revokeUrl(entry.url);
-    this.entries.clear();
+    for (const f of this.entries.keys()) this.remove(f);
+    for (const q of this.queued.values()) q.reject(cancelled());
+    this.queued.clear(); this.forced.clear();
   }
-
-  // ---- policy
-
-  /** Frames between shown ones when playing faster than the frame rate: only those are ever shown. */
-  private stride(): number {
-    return this.motion.speed > 1 ? Math.round(this.motion.speed) : 1;
-  }
-
-  /** The k-th frame of the look-ahead, nearest first: forward or backward when playing; both sides, the one ahead first, when paused. */
+  // Kept contiguous: fractional speed and timer catch-up can request any frame.
   private nth(k: number): number {
     const { dir } = this.motion;
-    return dir === 0 ? this.current + (k % 2 ? (k + 1) / 2 : -k / 2) : this.current + dir * this.stride() * k;
+    return dir === 0 ? this.current + (k % 2 ? (k + 1) / 2 : -k / 2) : this.current + dir * k;
   }
-
   private inWindow(frame: number): boolean {
-    const span = this.ahead * this.stride();
     return this.motion.dir < 0
-      ? frame >= this.current - span && frame <= this.current + this.behind
-      : frame >= this.current - this.behind && frame <= this.current + span;
+      ? frame >= this.current - this.ahead && frame <= this.current + this.behind
+      : frame >= this.current - this.behind && frame <= this.current + this.ahead;
   }
-
+  private remove(frame: number): void {
+    const entry = this.entries.get(frame);
+    if (!entry) return;
+    if (entry.url) this.io.revokeUrl(entry.url);
+    this.bytes -= entry.bytes.byteLength; this.entries.delete(frame);
+  }
   private evict(): void {
-    for (const [frame, entry] of this.entries) {
-      if (frame === this.shownFrame || this.inWindow(frame)) continue;
-      if (entry.url) this.io.revokeUrl(entry.url);
-      this.entries.delete(frame);
-    }
+    for (const frame of this.entries.keys())
+      if (frame !== this.shownFrame && !this.inWindow(frame)) this.remove(frame);
   }
-
+  private request(frame: number): Promise<ArrayBuffer> {
+    const pending = this.inflight.get(frame) ?? this.queued.get(frame)?.promise;
+    if (pending) return pending;
+    if (this.inflight.size < this.parallel) return this.fetchFrame(frame);
+    // A non-cooperating caller still cannot create an unbounded seek queue.
+    if (this.queued.size === 32) {
+      const [old, q] = this.queued.entries().next().value!;
+      this.queued.delete(old); this.forced.delete(old); q.reject(cancelled());
+    }
+    let resolve!: Waiting["resolve"], reject!: Waiting["reject"];
+    const promise = new Promise<ArrayBuffer>((yes, no) => { resolve = yes; reject = no; });
+    this.queued.set(frame, { promise, resolve, reject });
+    return promise;
+  }
   private pump(): void {
-    if (this.disposed || !this.started || this.waitingFor) return;
+    if (this.disposed) return;
+    while (this.inflight.size < this.parallel && this.queued.size) {
+      const [frame, q] = this.queued.entries().next().value!;
+      this.queued.delete(frame); this.fetchFrame(frame).then(q.resolve, q.reject);
+    }
+    if (!this.started || this.waitingFor || this.bytes >= CACHE_BYTES - FRAME_BYTES) return;
     const paused = this.motion.dir === 0;
-    let free = this.parallel - this.inflight.size;
-    for (let k = 1; free > 0 && k <= (paused ? 2 * Math.max(this.ahead, this.behind) : this.ahead); k++) {
-      // paused: odd k lie ahead of the playhead and even k behind it, each side up to its own limit
+    for (let k = 1; this.inflight.size < this.parallel && k <= (paused ? 2 * Math.max(this.ahead, this.behind) : this.ahead); k++) {
       if (paused && (k % 2 ? (k + 1) / 2 > this.ahead : k / 2 > this.behind)) continue;
       const frame = this.nth(k);
       if (frame < 0 || frame >= this.frameCount || this.entries.has(frame) || this.inflight.has(frame) || this.failed.has(frame)) continue;
-      this.fetchFrame(frame).catch(() => {}); // a failed prefetch is not an error: `load` fetches the frame when it is needed
-      free--;
+      this.fetchFrame(frame).catch(() => {});
     }
   }
-
-  /** Starts the decode of the next `decodeAhead` frames (both sides when paused). */
   private warm(): void {
-    for (let k = 1; k <= this.decodeAhead * (this.motion.dir === 0 ? 2 : 1); k++) {
-      const frame = this.nth(k);
-      const entry = this.entries.get(frame);
+    if (this.disposed) return;
+    for (let k = 1; this.warming < 2 && k <= this.decodeAhead * (this.motion.dir === 0 ? 2 : 1); k++) {
+      const frame = this.nth(k), entry = this.entries.get(frame);
       if (!entry || entry.warm) continue;
-      entry.warm = true;
-      this.io.predecode(this.urlFor(frame)!).catch(() => {}); // shown without the head start
+      entry.warm = true; this.warming++;
+      this.io.predecode(this.urlFor(frame)!).catch(() => {}).finally(() => { this.warming--; this.warm(); });
     }
   }
-
   private fetchFrame(frame: number): Promise<ArrayBuffer> {
     let p = this.inflight.get(frame);
     if (p) return p;
-    p = this.io.fetch(frame).then(
-      (bytes) => {
-        this.inflight.delete(frame);
-        this.failed.delete(frame);
-        this.arrive(frame, bytes);
-        this.pump();
-        return bytes;
-      },
-      (error) => {
-        this.inflight.delete(frame);
-        this.forced.delete(frame);
-        this.failed.add(frame);
-        this.pump();
-        throw error;
-      },
-    );
-    this.inflight.set(frame, p);
-    return p;
+    // Cache and forced state are checked when IO completes, not when it was requested.
+    p = this.io.fetch(frame).then(bytes => {
+      if (bytes.byteLength > FRAME_BYTES) throw new Error("frame exceeded the 16 MiB JPEG budget");
+      this.failed.delete(frame);
+      this.arrive(frame, bytes); return bytes;
+    }).catch(error => { if (this.inWindow(frame)) this.failed.add(frame); throw error; }).finally(() => {
+      this.inflight.delete(frame); this.pump();
+    });
+    this.inflight.set(frame, p); return p;
   }
-
   private arrive(frame: number, bytes: ArrayBuffer): void {
-    const wanted = this.forced.delete(frame);
-    // a result for a place the playhead has left is not kept, unless someone is waiting for it
-    if (this.disposed || (!wanted && !this.inWindow(frame))) return;
-    this.entries.set(frame, { bytes, url: null, warm: false });
+    if (this.disposed || (!this.forced.has(frame) && !this.inWindow(frame))) return;
+    this.entries.set(frame, { bytes, url: null, warm: false }); this.bytes += bytes.byteLength;
+    // Keep the arriving picture and the currently displayed one; evict oldest retained bytes first.
+    for (const f of this.entries.keys()) {
+      if (this.bytes <= CACHE_BYTES) break;
+      if (f !== frame && f !== this.shownFrame) this.remove(f);
+    }
     const waiting = this.waitingFor;
     if (waiting?.current === frame) this.prefetch(waiting.current, waiting.motion);
     else this.warm();

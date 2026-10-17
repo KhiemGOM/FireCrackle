@@ -96,3 +96,23 @@ describe("playback clock", () => {
     expect(framesDue(5000 + 1000, c, 60, 2, 1000).frames).toBe(120);
   });
 });
+
+// Job175: consumer backpressure must stop media time, not accumulate catch-up debt.
+describe("buffer underrun backpressure", () => {
+  it("holds indefinitely until presentation is ready, then resumes without a catch-up jump", () => {
+    let clock = startClock(0);
+    for (const now of [17,100,1000,10_000]) {
+      const due = framesDue(now,clock,60,1,30,false);
+      expect(due.frames).toBe(0); clock=due.clock;
+    }
+    const due=framesDue(10_017,clock,60,1,30,true);
+    expect(due.frames).toBe(1);
+  });
+  it("holds backward and fast playback equally (direction is applied by the caller)", () => {
+    for (const speed of [0.5,1,2,4,1.5]) {
+      const stopped=framesDue(5000,startClock(0),60,speed,30,false);
+      expect(stopped.frames).toBe(0);
+      expect(framesDue(5001,stopped.clock,60,speed,30,true).frames).toBe(0);
+    }
+  });
+});
