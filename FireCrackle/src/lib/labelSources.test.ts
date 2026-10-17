@@ -20,6 +20,6 @@ describe("automatic label edge bars",()=>{
   });
   it("marks only the top and bottom, leaving the middle clear",()=>{
     const {g,rects}=canvas();paintAutomaticStrips(g,{...bucket,auto_no_fire:2},2,8,6,44);
-    expect(rects).toEqual([{color:"#38d4bf",x:2,y:8,w:6,h:4},{color:"#38d4bf",x:2,y:48,w:6,h:4}]);
+    expect(rects).toEqual([{color:"#39ff14",x:2,y:8,w:6,h:4},{color:"#39ff14",x:2,y:48,w:6,h:4}]);
   });
 });

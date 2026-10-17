@@ -64,7 +64,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         <section className="automation-experiment" aria-labelledby="no-fire-experiment-heading">
           <h3 id="no-fire-experiment-heading">No-fire checker <span className="experiment-badge">Beta</span></h3>
           <p className="experiment-warning">Missed fire is usually hard to label. If you need more phase readings, recheck Auto’s no-fire labels.</p>
-          <p className="dim">Saves No fire on unlabelled frames when the scan finishes. Existing labels stay unchanged. Teal strips mark automatic no-fire labels; Undo removes the batch.</p>
+          <p className="dim">Saves No fire on unlabelled frames when the scan finishes. Existing labels stay unchanged. Neon green bars mark automatic no-fire labels; Undo removes the batch.</p>
           <p>Best results with:</p>
           <ul>
             <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
