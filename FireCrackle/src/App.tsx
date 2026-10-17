@@ -35,6 +35,7 @@ import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from ".
 import { veilOptionsFromSettings } from "./lib/veil";
 import { wouldConsumeToolKey } from "./lib/toolKeys";
 import { actionFor, reservedGlobally } from "./lib/keymap";
+import { blocksVideoToolKeys } from "./lib/shortcutFocus";
 import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
 
@@ -160,10 +161,11 @@ export default function App() {
   useEffect(() => {
     if (!view || home || tab !== "label" || showAutomation || showLink) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return;
       // A video tool key (Q H M U, or the 1-3 that follow M) belongs to the video pane: do not read it as a row digit.
       const t = e.target as HTMLElement | null;
       if (wouldConsumeToolKey({ key: e.key, type: "down", ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
-        targetEditable: !!t?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t?.tagName ?? "") })) return;
+        targetEditable: blocksVideoToolKeys(t) })) return;
       // Reserve navigation/confirmation before focused inputs and buttons handle them (not in a field that owns its keys).
       if (reservedGlobally({ key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, targetOwnsKeys: t?.dataset?.ownsKeys === "true" })) {
         e.preventDefault();

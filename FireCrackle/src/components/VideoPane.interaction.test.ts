@@ -39,7 +39,10 @@ async function tree() {
   hooks.stateCursor = hooks.refCursor = 0;
   hooks.effects = [];
   const backend = createMockBackend();
-  return VideoPane({ backend, view: await backend.view(), onError: vi.fn() });
+  const root = VideoPane({ backend, view: await backend.view(), onError: vi.fn() });
+  const frame = viewport(root)!;
+  frame.props.ref.current ??= {offsetParent: {}, getBoundingClientRect: () => ({width: 0, height: 0})};
+  return root;
 }
 function find(node: Element, label: string): Element | undefined {
   if (node.type === OpacityControl) return find(OpacityControl(node.props as unknown as Parameters<typeof OpacityControl>[0]), label);
@@ -53,8 +56,86 @@ function find(node: Element, label: string): Element | undefined {
 function pointer(x: number, y: number, button = 0) {
   return { clientX: x, clientY: y, button, pointerId: 7, preventDefault: vi.fn(), currentTarget: { setPointerCapture: vi.fn() } };
 }
-beforeEach(() => { hooks.states = []; hooks.refs = []; });
+beforeEach(() => { hooks.states = []; hooks.refs = []; vi.stubGlobal("document", {querySelector: () => null}); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+it("makes the viewer focusable and takes focus before pan/overlay handlers can retain a field's focus", async () => {
+  const frame = await pane();
+  expect(frame.props.tabIndex).toBe(0);
+  expect(frame.props["aria-label"]).toBe("Video viewer");
+  const focus = vi.fn();
+  frame.props.onPointerDownCapture({button: 0, target: {tagName: "IMG"}, currentTarget: {focus}});
+  expect(focus).toHaveBeenCalledExactlyOnceWith({preventScroll: true});
+  frame.props.onPointerDownCapture({button: 0, target: {tagName: "INPUT", type: "number"}, currentTarget: {focus}});
+  expect(focus).toHaveBeenCalledOnce();
+});
+
+it.each([{tagName: "DIV"}, {tagName: "BUTTON"}, {tagName: "INPUT", type: "range"}, {tagName: "INPUT", type: "checkbox"}, {tagName: "INPUT", type: "radio"}])("routes Q/U/H/M from non-typing focus: %j", async target => {
+  const listeners = new Map<string, (e: any) => void>();
+  vi.stubGlobal("window", {addEventListener: (type: string, handler: (e: any) => void) => listeners.set(type, handler), removeEventListener: vi.fn()});
+  await tree();
+  const setup = hooks.effects.find(effect => effect.toString().includes("dispatchToolKey"))!;
+  expect(setup).toBeDefined(); const stop = setup();
+  const press = (key: string, type = "keydown", extra = {}) => {
+    const event = {key, target, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra};
+    listeners.get(type)!(event); return event;
+  };
+  expect(press("q").preventDefault).toHaveBeenCalledOnce();
+  let root = await tree(); expect(find(root, "Quad mask settings")).toBeDefined();
+  press("u"); root = await tree(); expect(find(root, "Ruler settings")).toBeDefined();
+  press("h"); root = await tree(); expect(find(root, "First-person fire settings")).toBeDefined();
+  press("m"); root = await tree(); expect(find(root, "Sprite matching settings")).toBeDefined();
+  expect(press("1").preventDefault).toHaveBeenCalledOnce();
+  press("m", "keyup", {target: {tagName: "INPUT", type: "number"}});
+  expect(press("1").preventDefault).not.toHaveBeenCalled();
+  stop?.();
+});
+
+it("protects typing, owned-key widgets, modifiers, repeats, composing input, hidden viewers and dialogs", async () => {
+  const listeners = new Map<string, (e: any) => void>();
+  vi.stubGlobal("window", {addEventListener: (type: string, handler: (e: any) => void) => listeners.set(type, handler), removeEventListener: vi.fn()});
+  const frame = await pane();
+  const stop = hooks.effects.find(effect => effect.toString().includes("dispatchToolKey"))!();
+  const press = (extra = {}) => {
+    const event = {key: "q", target: {tagName: "DIV"}, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra};
+    listeners.get("keydown")!(event); return event;
+  };
+  for (const target of [{tagName: "INPUT", type: "number"}, {tagName: "TEXTAREA"}, {tagName: "SELECT"}, {isContentEditable: true}, {dataset: {ownsKeys: "true"}}, {closest: () => ({})}]) expect(press({target}).preventDefault).not.toHaveBeenCalled();
+  for (const extra of [{ctrlKey: true}, {metaKey: true}, {altKey: true}, {shiftKey: true}, {isComposing: true}, {defaultPrevented: true}]) expect(press(extra).preventDefault).not.toHaveBeenCalled();
+  frame.props.ref.current.offsetParent = null;
+  expect(press().preventDefault).not.toHaveBeenCalled();
+  frame.props.ref.current.offsetParent = {};
+  vi.stubGlobal("document", {querySelector: () => ({})});
+  expect(press().preventDefault).not.toHaveBeenCalled();
+  expect(find(await tree(), "Quad mask settings")).toBeUndefined();
+  stop?.();
+});
+it("applies the same slider, field, hidden-viewer and dialog rules to E and P", async () => {
+  vi.stubGlobal("localStorage", {getItem: () => JSON.stringify({...DEFAULT_MASK_STATE, manualEnabled: true, manualOpacity: 0.4}), setItem: vi.fn()});
+  let handler: ((e: any) => void) | undefined;
+  vi.stubGlobal("window", {addEventListener: (_: string, next: (e: any) => void) => {handler = next;}, removeEventListener: vi.fn()});
+  const frame = await pane();
+  const stop = hooks.effects[1]();
+  const press = (key: string, target: object, extra = {}) => {
+    const event = {key, target, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, preventDefault: vi.fn(), ...extra};
+    handler!(event); return event;
+  };
+  expect(press("e", {tagName: "INPUT", type: "range"}).preventDefault).toHaveBeenCalledOnce();
+  expect(find(await tree(), "Manual mask opacity")!.props.value).toBe(0);
+  expect(press("p", {tagName: "INPUT", type: "checkbox"}).preventDefault).toHaveBeenCalledOnce();
+  for (const key of ["p", "e"]) {
+    expect(press(key, {tagName: "INPUT", type: "number"}).preventDefault).not.toHaveBeenCalled();
+    expect(press(key, {dataset: {ownsKeys: "true"}}).preventDefault).not.toHaveBeenCalled();
+    expect(press(key, {tagName: "DIV"}, {isComposing: true}).preventDefault).not.toHaveBeenCalled();
+    vi.stubGlobal("document", {querySelector: () => ({})});
+    expect(press(key, {tagName: "DIV"}).preventDefault).not.toHaveBeenCalled();
+    vi.stubGlobal("document", {querySelector: () => null});
+    frame.props.ref.current.offsetParent = null;
+    expect(press(key, {tagName: "DIV"}).preventDefault).not.toHaveBeenCalled();
+    frame.props.ref.current.offsetParent = {};
+  }
+  stop?.();
+});
 
 it("steps exactly one frame and disables navigation at the video boundaries", async () => {
   const backend = createMockBackend();

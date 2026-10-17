@@ -38,6 +38,7 @@ import { domBufferIo } from "../lib/frameBufferDom";
 import { shouldShowLate } from "../lib/lateFrame";
 import { correctsNow } from "../lib/correctionGate";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
+import { blocksVideoToolKeys, focusVideoViewport, videoToolContextAvailable } from "../lib/shortcutFocus";
 
 export interface VideoPreviewHandle {
   /** True when an enabled preview consumes the selection without a label write. */
@@ -137,8 +138,9 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
     if (!manualEnabled && !hudEnabled) return;
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
+      if (e.defaultPrevented || e.isComposing || !videoToolContextAvailable(frameRef.current, document)) return;
       const shortcut = e.key.toLowerCase();
-      if (!["p", "e"].includes(shortcut) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "")) return;
+      if (!["p", "e"].includes(shortcut) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || blocksVideoToolKeys(target)) return;
       if (shortcut === "p" && !manualEnabled) return;
       e.preventDefault();
       if (shortcut === "e") (manualEnabled ? setManualOpacity : setHudOpacity)(current => current > 0 ? 0 : 1);
@@ -226,10 +228,10 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
     const handle = (type: "down" | "up") => (e: KeyboardEvent) => {
       // a release always counts (a held M must never get stuck); a press only when this pane is showing and no dialog is open
       const pane = frameRef.current;
-      if (type === "down" && (!pane || pane.offsetParent === null || document.querySelector(".modal-backdrop"))) return;
+      if (type === "down" && (e.defaultPrevented || e.isComposing || !videoToolContextAvailable(pane, document))) return;
       const target = e.target as HTMLElement | null;
       const result = dispatchToolKey({ key: e.key, type, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
-        targetEditable: !!target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "") });
+        targetEditable: blocksVideoToolKeys(target) });
       if (!result.consumed) return;
       e.preventDefault();
       e.stopPropagation();
@@ -425,6 +427,10 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       <div
         className="video-frame zoomed"
         ref={frameRef}
+        tabIndex={0}
+        role="region"
+        aria-label={stillImage ? "Image viewer" : "Video viewer"}
+        onPointerDownCapture={e => focusVideoViewport({button: e.button, target: e.target as HTMLElement, currentTarget: e.currentTarget})}
         draggable={false}
         onDragStart={(e) => e.preventDefault()}
         onPointerDown={panDown}
