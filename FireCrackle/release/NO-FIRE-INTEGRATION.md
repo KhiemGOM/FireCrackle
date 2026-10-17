@@ -1,32 +1,56 @@
-# AI no-fire integration for 0.3.0
+# AI no-fire integration — 0.3.0
 
-The Auto popup scans native 1920×1080 RGB video with the frozen orange-fragment + MobileNetV3 Small ensemble. It saves only untouched frames as no-fire, in one undoable batch, with the no-fire tool's patterned colour strips. Existing human labels remain protected. Missing GUI evidence, uncertain menus and suspected translucency abstain. A clear decision is not proof that no tiny/unreadable flame exists.
+Auto combines the frozen orange-fragment rules with a MobileNetV3 Small image model. It processes native 1920 × 1080 video, saves no-fire labels only on untouched frames, and applies the finished batch as one undoable action. Patterned tool colours distinguish automatic labels. Unknown GUI evidence, uncertain menus and suspected world translucency cause abstention.
 
-## Portable inference audit
+Resumable scans retain completed frame decisions locally. Cache compatibility includes the video, frame index, detector/model sources, assets, runtime manifest and application version. Cached decisions do not override existing labels.
 
-The research CUDA run used TF32. Exact Pillow-compatible RGB input did not make full-precision ONNX logits identical: clip2 frame0 changed from0.087879613 to0.08101057. The deployment threshold was recalibrated only on the original hash-locked218reserved frames (125fire/93eligible), not the full-video evaluation. CPU threshold=-1.7570972442626953, with0.0001 additional abstention margin. CPU/DirectML maximum score drift on that cohort was0.00001034. `scripts/export_no_fire.py --calibration-dataset DATASET` reproduces this audit; a changed cohort hash fails closed.
+## Portable model audit
 
-Model SHA-256 and native runtime archive hashes are pinned in `no-fire-model.json`. Weights, downloaded libraries, recordings and caches remain ignored. The installed application needs no Python, torchvision or CUDA for CPU operation.
+The research CUDA run used TF32. Exact RGB inputs alone did not reproduce its scores on full-precision ONNX: clip2 frame 0 changed from 0.087879613 to 0.08101057. Deployment was recalibrated on the **same reserved 218 frames**: 125 meaningful-fire and 93 eligible frames. The complete evaluation recording was not used to select the new threshold.
 
-## Full native recording check
+- CPU threshold: **−1.7570972442626953**, plus a conservative **0.0001 abstention margin**.
+- Maximum CPU/DirectML calibration score difference: **0.00001034**.
+- Maximum Windows CPU/Linux CUDA difference across the same 218 frames: **0.00001440**, with **no changed clear/retain decisions**.
 
-19,553 frames of the familiar clip2 recording, native1920×1080 at60fps. Two bounded frame workers, two inference CPU threads, one shared model session. Entire sequential decode/preprocessing/inference/write:551.585seconds (35.45frames/second), with other agent CPU work present; not an isolated speed record.
+`scripts/export_no_fire.py --calibration-dataset DATASET` reproduces the audit. It rejects a changed calibration dataset hash. Model, source-checkpoint and runtime archive hashes are pinned in `no-fire-model.json`. Historical TF32 results remain separate.
 
-- TP:1158/8908eligible frames=13.00%.
-- FP:95/10645meaningful-fire frames=0.8924%.
--1253totalclear decisions;7.58%wrong under the original size-based truth definition.
--10decisions differ from the original TF32 research implementation; two fewerTP, sameFPtotal. Do not overwrite historical results or call changed preprocessing identical.
+## Complete native recording check
 
-This is correlated familiar-video evidence, not an independent generalization estimate. The original24px-wide box proxy is not a human-readability oracle. The218reserved calibration frames came from this recording.
+The familiar clip2 recording contains **19,553 frames** at 1920 × 1080 and 60 fps. The portable CPU implementation produced:
 
-## Performance and acceleration
+| Outcome | Count | Rate |
+| --- | ---: | ---: |
+| TP: eligible frames correctly cleared | 1,158 / 8,908 | 13.00% |
+| FP: meaningful-fire frames wrongly cleared | 95 / 10,645 | 0.8924% |
+| Wrong decisions among all cleared frames | 95 / 1,253 | 7.58% |
 
-Windows warm nine-view model-only medians: CPU2threads13.6ms; CPU4threads14.2ms; DirectMLadapter0 8.3ms; adapter1 34.4ms. More threads or a GPU can be slower. Automatic selection benchmarks available adapters against CPU and rejects score drift over0.0001 or a speed gain under10%. WindowsGPUinitial setup measured about30seconds; the loaded engine is reused for later scans. Setup cancellation cannot interrupt an in-progress native runtime graph compilation.
+Ten decisions differ from the original TF32 research implementation: four additional correct clears and six retained eligible frames. All 95 false-positive frames are unchanged.
 
-A paired2,200-frame run took134.744seconds with1worker vs69.615seconds with2workers (1.94�faster), identical243clears and frame decisions. Model sessions used2CPUthreads in both runs.
+These are correlated familiar-video results, **not independent accuracy estimates**. The reserved calibration frames came from this recording. The original 24-pixel-wide box cutoff is a size proxy, not a human-readability oracle. A clear decision does not prove that no tiny, obscured or unreadable flame exists. Recheck automatic labels when additional phase readings matter.
 
-Frame gates run with two bounded workers; model access stays serialized to avoid oversubscribing the GPU or CPU inference threads. Orange threshold queries stop once the decision is known; prepared GUI detection caches immutable templates/geometry, never a previous frame's detected mask. Both optimizations have exact-decision targeted tests. Cancellation during scan prevents saving a partial batch.
+## Speed and parallelism
 
-Linux CUDA inference was actually tested under WSL2 on the RTX4060Laptop, ONNX Runtime1.22.0, CUDA12.9/cuDNN9.27. Warm9view medians CPU22.8275ms vsCUDA22.8812ms, maximumscore difference0.00000215; setupCPU0.144s,CUDA1.068s. This setup offers no measured speed gain, so automaticselection should stayCPU. All218original reserved calibration frames also agreed on clear/retain decisions against WindowsCPU, maximumlogit drift0.00001440. This is WSL evidence, not a full nativeLinuxhardwarematrix. Linuxpackages include the CUDA-enabledruntime withCPUfallback; CUDA12/cuDNN9 remain separately installed vendor dependencies. CUDA TF32 is explicitly off. Native OpenVINO and MIGraphX providers are considered only when supplied by the loaded runtime, and must pass the same checks; their presence in code is not evidence of tested AMD/Intel hardware.
+The complete sequential decode, preprocessing, inference and result write took **551.585 seconds**, or **35.45 frames/second**, using two bounded frame workers and two CPU inference threads. Other agents were using the CPU, so this is not an isolated speed record.
 
-Linux native libraries ship inside `ai/native.zip` so AppImage dependency scanning does not turn optional CUDA dependencies into hard requirements. On first use the app extracts only three fixed library names into its local cache, checks per-file SHA-256, publishes files atomically and repairs damaged cached copies. CPU inference from an extracted package is part of the Linux packaging gate.
+On the same 2,200-frame segment, one worker took **134.744 seconds** and two took **69.615 seconds**: **1.94× faster**, with identical frame decisions and 243 clears. Model access remains serialized to avoid oversubscription.
+
+Warm model-only medians for nine views on the test laptop:
+
+| Backend | Time |
+| --- | ---: |
+| Windows CPU, two threads | 13.6 ms |
+| Windows CPU, four threads | 14.2 ms |
+| Windows DirectML adapter 0 | 8.3 ms |
+| Windows DirectML adapter 1 | 34.4 ms |
+| Linux/WSL CPU, two threads | 22.8275 ms |
+| Linux/WSL CUDA, RTX 4060 Laptop | 22.8812 ms |
+
+Automatic selection compares startup probe scores and timings against CPU. It rejects drift above 0.0001 or a speed gain below 10%. The tested Linux setup therefore offers no measured CUDA speed benefit. CUDA TF32 is explicitly disabled. Initial Windows GPU preparation measured about 30 seconds; the engine is reused for later scans. Cancellation cannot interrupt an in-progress native graph compilation.
+
+Orange threshold checks stop as soon as their decision is known. Prepared GUI detection caches immutable templates and geometry, never an earlier frame's detected mask. Targeted tests verify unchanged decisions.
+
+## Distribution
+
+The installed app needs no Python or torchvision. Windows includes the pinned DirectML runtime. Linux includes CPU and CUDA providers; GPU use requires compatible CUDA 12 and cuDNN 9 vendor libraries. Missing or unsuitable acceleration leaves CPU available. OpenVINO/MIGraphX require a compatible user-supplied runtime; their code paths are not evidence of tested Intel/AMD Linux hardware.
+
+Linux libraries ship inside `ai/native.zip`, avoiding AppImage's mandatory ELF dependency scan. First use extracts three fixed library names into the app's local cache, checks SHA-256, publishes each file atomically and repairs damaged copies. The Linux package gate loads the model on CPU from the extracted package. Weights, vendor binaries, recordings and generated caches stay outside Git.
