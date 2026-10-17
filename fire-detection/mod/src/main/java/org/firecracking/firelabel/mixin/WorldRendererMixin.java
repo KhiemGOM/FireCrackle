@@ -7,6 +7,7 @@ import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Matrix4f;
 import org.firecracking.firelabel.FrameCapture;
+import org.firecracking.firelabel.ownership.OwnershipExport;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -29,6 +30,7 @@ public class WorldRendererMixin {
             LightmapTextureManager lightmapTextureManager,
             Matrix4f projectionMatrix,
             CallbackInfo ci) {
+        OwnershipExport.beginWorld();
         FrameCapture.beginWorld(matrices.peek().getModel(), projectionMatrix, camera.getPos());
     }
 
@@ -45,5 +47,6 @@ public class WorldRendererMixin {
             Matrix4f projectionMatrix,
             CallbackInfo ci) {
         FrameCapture.endWorld();
+        OwnershipExport.endWorld();
     }
 }

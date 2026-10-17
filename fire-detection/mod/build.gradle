@@ -15,6 +15,9 @@ loom {
             // dev client only: outline the labelled fire boxes on screen (never in the shipped jar).
             // For RECORDING footage turn it off: gradlew runClient -PfirelabelDebug=false
             property 'firelabel.debug', (findProperty('firelabelDebug') ?: 'true').toString()
+            property 'firelabel.ownership', (findProperty('firelabelOwnership') ?: 'false').toString()
+            property 'firelabel.ownershipEvery', (findProperty('firelabelOwnershipEvery') ?: '120').toString()
+            property 'firelabel.ownershipLimit', (findProperty('firelabelOwnershipLimit') ?: '8').toString()
         }
     }
 }
@@ -51,5 +54,16 @@ test {
     testLogging {
         events 'passed', 'failed', 'skipped'
         exceptionFormat 'full'
+    }
+}
+
+// Real OpenGL controls in a hidden GLFW window; separate from CPU-only unit tests.
+tasks.register('ownershipSmoke', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.firecracking.firelabel.ownership.OwnershipSmoke'
+    doFirst {
+        def nativeDirs = fileTree('.gradle/loom-cache/natives/1.16.5').matching { include '**/*.dll' }.files.collect { it.parentFile }.unique()
+        jvmArgs "-Dorg.lwjgl.librarypath=${nativeDirs.join(File.pathSeparator)}"
     }
 }

@@ -18,6 +18,7 @@ import org.firecracking.firelabel.core.FrameRecord;
 import org.firecracking.firelabel.core.LabelLog;
 import org.firecracking.firelabel.core.StripPattern;
 import org.firecracking.firelabel.mixin.SpriteAccessor;
+import org.firecracking.firelabel.ownership.OwnershipExport;
 
 /** Per-frame state: frame ids, the tick counter, and the label log. Client thread only. */
 public final class FireLabel {
@@ -58,6 +59,7 @@ public final class FireLabel {
         } catch (RuntimeException e) {
             failure = e;
         }
+        OwnershipExport.finish(id, ticks, spriteFrame(ModelLoader.FIRE_0), spriteFrame(ModelLoader.FIRE_1));
         StripRenderer.draw(fbWidth, fbHeight, StripPattern.wrapTick(ticks), id); // always, even if labelling failed
         if (failure != null) {
             // Never write a guessed "no fire" row: a missing frame id is detectable, a false negative is not.
@@ -87,6 +89,7 @@ public final class FireLabel {
     }
 
     public static void onClientStopping() {
+        OwnershipExport.close();
         if (log != null) {
             try {
                 log.close();

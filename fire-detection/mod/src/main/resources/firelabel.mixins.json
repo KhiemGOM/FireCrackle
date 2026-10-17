@@ -10,6 +10,7 @@
     "InGameHudMixin",
     "InGameOverlayRendererMixin",
     "SpriteAccessor",
+    "OwnershipDrawMixin",
     "WorldChunkMixin",
     "WorldRendererMixin"
   ],
