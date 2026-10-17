@@ -558,6 +558,9 @@ input {
 button.confirm-label { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; flex: 1; }
 button.confirm-label:hover:not(:disabled) { background: #ffa33d; }
 .confirm-label kbd { background: #0002; border: 0; color: inherit; margin: 0 0 0 auto; }
+/* a different candidate over an already saved label: the Confirm button turns red, so nobody overwrites a label by habit */
+button.confirm-label.replace { background: #e0151a; border-color: #ff3b3f; color: #fff; }
+button.confirm-label.replace:hover:not(:disabled) { background: #f02a2f; }
 .atlas-state { display: flex; align-items: baseline; gap: 8px; }
 .atlas-state b { min-width: 65px; font-weight: 600; }
 .atlas-state > span { color: var(--text); }

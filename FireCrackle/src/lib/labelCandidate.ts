@@ -1,7 +1,7 @@
 import type { View } from "./api";
 import type { UiAction } from "./actions";
 import { atlasSprite, type PreviewSprite } from "./firePreview";
-import { isFire, labelToCell, type Label } from "./grid";
+import { isFire, labelToCell, labelsEqual, type Label } from "./grid";
 
 export interface CandidateDraft { frame: number; label: Label; origin: "picked" | "typed"; digits?: string }
 export interface Candidate { label: Label; origin: "picked" | "typed" | "guess" | "saved" }
@@ -20,6 +20,14 @@ export function candidateConfirmation(candidate: Candidate | null): UiAction | n
   if (label === "skip") return { type: "skip" };
   const cell = labelToCell(label);
   return cell ? { type: "clickCell", ...cell } : null;
+}
+/**
+ * The saved label that Confirm/Enter would overwrite, or null when it overwrites nothing: the frame has no saved label
+ * (a time guess is not one), there is nothing to confirm, or the candidate is the saved label itself.
+ */
+export function replacedLabel(view: Pick<View, "label">, candidate: Candidate | null): Label | null {
+  if (view.label === "unset" || !candidate || candidate.label === "unset") return null;
+  return labelsEqual(view.label, candidate.label) ? null : view.label;
 }
 export function candidateDigit(frame: number, draft: CandidateDraft | null, digit: number, pick: { sheet: number; mirrored: boolean }): CandidateDraft {
   const pending = draft?.frame === frame && draft.digits?.length === 1 && Number(draft.digits) <= 3;

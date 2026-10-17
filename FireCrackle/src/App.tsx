@@ -19,7 +19,7 @@ import { Timeline } from "./components/Timeline";
 import { VideoPane, type VideoPreviewHandle } from "./components/VideoPane";
 import { VideoNotes } from "./components/VideoNotes";
 import { selectAtlasCell, atlasSprite, type PreviewSprite } from "./lib/firePreview";
-import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, spriteText, type CandidateDraft } from "./lib/labelCandidate";
+import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, replacedLabel, spriteText, type CandidateDraft } from "./lib/labelCandidate";
 import { isFire } from "./lib/grid";
 import { stepHudRow } from "./lib/hudOverlay";
 import { useLayout } from "./hooks/useLayout";
@@ -94,6 +94,8 @@ export default function App() {
   const [atlasEdges, setAtlasEdges] = useState<AtlasEdges | null>(null);
   useEffect(() => { writePreferences({ tab, atlasFilter }); }, [tab, atlasFilter]);
   const candidate = view ? currentCandidate(view, draft) : null;
+  // the saved label Confirm/Enter would overwrite: the Confirm button turns red and reads Replace
+  const replaced = view ? replacedLabel(view, candidate) : null;
   const candidatePick = candidate && isFire(candidate.label) ? candidate.label.fire : view?.pick;
   const stageSprite = useCallback((sprite: PreviewSprite) => {
     if (!view) return;
@@ -395,7 +397,7 @@ export default function App() {
               <div className="candidate-heading"><strong>Candidate</strong><span>{candidate?.origin === "guess" ? "time guess · not saved" : candidate?.origin === "saved" ? "current saved label" : "not saved"}</span></div>
               <div className="candidate-value">{draft?.frame === view.current && draft.label === "unset" ? `Invalid animation index ${draft.digits} (use 0–31)` : candidateText(candidate?.label ?? null)}{draft?.digits?.length === 1 && draft.frame === view.current && Number(draft.digits) <= 3 && <span className="dim"> · {draft.digits}_</span>}</div>
               <div className="candidate-actions">
-                <IconButton icon="check" label="Confirm candidate" className="confirm-label" disabled={!candidateConfirmation(candidate) || ws.opening || ws.transferring} onClick={confirmCandidate} title="Confirm this candidate · Enter · saves and advances">Confirm <kbd>↵</kbd></IconButton>
+                <IconButton icon="check" label={replaced ? "Replace saved label" : "Confirm candidate"} className={`confirm-label${replaced ? " replace" : ""}`} disabled={!candidateConfirmation(candidate) || ws.opening || ws.transferring} onClick={confirmCandidate} title={replaced ? `Replace the saved label (${candidateText(replaced)}) with this candidate · Enter · saves and advances · Undo restores it` : "Confirm this candidate · Enter · saves and advances"}>{replaced ? "Replace" : "Confirm"} <kbd>↵</kbd></IconButton>
                 <IconButton icon="copy" label="Use displayed preview as candidate" disabled={!previewSprite} onClick={() => previewSprite && stageSprite(previewSprite)} title="Select the displayed preview as the candidate; does not save" />
               </div>
               <div className="atlas-state preview-state"><b>Preview</b><span>{previewSprite ? spriteText(previewSprite) : "Mask off"}</span></div>
