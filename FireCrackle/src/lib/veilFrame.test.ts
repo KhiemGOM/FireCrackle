@@ -50,6 +50,23 @@ const bytes = new Uint8Array([1, 2, 3]).buffer;
 const original = () => new Blob([bytes], { type: "image/jpeg" });
 
 describe("processFrame", () => {
+  it("runs portal correction after unveil, encodes once, and preserves a successful unveil on portal failure", async () => {
+    const pixels=veiledPixels(),fake=io(pixels),expected=unveilRgba(pixels,W,H);
+    const stage=vi.fn(async (image:{data:Uint8ClampedArray})=>{
+      expect(image.data).toEqual(expected);
+      throw Error("uncertain portal");
+    });
+    const r=await processFrame(bytes,original(),"on",DEFAULT_VEIL_OPTIONS,fake,stage);
+    expect(stage).toHaveBeenCalledOnce();expect(fake.encode).toHaveBeenCalledOnce();
+    expect(fake.encoded[0]).toEqual(expected);expect(r.applied).toBe(true);
+    expect(r.portalApplied).toBe(false);expect(r.error).toContain("uncertain portal");
+  });
+
+  it("portal can process with veil off and returns the original blob when no fit is accepted", async () => {
+    const fake=io(normalPixels()),orig=original();
+    const r=await processFrame(bytes,orig,"off",DEFAULT_VEIL_OPTIONS,fake,async image=>({data:image.data,applied:false,valid:new Uint8Array(W*H),phase:0,opacity:0}));
+    expect(fake.decode).toHaveBeenCalledOnce();expect(fake.encode).not.toHaveBeenCalled();expect(r.blob).toBe(orig);
+  });
   it("off returns the original bytes untouched and never decodes", async () => {
     const fake = io(veiledPixels());
     const r = await processFrame(bytes, original(), "off", DEFAULT_VEIL_OPTIONS, fake);

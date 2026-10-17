@@ -1,7 +1,7 @@
-// Undo the GUI veil on a frame's bytes before they are shown. The pixel maths is in veil.ts; this file is the
-// decode / process / encode glue, with the browser's canvas behind an interface so it can be tested without one.
+// Decode / correction / encode glue. Pixel math lives only in canonical Rust, reached through WASM bindings.
 
 import { initVeil, applyVeil, type VeilMode, type VeilOptions } from "./veil";
+import type {PortalImage,PortalResult} from './portal';
 
 export interface FrameIo {
   /** RGBA pixels of an encoded picture. */
@@ -14,23 +14,26 @@ export interface ProcessedFrame {
   blob: Blob;
   /** True when the blob holds the unveiled picture. */
   applied: boolean;
-  /** Why the original was returned although a mode asked for processing. */
+  /** Why a requested stage failed; successful earlier stages can still be shown. */
   error?: string;
+  portalApplied?: boolean;
 }
 
 /**
- * The picture to show for a frame: the original when the mode is off, when auto finds no veil, or when anything
- * fails (the reason is in `error`); otherwise the unveiled picture. Never throws, never returns a blank picture.
+ * Decode once, undo veil, optionally undo portal, then encode once. If neither stage applies, preserve the
+ * original blob. A portal failure preserves a successful unveil. Never throws or returns a blank picture.
  */
-export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo): Promise<ProcessedFrame> {
-  if (mode === "off") return { blob: original, applied: false };
+export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>): Promise<ProcessedFrame> {
+  if (mode === "off" && !portal) return { blob: original, applied: false };
   try {
     await initVeil();
     const img = await io.decode(bytes);
     const result = applyVeil(img, mode, options);
     if (result.error) return { blob: original, applied: false, error: result.error };
-    if (!result.applied) return { blob: original, applied: false };
-    return { blob: await io.encode(result.data as Uint8ClampedArray, img.width, img.height), applied: true };
+    let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
+    if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=String(e);}}
+    if (!result.applied && !portalApplied) return { blob: original, applied: false, portalApplied, error };
+    return { blob: await io.encode(data, img.width, img.height), applied: result.applied, portalApplied, error };
   } catch (e) {
     return { blob: original, applied: false, error: e instanceof Error ? e.message : String(e) };
   }

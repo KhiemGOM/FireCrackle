@@ -31,6 +31,24 @@ Each run has a fresh output folder, `release.json` containing commit/build/runti
 
 FFmpeg comes from [Gyan's Windows builds](https://www.gyan.dev/ffmpeg/builds/), pinned in `release/runtime-lock.json`; its original license/build notices and source links remain beside cached tools. Update version, URL, SHA-256 and source together when upgrading. `.release-cache` and `src-tauri/runtime` hold developer test tools, not packaged runtime files. Neither is committed.
 
+## Picture correction
+
+The video and image toolbars place **Portal** beside **Veil**, both off by default.
+Portal **Auto-undo** fits the full-screen vanilla portal animation and reverses it
+only when the shared detector accepts the fit. It runs in a cancellable background
+worker. Veil correction runs first when enabled; an uncertain fit leaves the picture
+unchanged. Original files and labels are preserved.
+
+On videos, portal correction uses the GUI mask and its existing per-video vanilla
+1.16.5 question. It waits for a reliable mask for the current frame and excludes
+opaque, translucent and unknown GUI pixels from fitting and correction. Images
+have no project GUI mask; the status explicitly says they have no GUI protection.
+This is an inspection tool for the full-screen overlay; it does not undo a portal
+block's world-space surface or certify no fire. Badly conditioned pixels remain
+unchanged. The vanilla portal texture is extracted from a local 1.16.5 client at
+build time, or downloaded from Mojang's hash-verified client when unavailable;
+the source texture/archive is never committed.
+
 ## Online video links
 
 Use **Open link** in the toolbar or paste a link on Home. Select a destination folder; the app downloads one video and opens it using the ordinary timestamp/label workspace. Progress and cancellation are available in the link panel. Existing videos and label files are preserved. Closing the panel lets a download continue; reopen it to see the result.

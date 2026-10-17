@@ -91,6 +91,18 @@ it("groups all tools and reveals only the enabled mask settings", async () => {
   root = await tree();
   expect(find(root, "Quad mask settings")).toBeUndefined();
 });
+
+it("offers portal undo beside veil and exposes the existing GUI gate when enabled", async () => {
+  let root=await tree();
+  const tools=find(root,"Video tools")!;
+  expect(find(tools,"Undo GUI veil")).toBeDefined();
+  const portal=find(tools,"Undo portal overlay")!;
+  expect(portal).toBeDefined();
+  portal.props.onChange({target:{value:"auto"}});
+  root=await tree();
+  expect(find(root,"GUI mask settings")).toBeDefined();
+  expect(find(root,"Toggle GUI mask")!.props["aria-pressed"]).toBe(false);
+});
 it("keeps quad controls visible while the independent matching tool is open", async () => {
   let root=await tree();
   expect(find(root,"Sprite matching settings")).toBeUndefined();

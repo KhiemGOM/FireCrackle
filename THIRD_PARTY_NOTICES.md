@@ -4,6 +4,8 @@ The root MIT license applies to original FireCracking/FireCrackle code and docum
 
 ## Minecraft textures and icon artwork
 
+The build-generated `FireCrackle/public/portal.png` is the vanilla Minecraft 1.16.5 nether-portal animation, extracted from a local client or Mojang's hash-verified client download for portal-overlay correction. It is ignored by Git and belongs to Mojang/Microsoft, under the same asset attribution below.
+
 The fire textures in `FireCrackle/src/assets`, `fire-detection/data/assets` and `fire-detection/core/testdata/*.rgba` are derived from Minecraft 1.16.5 textures. The app's current campfire artwork and derived icons in `FireCrackle/src-tauri/icons`, together with `FireCrackle/public/favicon.png`, are Minecraft-derived artwork. These materials are **not covered by this repository's MIT grant**. Minecraft and its assets belong to Mojang/Microsoft; this is an independent project, not an official Minecraft product.
 
 These fixtures are used to match the game's actual animation and to test that matching. Their presence is not a claim of a separate redistribution license. Review the applicable Minecraft terms and permissions before distributing these assets beyond their permitted use. Changes to source visibility are a separate owner decision; this cleanup does not publish the source repository.

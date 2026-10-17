@@ -2,6 +2,8 @@
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {readFileSync,writeFileSync} from 'node:fs';
+import {preparePortalAsset} from './portal-assets.mjs';
+await preparePortalAsset();
 const source=fileURLToPath(new URL('../../fire-detection/core/src/veil_abi.rs',import.meta.url));
 const output=fileURLToPath(new URL('../src/lib/veil.wasm',import.meta.url));
 const r=spawnSync('rustc',['--edition','2021','--crate-type','cdylib','--target','wasm32-unknown-unknown','-C','opt-level=3','-C','panic=abort','-C','strip=symbols',source,'-o',output],{stdio:'inherit'});

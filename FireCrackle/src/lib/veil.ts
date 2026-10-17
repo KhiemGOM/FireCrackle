@@ -8,10 +8,14 @@ export type VeilMode = "off" | "auto" | "on";
 export const VEIL_MODES: VeilMode[] = ["off", "auto", "on"];
 export interface VeilOptions { minShare: number; margin: number; slack: number; }
 type Pixels = Uint8ClampedArray | Uint8Array;
-type Native = { memory: WebAssembly.Memory; veil_alloc(n:number):number; veil_free(p:number,n:number):void;
+export type VeilRuntime = { memory: WebAssembly.Memory; veil_alloc(n:number):number; veil_free(p:number,n:number):void;
+  portal_fit(...args:number[]):number; portal_inverse(...args:number[]):number;
   veil_detect(...args:number[]):number; veil_detect_strict(...args:number[]):number; veil_inverse(...args:number[]):number; };
+type Native = VeilRuntime;
 let native: Native | undefined;
 let pending: Promise<void> | undefined;
+/** Shared ABI for the portal binding: no second inverse implementation. */
+export function veilRuntime(): VeilRuntime { if(!native)throw Error("Shared veil runtime is not initialized");return native; }
 /** Test/native-host initialization can supply bytes; browser fetches the built module once. */
 export function initVeil(bytes?: BufferSource): Promise<void> {
   if (native) return Promise.resolve();
