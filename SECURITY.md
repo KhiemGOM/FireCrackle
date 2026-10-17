@@ -6,4 +6,4 @@ FireCrackle processes local video through external FFmpeg/FFprobe processes. Use
 
 Labels and project caches are stored alongside a video in its `.firecrackle` directory. UI preferences and recent video state are stored per Windows account. Export only the labels you intend to share. Automatic matching runs locally; it does not upload recordings.
 
-Version 0.1.0 test builds are unsigned. Download them from the owner's official release page and compare the supplied SHA-256 hashes. A research score or timing flag does not establish that a recording was edited.
+Version 0.1.x test builds are unsigned. Download them from the owner's official release page and compare the supplied SHA-256 hashes. A research score or timing flag does not establish that a recording was edited.

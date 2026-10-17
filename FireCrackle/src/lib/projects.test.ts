@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_PROJECTS, PROJECTS_STORAGE_KEY, projectKey, projectName, readProjects, recordProject, removeProject,
-  seedFromSession, writeProjects, type ProjectEntry,
+  savedFrame, seedFromSession, writeProjects, type ProjectEntry,
 } from "./projects";
 
 const fresh = (videoPath: string, frame = 0) => ({ videoPath, frame, frameCount: 1000, labelled: 10 });
@@ -135,5 +135,13 @@ describe("carrying over the old single saved session", () => {
     expect(seedFromSession([], null, 1)).toEqual([]);
     const existing = recordProject([], fresh("b.mkv"), 1);
     expect(seedFromSession(existing, { videoPath: "a.mkv", frame: 1 }, 2)).toBe(existing);
+  });
+});
+
+describe("resuming a project", () => {
+  it("finds the saved frame however the video path is spelled", () => {
+    const list = recordProject([], fresh("D:\\clips\\a.mkv", 4500), 1);
+    expect(savedFrame(list, "d:/clips/a.mkv")).toBe(4500);
+    expect(savedFrame(list, "D:\\clips\\b.mkv")).toBe(0);
   });
 });

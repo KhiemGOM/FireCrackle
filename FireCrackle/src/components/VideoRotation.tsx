@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject, type PointerEvent } from "react";
+import { isEditableTarget } from "../lib/actions";
 import { rotationDelta } from "../lib/zoom";
 import "./VideoRotation.css";
 
@@ -21,7 +22,7 @@ export function VideoRotation({ frameRef, onRotate }: {
     const move = (event: globalThis.PointerEvent) => { mouse.current = { x: event.clientX, y: event.clientY }; };
     const clear = () => { held.current = false; drag.current = null; setPivot(null); };
     const down = (event: KeyboardEvent) => {
-      if (event.key !== "Shift" || held.current || event.repeat) return;
+      if (event.key !== "Shift" || held.current || event.repeat || isEditableTarget(event.target as HTMLElement | null)) return;
       held.current = true;
       const rect = frameRef.current?.getBoundingClientRect(), point = mouse.current;
       if (!rect || !point) return;

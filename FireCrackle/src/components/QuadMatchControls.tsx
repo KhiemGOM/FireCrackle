@@ -34,7 +34,7 @@ function readAtlas() {
   return atlas;
 }
 const identity=(frameUrl:string,quad:ManualQuad,adjustQuad=false,filter?:EdgeFilter)=>JSON.stringify([frameUrl,quad,adjustQuad,filter]);
-const name=(c:QuadCandidate)=>`sheet ${c.sheet} · row ${c.row} · ${c.mirrored?"mirrored":"normal"}`;
+const name=(c:QuadCandidate)=>`row ${c.row} · sheet ${c.sheet} · ${c.mirrored?"mirrored":"normal"}`;
 function showDetails(e:SyntheticEvent<HTMLButtonElement>) {
   const tip=e.currentTarget.nextElementSibling as HTMLElement|null;
   if(!tip?.showPopover)return;

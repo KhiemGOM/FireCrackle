@@ -112,14 +112,15 @@ fn download(
     check_cancel(cancel)?;
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let archive = dir.join("download");
-    let partial = dir.join("download.part");
+    // Per process, so a second FireCrackle window cannot truncate or delete this download.
+    let partial = dir.join(format!("download.{}.part", std::process::id()));
     if archive.is_file() && verify(&archive, &asset.sha256).is_ok() {
         return Ok(archive);
     }
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(20))
         .timeout(Duration::from_secs(1800))
-        .user_agent("FireCrackle/0.1.0")
+        .user_agent(concat!("FireCrackle/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| e.to_string())?;
     let mut response = client
@@ -198,7 +199,10 @@ fn install(
 ) -> Result<PathBuf, String> {
     check_cancel(cancel)?;
     let dir = root()?.join(format!("{name}-{}", asset.version));
-    if dir.join("ready").is_file() && executables.iter().all(|n| dir.join(n).is_file()) {
+    // A re-pinned download with an unchanged version string must replace the cached copy.
+    if fs::read_to_string(dir.join("ready")).is_ok_and(|sha| sha == asset.sha256)
+        && executables.iter().all(|n| dir.join(n).is_file())
+    {
         return Ok(dir);
     }
     let _clear = ClearStatus;

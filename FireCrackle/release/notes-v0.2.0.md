@@ -5,6 +5,7 @@ FireCrackle 0.2.0 for Windows x64 and Linux x86_64.
 - **A focused Phase workspace:** persistent flags sidebar, fullscreen chart view, numbered X axes, independent X/Y zoom and two-axis panning. Video inspection opens separately with an explicit Close control.
 - **Readable chart evidence:** full fire-label evidence reaches canonical analysis; zooming restores detail. Overview rendering preserves interior rows and phase levels. Ruler opacity is adjustable, and deviation lines split correctly at wrapped row/phase boundaries.
 - **FFmpeg compatibility:** detect supported frame-sync options at runtime, including newer Linux FFmpeg versions.
+- Includes the current main-branch review fixes for restored-image clipboard paste, project resume, downloaded-video paths, downloader cleanup, timecodes and tool-cache validation, plus the TypeScript update.
 
 **Interpreting Jolt estimates:** between recovered readings, GUI time is estimated. Uneven tick progression or a brief hold can produce a temporary apparent fire–Jolt phase peak even when the actual clocks agree. These peaks and timing flags are review prompts, not proof of an edit. A cut can preserve fire–GUI phase, and changes by a whole 32-tick cycle cannot be distinguished by fire phase alone.
 

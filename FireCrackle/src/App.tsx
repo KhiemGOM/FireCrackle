@@ -228,7 +228,7 @@ export default function App() {
   }, [draft, typeTimeout]);
 
   /** Import a video (a new project) or reopen its project; Home closes once the video is open. */
-  async function openVideo(path: string, frame = 0) {
+  async function openVideo(path: string, frame?: number) {
     setPlayback(STOPPED);
     setDraft(null);
     setPreviewSprite(null);

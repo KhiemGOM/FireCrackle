@@ -1,13 +1,13 @@
 # Repository readiness
 
-Audit date: 2026-10-16. This describes the cleaned source tree, not permission to publish the old development history or third-party assets.
+Audit date: 2026-10-16. This describes the cleaned source tree. The repository is public, and its early history predates the clean-up (see [Source history](../README.md#source-history)). Nothing here grants rights to third-party assets.
 
 ## Source boundary
 
 - Original application, detector, recording mod and research tooling are MIT-licensed. [Third-party notices](../THIRD_PARTY_NOTICES.md) identify separate ownership and license obligations.
 - Minecraft source, decompiled classes, game JARs, Yarn mapping artifacts and local build caches are excluded. The only tracked JAR is the Gradle bootstrapper.
 - Recordings, per-video projects, joined benchmark outputs and local agent state are ignored. Previously tracked personal/generated files were removed from the index only; their local contents were preserved and checked against their original Git blobs.
-- The cleaned tracked tree is approximately 5.5 MiB, down from approximately 277 MiB. Old private commits still contain removed data and historical code excerpts. Keep that history private; use the [source snapshot procedure](../README.md#preparing-a-source-snapshot) if a separate source history is needed.
+- The cleaned tracked tree is approximately 5.5 MiB, down from approximately 277 MiB. Old commits still contain removed data and historical code excerpts, and because the repository is public that history is visible. Use the [source snapshot procedure](../README.md#source-history) if a separate source history is needed.
 
 Run the boundary check before staging a release or preparing a source snapshot:
 
@@ -34,7 +34,7 @@ The [Source checks workflow](../.github/workflows/ci.yml) repeats source-boundar
 
 ## Distribution limits
 
-The source repository remains private. Preparing or verifying a snapshot does not change that visibility. No replacement binaries were uploaded by this cleanup.
+The source repository is public (as of 2026-10-16). Preparing or verifying a snapshot does not change visibility. No replacement binaries were uploaded by this cleanup.
 
 Minecraft-derived texture fixtures and campfire artwork remain separately owned; the MIT license does not cover them or establish redistribution permission. Review their rights before any wider asset distribution. FFmpeg releases retain their own GPL notices and source links. See [third-party notices](../THIRD_PARTY_NOTICES.md) and [app packaging](../FireCrackle/README.md).
 

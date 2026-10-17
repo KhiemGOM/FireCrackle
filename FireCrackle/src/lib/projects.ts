@@ -60,6 +60,12 @@ export function recordProject(list: ProjectEntry[], progress: ProjectProgress, n
   return limited([entry, ...list.filter(p => projectKey(p.videoPath) !== key)]);
 }
 
+/** Where the video's project was left, or 0 for a new one. */
+export function savedFrame(list: ProjectEntry[], videoPath: string): number {
+  const key = projectKey(videoPath);
+  return list.find(p => projectKey(p.videoPath) === key)?.frame ?? 0;
+}
+
 /** Forget a project (its files stay on disk). */
 export function removeProject(list: ProjectEntry[], videoPath: string): ProjectEntry[] {
   const key = projectKey(videoPath);

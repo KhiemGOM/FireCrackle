@@ -11,7 +11,7 @@ Set-Location FireCrackle
 npm run release
 ```
 
-This verifies/downloads pinned FFmpeg for build tests, installs dependencies on a fresh checkout (or checks existing ones), runs checks, builds the app and creates a portable ZIP in `releases/v0.1.0/<build>/`. Send that ZIP; testers extract it and run `FireCrackle.exe`. Testers need Windows 10/11 x64 and Edge WebView2. External executables are not packaged: FFmpeg/FFprobe download on first use when an installed pair is unavailable. They are verified and cached in account app data for subsequent offline use.
+This verifies/downloads pinned FFmpeg for build tests, installs dependencies on a fresh checkout (or checks existing ones), runs checks, builds the app and creates a portable ZIP in `releases/v<version>/<build>/`. Send that ZIP; testers extract it and run `FireCrackle.exe`. Testers need Windows 10/11 x64 and Edge WebView2. External executables are not packaged: FFmpeg/FFprobe download on first use when an installed pair is unavailable. They are verified and cached in account app data for subsequent offline use.
 
 For a single installer EXE that installs WebView2 when missing (internet required):
 
@@ -70,7 +70,7 @@ cd FireCrackle
 bash scripts/release-linux.sh
 ```
 
-The script runs frontend, video-core, detector and desktop tests, including a real FFmpeg encode/decode check. It builds AppImage and Debian bundles, packages original-code/third-party notices and build metadata, verifies checksums and contents, and starts both packages under a virtual display. Outputs go to a fresh `releases/v0.1.0/linux-x64-<build>/` directory. FFmpeg is supplied and licensed by the Linux distribution; Windows runtime files are not bundled into Linux packages.
+The script runs frontend, video-core, detector and desktop tests, including a real FFmpeg encode/decode check. It builds AppImage and Debian bundles, packages original-code/third-party notices and build metadata, verifies checksums and contents, and starts both packages under a virtual display. Outputs go to a fresh `releases/v<version>/linux-x64-<build>/` directory. FFmpeg is supplied and licensed by the Linux distribution; Windows runtime files are not bundled into Linux packages.
 
 ## Develop
 

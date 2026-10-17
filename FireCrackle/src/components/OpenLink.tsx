@@ -39,7 +39,7 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
         <label className="link-field">Video link<input autoFocus type="url" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" disabled={running||pending}/></label>
         <p className="dim">One video per link. Downloads the best available quality. yt-dlp and Deno are downloaded on first use and cached separately from FireCrackle. FFmpeg is also downloaded if needed on Windows; Linux uses system FFmpeg.</p>
         {backend.mock&&<p>Link downloads are available in the desktop app.</p>}
-        {status&&<p role="status" className="link-status">{status.message}{running&&<><br/><small>You can close this panel while the download continues.</small></>}</p>}
+        {status&&<p role="status" className="link-status">{status.message}{running&&<><br/><small>You can close this panel while the download continues; reopen it to open the finished video.</small></>}</p>}
         {(error||status?.error)&&<p role="alert">{error??status?.error}</p>}
         <div className="link-actions"><button className="on" disabled={!backend.linkStart||!url.trim()||running||pending} onClick={()=>void start()}>{pending?"Preparing…":"Download and open"}</button>
         {running&&<button onClick={()=>void backend.linkCancel?.(status.id)}>Cancel download</button>}
