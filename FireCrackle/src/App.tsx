@@ -25,6 +25,7 @@ import { useWheel } from "./hooks/useWheel";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { FLAGS_LIMITS, SIDE_LIMITS, VIDEO_LIMITS, clampSize, pickerCellSize, upperBound } from "./lib/layout";
 import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback } from "./lib/actions";
+import { framesDue, startClock } from "./lib/playbackClock";
 import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from "./lib/api";
 import { veilOptionsFromSettings } from "./lib/veil";
 import { wouldConsumeToolKey } from "./lib/toolKeys";
@@ -195,13 +196,20 @@ export default function App() {
     if (tab !== "label" || home) setPlayback(STOPPED);
   }, [tab, home]);
 
-  // playback: one timer; ticks are skipped while the previous step is still in flight
+  // playback: one timer, and the frame follows the wall clock. A tick that fires late, or is skipped while the previous
+  // step is still in flight, is made up on the next one, so the video keeps its speed: at 60 fps a tick is 16.7 ms, and
+  // counting only the ticks that ran lost the time of every skipped one, so any slow moment slowed the video for good.
   const fps = view?.fps ?? 0;
   useEffect(() => {
     const tick = playbackTick(fps, playback, minTick);
     if (!tick) return;
+    const maxCatchUp = 30; // after a long stall, drop the rest instead of racing ahead
+    let clock = startClock(performance.now());
     const id = setInterval(() => {
-      if (!ws.busy.current) void act({ type: "step", frames: tick.frames });
+      if (ws.busy.current) return;
+      const due = framesDue(performance.now(), clock, fps, playback.speed, maxCatchUp);
+      clock = due.clock;
+      if (due.frames > 0) void act({ type: "step", frames: due.frames * playback.dir });
     }, tick.intervalMs);
     return () => clearInterval(id);
   }, [fps, playback, minTick, act, ws.busy]);
