@@ -32,3 +32,4 @@
 .post-preset { display: flex; flex: 1; align-items: center; gap: 6px; }
 .post-preset select { flex: 1; }
 .post-choice select { grid-column: 2 / 4; }
+.side-switch > button:not(.post-toggle) { display: inline-flex; align-items: center; gap: 6px; }
