@@ -132,11 +132,31 @@ it("opened from the timecode, bare digits are a time; opened from the frame, the
   expect(locate).not.toHaveBeenCalled();
 });
 
-it("the box is as wide as its text, so a timecode does not leave a gap", () => {
+it("editing retains the other control and total; time punctuation stays fixed", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "1234")!.props.onClick();
+  expect(text(render())).toContain("/ 9999");
+  expect(text(render())).toContain("00:20|34");
   find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
-  expect(input(render())!.props.style.width).toBe("8ch");
+  expect(text(render())).toContain("1234");
+  expect(text(render())).toContain("/ 9999");
   input(render())!.props.onChange({ target: { value: "1015" } });
-  expect(input(render())!.props.style.width).toBe("4ch");
+  expect(input(render())!.props.value).toBe("00:10|15");
+});
+it("digit replacement and deletion skip fixed separators", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
+  const el = { selectionStart: 2, selectionEnd: 2, setSelectionRange: vi.fn() };
+  input(render())!.props.onKeyDown({ ...key("5"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("00:50|34");
+  expect(el.setSelectionRange).toHaveBeenCalledWith(4, 4);
+  el.selectionStart = 0; el.selectionEnd = 8;
+  input(render())!.props.onKeyDown({ ...key("Delete"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("00:00|00");
+});
+it("blur cancels without jumping", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "1234")!.props.onClick();
+  input(render())!.props.onBlur();
+  expect(input(render())).toBeUndefined();
+  expect(onJump).not.toHaveBeenCalled();
 });
 
 it("a video of an hour or more keeps the hour part; a shorter one has none", () => {
@@ -151,4 +171,14 @@ it("a video of an hour or more keeps the hour part; a shorter one has none", () 
 it("a short video's box is prefilled without the hour part", () => {
   find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
   expect(input(render())!.props.value).toBe("00:20|34");
+});
+it("a lookup cancelled by switching fields cannot jump later", async () => {
+  let finish!: (frame: number) => void;
+  locate.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
+  input(render())!.props.onKeyDown(key("Enter"));
+  find(render(), (e) => e.type === "button" && text(e) === "1234")!.props.onClick();
+  finish(999); await settle();
+  expect(onJump).not.toHaveBeenCalled();
+  expect(input(render())!.props.value).toBe("1234");
 });

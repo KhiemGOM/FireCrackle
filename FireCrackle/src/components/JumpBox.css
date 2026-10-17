@@ -1,43 +1,45 @@
-/* The status bar's frame number and timecode: plain text until clicked, then a box to type a frame or a time. */
-.jump-target {
+/* The invisible label sizes the slot; editing never changes the status row. */
+.jump-slot {
+  display: inline-block;
+  position: relative;
+}
+.jump-target,
+.jump-input {
+  box-sizing: border-box;
   font: inherit;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  font-weight: 600;
-  background: none;
   border: 1px dashed transparent;
   border-radius: 4px;
   padding: 0 3px;
-  cursor: text;
+  margin: 0;
 }
+.jump-target { background: none; cursor: text; }
 .jump-target:hover,
-.jump-target:focus-visible {
-  border-color: var(--line);
-  outline: none;
-}
-.jump-box {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
+.jump-target:focus-visible { border-color: var(--line); outline: none; }
 .jump-input {
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  /* the width is set from the text (JumpBox.tsx); this is the floor while it is empty */
-  min-width: 8ch;
-  padding: 1px 6px;
-  color: var(--text);
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
   background: var(--bg, #10131a);
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  border-style: solid;
+  border-color: var(--line);
 }
-.jump-input:focus {
-  outline: none;
-  border-color: var(--accent, #6ea8fe);
-}
-.jump-input.bad {
-  border-color: var(--amber);
-}
+.jump-input:focus { outline: none; border-color: var(--accent, #6ea8fe); }
+.jump-input.bad { border-color: var(--amber); }
 .jump-error {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 320px;
+  padding: 5px 8px;
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  background: var(--bg, #10131a);
   color: var(--amber);
 }
