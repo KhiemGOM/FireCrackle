@@ -27,7 +27,7 @@ import { candidateConfirmation, candidateDigit, candidateText, currentCandidate,
 import { useLayout } from "./hooks/useLayout";
 import { usePanelZooms } from "./hooks/usePanelZooms";
 import { useWheel } from "./hooks/useWheel";
-import { useWorkspace } from "./hooks/useWorkspace";
+import { useWorkspace, messageOf } from "./hooks/useWorkspace";
 import { FLAGS_LIMITS, SIDE_LIMITS, VIDEO_LIMITS, clampSize, pickerCellSize, upperBound } from "./lib/layout";
 import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback } from "./lib/actions";
 import { framesDue, startClock } from "./lib/playbackClock";
@@ -106,6 +106,7 @@ export default function App() {
   const [previewSprite, setPreviewSprite] = useState<PreviewSprite | null>(null);
   const [atlasFilter, setAtlasFilter] = useState<EdgeFilter>(readPreferences().atlasFilter);
   const [atlasEdges, setAtlasEdges] = useState<AtlasEdges | null>(null);
+  const [pickerError, setPickerError] = useState<string | null>(null);
   useEffect(() => { writePreferences({ tab, atlasFilter }); }, [tab, atlasFilter]);
   const candidate = view ? currentCandidate(view, draft) : null;
   // the saved label Confirm/Enter would overwrite: the Confirm button turns red and reads Replace
@@ -273,8 +274,13 @@ export default function App() {
 
   async function chooseVideo() {
     if (!backend) return;
-    const picked = await backend.pickVideo();
-    if (picked) await openVideo(picked);
+    setPickerError(null);
+    try {
+      const picked = await backend.pickVideo();
+      if (picked) await openVideo(picked);
+    } catch (error) {
+      setPickerError(`Could not open the video chooser: ${messageOf(error)}. On Home, paste the video path to bypass the chooser.`);
+    }
   }
 
   if (startupError) return <div className="fatal">Could not start: {startupError}</div>;
@@ -327,6 +333,7 @@ export default function App() {
       </header>
 
       <ToolSetupNotice backend={backend} />
+      {pickerError && <div role="alert" className="banner error">{pickerError} <button onClick={() => setPickerError(null)}>Dismiss</button></div>}
       {updates.banner && <UpdateBanner release={updates.banner} localVersion={appVersion} kind={updates.state.kind} onOpen={updates.controller.open} onSkip={updates.controller.skip} onLater={updates.controller.later} onDetails={() => setShowUpdates(true)} />}
       {tab !== "images" && ws.error && (
         <div className="banner error" onClick={ws.clearError}>

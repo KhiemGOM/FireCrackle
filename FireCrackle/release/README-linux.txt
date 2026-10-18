@@ -6,9 +6,16 @@ desktop distributions. ARM64 and musl/Alpine are not included in this release.
 AppImage:
   Install FFmpeg using your distribution's package manager first.
   On Ubuntu: sudo apt install ffmpeg libfuse2
+  On Fedora: sudo dnf install ffmpeg-free
+  Check that both ffmpeg -version and ffprobe -version work before opening a video.
   chmod +x FireCrackle-*-linux-x86_64.AppImage
   ./FireCrackle-*-linux-x86_64.AppImage
   Without FUSE, use: ./FireCrackle-*-linux-x86_64.AppImage --appimage-extract-and-run
+
+If Import video does not open a file chooser, use the Home page's video-path
+field to open the file directly. Start the AppImage in a terminal and retain any
+error output when reporting the issue. Report whether the chooser opened and
+whether a file was selected; those are separate from FFmpeg decoding failures.
 
 Debian/Ubuntu package:
   sudo apt install ./FireCrackle-*-linux-amd64.deb

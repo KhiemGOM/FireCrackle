@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { PREFERENCES_KEY } from "./lib/preferences";
 const fixture = vi.hoisted(() => ({
-  backend: { mock: true }, act: vi.fn(async (_action: unknown) => {}), view: {} as any,
+  backend: { mock: true, pickVideo: vi.fn(async ():Promise<string|null> => null) }, act: vi.fn(async (_action: unknown) => {}), view: {} as any,
   updates: {} as any,
   post: {} as any,
   states: [] as any[], refs: [] as Array<{current: any}>, stateCursor: 0, refCursor: 0, effectCursor: 0,
@@ -24,7 +24,7 @@ vi.mock("react", async original => ({
   },
 }));
 vi.mock("./lib/api", async original => ({ ...await original<typeof import("./lib/api")>(), createBackend: async () => fixture.backend }));
-vi.mock("./hooks/useWorkspace", () => ({ useWorkspace: () => ({ view: fixture.view, act: fixture.act, busy: {current: false}, flags: [], settings: [], version: 0, save: vi.fn(), opening: false, clearError: vi.fn() }) }));
+vi.mock("./hooks/useWorkspace", () => ({ messageOf: (error:unknown) => error instanceof Error ? error.message : String(error), useWorkspace: () => ({ view: fixture.view, act: fixture.act, busy: {current: false}, flags: [], settings: [], version: 0, save: vi.fn(), opening: false, clearError: vi.fn() }) }));
 vi.mock("./hooks/useLayout", () => ({ useLayout: () => ({ layout: { sideWidth: 600, videoHeight: 400, flagsHeight: 120 }, set: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/usePanelZooms", () => ({ usePanelZooms: () => ({ zooms: {picker: 1, flags: 1}, wheel: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/useWheel", () => ({ useWheel: () => {} }));
@@ -60,6 +60,7 @@ function key(key: string, mods: Record<string,unknown> = {}) {
   return event;
 }
 beforeEach(() => {
+  fixture.backend.pickVideo.mockReset().mockResolvedValue(null);
   fixture.act.mockClear(); fixture.states = [fixture.backend, null]; fixture.refs = []; fixture.effects = [];
   fixture.updates = updatesFixture(null);
   fixture.post = postFixture();
@@ -70,6 +71,22 @@ beforeEach(() => {
     removeEventListener: (type: string, listener: EventListener, capture = false) => target.removeEventListener(type, listener, {capture}),
     dispatchEvent: (event: Event) => target.dispatchEvent(event),
   });
+});
+
+it('shows a failed native video chooser as a visible error with a path workaround',async()=>{
+ fixture.backend.pickVideo.mockRejectedValue(new Error('GTK chooser failed'));
+ const ui=render();find(ui.tree,e=>e.props.label==='Open video')!.props.onClick();
+ await Promise.resolve();await Promise.resolve();
+ const alert=find(render().tree,e=>e.props.role==='alert')!;
+ expect(alert).toBeDefined();
+ expect(alert.props.children[0]).toContain('GTK chooser failed');
+ expect(alert.props.children[0]).toContain('paste the video path');
+});
+
+it('does not treat cancelling the native video chooser as an error',async()=>{
+ const ui=render();find(ui.tree,e=>e.props.label==='Open video')!.props.onClick();
+ await Promise.resolve();await Promise.resolve();
+ expect(find(render().tree,e=>e.props.role==='alert')).toBeUndefined();
 });
 afterEach(() => { fixture.effects.forEach(e => e?.cleanup?.()); vi.unstubAllGlobals(); });
 

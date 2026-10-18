@@ -87,6 +87,25 @@ fn runs(exe: &std::ffi::OsStr, arg: &str) -> bool {
         .output()
         .is_ok_and(|o| o.status.success())
 }
+fn video_tool_check(exe: &std::ffi::OsStr) -> Result<(), String> {
+    match command(exe).arg("-version").output() {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => Err(format!(
+            "{} -version failed ({}): {}",
+            exe.to_string_lossy(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+                .trim()
+                .chars()
+                .take(600)
+                .collect::<String>()
+        )),
+        Err(error) => Err(format!(
+            "Could not start {}: {error}",
+            exe.to_string_lossy()
+        )),
+    }
+}
 fn verify(path: &Path, expected: &str) -> Result<(), String> {
     let mut input = File::open(path).map_err(|e| e.to_string())?;
     let mut sha = Sha256::new();
@@ -251,7 +270,11 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
         return Ok(tools.clone());
     }
     let tools = Tools::default();
-    if runs(&tools.ffmpeg, "-version") && runs(&tools.ffprobe, "-version") {
+    let checks = [
+        video_tool_check(&tools.ffmpeg),
+        video_tool_check(&tools.ffprobe),
+    ];
+    if checks.iter().all(Result::is_ok) {
         let _ = VIDEO.set(tools.clone());
         return Ok(tools);
     }
@@ -285,7 +308,14 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
     }
     #[cfg(not(windows))]
     {
-        Err("Install FFmpeg with your system package manager, then retry (for example: sudo apt install ffmpeg).".into())
+        let details = checks
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<_>>()
+            .join("\n");
+        Err(format!(
+            "FFmpeg/ffprobe are unavailable.\n{details}\nInstall both with your system package manager, then restart FireCrackle. Fedora: sudo dnf install ffmpeg-free. Debian/Ubuntu: sudo apt install ffmpeg. If already installed, run ffmpeg -version and ffprobe -version in a terminal to check for missing libraries."
+        ))
     }
 }
 pub fn link_tools(cancel: Option<&AtomicBool>) -> Result<(PathBuf, PathBuf), String> {
@@ -345,6 +375,16 @@ mod tests {
     fn cancelled_setup_does_not_download() {
         let cancelled = AtomicBool::new(true);
         assert!(check_cancel(Some(&cancelled)).is_err());
+    }
+    #[test]
+    fn missing_video_tool_reports_the_executable_and_launch_error() {
+        let missing = std::env::temp_dir().join(format!(
+            "firecrackle-missing-ffprobe-{}-never-created",
+            std::process::id()
+        ));
+        let error = video_tool_check(missing.as_os_str()).unwrap_err();
+        assert!(error.contains("Could not start"));
+        assert!(error.contains("firecrackle-missing-ffprobe"));
     }
     #[test]
     #[ignore = "Downloads official executables; run explicitly with network access"]
