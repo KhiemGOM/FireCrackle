@@ -223,7 +223,7 @@ describe("Enhance panel: the selected row's controls", () => {
     byLabel(root, "Gamma").props.onChange({ target: { value: "abc" } });
     expect(onChange).not.toHaveBeenCalled();
     byLabel(root, "Gamma").props.onChange({ target: { value: "99" } });
-    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: tone({ gamma: 3 }) });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: tone({ gamma: 10 }) });
   });
 
   it("keeps black below white when one slider is dragged past the other", () => {
@@ -275,7 +275,7 @@ describe("Enhance panel: the other effects", () => {
   it("clamps a slider to its limits", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 50 }) }, "sharpen");
     byLabel(root, "Amount").props.onChange({ target: { value: "9999" } });
-    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 300 }) });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 1000 }) });
   });
 
   it("explains that the fire view is a view aid, not detection", () => {
@@ -440,11 +440,11 @@ describe("Enhance panel: sliders you can trust", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone");
     const box = byLabel(root, "Gamma value");
     expect(box.props.type).toBe("number");
-    expect([box.props.min, box.props.max, box.props.step]).toEqual([0.3, 3, 0.05]);
+    expect([box.props.min, box.props.max, box.props.step]).toEqual([0.3, 10, 0.05]);
     box.props.onBlur({ target: { value: "2" } });
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 2 }) });
-    box.props.onKeyDown({ key: "Enter", target: { value: "9" }, preventDefault: vi.fn() });
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) });
+    box.props.onKeyDown({ key: "Enter", target: { value: "99" }, preventDefault: vi.fn() });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 10 }) });
     onChange.mockClear();
     box.props.onBlur({ target: { value: "abc" } });
     box.props.onBlur({ target: { value: "" } });
@@ -475,9 +475,9 @@ describe("Enhance panel: sliders you can trust", () => {
     slider.props.onKeyDown({ key: "ArrowUp", shiftKey: true, preventDefault: plain, target: { value: "1.5" } });
     expect(plain).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
-    const top = panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) }, "tone");
-    byLabel(top.root, "Gamma").props.onKeyDown({ key: "ArrowRight", shiftKey: true, preventDefault: vi.fn(), target: { value: "3" } });
-    expect(top.onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 3 }) });
+    const top = panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 10 }) }, "tone");
+    byLabel(top.root, "Gamma").props.onKeyDown({ key: "ArrowRight", shiftKey: true, preventDefault: vi.fn(), target: { value: "10" } });
+    expect(top.onChange).toHaveBeenLastCalledWith({ ...DEFAULT_POST, stages: stage("tone", { gamma: 10 }) });
   });
 
   it("draws a tick where neutral is when that is inside the range, and none when neutral is at an end", () => {
@@ -488,7 +488,7 @@ describe("Enhance panel: sliders you can trust", () => {
     };
     const gamma = ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Gamma");
     expect(gamma).toHaveLength(1);
-    expect(parseFloat(String(gamma[0].props.style.left))).toBeCloseTo(((1 - 0.3) / (3 - 0.3)) * 100, 1);
+    expect(parseFloat(String(gamma[0].props.style.left))).toBeCloseTo(((1 - 0.3) / (10 - 0.3)) * 100, 1);
     expect(parseFloat(String(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Contrast")[0].props.style.left))).toBeCloseTo(20, 1);
     expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Shadow lift")).toHaveLength(0); // neutral 0 is the left end
     expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "White point")).toHaveLength(0); // neutral 255 is the right end
@@ -496,7 +496,7 @@ describe("Enhance panel: sliders you can trust", () => {
 
   it("fills the track up to the value through a CSS variable", () => {
     const slider = byLabel(panel({ ...DEFAULT_POST, stages: stage("tone", { gamma: 1.5 }) }, "tone").root, "Gamma");
-    expect(parseFloat(String(slider.props.style["--pct"]))).toBeCloseTo(((1.5 - 0.3) / 2.7) * 100, 1);
+    expect(parseFloat(String(slider.props.style["--pct"]))).toBeCloseTo(((1.5 - 0.3) / 9.7) * 100, 1);
     const atMin = byLabel(panel({ ...DEFAULT_POST, stages: stage("sharpen", { amount: 0 }) }, "sharpen").root, "Amount");
     expect(parseFloat(String(atMin.props.style["--pct"]))).toBe(0);
   });

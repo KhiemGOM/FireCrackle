@@ -72,8 +72,8 @@ describe("the built-in presets are useful and not cluttered", () => {
   };
 
   it("includes explicit contrast and edge views alongside the existing footage aids", () => {
-    expect(PRESETS.map(p => p.id)).toEqual(["high-contrast", "find-edges", "edge-overlay", "dark", "compressed", "fire", "edges", "soft"]);
-    expect(PRESETS.map(p => p.name)).toEqual(["High contrast", "Find edges", "Edge overlay", "Dark scene", "Compressed footage", "Fire focus", "Texture detail", "Soft footage"]);
+    expect(PRESETS.map(p => p.id)).toEqual(["high-contrast", "find-edges", "edge-overlay", "dark", "fire", "edges"]);
+    expect(PRESETS.map(p => p.name)).toEqual(["High contrast", "Find edges", "Edge overlay", "Dark scene", "Fire focus", "Texture detail"]);
   });
 
   it("each switch on at most three effects", () => {
@@ -88,39 +88,36 @@ describe("the built-in presets are useful and not cluttered", () => {
     expect(s.stages.denoise.params.strength).toBeGreaterThan(0);
   });
 
-  it("Compressed footage cleans first and sharpens gently, without changing the tones (a contrast step crushed dark frames)", () => {
-    const s = applyPreset(DEFAULT_POST, "compressed");
-    expect(on("compressed")).toEqual(["denoise", "sharpen"]);
-    expect(STAGE_IDS.indexOf("denoise")).toBeLessThan(STAGE_IDS.indexOf("sharpen"));
-    expect(s.stages.sharpen.params.amount).toBeLessThanOrEqual(100);
-    expect(s.stages.tone.on).toBe(false);
-  });
-
-  it("Fire focus shows fire-coloured pixels but keeps some of the surroundings visible", () => {
+  it("Fire focus uses full orange isolation", () => {
     const s = applyPreset(DEFAULT_POST, "fire");
     expect(s.stages.fire.on).toBe(true);
     expect(s.stages.fire.params.strength).toBeGreaterThanOrEqual(40);
-    expect(s.stages.fire.params.strength).toBeLessThan(100); // full strength hides all context
-    expect(s.stages.tone.params.gamma).toBeGreaterThan(1);
+    expect(s.stages.fire.params.strength).toBe(100);
     expect(s.stages.channels.on).toBe(false);
   });
 
-  it("Texture edges sharpens with a small radius to show the texel boundaries", () => {
+  it("Texture detail strongly sharpens texel boundaries", () => {
     const s = applyPreset(DEFAULT_POST, "edges");
     expect(s.stages.sharpen.on).toBe(true);
-    expect(s.stages.sharpen.params.amount).toBeGreaterThanOrEqual(100);
-    expect(s.stages.sharpen.params.radius).toBeLessThanOrEqual(1);
+    expect(s.stages.sharpen.params.amount).toBeGreaterThanOrEqual(500);
+    expect(s.stages.sharpen.params.radius).toBeLessThanOrEqual(1.5);
   });
 
-  it("Soft footage deblurs with few iterations (more makes halos)", () => {
-    const s = applyPreset(DEFAULT_POST, "soft");
-    expect(s.stages.deblur.on).toBe(true);
-    expect(s.stages.deblur.params.iterations).toBeGreaterThanOrEqual(1);
-    expect(s.stages.deblur.params.iterations).toBeLessThanOrEqual(5);
-  });
+
 });
 
 describe("purposeful inspection presets", () => {
+  it("strongly lifts dark pixels and isolates orange from blue", () => {
+    const dark = applyPreset(DEFAULT_POST, "dark");
+    const lut = buildToneLut(dark.stages.tone.params as unknown as ToneParams);
+    expect(lut[16]).toBeGreaterThan(100);
+    const data = new Uint8ClampedArray([200, 100, 20, 255, 20, 80, 200, 255]);
+    const out = enhance({ data, width: 2, height: 1 }, applyPreset(DEFAULT_POST, "fire"));
+    expect(out.data[0]).toBeGreaterThanOrEqual(200);
+    expect(out.data[6]).toBeLessThan(60);
+    expect(out.data[4]).toBe(out.data[5]);
+    expect(out.data[5]).toBe(out.data[6]);
+  });
   it("makes modest midtone differences clearly separate at high contrast", () => {
     const s = applyPreset(DEFAULT_POST, "high-contrast");
     expect(s.stages.tone.on).toBe(true);

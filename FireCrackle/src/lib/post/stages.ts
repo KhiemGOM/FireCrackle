@@ -44,8 +44,8 @@ const range = (key: string, label: string, min: number, max: number, step: numbe
 export const STAGES: Record<StageId, StageSpec> = {
   tone: {
     id: "tone", name: "Contrast & levels", defaults: { ...DEFAULT_TONE },
-    help: "Contrast separates light and dark; black/white points stretch the range; gamma reveals midtones. High values clip detail: compare with the original using V.",
-    controls: [range("contrast", "Contrast", -100, 400, 1), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("gamma", "Gamma", 0.3, 3, 0.05, 0.01), range("shadows", "Shadow lift", 0, 100, 1)],
+    help: "Contrast separates light and dark; black/white points stretch the range; Gamma above 1 brightens midtones; raise it when contrast darkens the picture. High values clip detail: compare with the original using V.",
+    controls: [range("contrast", "Contrast", -100, 400, 1), range("gamma", "Gamma", 0.3, 10, 0.05, 0.01), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("shadows", "Shadow lift", 0, 100, 1)],
     isIdentity: p => isToneIdentity(p as unknown as ToneParams),
     apply: (d, _w, _h, p) => applyTone(d, p as unknown as ToneParams),
     repair: p => (p.black >= p.white ? { ...p, black: DEFAULT_TONE.black, white: DEFAULT_TONE.white } : p),
@@ -67,8 +67,8 @@ export const STAGES: Record<StageId, StageSpec> = {
   },
   sharpen: {
     id: "sharpen", name: "Sharpen", defaults: { ...DEFAULT_SHARPEN },
-    help: "Sharpens brightness only, so colours do not fringe. JPEG blocks get sharper too: keep it gentle on compressed footage.",
-    controls: [range("amount", "Amount", 0, 300, 5, 1), range("radius", "Radius", 0.5, 5, 0.1, 0.05), range("threshold", "Threshold", 0, 50, 1)],
+    help: "Sharpens brightness only, so colours do not fringe. Up to 1000% for aggressive inspection; blocks and halos become stronger too.",
+    controls: [range("amount", "Amount", 0, 1000, 5, 1), range("radius", "Radius", 0.5, 5, 0.1, 0.05), range("threshold", "Threshold", 0, 50, 1)],
     isIdentity: p => isSharpenIdentity(p as unknown as SharpenParams),
     apply: (d, w, h, p) => applySharpen(d, w, h, p as unknown as SharpenParams),
   },

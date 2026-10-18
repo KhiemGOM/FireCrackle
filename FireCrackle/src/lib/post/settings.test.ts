@@ -113,7 +113,7 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
 
   it("clamps numbers into their limits and rejects NaN and Infinity", () => {
     const p = repairPostSettings({ stages: { tone: { on: true, params: { gamma: 99, contrast: -500, shadows: 1000, black: 10, white: 250 } } } }).stages.tone.params;
-    expect(p.gamma).toBe(3);
+    expect(p.gamma).toBe(10);
     expect(p.contrast).toBe(-100);
     expect(p.shadows).toBe(100);
     const nan = repairPostSettings({ stages: { tone: { on: true, params: { gamma: NaN, contrast: Infinity } } } }).stages.tone.params;
@@ -154,7 +154,7 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
     } });
     expect(fixed.stages.denoise.params).toEqual({ strength: 100, radius: 3 });
     expect(fixed.stages.deblur.params).toEqual({ iterations: 10, radius: 0.5 });
-    expect(fixed.stages.sharpen.params.amount).toBe(300);
+    expect(fixed.stages.sharpen.params.amount).toBe(999);
     expect(fixed.stages.sharpen.params.radius).toBe(0.5);
     expect(fixed.stages.sharpen.params.threshold).toBe(0);
     expect(fixed.stages.fire.params.strength).toBe(0);
@@ -271,7 +271,7 @@ describe("telling a slider drag from a switch (the picture is only delayed for t
 
 describe("keeping a tone control inside its limits", () => {
   it("clamps to the limits", () => {
-    expect(clampTone("gamma", 99, DEFAULT_TONE).gamma).toBe(3);
+    expect(clampTone("gamma", 99, DEFAULT_TONE).gamma).toBe(10);
     expect(clampTone("gamma", 0, DEFAULT_TONE).gamma).toBe(0.3);
     expect(clampTone("contrast", -999, DEFAULT_TONE).contrast).toBe(-100);
   });

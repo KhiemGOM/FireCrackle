@@ -6,6 +6,15 @@ const tone = (patch: Partial<typeof DEFAULT_TONE>) => ({ ...DEFAULT_TONE, ...pat
 const near = (a: number, b: number, tol = 1) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
 
 describe("tone lookup table", () => {
+  it("can recover dark midtones under strong contrast with the expanded gamma range", () => {
+    const dark = buildToneLut(tone({ contrast: 200 }));
+    const lifted = buildToneLut(tone({ contrast: 200, gamma: 10 }));
+    expect(dark[32]).toBe(0);
+    expect(lifted[32]).toBeGreaterThan(150);
+    expect(lifted[0]).toBe(0);
+    expect(lifted[255]).toBe(255);
+    for (let i = 1; i < 256; i++) expect(lifted[i]).toBeGreaterThanOrEqual(lifted[i - 1]);
+  });
   it("is exactly the identity at the neutral settings", () => {
     const lut = buildToneLut(DEFAULT_TONE);
     expect(lut).toHaveLength(256);
