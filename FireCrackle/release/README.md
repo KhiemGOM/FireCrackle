@@ -1,5 +1,10 @@
 # Releasing FireCrackle
 
+Current target: **0.4.0**. See [release readiness](READINESS-0.4.0.md) for completed
+preparation and feature-freeze gates. Wait for active feature owners before making
+the final release snapshot. The `prepare_release.py` command below pushes a release
+branch and requests publication; it is not a preparation-only command.
+
 If both platform builds passed but publication failed, reuse their artifacts with
 `gh workflow run firecrackle-publish.yml --ref main -f commit=FULL_FROZEN_SHA -f windows_run=RUN_ID -f linux_run=RUN_ID`.
 This uses current publisher tooling with the frozen version/notes, checks every job attempt,
