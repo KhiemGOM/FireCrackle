@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, type GuiMaskReply } from "./guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, veilScreenEvidence, type GuiMaskReply } from "./guiMask";
 
 const reply = (over: Partial<GuiMaskReply> = {}): GuiMaskReply => ({
   width: 4, height: 1, reliable: true, scale: 4.5, scaled_width: 427, scaled_height: 240, notes: [],
@@ -7,6 +7,15 @@ const reply = (over: Partial<GuiMaskReply> = {}): GuiMaskReply => ({
 });
 
 describe("the GUI compatibility assumption", () => {
+  it("uses only reliable, texture-confirmed menu/inventory pieces as veil evidence", () => {
+    for (const piece of ["InventoryPanel", "MenuButton"]) {
+      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 1 }] }))).toEqual({ width: 4, height: 1 });
+      expect(veilScreenEvidence(reply({ reliable: false, pieces: [{ piece, count: 1 }] }))).toBeUndefined();
+      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 0 }] }))).toBeUndefined();
+    }
+    expect(veilScreenEvidence(reply())).toBeUndefined(); // ordinary HUD
+    expect(veilScreenEvidence(null)).toBeUndefined();
+  });
   it("states the reference GUI and reliable-fit requirement without asking a question", () => {
     expect(GUI_ASSUMPTION).toContain("Assumes");
     expect(GUI_ASSUMPTION).toContain("1.16.5");

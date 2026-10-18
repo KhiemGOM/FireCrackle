@@ -372,9 +372,9 @@ const postOf = (patch: Partial<PostSettings> = {}, tone: Partial<typeof DEFAULT_
   ...DEFAULT_POST, ...patch, stages: { ...DEFAULT_POST.stages, tone: { on, params: { ...DEFAULT_TONE, ...tone } } },
 });
 
-async function runLoad(post: PostSettings | undefined, extra: Record<string, unknown> = {}) {
+async function runLoad(post: PostSettings | undefined, extra: Record<string, unknown> = {}, mask?: guiControls.GuiMaskState) {
   // no GUI mask (its own effect would be found first), as in the portal tests above
-  vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue(mask ?? { supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
   const backend = createMockBackend();
   vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(0));
   const view = await backend.view();
@@ -410,6 +410,20 @@ it("processes with the veil mode from the post settings", async () => {
   await runLoad(postOf({ veil: "on" }));
   expect(spy).toHaveBeenCalled();
   expect(spy.mock.calls[0][2]).toBe("on");
+});
+
+it.each(["menu", "inventory", "hud", "stale", "unreliable"])("auto veil requests GUI analysis and only passes current known-screen evidence: %s", async kind => {
+  const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
+  const { current } = await createMockBackend().view();
+  const state = {
+    supported: true, busy: false, error: null, pixels: null,
+    maskFrame: kind === "stale" ? current - 1 : current,
+    reply: { reliable: kind !== "unreliable", width: 1920, height: 1080, scale: 2, scaled_width: 960, scaled_height: 540, notes: [], pieces: [{ piece: kind === "hud" ? "Hotbar" : kind === "inventory" ? "InventoryPanel" : "MenuButton", count: 1 }] },
+  };
+  await runLoad(postOf({ veil: "auto" }), {}, state);
+  const calls = vi.mocked(guiControls.useGuiMask).mock.calls;
+  expect(calls[calls.length - 1][3]).toBe(true);
+  expect(spy.mock.calls[0][7]).toEqual(["menu", "inventory"].includes(kind) ? { width: 1920, height: 1080 } : undefined);
 });
 
 it("runs the portal stage when the post settings say Auto, and not otherwise", async () => {

@@ -144,6 +144,46 @@ fn jpeg(w: usize, h: usize, hud: bool, name: &str) -> Vec<u8> {
             &HudState::default(),
             &GuiFit::framebuffer(w as u32, h as u32, 3, 1.0),
         );
+        // Texture-confirmed open screens must reach the app's reply, not only
+        // the core screen-mask tests. Bright world pixels deliberately make
+        // pixel-only veil detection insufficient for these fixtures.
+        let fit = GuiFit::framebuffer(w as u32, h as u32, 3, 1.0);
+        let (sw, sh) = (fit.scaled_width as usize, fit.scaled_height as usize);
+        let mut draw = |x: usize, y: usize, width: usize, height: usize, inventory: bool| {
+            for v in 0..height {
+                for u in 0..width {
+                    let sheet = if inventory {
+                        &tex.inventory
+                    } else {
+                        &tex.widgets
+                    };
+                    let tx = if inventory || u < width / 2 {
+                        u
+                    } else {
+                        200 + u - width
+                    };
+                    let ty = if inventory { v } else { 46 + v };
+                    let p = (ty * sheet.width + tx) * 4;
+                    let c = &sheet.rgba[p..p + 4];
+                    if c[3] != 255 {
+                        continue;
+                    }
+                    for dy in 0..3 {
+                        for dx in 0..3 {
+                            let p = (((y + v) * 3 + dy) * w + (x + u) * 3 + dx) * 3;
+                            f[p..p + 3].copy_from_slice(&c[..3]);
+                        }
+                    }
+                }
+            }
+        };
+        if name == "screen_inventory" {
+            draw((sw - 176) / 2, (sh - 166) / 2, 176, 166, true);
+        } else if name == "screen_menu" {
+            for row in 0..3 {
+                draw(sw / 2 - 102, sh / 4 + 8 + row * 24, 204, 20, false);
+            }
+        }
     }
     let d = scratch(name);
     std::fs::write(d.join("f.rgb"), &f).unwrap();
@@ -210,6 +250,35 @@ fn a_frame_without_hud_is_unreliable_and_empty() {
     assert!(reply.scale.is_none());
     assert!(!reply.notes.is_empty());
     assert!(packed.iter().all(|&b| b == 0));
+}
+
+#[test]
+fn known_open_screens_are_reported_separately_from_the_hud() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let analyzer = GuiAnalyzer::new().unwrap();
+    for (fixture, piece) in [
+        ("screen_inventory", "InventoryPanel"),
+        ("screen_menu", "MenuButton"),
+    ] {
+        let (reply, _) = analyzer
+            .analyze_jpeg(&jpeg(1280, 720, true, fixture))
+            .unwrap();
+        assert!(reply.reliable, "{:?}", reply.notes);
+        assert!(
+            reply.pieces.iter().any(|p| p.piece == piece && p.count > 0),
+            "{fixture}: {:?}",
+            reply.pieces
+        );
+    }
+    let (reply, _) = analyzer
+        .analyze_jpeg(&jpeg(1280, 720, true, "hud_only"))
+        .unwrap();
+    assert!(!reply
+        .pieces
+        .iter()
+        .any(|p| p.piece == "InventoryPanel" || p.piece == "MenuButton"));
 }
 
 #[test]

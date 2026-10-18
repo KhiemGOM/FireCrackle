@@ -28,12 +28,16 @@ export type EnhanceStage = (image: PortalImage) => { data: Uint8ClampedArray; ap
  * Decode once, undo veil, optionally undo portal, optionally enhance, then encode once. If no stage applies, preserve
  * the original blob. A portal or enhancement failure preserves the earlier stages. Never throws or returns a blank picture.
  */
-export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>, enhanceStage?: EnhanceStage): Promise<ProcessedFrame> {
+export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>, enhanceStage?: EnhanceStage, screen?: { width: number; height: number }): Promise<ProcessedFrame> {
   if (mode === "off" && !portal && !enhanceStage) return { blob: original, applied: false };
   try {
     await initVeil();
     const img = await io.decode(bytes);
-    const result = applyVeil(img, mode, options);
+    // A confirmed open screen is independent evidence of the game's veil.
+    // Its mask must match the decoded picture; Off still wins. Pixel math
+    // remains in applyVeil's canonical Rust/WASM inverse.
+    const screenMatches = screen?.width === img.width && screen?.height === img.height;
+    const result = applyVeil(img, mode === "auto" && screenMatches ? "on" : mode, options);
     if (result.error) return { blob: original, applied: false, error: result.error };
     let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
     if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=String(e);}}

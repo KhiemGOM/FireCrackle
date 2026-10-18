@@ -73,6 +73,15 @@ describe("constants", () => {
 });
 
 describe("detectVeil: basics", () => {
+  it("accepts compressed shadow channels at 10 while still rejecting true blacks", () => {
+    const f = solid(20);
+    for (let y = 0; y < H / 3; y++) for (let x = 0; x < W; x++) f.set([14, 11, 10, 255], (y * W + x) * 4);
+    expect(detectVeilStrict(f, W, H)).toBe(false);
+    expect(detectVeil(f, W, H)).toBe(true);
+    expect(applyVeil({ data: f, width: W, height: H }, "auto", DEFAULT_VEIL_OPTIONS).applied).toBe(true);
+    for (let y = 0; y < H / 3; y++) for (let x = 0; x < W; x++) f.set([0, 0, 0, 255], (y * W + x) * 4);
+    expect(detectVeil(f, W, H)).toBe(false);
+  });
   it("detects a veiled scene", () => {
     for (let seed = 0; seed < 5; seed++) expect(detectVeil(veil(scene(seed, 0, 255)), W, H)).toBe(true);
   });

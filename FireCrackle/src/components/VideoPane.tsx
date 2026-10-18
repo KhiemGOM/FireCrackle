@@ -33,6 +33,7 @@ import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
 import { GuiMaskOverlay, GuiMaskPanel, useGuiMask } from "./GuiMaskControls";
+import { veilScreenEvidence } from "../lib/guiMask";
 import { JumpBox } from "./JumpBox";
 import { DEFAULT_BUFFER_SETTINGS, FrameBuffer, type BufferSettings } from "../lib/frameBuffer";
 import { domBufferIo } from "../lib/frameBufferDom";
@@ -186,7 +187,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   const reportPortalStatus = (status: string) => { setPortalStatus(status); onPortalStatus?.(status); };
   // GUI mask: videos only (photos have no project to keep the vanilla answer in)
   const [guiMaskOn, setGuiMaskOn] = useState(false);
-  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode !== "off") && !stillImage);
+  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode !== "off" || veilMode === "auto") && !stillImage);
   const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
   const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
 
@@ -334,7 +335,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
           const fit = await portalPreview(image, cancel.signal, world, manualPortal);
           if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
           return fit;
-        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined);
+        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
         if (made.error) onError(`Picture correction: ${made.error}`);
         if (runPortal) reportPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");

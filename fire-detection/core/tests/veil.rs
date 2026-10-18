@@ -28,6 +28,27 @@ const W: usize = 320;
 const H: usize = 180;
 
 #[test]
+fn shared_detector_accepts_quantized_shadow_floor_without_accepting_true_blacks() {
+    // Real compressed menu frame 12482: >10% of the margins have a channel at
+    // 10. Rounding the theoretical 12.047 floor up before applying slack=2
+    // incorrectly requires 11 instead of allowing the quantized floor 12 - 2.
+    let mut rgb = vec![20u8; W * H * 3];
+    for y in 0..H / 3 {
+        for x in 0..W {
+            let i = (y * W + x) * 3;
+            rgb[i..i + 3].copy_from_slice(&[14, 11, 10]);
+        }
+    }
+    assert!(!detect_veil(&rgb, W, H, 0).unwrap()); // historical strict bounds
+    assert!(fire_core::veil::detect_veil(&rgb, W, H, 0).unwrap());
+    for pixel in rgb.chunks_mut(3).take(W * H / 3) {
+        pixel.copy_from_slice(&[0, 0, 0]);
+    }
+    assert!(!fire_core::veil::detect_veil(&rgb, W, H, 0).unwrap());
+    assert!(!fire_core::veil::detect_veil(&scene(201, 0, 70), W, H, 0).unwrap());
+}
+
+#[test]
 fn optimized_bounds_and_short_circuit_match_exhaustive_original() {
     fn reference(rgb: &[u8], w: usize, h: usize, y0: usize) -> bool {
         let lo = 16. * A_TOP - 2.;

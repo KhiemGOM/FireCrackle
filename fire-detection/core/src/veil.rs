@@ -104,6 +104,13 @@ fn validate(data: &[u8], w: usize, h: usize, channels: usize) -> Result<(), Stri
     }
     Ok(())
 }
+#[derive(Clone, Copy)]
+enum Judgment {
+    Strict,
+    Background,
+    GuiNeutral,
+}
+
 fn judge(
     data: &[u8],
     w: usize,
@@ -111,13 +118,24 @@ fn judge(
     channels: usize,
     y0: usize,
     o: Options,
-    neutral_gui: bool,
+    mode: Judgment,
 ) -> (bool, f64) {
+    let neutral_gui = matches!(mode, Judgment::GuiNeutral);
     let margin = ((w as f64 * o.margin).floor() as usize)
         .max(1)
         .min((w / 2).max(1));
     let total = (h - y0) * margin * 2;
-    let lo = (COLOUR * A_TOP - o.slack).ceil().max(0.0) as u8;
+    // The rendered veil floor is an integer channel before compression adds
+    // its error. At the top, 12.047 quantizes to 12: with slack=2, channel 10
+    // is valid. Comparing against 12.047 - 2 and then ceil would require 11
+    // and reject compressed dark menus. Keep the old exact bound available
+    // only for the historical strict diagnostic.
+    let floor = if !matches!(mode, Judgment::Strict) {
+        (COLOUR * A_TOP).round()
+    } else {
+        COLOUR * A_TOP
+    };
+    let lo = (floor - o.slack).ceil().max(0.0) as u8;
     let (mut inside, mut judged) = (0usize, 0usize);
     for y in y0..h {
         let (bias, inverse) = row_transform(y, h);
@@ -166,8 +184,8 @@ pub fn detect_pixels(
     }
     let mut best = 0.0_f64;
     for margin in [o.margin, o.margin.min(0.1)] {
-        for neutral in [false, true] {
-            let (yes, share) = judge(data, w, h, channels, y0, Options { margin, ..o }, neutral);
+        for mode in [Judgment::Background, Judgment::GuiNeutral] {
+            let (yes, share) = judge(data, w, h, channels, y0, Options { margin, ..o }, mode);
             best = best.max(share);
             if yes {
                 return Ok((true, share));
@@ -190,7 +208,7 @@ pub fn strict_pixels(
 ) -> Result<bool, String> {
     // Reuse all dimension/option validation, then evaluate the one strict window.
     detect_pixels(data, w, h, channels, y0, o)?;
-    Ok(judge(data, w, h, channels, y0, o, false).0)
+    Ok(judge(data, w, h, channels, y0, o, Judgment::Strict).0)
 }
 /// In-place inverse; RGBA alpha is preserved. No other implementation should
 /// reproduce these row/round/clamp operations.

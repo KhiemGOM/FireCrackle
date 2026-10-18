@@ -143,7 +143,10 @@ impl GuiAnalyzer {
             jpeg_decoder::PixelFormat::L8 => px.iter().flat_map(|&v| [v, v, v]).collect(),
             other => return Err(format!("unsupported JPEG pixel format {other:?}")),
         };
-        let m = self.detector.detect(&rgb, w, h)?;
+        let mut m = self.detector.detect(&rgb, w, h)?;
+        // Reuse the shared texture-confirmed screen masks. Their hits also let
+        // the preview distinguish an open menu/inventory from the normal HUD.
+        fire_core::gui_mask::add_screen_masks(&rgb, w, h, self.detector.textures(), &mut m)?;
         let mut counts: BTreeMap<String, usize> = BTreeMap::new();
         for hit in &m.hits {
             *counts.entry(format!("{:?}", hit.piece)).or_insert(0) += 1;

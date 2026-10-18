@@ -17,6 +17,13 @@ export interface GuiMaskReply {
   pieces: Array<{ piece: string; count: number }>;
 }
 
+/** A texture-confirmed open screen, not merely the always-visible HUD. */
+export function veilScreenEvidence(reply: GuiMaskReply | null): { width: number; height: number } | undefined {
+  if (!reply?.reliable || !(reply.width > 0) || !(reply.height > 0)) return undefined;
+  const screen = reply.pieces?.some(p => p.count > 0 && (p.piece === "InventoryPanel" || p.piece === "MenuButton"));
+  return screen ? { width: reply.width, height: reply.height } : undefined;
+}
+
 /** Piece id (low nibble) and pixel class (high nibble: 0 none, 1 opaque, 2 translucent, 3 unknown). */
 export function unpack(b: number): { piece: number; cls: number } {
   return { piece: b & 0x0f, cls: b >> 4 };
@@ -55,6 +62,9 @@ const NAMES: Record<string, string> = {
   EffectIcon: "Effect icon",
   Title: "Title",
   Subtitle: "Subtitle",
+  InventoryPanel: "Inventory",
+  MenuButton: "Menu buttons",
+  RecipeBookPanel: "Recipe book",
 };
 
 /** One line for the panel: the scale and the pieces found, or why nothing was found. */

@@ -94,6 +94,25 @@ describe("processFrame", () => {
     expect(fake.encode).not.toHaveBeenCalled();
   });
 
+  it("uses a size-matched known screen to unveil when the pixel detector rejects", async () => {
+    const pixels = normalPixels();
+    const fake = io(pixels);
+    const result = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W, height: H });
+    expect(result.applied).toBe(true);
+    expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+  });
+
+  it("ignores wrong-size screen evidence and keeps Off authoritative", async () => {
+    for (const [mode, width] of [["auto", W + 1], ["off", W]] as const) {
+      const fake = io(normalPixels());
+      const orig = original();
+      const result = await processFrame(bytes, orig, mode, DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width, height: H });
+      expect(result.applied).toBe(false);
+      expect(result.blob).toBe(orig);
+      expect(fake.encode).not.toHaveBeenCalled();
+    }
+  });
+
   it("on undoes even a frame that does not look veiled", async () => {
     const fake = io(normalPixels());
     const r = await processFrame(bytes, original(), "on", DEFAULT_VEIL_OPTIONS, fake);
