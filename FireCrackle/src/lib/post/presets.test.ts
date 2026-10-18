@@ -118,11 +118,13 @@ describe("purposeful inspection presets", () => {
     expect(out.data[4]).toBe(out.data[5]);
     expect(out.data[5]).toBe(out.data[6]);
   });
-  it("makes modest midtone differences clearly separate at high contrast", () => {
+  it("raises gamma in High contrast so dark boundaries remain visible", () => {
     const s = applyPreset(DEFAULT_POST, "high-contrast");
     expect(s.stages.tone.on).toBe(true);
     const lut = buildToneLut(s.stages.tone.params as unknown as ToneParams);
-    expect(lut[145] - lut[110]).toBeGreaterThan(150);
+    expect(s.stages.tone.params.gamma).toBe(3);
+    expect(lut[32]).toBeGreaterThan(100);
+    expect(lut[48] - lut[24]).toBeGreaterThan(150);
   });
   it("finds real boundaries through the image pipeline, rather than just sharpening", () => {
     const data = new Uint8ClampedArray(8 * 3 * 4);

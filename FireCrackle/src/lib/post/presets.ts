@@ -9,7 +9,7 @@ import { STAGES, STAGE_IDS, repairParams, type Params, type StageId } from "./st
 export interface Preset { id: string; name: string; help?: string; stages: Partial<Record<StageId, Params>> }
 
 export const PRESETS: readonly Preset[] = [
-  { id: "high-contrast", name: "High contrast", help: "Strong light/dark separation for faint boundaries. Deliberately clips shadows and highlights; adjust Contrast & levels for your scene.", stages: { tone: { contrast: 200, black: 12, white: 243 } } },
+  { id: "high-contrast", name: "High contrast", help: "Strong contrast with Gamma 3 to lift dark detail. Deliberately clips highlights; adjust Gamma for your scene.", stages: { tone: { contrast: 200, gamma: 3, black: 0, white: 255 } } },
   { id: "find-edges", name: "Find edges", help: "White outlines on black, including colour-only boundaries. Adjust Sensitivity and Noise cutoff in Edge detection.", stages: { edges: { mode: 0, channel: 1, gain: 4, threshold: 4, amount: 100 } } },
   { id: "edge-overlay", name: "Edge overlay", help: "Cyan outlines over the picture, keeping the scene visible. Adjust Edge detection to expose weaker boundaries or suppress noise.", stages: { edges: { mode: 2, channel: 1, gain: 4, threshold: 6, amount: 100 } } },
   { id: "dark", name: "Dark scene", help: "Strong shadow recovery and midtone brightening, with noise smoothing. Raise Gamma further for very dark scenes.", stages: { tone: { gamma: 3.5, shadows: 85 }, denoise: { strength: 60, radius: 2 } } },
