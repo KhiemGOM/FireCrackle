@@ -641,6 +641,11 @@ button.confirm-label.replace:hover:not(:disabled) { background: #f02a2f; }
 }
 
 .keys {
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   position: fixed;
   right: 16px;
   bottom: 16px;
@@ -652,6 +657,10 @@ button.confirm-label.replace:hover:not(:disabled) { background: #f02a2f; }
   gap: 4px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
+.keys > div { display: grid; grid-template-columns: 155px minmax(0, 1fr); gap: 10px; align-items: start; }
+.keys kbd { width: fit-content; margin: 0; white-space: normal; }
+.keys span { min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
+@media (max-width: 420px) { .keys > div { grid-template-columns: 115px minmax(0, 1fr); gap: 6px; } }
 kbd {
   background: var(--panel2);
   border: 1px solid var(--line);

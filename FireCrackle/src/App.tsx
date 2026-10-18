@@ -40,30 +40,32 @@ import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
 
 const KEY_HELP: Array<[string, string]> = [
-  ["Q · H · M · U", "video tools: quad mask · first-person fire · sprite matcher · ruler"],
-  ["M · Hold M + 1–3", "find best match · preview matches 1–3"],
-  ["← →", "previous / next frame (hold to repeat)"],
-  ["↑ ↓", "previous / next animation phase"],
-  ["Shift + ← →", "big step"],
-  ["Home / End", "first / last frame"],
-  ["Space · L · J · K", "play / faster forward / faster backward / stop"],
-  ["0–9", "choose a candidate animation index; nothing is saved yet"],
-  ["Enter", "confirm the candidate and advance"],
-  ["R · T", "flip candidate · switch fire sheet 0/1"],
-  ["X · Shift+X", "choose no fire · skip, then confirm"],
-  ["Backspace · Ctrl+Z", "clear · undo"],
-  ["Ctrl+S", "save labels and current video position"],
-  ["N · Shift+N", "next / previous unlabelled"],
+  ["Q · H · M · U", "quad · first-person fire · matcher · ruler"],
+  ["M", "open / find match · close matcher"],
+  ["Hold M + 1–3", "preview match 1–3"],
+  ["← →", "previous / next frame · hold to repeat"],
+  ["↑ ↓", "previous / next sprite row"],
+  ["Shift + ← →", "big frame step"],
+  ["Home · End", "first / last frame"],
+  ["Space · L · J · K", "play · forward · backward · stop"],
+  ["0–9", "choose row · Enter to save"],
+  ["Enter", "save candidate and advance"],
+  ["R · T", "flip · switch sheet / still–flowing"],
+  ["X · Shift+X", "mark selected source absent · skip"],
+  ["Backspace · Ctrl+Z", "clear label · undo"],
+  ["Ctrl+S", "save labels and position"],
+  ["N · Shift+N", "next / previous unlabelled frame"],
   ["F · Shift+F", "next / previous flag"],
-  ["Esc", "discard the selected candidate"],
-  ["Atlas click", "select candidate and preview; Confirm/Enter saves it"],
-  ["Atlas right-click", "toggle sprite as a non-candidate"],
-  ["Ctrl + atlas click", "select sprite for the enabled fire preview without labeling"],
-  ["Ctrl + quad drag", "move all four corners together"],
-  ["Hold Shift", "quad transform box: corners resize proportionally, edges resize one axis, top handle rotates"],
-  ["P", "make the manual quad a parallelogram"],
-  ["E", "toggle active fire preview opacity 0% / 100%"],
-  ["Select corner + Alt+click", "place that corner at the click, including outside the image; Esc deselects"],
+  ["Esc", "discard candidate / deselect corner"],
+  ["Atlas click", "select and preview · Enter to save"],
+  ["Right-click sprite", "exclude / restore candidate · fire only"],
+  ["Ctrl+click sprite", "preview only"],
+  ["Ctrl+drag quad", "move all corners"],
+  ["Shift (quad)", "resize / rotate handles"],
+  ["Shift (video)", "rotate around pointer anchor"],
+  ["P", "make quad a parallelogram"],
+  ["E", "toggle preview opacity 0% / 100%"],
+  ["Corner + Alt+click", "place selected corner"],
 ];
 
 export default function App() {
@@ -464,7 +466,7 @@ export default function App() {
         <div className="keys">
           {KEY_HELP.map(([k, d]) => (
             <div key={k}>
-              <kbd>{k}</kbd> {d}
+              <kbd>{k}</kbd><span>{d}</span>
             </div>
           ))}
         </div>
