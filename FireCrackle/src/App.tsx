@@ -33,6 +33,7 @@ import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback
 import { framesDue, startClock } from "./lib/playbackClock";
 import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from "./lib/api";
 import { veilOptionsFromSettings } from "./lib/veil";
+import { getFailures, reportError, reportVideoFailure, subscribeFailures, withErrorReporting } from "./lib/appErrors";
 import { wouldConsumeToolKey } from "./lib/toolKeys";
 import { actionFor, reservedGlobally } from "./lib/keymap";
 import { blocksVideoToolKeys } from "./lib/shortcutFocus";
@@ -72,12 +73,13 @@ export default function App() {
   const [backend, setBackend] = useState<Backend | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
   useEffect(() => {
-    createBackend().then(setBackend).catch((e) => setStartupError(String(e)));
+    createBackend().then(value => setBackend(withErrorReporting(value))).catch((e) => { setStartupError(String(e)); reportError("Start FireCrackle", e); });
   }, []);
 
   const ws = useWorkspace(backend);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
+  useEffect(() => subscribeFailures(() => { if (getFailures().length) setPlayback(STOPPED); }), []);
   const presented = useRef<number | null>(null);
   const playbackView = useRef(view);
   playbackView.current = view;
@@ -107,6 +109,8 @@ export default function App() {
   const [atlasFilter, setAtlasFilter] = useState<EdgeFilter>(readPreferences().atlasFilter);
   const [atlasEdges, setAtlasEdges] = useState<AtlasEdges | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  useEffect(() => { if (ws.error) reportError("Project action", ws.error); }, [ws.error]);
+  useEffect(() => { if (view?.save_error) reportError("Save project", view.save_error); }, [view?.save_error]);
   useEffect(() => { writePreferences({ tab, atlasFilter }); }, [tab, atlasFilter]);
   const candidate = view ? currentCandidate(view, draft) : null;
   // the saved label Confirm/Enter would overwrite: the Confirm button turns red and reads Replace
@@ -374,7 +378,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={(m) => console.error(m)} />
+            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
             <Splitter
               direction="row"
               label="Video height"

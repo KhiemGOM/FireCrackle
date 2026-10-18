@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Backend } from "../lib/api";
 import { EMPTY_JOLT, localJoltKey, parseJolt, restoreJolt, sessionOf, type JoltState } from "../lib/jolt";
 import "./JoltPanel.css";
+import { reportError } from "../lib/appErrors";
 
 interface Props { backend:Backend; videoKey?:string; state:JoltState; onChange:(state:JoltState)=>void; matched:number|null; t0:number; t1:number; onFocus:(time:number,openVideo:boolean)=>void }
 export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
@@ -19,6 +20,7 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
     void load().then(value=>{if(live)changeRef.current(value);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setPending(false);});
     return()=>{live=false;};
   },[backend,videoKey]);
+  useEffect(() => { if (error) reportError("Jolt report", error); }, [error]);
   async function update(next:JoltState){
     if(!videoKey)return;setPending(true);setError(null);
     const target=videoKey;

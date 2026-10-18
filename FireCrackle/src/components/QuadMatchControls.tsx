@@ -6,6 +6,7 @@ import type { ManualQuad } from "../lib/quadMask";
 import { Icon } from "./Icon";
 import type { EdgeFilter } from "../lib/atlasFilter";
 import { readPreferences, writePreferences } from "../lib/preferences";
+import { reportError } from "../lib/appErrors";
 import "./QuadMatchControls.css";
 
 interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void;
@@ -59,6 +60,7 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
   const [busy,setBusy]=useState<string|null>(null);
   const [result,setResult]=useState<{key:string;data?:QuadMatch;error?:string;selected?:QuadCandidate}|null>(null);
   const current=result?.key===key?result:null;
+  useEffect(() => { if (current?.error) reportError("Match sprite", current.error); }, [current?.error]);
   useEffect(()=>()=>{token.current++;cancel.current?.();},[]);
   useEffect(()=>()=>{cancel.current?.();},[key,disabled]);
   const handledRun=useRef(0),handledPick=useRef(0);

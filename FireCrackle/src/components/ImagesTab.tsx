@@ -17,6 +17,7 @@ import { Picker } from "./Picker";
 import { Splitter } from "./Splitter";
 import { IconButton } from "./Icon";
 import "./ImagesTab.css";
+import { reportError } from "../lib/appErrors";
 
 /** Own files and selections; the viewer, fire tools and atlas are shared with video. */
 export function ImagesTab({ active, backend }: { active: boolean; backend: Backend }) {
@@ -36,6 +37,8 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   // The paste listener outlives the render that attached it, so it reads this rather than `restoring`.
   const restoringNow = useRef(restoring); restoringNow.current = restoring;
   const [storageError, setStorageError] = useState<string | null>(null);
+  useEffect(() => { if (error) reportError("Images", error); }, [error]);
+  useEffect(() => { if (storageError) reportError("Save or restore photos", storageError); }, [storageError]);
   const galleryLoaded = useRef(false);
   useEffect(() => {
     let cancelled = false;

@@ -4,6 +4,7 @@ import type { Backend } from "../lib/api";
 import { memoryStorage } from "../lib/scopedStorage";
 import type { InstallKind } from "../lib/updateCheck";
 import { bannerRelease, createUpdateController, type UpdateController } from "../lib/updateController";
+import { reportError } from "../lib/appErrors";
 
 function storage(): Pick<Storage, "getItem" | "setItem"> {
   try {
@@ -29,6 +30,8 @@ export function useUpdates(backend: Backend | null) {
   const controller = ref.current;
   const [, redraw] = useState(0);
   useEffect(() => controller.subscribe(() => redraw(n => n + 1)), [controller]);
+  const result = controller.state.result;
+  useEffect(() => { if (result?.state === "error") reportError("Check for updates", result.message); }, [result]);
   useEffect(() => {
     if (!backend || backend.mock) return;
     let live = true;

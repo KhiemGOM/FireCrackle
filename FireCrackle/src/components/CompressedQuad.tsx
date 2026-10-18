@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { clipCompressedFire, encodeFireCycle } from "../lib/ffmpegCompression";
 import type { ManualQuad } from "../lib/quadMask";
+import { reportError } from "../lib/appErrors";
 
 interface Props {
   rgba:Uint8ClampedArray; quad:ManualQuad; row:number; mirrored:boolean; width:number; height:number;
@@ -33,6 +34,7 @@ export function CompressedQuad(props:Props) {
   },[cycle,request,row]);
   const current=result?.request===request && result.row===row?result:null;
   const error=(cycle?.request===request?cycle.error:null) || current?.error;
+  useEffect(() => { if (error) reportError("Compression preview", error); }, [error]);
   return current?.url
     ? <image href={current.url} width={displayWidth} height={displayHeight} opacity={opacity} preserveAspectRatio="none" style={{imageRendering:"auto"}} />
     : <text x="12" y="24" fill="white" stroke="black" paintOrder="stroke" strokeWidth="2" role={error?"alert":"status"}>
