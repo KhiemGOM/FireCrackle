@@ -16,6 +16,13 @@ import type { Label } from "../lib/grid";
 import type { EdgeFilter } from "../lib/atlasFilter";
 
 type Element = ReactElement<Record<string, any>>;
+it('defaults to the 0.3 fire-only picker even after an alternate was selected',()=>{
+ hooks.states[0]='water_flow';hooks.si=hooks.ri=0;
+ const root=Picker({view,cell:40,onCell});
+ expect(all(root,e=>e.props['aria-label']==='Animation atlas')).toHaveLength(0);
+ expect(all(root,e=>e.props['aria-label']==='Choose no fire')).toHaveLength(1);
+ expect(all(root,e=>e.type==='button'&&e.props.className?.startsWith('cell'))).toHaveLength(128);
+});
 function all(node: Element, test: (e: Element) => boolean): Element[] {
   const children = [node.props.children].flat(Infinity).filter((x): x is Element => !!x && typeof x === "object" && "props" in x);
   return [...(test(node) ? [node] : []), ...children.flatMap(child => all(child, test))];
@@ -27,7 +34,7 @@ const view = { label: "unset", suggestion: null } as View;
 let cleanup: Array<void | (() => void)> = [];
 function render(candidate:Label = {fire: {sheet: 1, row: 0, mirrored: false}}, filter?: EdgeFilter, onFilterChange?: (filter: EdgeFilter) => void) {
   hooks.si = hooks.ri = 0; hooks.effects = [];
-  const tree = Picker({ view, cell: 40, onCell, onNoFire, onAlternative, candidate, filter, onFilterChange });
+  const tree = Picker({ extraSources: true, view, cell: 40, onCell, onNoFire, onAlternative, candidate, filter, onFilterChange });
   return {
     tree,
     cells: all(tree, e => e.type === "button" && e.props.className?.startsWith("cell")),

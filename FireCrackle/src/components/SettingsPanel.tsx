@@ -13,6 +13,8 @@ const GROUP_TITLES: Record<string, string> = {
 };
 
 interface Props {
+  extraSources?: boolean;
+  onExtraSources?: (enabled: boolean) => void;
   settings: SettingInfo[];
   onSet: (key: string, value: number) => Promise<string | null>;
   onClose: () => void;
@@ -62,7 +64,7 @@ function Row({ s, onSet }: { s: SettingInfo; onSet: Props["onSet"] }) {
 }
 
 /** Every tunable threshold, generated from the backend's own description (with its explanation). */
-export function SettingsPanel({ settings, onSet, onClose }: Props) {
+export function SettingsPanel({ settings, onSet, onClose, extraSources = false, onExtraSources }: Props) {
   const groups = Array.from(new Set(settings.map((s) => s.key.split(".")[0])));
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -76,6 +78,11 @@ export function SettingsPanel({ settings, onSet, onClose }: Props) {
           project folder.
         </p>
         <div className="modal-body">
+          <section>
+            <h3>Texture sources</h3>
+            <label><input type="checkbox" checked={extraSources} onChange={e => onExtraSources?.(e.target.checked)} /> Enable extra texture sources</label>
+            <p className="setting-explain">Soul fire, lava, water and combined charts. Off keeps the 0.3 fire-only interface. Saved for this app.</p>
+          </section>
           {groups.map((g) => (
             <section key={g}>
               <h3>{GROUP_TITLES[g] ?? g}</h3>

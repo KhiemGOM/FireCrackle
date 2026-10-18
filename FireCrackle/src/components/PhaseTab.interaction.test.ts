@@ -23,8 +23,16 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
   if(!node||typeof node!=="object"||!("props" in node))return [];
   return [...(predicate(node)?[node]:[]),...all(node.props.children,predicate)];
 }
-function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
+function render(extraSources=true){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({extraSources,backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
+it('hides extra chart controls and returns to Fire when opt-in is off',()=>{
+ let root=render();
+ all(root,e=>e.props.role==='tab'&&e.props.children==='All textures')[0].props.onClick();
+ root=render(false);
+ expect(all(root,e=>e.props['aria-label']==='Animation charts')).toHaveLength(0);
+ expect(all(root,e=>e.props['aria-label']==='Joint phase modulo')).toHaveLength(0);
+ expect(all(root,e=>e.type===TexturePhases)).toHaveLength(0);
+});
 it('uses the original Timing canvas, controls and sidebar for All textures',()=>{
  let root=render();
  all(root,e=>e.props.role==='tab'&&e.props.children==='All textures')[0].props.onClick();root=render();

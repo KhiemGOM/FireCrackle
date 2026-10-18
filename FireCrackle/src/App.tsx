@@ -16,6 +16,7 @@ import { UpdatesDialog, statusOf } from "./components/UpdatesDialog";
 import { useUpdates } from "./hooks/useUpdates";
 import { EnhancePanel } from "./components/EnhancePanel";
 import { usePostSettings } from "./hooks/usePostSettings";
+import { readExtraSources, saveExtraSources } from "./lib/extraSources";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
@@ -80,6 +81,8 @@ export default function App() {
   playbackView.current = view;
   const framePresented = useCallback((frame: number) => { presented.current = frame; }, []);
   const [showSettings, setShowSettings] = useState(false);
+  const [extraSources, setExtraSources] = useState(readExtraSources);
+  const changeExtraSources = (enabled: boolean) => { saveExtraSources(enabled); setExtraSources(enabled); setPreviewSprite(null); setDraft(null); activeAbsence.current = "no_fire"; };
   const [showKeys, setShowKeys] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const updates = useUpdates(backend);
@@ -348,7 +351,7 @@ export default function App() {
           onOpenLink={() => { setPlayback(STOPPED); setShowLink(true); }}
         />
       ) : tab === "phase" ? (
-        <PhaseTab key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} version={ws.version} onJump={jumpToLabel} />
+        <PhaseTab extraSources={extraSources} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} version={ws.version} onJump={jumpToLabel} />
       ) : (
         <main
           className="workarea"
@@ -437,7 +440,7 @@ export default function App() {
               <div className="candidate-help">Click selects · Ctrl+click previews only · Confirm saves</div>
             </div>
             <div className="picker-box" ref={pickerBoxRef} onDoubleClick={(e) => e.ctrlKey && resetZoom("picker")}>
-              <Picker
+              <Picker extraSources={extraSources}
                 onAlternative={(sprite,ctrl)=>{setPlayback(STOPPED);if(!ctrl)stageSprite(sprite);videoPreviewRef.current?.selectSprite(sprite);}}
                 onEdgesChange={setAtlasEdges}
                 onAbsenceChange={label => { activeAbsence.current=label; }}
@@ -466,7 +469,7 @@ export default function App() {
           ))}
         </div>
       )}
-      {showSettings && <SettingsPanel settings={ws.settings} onSet={ws.setSetting} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsPanel extraSources={extraSources} onExtraSources={changeExtraSources} settings={ws.settings} onSet={ws.setSetting} onClose={() => setShowSettings(false)} />}
       {showUpdates && <UpdatesDialog localVersion={appVersion} auto={updates.state.settings.auto} lastCheckMs={updates.state.settings.lastCheckMs} status={statusOf(updates.state.result, updates.state.checking)} message={updates.state.result?.state === "error" ? updates.state.result.message : null} release={updates.state.result?.state === "available" ? updates.state.result.release : null} nowMs={Date.now()} onAuto={updates.controller.setAuto} onCheck={() => void updates.controller.check(true)} onOpen={updates.controller.open} onClose={() => setShowUpdates(false)} />}
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
       {showLink && <OpenLink backend={backend} initialUrl={/^https?:\/\//i.test(path.trim()) ? path : ""} onClose={() => setShowLink(false)} onOpen={async downloaded => { setShowLink(false); await openVideo(downloaded); }} />}

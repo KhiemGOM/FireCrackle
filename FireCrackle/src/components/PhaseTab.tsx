@@ -48,6 +48,7 @@ interface GapInfo extends GapBand {
 }
 
 interface Props {
+  extraSources?: boolean;
   videoKey?: string;
   backend: Backend;
   view: View;
@@ -58,7 +59,7 @@ interface Props {
 }
 
 /** The Phase tab: phase against time, the sprite row against time, and every flag, clickable. */
-export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
+export function PhaseTab({ backend, view, version, onJump, videoKey, extraSources = false }: Props) {
   const [videoChart, setChart] = useState<PhaseChart | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -69,7 +70,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const fps = view.fps || 1;
   const [jolt, setJolt] = useState<JoltState>(() => ({...EMPTY_JOLT}));
   const reference = useMemo(() => timeReference(jolt), [jolt]);
-  const [animation,setAnimation]=useState<AnimationChart|"joint">("fire");
+  const [selectedAnimation,setAnimation]=useState<AnimationChart|"joint">("fire");
+  const animation = extraSources ? selectedAnimation : "fire";
   const unified = useMemo(() => reviewChart(fireMaterialChart(videoChart,animation==="soul"?"soul":"fire"),jolt,fps),[videoChart,jolt.data,jolt.session,fps,animation]);
   const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(unified, reference), reference) : unified, [unified, reference, jolt.clock]);
   const displayPoints = useMemo(()=>(chart?.display_points??chart?.points??[]).slice().sort((a,b)=>a.pts-b.pts),[chart]);
@@ -309,7 +311,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
         }} />
         <div className="phase-source-control"><PhaseSourcePicker value={source} onChange={value=>{setSource(value);setChart(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);}} /></div>
         </header>
-      <div className="phase-view-tabs" role="tablist" aria-label="Animation charts">{([...ANIMATION_CHARTS,["joint","All textures"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={animation===id} onClick={()=>{setAnimation(id);if(id==="joint")setViewMode("phase");setHover(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);setRulerMatch(null);setPhaseRange(undefined);setRowRange(undefined);}}>{label}</button>)}</div>
+      {extraSources && <div className="phase-view-tabs" role="tablist" aria-label="Animation charts">{([...ANIMATION_CHARTS,["joint","All textures"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={animation===id} onClick={()=>{setAnimation(id);if(id==="joint")setViewMode("phase");setHover(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);setRulerMatch(null);setPhaseRange(undefined);setRowRange(undefined);}}>{label}</button>)}</div>}
       <div className="phase-layout" style={fluid?{gridTemplateColumns:"minmax(0,1fr)"}:undefined}>
       <div className="phase-plots">
       <div className="phase-topbar">

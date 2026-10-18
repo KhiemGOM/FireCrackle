@@ -19,8 +19,9 @@ checkout while their queued patches are still being assembled.
 | Inline water colour picker replacing broken native dialog | Fixed in `19ae49a`; browser verification and full 1,324-test frontend suite passed |
 | Joint texture phase-offset chart | Completed in `38b51e2`; actual Timing renderer reused, superseding the separate chart in `92b2e31` |
 | Still / Flowing fluid naming | Completed in `b730a6f`; 49 targeted tests and typecheck passed |
-| Separate still/flowing water/lava atlas choices and isolated filters | Pending owner follow-up job 196; keeps feature freeze on hold |
-| Final source SHA and clean release snapshot | Pending fluid-source separation and final combined checks |
+| Separate still/flowing water/lava choices and source-specific absence labels | Completed in `8e9de98`; alternate filters removed, normal-fire filters retained; owner reports 1,327 frontend and 17 native tests passing |
+| Extra texture sources opt-in | Default off in Settings; fire-only picker and charts restored when disabled; preference survives restart |
+| Final source SHA and clean release snapshot | Feature owners finished; final package/CI checks remain |
 
 The water/fluid owner supplied `74f0707` and `19ae49a`: tint/overlay, Jolt import,
 in-app picker clicks/drag/hue changes, TypeScript/Vite and the full 1,324-test
@@ -29,9 +30,11 @@ chart, retaining its run/gap shading, ruler, sidebar and controls. Its owner
 reports 1,323 tests, TypeScript/production build, exact Fire geometry parity and
 native/browser flag selection/focus/Fit checks passing. Provisional wrap choices
 are not a claim of unique agreement; no joint automatic flags are generated.
-The latest user-directed follow-up separates the four fluid atlas choices and
-their filters (job 196). Keep that owner's active patches out of the final freeze
-until its completion report arrives.
+The final fluid-source follow-up completed in `8e9de98`, including source-specific
+absence labels and a stale-count crash fix. Extra sources now require an explicit
+Settings opt-in; the default interface remains fire-only. Disabling the preference
+does not delete existing labels. Targeted opt-in/picker/chart/app tests and the
+TypeScript check passed; package validation remains pending.
 
 ## Preparation checks
 
@@ -63,10 +66,8 @@ release checks against the frozen source once it is ready.
 
 ## Final cut
 
-1. Obtain the fluid-source separation follow-up's completion report and commit;
-   resolve its queued patches and update the notes with the delivered picker
-   scope. Joint Timing integration and the inline water picker are complete;
-   job 196 is the remaining feature hold.
+1. Feature-owner completion reports and commits are received. Include the final
+   default-off extra-source preference in the candidate before freezing it.
 2. Confirm no uncommitted feature work is omitted. Select and record a final
    source SHA. Keep later development out of the release snapshot.
 3. Verify versions, source hygiene and asset generation from a clean checkout.
