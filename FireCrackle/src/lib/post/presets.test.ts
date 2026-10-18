@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PRESETS, applyPreset, presetOf } from "./presets";
 import { DEFAULT_POST, STAGE_IDS, repairPostSettings, type PostSettings } from "./settings";
+import { enhance } from "./pipeline";
+import { buildToneLut, type ToneParams } from "./tone";
 
 const busy: PostSettings = { ...DEFAULT_POST, enabled: false, veil: "auto", portal: "auto", order: [...DEFAULT_POST.order].reverse() };
 
@@ -69,9 +71,9 @@ describe("the built-in presets are useful and not cluttered", () => {
     return STAGE_IDS.filter(stage => s.stages[stage].on);
   };
 
-  it("are Dark scene, Compressed footage, Fire focus, Texture edges and Soft footage", () => {
-    expect(PRESETS.map(p => p.id)).toEqual(["dark", "compressed", "fire", "edges", "soft"]);
-    expect(PRESETS.map(p => p.name)).toEqual(["Dark scene", "Compressed footage", "Fire focus", "Texture edges", "Soft footage"]);
+  it("includes explicit contrast and edge views alongside the existing footage aids", () => {
+    expect(PRESETS.map(p => p.id)).toEqual(["high-contrast", "find-edges", "edge-overlay", "dark", "compressed", "fire", "edges", "soft"]);
+    expect(PRESETS.map(p => p.name)).toEqual(["High contrast", "Find edges", "Edge overlay", "Dark scene", "Compressed footage", "Fire focus", "Texture detail", "Soft footage"]);
   });
 
   it("each switch on at most three effects", () => {
@@ -115,5 +117,27 @@ describe("the built-in presets are useful and not cluttered", () => {
     expect(s.stages.deblur.on).toBe(true);
     expect(s.stages.deblur.params.iterations).toBeGreaterThanOrEqual(1);
     expect(s.stages.deblur.params.iterations).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("purposeful inspection presets", () => {
+  it("makes modest midtone differences clearly separate at high contrast", () => {
+    const s = applyPreset(DEFAULT_POST, "high-contrast");
+    expect(s.stages.tone.on).toBe(true);
+    const lut = buildToneLut(s.stages.tone.params as unknown as ToneParams);
+    expect(lut[145] - lut[110]).toBeGreaterThan(150);
+  });
+  it("finds real boundaries through the image pipeline, rather than just sharpening", () => {
+    const data = new Uint8ClampedArray(8 * 3 * 4);
+    for (let i = 0; i < 24; i++) data.set([i % 8 < 4 ? 80 : 160, 60, 20, 255], i * 4);
+    const s = applyPreset(DEFAULT_POST, "find-edges");
+    const out = enhance({ data, width: 8, height: 3 }, s);
+    expect(out.applied).toBe(true);
+    expect(out.data[0]).toBe(0);
+    expect(out.data[(8 + 3) * 4]).toBeGreaterThan(100);
+    expect(s.stages.sharpen.on).toBe(false);
+  });
+  it("explains the visual purpose of every built-in preset", () => {
+    for (const p of PRESETS) expect(p.help?.length).toBeGreaterThan(15);
   });
 });

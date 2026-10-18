@@ -33,21 +33,45 @@ function panel(settings: PostSettings = DEFAULT_POST, selected: RowId = "veil", 
 }
 
 describe("Enhance panel: the list", () => {
+  it("puts Contrast first in the clearly named levels row, with an aggressive range", () => {
+    const { root } = panel(DEFAULT_POST, "tone");
+    expect(byLabel(root, "Show Contrast & levels controls")).toBeDefined();
+    const sliders = all(row(root, "tone"), e => e.type === "input" && e.props.type === "range");
+    expect(sliders[0].props["aria-label"]).toBe("Contrast");
+    expect(sliders[0].props.max).toBeGreaterThan(100);
+  });
+
+  it("opens a preset's relevant controls immediately", () => {
+    const { root, onSelect } = panel();
+    byLabel(root, "Preset High contrast").props.onClick();
+    expect(onSelect).toHaveBeenCalledWith("tone");
+    byLabel(root, "Preset Find edges").props.onClick();
+    expect(onSelect).toHaveBeenLastCalledWith("edges");
+  });
+
+  it("exposes the edge view, sensitivity and noise cutoff and turns edges on when adjusted", () => {
+    const { root, onChange } = panel(DEFAULT_POST, "edges");
+    expect(byLabel(root, "Edges from")).toBeDefined();
+    expect(byLabel(root, "Sensitivity")).toBeDefined();
+    expect(byLabel(root, "Noise cutoff")).toBeDefined();
+    byLabel(root, "Edge view").props.onChange({ target: { value: "2" } });
+    expect(onChange.mock.calls[0][0].stages.edges).toMatchObject({ on: true, params: { mode: 2 } });
+  });
   it("lists GUI veil and Portal first, then the effects in their order", () => {
     const { root } = panel();
     const rows = all(root, e => e.props["data-row"] !== undefined).map(e => e.props["data-row"]);
-    expect(rows).toEqual(["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+    expect(rows).toEqual(["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels", "edges"]);
   });
 
   it("moves a switched-on effect up in front of the switched-off ones", () => {
     const { root } = panel({ ...DEFAULT_POST, stages: stage("channels", { mode: 2 }) });
     const rows = all(root, e => e.props["data-row"] !== undefined).map(e => e.props["data-row"]);
-    expect(rows).toEqual(["veil", "portal", "channels", "tone", "denoise", "deblur", "sharpen", "fire"]);
+    expect(rows).toEqual(["veil", "portal", "channels", "tone", "denoise", "deblur", "sharpen", "fire", "edges"]);
   });
 
   it("names every effect", () => {
     const { root } = panel();
-    for (const name of ["Tone", "Denoise", "Deblur", "Sharpen", "Fire view", "Channels"]) expect(within(root, `Show ${name} controls`)).toBeDefined();
+    for (const name of ["Contrast & levels", "Denoise", "Deblur", "Sharpen", "Fire view", "Channels", "Edge detection"]) expect(within(root, `Show ${name} controls`)).toBeDefined();
   });
 
   it("puts a switched-on effect before a switched-off one and shows the order numbers on the ones that are on", () => {
@@ -79,7 +103,7 @@ describe("Enhance panel: switches live inside the rows", () => {
     expect(text(master)).toBe("");
     master.props.onClick();
     expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...DEFAULT_POST, enabled: false });
-    expect(all(root, e => e.props.role === "switch").length).toBe(1 + 6 + 2); // the master, then one per row
+    expect(all(root, e => e.props.role === "switch").length).toBe(1 + 7 + 2); // the master, then one per row
   });
 
   it("turns veil on as Auto and back off, and portal likewise", () => {
@@ -98,13 +122,13 @@ describe("Enhance panel: switches live inside the rows", () => {
 
   it("turns tone on and off without touching its controls", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, stages: tone({ gamma: 2 }, false) });
-    within(row(root, "tone"), "Tone on/off").props.onClick();
+    within(row(root, "tone"), "Contrast & levels on/off").props.onClick();
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, stages: tone({ gamma: 2 }, true) });
   });
 
   it("selecting a row is separate from its switch: the switch is not inside the select button and selecting changes nothing", () => {
     const { root, onSelect, onChange } = panel();
-    const select = within(row(root, "tone"), "Show Tone controls");
+    const select = within(row(root, "tone"), "Show Contrast & levels controls");
     expect(all(select, e => e.props.role === "switch")).toHaveLength(0);
     select.props.onClick();
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("tone");
@@ -115,7 +139,7 @@ describe("Enhance panel: switches live inside the rows", () => {
     const settings = { ...DEFAULT_POST, stages: tone({ gamma: 2 }) };
     const copy = JSON.parse(JSON.stringify(settings));
     const { root } = panel(settings, "tone");
-    within(row(root, "tone"), "Tone on/off").props.onClick();
+    within(row(root, "tone"), "Contrast & levels on/off").props.onClick();
     byLabel(root, "Gamma").props.onChange({ target: { value: "1.5" } });
     expect(settings).toEqual(copy);
   });
@@ -211,7 +235,7 @@ describe("Enhance panel: the selected row's controls", () => {
 
   it("resets only the tone controls from the tone row", () => {
     const { root, onChange } = panel({ ...DEFAULT_POST, veil: "auto", stages: tone({ gamma: 2, contrast: 40 }) }, "tone");
-    byLabel(root, "Reset tone").props.onClick();
+    byLabel(root, "Reset contrast & levels").props.onClick();
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_POST, veil: "auto", stages: tone({}) });
   });
 });
@@ -219,8 +243,8 @@ describe("Enhance panel: the selected row's controls", () => {
 describe("Enhance panel: order controls and reset", () => {
   it("gives effect rows earlier and later buttons, disabled when there is nowhere to move, and none on veil or portal", () => {
     const { root } = panel({ ...DEFAULT_POST, stages: tone({ gamma: 2 }) });
-    const earlier = within(row(root, "tone"), "Move Tone earlier");
-    const later = within(row(root, "tone"), "Move Tone later");
+    const earlier = within(row(root, "tone"), "Move Contrast & levels earlier");
+    const later = within(row(root, "tone"), "Move Contrast & levels later");
     expect(earlier.props.disabled).toBe(true);
     expect(later.props.disabled).toBe(true); // the only effect that is on
     expect(within(row(root, "veil"), "Move GUI veil earlier")).toBeUndefined();
@@ -229,7 +253,7 @@ describe("Enhance panel: order controls and reset", () => {
 
   it("disables moving a switched-off effect", () => {
     const { root } = panel({ ...DEFAULT_POST, stages: tone({ gamma: 2 }, false) });
-    expect(within(row(root, "tone"), "Move Tone earlier").props.disabled).toBe(true);
+    expect(within(row(root, "tone"), "Move Contrast & levels earlier").props.disabled).toBe(true);
   });
 
   it("has a reset for everything", () => {
@@ -283,10 +307,10 @@ describe("Enhance panel: the other effects", () => {
   it("moves an effect later past another that is on, by its button", () => {
     const settings = { ...DEFAULT_POST, stages: { ...tone({ gamma: 2 }), sharpen: { on: true, params: { amount: 80, radius: 1.5, threshold: 0 } } } };
     const { root, onChange } = panel(settings, "tone");
-    const later = within(row(root, "tone"), "Move Tone later");
+    const later = within(row(root, "tone"), "Move Contrast & levels later");
     expect(later.props.disabled).toBe(false);
     later.props.onClick();
-    expect((onChange.mock.calls[0][0] as PostSettings).order).toEqual(["sharpen", "denoise", "deblur", "tone", "fire", "channels"]);
+    expect((onChange.mock.calls[0][0] as PostSettings).order).toEqual(["sharpen", "denoise", "deblur", "tone", "fire", "channels", "edges"]);
     expect(within(row(root, "sharpen"), "Move Sharpen later").props.disabled).toBe(true);
   });
 });
@@ -465,7 +489,7 @@ describe("Enhance panel: sliders you can trust", () => {
     const gamma = ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Gamma");
     expect(gamma).toHaveLength(1);
     expect(parseFloat(String(gamma[0].props.style.left))).toBeCloseTo(((1 - 0.3) / (3 - 0.3)) * 100, 1);
-    expect(parseFloat(String(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Contrast")[0].props.style.left))).toBeCloseTo(50, 1);
+    expect(parseFloat(String(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Contrast")[0].props.style.left))).toBeCloseTo(20, 1);
     expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "Shadow lift")).toHaveLength(0); // neutral 0 is the left end
     expect(ticks({ ...DEFAULT_POST, stages: stage("tone", {}) }, "tone", "White point")).toHaveLength(0); // neutral 255 is the right end
   });
@@ -499,7 +523,7 @@ describe("Enhance panel: denoise and deblur", () => {
 });
 
 describe("Enhance panel: icons and short text", () => {
-  const rowsWithControls: RowId[] = ["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels"];
+  const rowsWithControls: RowId[] = ["veil", "portal", "tone", "denoise", "deblur", "sharpen", "fire", "channels", "edges"];
 
   it("has no help paragraphs: that text lives in tooltips", () => {
     for (const id of rowsWithControls) {
@@ -518,7 +542,7 @@ describe("Enhance panel: icons and short text", () => {
 
   it("shows every switch as a toggle with no words, its state in aria-checked", () => {
     const { root } = panel({ ...DEFAULT_POST, veil: "auto" });
-    for (const label of ["GUI veil on/off", "Portal on/off", "Tone on/off"]) {
+    for (const label of ["GUI veil on/off", "Portal on/off", "Contrast & levels on/off"]) {
       const sw = byLabel(root, label);
       expect(sw.props.role).toBe("switch");
       expect(text(sw), label).toBe("");
@@ -535,7 +559,7 @@ describe("Enhance panel: icons and short text", () => {
       expect(b.props.title).toBe(label);
       expect(all(b, e => e.props.className === "icon").length + all(b, e => typeof e.type === "function").length, label).toBeGreaterThan(0);
     }
-    expect(text(byLabel(panel({ ...DEFAULT_POST }, "tone").root, "Reset tone"))).toBe("");
+    expect(text(byLabel(panel({ ...DEFAULT_POST }, "tone").root, "Reset contrast & levels"))).toBe("");
   });
 
   it("has no heading, key hint or footer sentence", () => {

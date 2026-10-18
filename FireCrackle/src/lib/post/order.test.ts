@@ -60,7 +60,7 @@ describe("moving an enabled effect earlier or later", () => {
 
 const base: PostSettings = { ...DEFAULT_POST, stages: { ...DEFAULT_POST.stages, tone: { on: false, params: { ...DEFAULT_TONE } } } };
 const toneOn = { ...DEFAULT_POST.stages, tone: { on: true, params: { ...DEFAULT_TONE } } };
-const none = { veil: null, portal: null, tone: null, denoise: null, deblur: null, sharpen: null, fire: null, channels: null };
+const none = { veil: null, portal: null, tone: null, denoise: null, deblur: null, sharpen: null, fire: null, channels: null, edges: null };
 
 describe("order numbers: the order the effects are applied", () => {
   it("numbers nothing when everything is off", () => {

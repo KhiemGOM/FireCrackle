@@ -10,7 +10,7 @@ import { Icon } from "./Icon";
 import "./EnhancePanel.css";
 
 export const ROW_NAMES: Record<RowId, string> = {
-  veil: "GUI veil", portal: "Portal", tone: STAGES.tone.name, denoise: STAGES.denoise.name, deblur: STAGES.deblur.name, sharpen: STAGES.sharpen.name, fire: STAGES.fire.name, channels: STAGES.channels.name,
+  veil: "GUI veil", portal: "Portal", tone: STAGES.tone.name, denoise: STAGES.denoise.name, deblur: STAGES.deblur.name, sharpen: STAGES.sharpen.name, fire: STAGES.fire.name, channels: STAGES.channels.name, edges: STAGES.edges.name,
 };
 const VEIL_LABELS: Record<VeilMode, string> = { off: "Off", auto: "Auto-undo", on: "Always undo" };
 /** Shown on hover, on the row name, instead of paragraphs in the panel. */
@@ -199,8 +199,14 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
           const pressed = current === p.id;
           return (
             <span className="post-chip-wrap" key={p.id}>
-              <button type="button" className={`post-chip${pressed ? " on" : ""}`} aria-label={`Preset ${p.name}`} aria-pressed={pressed}
-                onClick={() => onChange(pressed ? applyPreset(settings, "none") : applyPreset(settings, p.id, userPresets))}>{p.name}</button>
+              <button type="button" className={`post-chip${pressed ? " on" : ""}`} aria-label={`Preset ${p.name}`} aria-pressed={pressed} title={p.help}
+                onClick={() => {
+                  onChange(pressed ? applyPreset(settings, "none") : applyPreset(settings, p.id, userPresets));
+                  if (!pressed) {
+                    const first = Object.keys(p.stages).find(id => STAGE_IDS.includes(id as StageId));
+                    if (first) onSelect(first as StageId);
+                  }
+                }}>{p.name}</button>
               {i >= builtInCount ? <button type="button" className="post-chip-x" aria-label={`Delete preset ${p.name}`} title="Delete this preset" onClick={() => onDeletePreset?.(p.id)}>×</button> : null}
             </span>
           );

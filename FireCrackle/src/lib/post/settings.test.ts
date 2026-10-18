@@ -53,13 +53,30 @@ describe("post-processing defaults", () => {
     expect(DEFAULT_POST.portal).toBe("off");
     expect(DEFAULT_POST.stages.tone.on).toBe(false);
     expect(DEFAULT_POST.order).toEqual(STAGE_IDS);
-    expect(STAGE_IDS).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+    expect(STAGE_IDS).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels", "edges"]);
     for (const id of STAGE_IDS) expect(DEFAULT_POST.stages[id].on).toBe(false);
     expect(needsProcessing(DEFAULT_POST)).toBe(false);
   });
 });
 
 describe("reading and writing settings", () => {
+  it("adds the disabled edge stage to old saves and keeps their contrast and effect order", () => {
+    const old = { enabled: true, veil: "off", portal: "off", order: ["channels", "tone"], stages: { tone: { on: true, params: { contrast: 85 } } } };
+    const fixed = readPostSettings(memory({ [POST_KEY]: JSON.stringify(old) }));
+    expect(fixed.stages.edges.on).toBe(false);
+    expect(fixed.stages.tone.params.contrast).toBe(85);
+    expect(fixed.order.slice(0, 2)).toEqual(["channels", "tone"]);
+    expect(fixed.order[fixed.order.length - 1]).toBe("edges");
+  });
+
+  it("saves strong contrast and edge controls across a restart", () => {
+    const s = repairPostSettings({ stages: { tone: { on: true, params: { contrast: 300 } }, edges: { on: true, params: { gain: 8, threshold: 12, mode: 2, channel: 0, amount: 60 } } } });
+    expect(s.stages.tone.params.contrast).toBe(300);
+    const store = memory();
+    writePostSettings(s, store);
+    expect(readPostSettings(store)).toEqual(s);
+    expect(s.stages.edges.params).toEqual({ gain: 8, threshold: 12, mode: 2, channel: 0, amount: 60 });
+  });
   it("gives the defaults when nothing is saved", () => {
     expect(readPostSettings(memory())).toEqual(STARTING_POST);
   });
@@ -111,13 +128,13 @@ describe("repairing saved settings (an older or newer build, or a hand-edited fi
   });
 
   it("drops unknown stage ids from the order, removes duplicates and appends missing ones", () => {
-    expect(repairPostSettings({ order: ["blur", "tone", "tone", 4] }).order).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels"]);
+    expect(repairPostSettings({ order: ["blur", "tone", "tone", 4] }).order).toEqual(["tone", "denoise", "deblur", "sharpen", "fire", "channels", "edges"]);
     expect(repairPostSettings({ order: [] }).order).toEqual(STAGE_IDS);
     expect(repairPostSettings({ order: "tone" }).order).toEqual(STAGE_IDS);
   });
 
   it("keeps the order the user chose and appends the effects that are missing", () => {
-    expect(repairPostSettings({ order: ["channels", "tone"] }).order).toEqual(["channels", "tone", "denoise", "deblur", "sharpen", "fire"]);
+    expect(repairPostSettings({ order: ["channels", "tone"] }).order).toEqual(["channels", "tone", "denoise", "deblur", "sharpen", "fire", "edges"]);
     expect(repairPostSettings({ order: [...STAGE_IDS].reverse() }).order).toEqual([...STAGE_IDS].reverse());
   });
 

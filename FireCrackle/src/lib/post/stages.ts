@@ -6,9 +6,10 @@ import { DEFAULT_DENOISE, applyDenoise, isDenoiseIdentity, type DenoiseParams } 
 import { DEFAULT_DEBLUR, applyDeblur, isDeblurIdentity, type DeblurParams } from "./deblur";
 import { DEFAULT_FIRE, applyFire, isFireIdentity, type FireParams } from "./fire";
 import { CHANNEL_MODES, DEFAULT_CHANNELS, applyChannels, isChannelsIdentity, type ChannelsParams } from "./channels";
+import { DEFAULT_EDGES, applyEdges, isEdgesIdentity, type EdgeParams } from "./edges";
 
-export type StageId = "tone" | "denoise" | "deblur" | "sharpen" | "fire" | "channels";
-export const STAGE_IDS: StageId[] = ["tone", "denoise", "deblur", "sharpen", "fire", "channels"];
+export type StageId = "tone" | "denoise" | "deblur" | "sharpen" | "fire" | "channels" | "edges";
+export const STAGE_IDS: StageId[] = ["tone", "denoise", "deblur", "sharpen", "fire", "channels", "edges"];
 export type Params = Record<string, number>;
 
 export interface Control {
@@ -42,8 +43,9 @@ const range = (key: string, label: string, min: number, max: number, step: numbe
 
 export const STAGES: Record<StageId, StageSpec> = {
   tone: {
-    id: "tone", name: "Tone", defaults: { ...DEFAULT_TONE },
-    controls: [range("gamma", "Gamma", 0.3, 3, 0.05, 0.01), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("contrast", "Contrast", -100, 100, 1), range("shadows", "Shadow lift", 0, 100, 1)],
+    id: "tone", name: "Contrast & levels", defaults: { ...DEFAULT_TONE },
+    help: "Contrast separates light and dark; black/white points stretch the range; gamma reveals midtones. High values clip detail: compare with the original using V.",
+    controls: [range("contrast", "Contrast", -100, 400, 1), range("black", "Black point", 0, 254, 1), range("white", "White point", 1, 255, 1), range("gamma", "Gamma", 0.3, 3, 0.05, 0.01), range("shadows", "Shadow lift", 0, 100, 1)],
     isIdentity: p => isToneIdentity(p as unknown as ToneParams),
     apply: (d, _w, _h, p) => applyTone(d, p as unknown as ToneParams),
     repair: p => (p.black >= p.white ? { ...p, black: DEFAULT_TONE.black, white: DEFAULT_TONE.white } : p),
@@ -82,6 +84,17 @@ export const STAGES: Record<StageId, StageSpec> = {
     controls: [{ key: "mode", label: "Channel", kind: "choice", min: 0, max: CHANNEL_MODES.length - 1, step: 1, options: CHANNEL_MODES }],
     isIdentity: p => isChannelsIdentity(p as unknown as ChannelsParams),
     apply: (d, _w, _h, p) => applyChannels(d, p as unknown as ChannelsParams),
+  },
+  edges: {
+    id: "edges", name: "Edge detection", defaults: { ...DEFAULT_EDGES },
+    help: "Shows existing pixel boundaries. Colour boundaries includes edges that brightness alone misses. Sensitivity reveals faint edges; noise cutoff hides small changes. Compression blocks can also appear as edges.",
+    controls: [
+      { key: "mode", label: "Edge view", kind: "choice", min: 0, max: 2, step: 1, options: [{ value: 0, label: "White on black" }, { value: 1, label: "Black on white" }, { value: 2, label: "Cyan overlay" }] },
+      { key: "channel", label: "Edges from", kind: "choice", min: 0, max: 1, step: 1, options: [{ value: 0, label: "Brightness" }, { value: 1, label: "Colour boundaries" }] },
+      range("gain", "Sensitivity", 1, 16, 0.25, 0.05), range("threshold", "Noise cutoff", 0, 255, 1), range("amount", "Blend", 0, 100, 1),
+    ],
+    isIdentity: p => isEdgesIdentity(p as unknown as EdgeParams),
+    apply: (d, w, h, p) => applyEdges(d, w, h, p as unknown as EdgeParams),
   },
 };
 
