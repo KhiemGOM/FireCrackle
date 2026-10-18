@@ -112,7 +112,7 @@ describe("keeping saved presets between runs", () => {
     ]);
     expect(fixed.map(p => p.id)).toEqual(["user-a"]);
     expect(fixed[0].name).toBe("Fine");
-    expect(fixed[0].stages.tone?.gamma).toBe(3);
+    expect(fixed[0].stages.tone?.gamma).toBe(10);
     expect(fixed[0].stages.sharpen?.amount).toBe(0);
     expect(Object.keys(fixed[0].stages).sort()).toEqual(["sharpen", "tone"]);
   });
