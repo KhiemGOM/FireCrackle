@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { copyComparisonProof, copyFormattedComparisonProof, createComparisonProof, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, type ProofMask } from "./comparisonProof";
+import { copyComparisonProof, copyFormattedComparisonProof, createComparisonProof, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, squareProofCrop, type ProofMask } from "./comparisonProof";
 const native = vi.hoisted(() => ({ save: vi.fn(), invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: native.save }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
@@ -18,6 +18,11 @@ it("crops around the aligned fire with context and clips to the source frame", (
   expect(() => proofCrop(100, 100, [{x: NaN, y: 20, width: 10, height: 10}])).toThrow("invalid");
   const union = proofCrop(1000, 1000, [{x: 100, y: 400, width: 100, height: 100}, {x: 800, y: 400, width: 100, height: 100}]);
   expect(union.x).toBe(0); expect(union.width).toBe(1000); // Both HUD flames must be included.
+});
+it("expands animation crops to a square without cutting off the fire", () => {
+  expect(squareProofCrop(1920, 1080, {x: 888, y: 488, width: 64, height: 84})).toEqual({x: 878, y: 488, width: 84, height: 84});
+  expect(squareProofCrop(100, 100, {x: 0, y: 0, width: 20, height: 40})).toEqual({x: 0, y: 0, width: 40, height: 40});
+  expect(squareProofCrop(1920, 1080, {x: 0, y: 400, width: 1920, height: 300})).toEqual({x: 0, y: -420, width: 1920, height: 1920});
 });
 it.each([true, false])("uses identical source crops for both pictures and the rendered mask (explicit bounds: %s)", async explicit => {
   const drawImage = vi.fn(), fillText = vi.fn();
@@ -78,15 +83,18 @@ function downloadFixture() {
   native.save.mockResolvedValue("D:/proof/output"); native.invoke.mockResolvedValue(undefined);
   return {picture, mask, snapshots, captions, canvas};
 }
-it.each(["gif", "webp"] as const)("sends frozen original and overlay snapshots with static annotations for %s", async format => {
+it.each(["gif", "webp"] as const)("sends one square picture with fading overlay and static annotations for %s", async format => {
   const {picture, mask, snapshots, captions, canvas} = downloadFixture();
   expect(await downloadComparisonProof(picture, [mask], "Frame 8094", format)).toBe(true);
   expect(native.save).toHaveBeenCalledWith({defaultPath: `comparison-proof.${format}`, filters: [{name: format.toUpperCase(), extensions: [format]}]});
-  expect(native.invoke).toHaveBeenCalledWith("save_comparison_proof", {path: "D:/proof/output", format, png: [51], base: [50]});
-  expect(snapshots).toEqual([2, 3]); // both source panels frozen first, then only the right overlay added
+  expect(native.invoke).toHaveBeenCalledWith("save_comparison_proof", {path: "D:/proof/output", format, png: [50], base: [49]});
+  expect(snapshots).toEqual([1, 2]); // one original picture frozen, then overlay added in exactly the same place
   expect(captions.mock.calls.map(call => call[0])).toContain("Opacity 0–80% · H.264 · 1080p");
   expect(captions.mock.calls.map(call => call[0])).toContain(mask.description);
   expect(canvas.width).toBeLessThanOrEqual(2048); expect(canvas.height).toBeLessThanOrEqual(2048);
+  expect(canvas.width).toBe(784); expect(canvas.height).toBe(784);
+  expect(captions.mock.calls.map(call => call[0])).toContain("Frame 8094");
+  expect(captions.mock.calls.map(call => call[0])).not.toContain("After · mask comparison");
 });
 it.each(["png", "jpeg"] as const)("saves %s as a still with the same source details", async format => {
   const {picture, mask, snapshots} = downloadFixture();
@@ -102,9 +110,9 @@ it("does not write or claim success when the save dialog is cancelled", async ()
 it.each(["webp", "gif", "jpeg"] as const)("copies the actual %s file without opening a save dialog", async format => {
   const {picture, mask, snapshots} = downloadFixture();
   await copyFormattedComparisonProof(picture, [mask], "Frame 8094", format);
-  expect(native.invoke).toHaveBeenCalledWith("copy_formatted_comparison_proof", {format, png: [51], base: format === "jpeg" ? null : [50]});
+  expect(native.invoke).toHaveBeenCalledWith("copy_formatted_comparison_proof", {format, png: format === "jpeg" ? [51] : [50], base: format === "jpeg" ? null : [49]});
   expect(native.save).not.toHaveBeenCalled();
-  expect(snapshots).toEqual(format === "jpeg" ? [3] : [2, 3]);
+  expect(snapshots).toEqual(format === "jpeg" ? [3] : [1, 2]);
 });
 it("keeps PNG copying as image pixels, without a save dialog", async () => {
   const {picture, mask} = downloadFixture();

@@ -107,21 +107,21 @@ fn encode(
             .arg(before)
             .args(["-loop", "1", "-framerate", "25", "-i"])
             .arg(after);
-        // 64 frames / 25 Hz = 2.56 s. Cosine easing with short endpoint holds.
-        // Only changed pixels (the right-hand overlay) fade; captions and source remain fixed.
-        let blend = "[0:v][1:v]blend=all_expr='A+(B-A)*clip(0.5-0.6*cos(2*PI*T/2.56),0,1)',trim=end_frame=64,format=rgb24";
+        // Compute easing once per frame, not millions of times per frame in all_expr.
+        // Normal blend uses its optimized pixel routines; opacity 1 means original A.
+        let blend = animation_filter();
         if format == "gif" {
             command.args(["-filter_complex", &format!("{blend},split[a][b];[a]palettegen=stats_mode=full[p];[b][p]paletteuse=dither=sierra2_4a"), "-loop", "0"]);
         } else {
             command.args([
                 "-filter_complex",
-                blend,
+                &blend,
                 "-c:v",
                 "libwebp_anim",
                 "-lossless",
                 "1",
                 "-compression_level",
-                "4",
+                "0", // Fast lossless encoding: lower effort, no reduction in image fidelity.
                 "-loop",
                 "0",
             ]);
@@ -145,6 +145,26 @@ fn encode(
         ));
     }
     std::fs::read(output).map_err(|e| e.to_string())
+}
+
+fn animation_filter() -> String {
+    // 64 frames / 25 Hz = 2.56 s, cosine easing with short endpoint holds.
+    let commands = (0..64)
+        .map(|frame| {
+            let weight = (0.5 - 0.6 * (std::f64::consts::TAU * f64::from(frame) / 64.0).cos())
+                .clamp(0.0, 1.0);
+            format!(
+                "{:.3} blend all_opacity {:.9}",
+                f64::from(frame) / 25.0,
+                1.0 - weight
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    // Extra blend precision prevents one-level rounding flicker in unchanged picture/text pixels.
+    format!(
+        "[0:v]format=gbrp16le,sendcmd=c='{commands}'[original];[1:v]format=gbrp16le[after];[original][after]blend=all_mode=normal:all_opacity=1,trim=end_frame=64,format=rgb24"
+    )
 }
 
 #[tauri::command]
@@ -315,6 +335,38 @@ pub async fn copy_formatted_comparison_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fade_is_scheduled_per_frame_without_a_per_pixel_expression() {
+        let filter = animation_filter();
+        assert!(!filter.contains("all_expr"));
+        assert_eq!(filter.matches("blend all_opacity").count(), 64);
+        assert!(filter.contains("0.000 blend all_opacity 1.000000000"));
+        assert!(filter.contains("1.280 blend all_opacity 0.000000000"));
+        assert!(filter.contains("2.520 blend all_opacity 1.000000000"));
+    }
+
+    #[test]
+    #[ignore = "requires FIRECRACKLE_TEST_FFMPEG and FIRECRACKLE_PROOF_BENCH fixture directory"]
+    fn benchmark_real_size_animation() {
+        let root = PathBuf::from(
+            std::env::var_os("FIRECRACKLE_PROOF_BENCH").expect("Set FIRECRACKLE_PROOF_BENCH"),
+        );
+        let ffmpeg =
+            std::env::var_os("FIRECRACKLE_TEST_FFMPEG").expect("Set FIRECRACKLE_TEST_FFMPEG");
+        let before = std::fs::read(root.join("before.png")).unwrap();
+        let after = std::fs::read(root.join("after.png")).unwrap();
+        for format in ["webp", "gif"] {
+            let started = std::time::Instant::now();
+            let output = encode(&ffmpeg, &after, Some(&before), format).unwrap();
+            eprintln!(
+                "1288x766 {format}: {:.3}s, {} bytes",
+                started.elapsed().as_secs_f64(),
+                output.len()
+            );
+            std::fs::write(root.join(format!("native-fast.{format}")), output).unwrap();
+        }
+    }
 
     #[cfg(windows)]
     #[test]

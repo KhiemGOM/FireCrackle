@@ -19,6 +19,13 @@ export function proofCrop(width: number, height: number, bounds: ProofRect[]): P
   return {x, y, width: Math.min(width, Math.ceil(right + pad)) - x, height: Math.min(height, Math.ceil(bottom + pad)) - y};
 }
 
+/** Expand, never cut off, the selected fire. Wide/tall source frames may need letterboxing. */
+export function squareProofCrop(width: number, height: number, crop: ProofRect): ProofRect {
+  const side = Math.max(crop.width, crop.height);
+  const origin = (center: number, limit: number) => Math.round(side <= limit ? Math.max(0, Math.min(limit - side, center - side / 2)) : (limit - side) / 2);
+  return {x: origin(crop.x + crop.width / 2, width), y: origin(crop.y + crop.height / 2, height), width: side, height: side};
+}
+
 /** HUD texels already contain projected source-pixel coordinates; editing guides were removed first. */
 function maskBounds(svg: SVGSVGElement): ProofRect | undefined {
   const points = Array.from(svg.querySelectorAll("polygon")).flatMap(p => {
@@ -101,40 +108,48 @@ async function renderProof(picture: HTMLImageElement, masks: ProofMask[], source
   const { naturalWidth: width, naturalHeight: height } = picture;
   // Clone geometry and pixels synchronously: animation/frame navigation cannot change this proof later.
   const layers = masks.map(mask => ({ ...mask, svg: cleanProofMask(mask, width, height) }));
-  const crop = proofCrop(width, height, layers.flatMap(mask => {
+  let crop = proofCrop(width, height, layers.flatMap(mask => {
     const bounds = mask.bounds ?? maskBounds(mask.svg);
     return bounds ? [bounds] : [];
   }));
-  const layout = proofLayout(crop.width, crop.height);
-  // Bound animation cost while retaining the same source crop and readable captions.
-  const scale = animated ? Math.min(1, 640 / Math.max(layout.panelWidth, layout.panelHeight)) : 1;
-  const w = Math.max(1, Math.round(layout.panelWidth * scale)), h = Math.max(1, Math.round(layout.panelHeight * scale));
-  const {font, header, footer, gap} = layout;
+  if (animated) crop = squareProofCrop(width, height, crop);
+  const {panelWidth: w, panelHeight: h, font, header, footer, gap} = animated
+    ? {panelWidth: 640, panelHeight: 640, font: 18, header: 108, footer: 36, gap: 0}
+    : proofLayout(crop.width, crop.height);
   const canvas = document.createElement("canvas");
-  canvas.width = w * 2 + gap; canvas.height = header + h + footer;
+  canvas.width = animated ? header + h + footer : w * 2 + gap; canvas.height = header + h + footer;
   const context = canvas.getContext("2d");
   if (!context) throw Error("Image rendering is unavailable.");
   context.fillStyle = "#111722"; context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = false;
-  const drawCrop = (image: CanvasImageSource, x: number) => context.drawImage(image, crop.x, crop.y, crop.width, crop.height, x, header, w, h);
-  drawCrop(picture, 0);
-  drawCrop(picture, w + gap);
+  const panelX = animated ? (canvas.width - w) / 2 : w + gap;
+  const drawCrop = (image: CanvasImageSource, x: number) => {
+    const sx = Math.max(0, crop.x), sy = Math.max(0, crop.y);
+    const sw = Math.min(width, crop.x + crop.width) - sx, sh = Math.min(height, crop.y + crop.height) - sy;
+    context.drawImage(image, sx, sy, sw, sh, x + (sx - crop.x) * w / crop.width, header + (sy - crop.y) * h / crop.height, sw * w / crop.width, sh * h / crop.height);
+  };
+  if (!animated) drawCrop(picture, 0);
+  drawCrop(picture, panelX);
   context.fillStyle = "#ffffff"; context.font = `600 ${font}px sans-serif`;
-  context.fillText("Original", font, font * 1.5, w - font * 2);
-  context.fillText("After · mask comparison", w + gap + font, font * 1.5, w - font * 2);
+  const textX = animated ? font : w + gap + font, textWidth = (animated ? canvas.width : w) - font * 2;
+  if (animated) context.fillText("Comparison proof · overlay fade", font, font * 1.5, textWidth);
+  else {
+    context.fillText("Original", font, font * 1.5, w - font * 2);
+    context.fillText("After · mask comparison", textX, font * 1.5, textWidth);
+  }
   context.font = `${font}px sans-serif`;
-  context.fillText(source.slice(0, 140), font, font * 3, w - font * 2);
+  context.fillText(source.slice(0, 140), font, font * 3, animated ? textWidth : w - font * 2);
   // The viewer offers one active mask mode; record the displayed sprite, never the candidate/guess.
   layers.forEach((mask, index) => {
-    context.fillText(mask.description, w + gap + font, font * (3 + index), w - font * 2);
+    context.fillText(mask.description, textX, font * ((animated ? 4 : 3) + index), textWidth);
   });
   context.fillStyle = "#bdc8da";
-  context.fillText(layers.map(mask => `Opacity ${animated ? "0–" : ""}${Math.round(proofOpacity(mask.opacity) * 100)}%${mask.details ? ` · ${mask.details}` : ""}`).join(" / "), w + gap + font, font * 4.3, w - font * 2);
-  context.fillText(`Comparison proof · manually aligned reference overlay · crop ${crop.x},${crop.y} · ${crop.width}×${crop.height} source px`, font, header + h + font * 1.35, canvas.width - font * 2);
+  context.fillText(layers.map(mask => `Opacity ${animated ? "0–" : ""}${Math.round(proofOpacity(mask.opacity) * 100)}%${mask.details ? ` · ${mask.details}` : ""}`).join(" / "), textX, font * (animated ? 5 : 4.3), textWidth);
+  context.fillText(`${animated ? "Aligned reference" : "Comparison proof · manually aligned reference overlay"} · crop ${crop.x},${crop.y} · ${crop.width}×${crop.height} source px`, font, header + h + font * 1.35, canvas.width - font * 2);
   const base = animated ? await canvasBlob(canvas) : undefined;
   for (const layer of layers) {
     const raster = await rasterMask(layer.svg);
-    try { drawCrop(raster.image, w + gap); }
+    try { drawCrop(raster.image, panelX); }
     finally { raster.dispose(); }
   }
   return {image: await canvasBlob(canvas, type), base};
