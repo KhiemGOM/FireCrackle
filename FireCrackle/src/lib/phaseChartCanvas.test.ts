@@ -24,6 +24,30 @@ function fixture(patch: Partial<PhaseChartCanvasOptions> = {}) {
 }
 
 describe("phase chart canvas", () => {
+  it('keeps the exact existing Fire Timing geometry when used as a joint layer',()=>{
+    const original=fixture(),joint=fixture({timingLayers:[{color:'#4a90d9',points:[{frame:300,pts:5,offset:2}]}],phasePeriod:32});
+    original.draw();joint.draw();
+    expect(joint.context.fillRect.mock.calls).toEqual(original.context.fillRect.mock.calls);
+    expect(joint.context.moveTo.mock.calls).toEqual(original.context.moveTo.mock.calls);
+    expect(joint.context.fillText.mock.calls).toEqual(original.context.fillText.mock.calls);
+  });
+  it('paints all-texture marks inside the original Timing context with run bands, gaps and flags',()=>{
+    const {context,options,draw}=fixture({gaps:[{first:60,last:120,kind:'unlabelled'}],timingLayers:[{color:'#4a90d9',points:[{frame:300,pts:5,offset:2}]},{color:'#ff707b',points:[{frame:360,pts:6,offset:-2,ambiguous:true}]}]});
+    options.chart!.runs=[{first_frame:240,last_frame:420,points:100,center:1,width:2}];
+    options.chart!.flags=[{frame:480,end_frame:480,kind:'phase_shift',severity:'hard',phase_delta:5}];
+    const marks:{color:unknown;x:number;y:number;w:number;alpha:number}[]=[];
+    context.fillRect.mockImplementation((x,y,w)=>marks.push({color:(context as any).fillStyle,x,y,w,alpha:(context as any).globalAlpha??1}));
+    draw();
+    expect(marks.some(m=>m.color==='#4a90d9'&&m.x===499&&m.y===139&&m.w===2.5)).toBe(true);
+    expect(marks.some(m=>m.color==='#ff707b'&&m.x===599&&m.y===179&&m.alpha===.55)).toBe(true);
+    expect(marks.filter(m=>m.w!==2.5).length).toBeGreaterThanOrEqual(3);
+    expect(context.moveTo).toHaveBeenLastCalledWith(500,0);
+  });
+  it('uses the selected modulus on the same Timing canvas without clipping larger offsets',()=>{
+    const {context,draw}=fixture({phasePeriod:96,timingLayers:[{color:'#fff',points:[{frame:300,pts:5,offset:24}]}]});
+    draw();expect(context.fillRect).toHaveBeenCalledWith(499,79,2.5,2.5);
+    expect(context.fillText.mock.calls.some(([text])=>text==='+48')).toBe(true);
+  });
   it('draws display-only fire in grey, without colouring it as independent ruler evidence',()=>{
     const {context,options,draw}=fixture({ruler:{offset:0,tolerance:1}});
     options.chart!.points=[];

@@ -15,7 +15,6 @@ import { FlagCompare } from "./FlagCompare";
 import { JoltPanel } from "./JoltPanel";
 import {ChartCursor} from "./ChartCursor";
 import {TexturePhases} from './TexturePhases';
-import {JointTexturePhases} from './JointTexturePhases';
 type Element=ReactElement<Record<string,any>>;
 const flag:Flag={frame:800,end_frame:820,severity:"hard",kind:"phase_shift",phase_delta:5};
 const jump=vi.fn();
@@ -26,16 +25,18 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
 }
 function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
-it('adds exactly one joint offset tab and keeps the source clock and complete evidence',()=>{
+it('uses the original Timing canvas, controls and sidebar for All textures',()=>{
  let root=render();
  all(root,e=>e.props.role==='tab'&&e.props.children==='All textures')[0].props.onClick();root=render();
- const joint=all(root,e=>e.type===JointTexturePhases);
- expect(joint).toHaveLength(1);expect(joint[0].props.clock.kind).toBe('video');
- expect(joint[0].props.chart).toBe(hooks.values[0]);
+ expect(all(root,e=>e.type==='canvas'&&e.props.className==='chart phase')).toHaveLength(1);
+ expect(all(root,e=>e.props['aria-label']==='Joint phase modulo')).toHaveLength(1);
+ expect(all(root,e=>e.props.label==='Fit entire timing offset timeline')).toHaveLength(1);
+ expect(all(root,e=>e.props['aria-label']==='Perfect clock ruler')).toHaveLength(1);
  expect(all(root,e=>e.type===TexturePhases)).toHaveLength(0);
- expect(all(root,e=>e.props['aria-label']==='Phase flags sidebar')[0].props.hidden).toBe(true);
+ expect(all(root,e=>e.props['aria-label']==='Phase flags sidebar')[0].props.hidden).toBe(false);
+ expect(flags(root).props.flags).toHaveLength(1);
  all(root,e=>e.props.role==='tab'&&e.props.children==='Fire')[0].props.onClick();root=render();
- expect(all(root,e=>e.type===JointTexturePhases)).toHaveLength(0);
+ expect(all(root,e=>e.props['aria-label']==='Joint phase modulo')).toHaveLength(0);
 });
 it("plain flag selection keeps Jolt + Fire open and focuses its shared video timeline",()=>{
   hooks.values[14]='jolt';

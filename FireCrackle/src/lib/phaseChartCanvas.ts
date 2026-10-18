@@ -42,6 +42,9 @@ export interface PhaseChartCanvasOptions {
   gaps?: GapBand[];
   /** A line for what a perfect clock would show, and each point's distance from it; off when absent. */
   ruler?: RulerOptions | null;
+  /** Material overlays share the existing Timing canvas and all its context. */
+  timingLayers?: {color:string;points:{frame:number;pts:number;offset:number;ambiguous?:boolean}[]}[];
+  phasePeriod?: number;
 }
 
 export interface GapBand {
@@ -64,8 +67,9 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   const { chart, kind, currentFrame, fps, t0, t1, highlighted, pixelRatio } = options;
   const timeOf = options.timeOf ?? ((frame: number) => frame / fps);
   const yRange=options.yRange;
+  const period=options.phasePeriod??32;
   const axisY=(value:number)=>yRange ? h*(yRange[1]-value)/(yRange[1]-yRange[0]) : 0;
-  const phaseY=(value:number,height:number)=>yRange?axisY(value):phaseToY(value,height);
+  const phaseY=(value:number,height:number)=>yRange?axisY(value):period===32?phaseToY(value,height):height*(.5-value/period);
   const rowY=(value:number,height:number)=>yRange?axisY(value):rowToY(value,height);
   if (!canvas || !chart) return;
   const dpr = pixelRatio;
@@ -129,7 +133,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   if (kind === "phase") {
     g.strokeStyle = COLORS.grid;
     g.fillStyle = COLORS.text;
-    for (const rel of yRange ? [yRange[0],(yRange[0]+yRange[1])/2,yRange[1]] : [-16, -8, 0, 8, 16]) {
+    for (const rel of yRange ? [yRange[0],(yRange[0]+yRange[1])/2,yRange[1]] : [-period/2, -period/4, 0, period/4, period/2]) {
       const y = phaseY(rel, h);
       g.beginPath();
       g.moveTo(0, y);
@@ -250,7 +254,7 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
     if(Math.abs(b-a)>150)g.fillText(`Clock continuation Δ ${guide.shift_ticks>=0?'+':''}${guide.shift_ticks.toFixed(1)} ticks (estimate)`,Math.max(6,Math.min(a,b)+8),25);
   }
   const display = phasePaintPoints(chart.display_points??chart.points, { t0, t1, width: w, kind, reference: ref, rulerPhase: ruler ? rp : undefined });
-  const visible = display.filter(p => !p.clock_fallback && (!ruler || Number.isFinite(p.phase)));
+  const visible = kind==='phase'&&options.timingLayers ? [] : display.filter(p => !p.clock_fallback && (!ruler || Number.isFinite(p.phase)));
   if (ruler) {
     // each point's distance from the ruler, as a stem to it, shaded by how far off it is
     const levels: Record<DeviationLevel, ChartPoint[]> = { ok: [], warn: [], bad: [] };
@@ -296,6 +300,18 @@ export function drawPhaseChart(canvas: HTMLCanvasElement | null, options: PhaseC
   // independent timing evidence. Never colour them as ruler successes/failures.
   g.fillStyle='#a8b2c4';
   for(const p of display)if(p.clock_fallback){const x=timeToX(p.pts,t0,t1,w),y=kind==='phase'?phaseY(relativePhase(p.phase,ref),h):rowY(p.step,h);g.fillRect(x-1.5,y-.75,3,1.5);}
+  if(kind==='phase'&&options.timingLayers)for(const layer of options.timingLayers){
+    g.fillStyle=layer.color;
+    const seen=new Set<string>();
+    for(const p of layer.points){
+      if(p.pts<t0||p.pts>t1||!Number.isFinite(p.offset))continue;
+      const x=timeToX(p.pts,t0,t1,w),y=phaseY(p.offset,h);
+      if(y<0||y>h)continue;
+      const key=`${Math.round(x)},${Math.round(y)},${p.ambiguous?1:0}`;if(seen.has(key))continue;seen.add(key);
+      g.globalAlpha=p.ambiguous ? 0.55 : 1;g.fillRect(x-1,y-1,2.5,2.5);
+    }
+    g.globalAlpha=1;
+  }
   // where the Label tab currently is
   const cx = timeToX(timeOf(currentFrame), t0, t1, w);
   g.strokeStyle = "#f08a24";

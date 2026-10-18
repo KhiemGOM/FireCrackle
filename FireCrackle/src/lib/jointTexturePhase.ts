@@ -4,7 +4,7 @@ import type {TimeReference} from './jolt';
 
 export const JOINT_MODULI=[32,64,96,608,1216,3648] as const;
 export const JOINT_MATERIALS={
- fire:{name:'Fire',color:'#ffae52'},soul:{name:'Soul fire',color:'#63e4e0'},
+ fire:{name:'Fire',color:'#4a90d9'},soul:{name:'Soul fire',color:'#63e4e0'},
  lava_still:{name:'Still lava',color:'#ff707b'},lava_flow:{name:'Flowing lava',color:'#dc91ff'},
  water_still:{name:'Still water',color:'#6da7ff'},water_flow:{name:'Flowing water',color:'#b9da66'},
 } as const;

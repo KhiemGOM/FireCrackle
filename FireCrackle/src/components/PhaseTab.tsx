@@ -1,6 +1,6 @@
 import {ANIMATION_CHARTS,fireMaterialChart,isFluidChart,type AnimationChart} from "../lib/animationCharts";
 import {TexturePhases} from "./TexturePhases";
-import {JointTexturePhases} from "./JointTexturePhases";
+import {JOINT_MATERIALS,JOINT_MODULI,jointSamples,timingOffset,type JointMaterial} from "../lib/jointTexturePhase";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton } from "./Icon";
 import { JoltChart } from "./JoltChart";
@@ -96,7 +96,19 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   function changeClock(next:JoltState) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
-  const fluid=animation==="joint"||isFluidChart(animation);
+  const joint=animation==="joint";
+  const fluid=!joint&&isFluidChart(animation);
+  const [jointPeriod,setJointPeriod]=useState<number>(32);
+  const [jointEnabled,setJointEnabled]=useState<JointMaterial[]>(Object.keys(JOINT_MATERIALS) as JointMaterial[]);
+  const jointObservations=useMemo(()=>joint?jointSamples(videoChart,reference):[],[joint,videoChart,reference]);
+  const jointLayers=useMemo(()=>!joint?undefined:jointEnabled.map(material=>({
+    name:JOINT_MATERIALS[material].name,color:JOINT_MATERIALS[material].color,
+    points:jointObservations.filter(p=>p.material===material).flatMap(p=>{
+      const value=timingOffset(p,jointPeriod,chart?chartReference(chart):0);
+      return value.value===null?[]:[{frame:p.frame,pts:chart?.corrected_time?(p.tick-originTick)/20:p.pts,offset:value.value,ambiguous:value.ambiguous,material,video_pts:p.pts,step:p.ages[0].start,phase:value.value}];
+    })
+  })),[joint,jointEnabled,jointObservations,jointPeriod,chart,originTick]);
+  const jointPoints=useMemo(()=>jointLayers?.flatMap(l=>l.points).sort((a,b)=>a.pts-b.pts)??[],[jointLayers]);
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
 
   const joltFocusRange = useMemo<AxisRange|null>(()=>selectedRange?[selectedRange.first/fps,selectedRange.last/fps]:null,[selectedRange,fps]);
@@ -147,7 +159,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   useEffect(() => {
     const redraw = () => {
       const options = { chart, timeOf, currentFrame: view.current, fps, t0, t1, highlighted, pixelRatio: window.devicePixelRatio || 1, gaps, ruler };
-      drawPhaseChart(phaseRef.current, { ...options, kind: "phase", yRange: phaseRange });
+      drawPhaseChart(phaseRef.current, { ...options, kind: "phase", yRange: phaseRange, timingLayers:jointLayers, phasePeriod:joint?jointPeriod:32 });
       drawPhaseChart(rowRef.current, { ...options, kind: "row", yRange: rowRange });
     };
     redraw();
@@ -155,7 +167,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     if (phaseRef.current) ro.observe(phaseRef.current);
     if (rowRef.current) ro.observe(rowRef.current);
     return () => ro.disconnect();
-  }, [chart, gaps, view.current, t0, t1, highlighted?.first, highlighted?.last, rulerOn, rulerOffset, rulerOpacity, tolerance, phaseRange, rowRange, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chart, gaps, view.current, t0, t1, highlighted?.first, highlighted?.last, rulerOn, rulerOffset, rulerOpacity, tolerance, phaseRange, rowRange, viewMode, jointLayers, jointPeriod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // stretches with no fire evidence: found from the frames that have evidence, classified by their labels
   useEffect(() => {
@@ -164,7 +176,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       return;
     }
     let cancelled = false;
-    const frames = chart.label_sources ? Object.keys(chart.label_sources).map(Number) : chart.points.map((p) => p.frame);
+    const frames = joint ? jointObservations.map(p=>p.frame) : chart.label_sources ? Object.keys(chart.label_sources).map(Number) : chart.points.map((p) => p.frame);
     const found = findEvidenceGaps(frames, view.frame_count, fps, MIN_GAP_SECONDS);
     const build = (g: EvidenceGap, kind: GapKind): GapInfo => ({ first: g.first, last: g.last, kind, gap: g, text: gapText(g, kind, bridgeStatus(g, chart.points)) });
     setGaps(found.map((g) => build(g, "unlabelled")));
@@ -174,7 +186,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [chart, backend, fps, view.frame_count]);
+  }, [chart, backend, fps, view.frame_count, joint, jointObservations]);
 
   function focusRange(range: FrameRange, flag: Flag | null = null) {
     // Selection never changes the clock or chart view. Missing-clock positions
@@ -198,7 +210,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
     const flagIdx = hitFlag(spans, x);
     const cursor=cursorAt(xToTime(x, t0, t1, r.width));
     const t=cursor.time;
-    const nearest = nearestPoint(displayPoints, t);
+    const nearest = nearestPoint(joint?jointPoints:displayPoints, t);
     const point = nearest && nearest.pts >= t0 && nearest.pts <= t1 ? nearest : null;
     return { flagIdx, point, t, cursor };
   }
@@ -228,6 +240,11 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       setHover(inGap.text);
     } else if (hit.point) {
       const p = hit.point;
+      if(joint){
+        const source=jointPoints.find(point=>point.frame===p.frame&&point.pts===p.pts);
+        setHover(`frame ${p.frame} · ${formatTimecode(p.video_pts??p.pts,fps)} · ${source?JOINT_MATERIALS[source.material].name:"Texture"} · timing offset ${p.phase>0?"+":""}${p.phase.toFixed(2)} ticks${source?.ambiguous?" · unresolved wrap/direction":""}`);
+        return;
+      }
       const reference = chart!.reference_phase ?? chart!.runs[0]?.center ?? chart!.points[0]?.phase ?? 0;
       const offset = relativePhase(p.phase, reference);
       const sources=(chart!.label_sources?.[p.frame]??[]).map(s=>LABEL_SOURCE_NAMES[s]).join(" + ");
@@ -292,19 +309,18 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
         }} />
         <div className="phase-source-control"><PhaseSourcePicker value={source} onChange={value=>{setSource(value);setChart(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);}} /></div>
         </header>
-      <div className="phase-view-tabs" role="tablist" aria-label="Animation charts">{([...ANIMATION_CHARTS,["joint","All textures"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={animation===id} onClick={()=>{setAnimation(id);setHover(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);setRulerMatch(null);setPhaseRange(undefined);setRowRange(undefined);}}>{label}</button>)}</div>
+      <div className="phase-view-tabs" role="tablist" aria-label="Animation charts">{([...ANIMATION_CHARTS,["joint","All textures"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={animation===id} onClick={()=>{setAnimation(id);if(id==="joint")setViewMode("phase");setHover(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);setRulerMatch(null);setPhaseRange(undefined);setRowRange(undefined);}}>{label}</button>)}</div>
       <div className="phase-layout" style={fluid?{gridTemplateColumns:"minmax(0,1fr)"}:undefined}>
       <div className="phase-plots">
       <div className="phase-topbar">
         <div className="phase-view-tabs" role="tablist" aria-label="Phase views" hidden={fluid}>
-          {([["phase","Timing"],["row","Sprites"],["jolt",animation==="soul"?"Jolt + Soul fire":"Jolt + Fire"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
+          {(joint?[["phase","Timing"]] as const:[["phase","Timing"],["row","Sprites"],["jolt",animation==="soul"?"Jolt + Soul fire":"Jolt + Fire"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
         </div>
         <span className="dim" hidden={fluid}>{viewMode==="jolt"?`Jolt + ${animation==="soul"?"Soul fire":"Fire"} · shared video timeline`:jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
         <button style={{marginLeft:"auto"}} className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        {animation==="joint"&&<JointTexturePhases key={`${videoKey}:${jolt.clock}:${jolt.session}`} chart={videoChart} clock={reference} duration={view.frame_count/fps} onJump={onJump}/>}
         {animation!=="joint"&&isFluidChart(animation)&&<TexturePhases jolt={jolt} key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
         <div hidden={fluid||viewMode!=="jolt"}><JoltChart materialName={animation==="soul"?"Soul fire":"Fire"} key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
 
@@ -315,7 +331,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             {jolt.clock === "jolt" ? "Jolt supplies canonical time. Timing offset = canonical tick − fire step, relative to the starting offset. Dashed ruler sections between readings are estimates; reported clock breaks stay disconnected." : `Zero = the reference ${chart?.tick_rate ?? 20} Hz animation clock.`} Source filter controls the evidence shown. Red/amber = review priority.
           </span>
         </div>
-        {chart && displayPoints.length === 0 ? (
+        {chart && (joint?jointPoints:displayPoints).length === 0 ? (
           <div className="empty big-empty">{jolt.clock === "jolt" ? "No fire labels within a resolved Jolt section for this game and source. Choose another source/game or label frames inside a section." : "No fire labels for this source. Choose another source, run the first-person tool, or choose a sprite and confirm it in Label. Time guesses are excluded from the default evidence."}</div>
         ) : (
           <>
@@ -346,8 +362,13 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
             </details>
             <div hidden={viewMode!=="phase"}>
             {controls("timing offset")}
+            {joint&&<div className="chart-legend" aria-label="Joint texture controls" data-owns-keys="true">
+              <label>Modulo <select aria-label="Joint phase modulo" value={jointPeriod} onChange={e=>{setJointPeriod(Number(e.target.value));setPhaseRange(undefined);}}>{JOINT_MODULI.map(period=><option key={period} value={period}>{period} ticks</option>)}</select></label>
+              {(Object.keys(JOINT_MATERIALS) as JointMaterial[]).map(material=><label key={material} style={{color:JOINT_MATERIALS[material].color}}><input type="checkbox" checked={jointEnabled.includes(material)} onChange={e=>setJointEnabled(previous=>e.target.checked?[...previous,material]:previous.filter(m=>m!==material))}/> {JOINT_MATERIALS[material].name}</label>)}
+              <span>Dim marks = unresolved wrap or direction; one shared reference.</span>
+            </div>}
             <ChartLegend kind="phase" canonical={!!chart?.corrected_time} ruler={rulerOn}/>
-            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??[-16,16]} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><div style={{position:"relative",height:"100%"}}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /><ChartCursor cursor={chartCursor} lo={t0} hi={t1}/></div></PlotAxes>
+            <PlotAxes formatX={t=>chart?.corrected_time?String(Number((originTick+20*t).toFixed(2))):`${t<0?"−":""}${formatTime(Math.abs(t),0.01)}`} x={[t0,t1]} y={phaseRange??(joint?[-jointPeriod/2,jointPeriod/2]:[-16,16])} onX={axisX} onY={setPhaseRange} resetX={resetX} resetY={()=>setPhaseRange(undefined)}><div style={{position:"relative",height:"100%"}}><canvas ref={phaseRef} className="chart phase" {...chartEvents} /><ChartCursor cursor={chartCursor} lo={t0} hi={t1}/></div></PlotAxes>
             </div>
             <div className="chart-head" hidden={viewMode!=="row"}>
               <span className="panel-title">Sprite row against time</span>
