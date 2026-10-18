@@ -1,6 +1,8 @@
+import {ANIMATION_ATLASES,type AnimationAtlas} from "./animationAtlases";
 import { DEFAULT_QUAD, validQuad, type ManualQuad } from "./quadMask";
 
 export interface MaskState {
+  manualAtlas?:AnimationAtlas;
   hudEnabled: boolean; hudRow: number; hudFov: number; hudOpacity: number;
   manualEnabled: boolean; manualQuad: ManualQuad; manualSheet: 0 | 1;
   manualRow: number; manualMirrored: boolean; manualOpacity: number; pixelGrid: boolean;
@@ -23,6 +25,8 @@ export function readMaskState(storage?: StorageReader): MaskState {
       if (typeof saved[key] === "boolean") result[key] = saved[key];
     for (const key of ["hudRow", "manualRow"] as const)
       if (Number.isInteger(saved[key]) && saved[key] >= 0 && saved[key] < 32) result[key] = saved[key];
+    if(typeof saved.manualAtlas==="string" && saved.manualAtlas in ANIMATION_ATLASES)result.manualAtlas=saved.manualAtlas;
+    if(result.manualAtlas&&result.manualRow>=ANIMATION_ATLASES[result.manualAtlas].rows)result.manualRow=0;
     if ([60, 70].includes(saved.hudFov)) result.hudFov = saved.hudFov;
     if ([0, 1].includes(saved.manualSheet)) result.manualSheet = saved.manualSheet;
     for (const key of ["hudOpacity", "manualOpacity"] as const)

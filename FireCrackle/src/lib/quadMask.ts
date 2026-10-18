@@ -45,15 +45,15 @@ export function projectQuad(q: ManualQuad, u: number, v: number): QuadPoint {
     ((y1 - y0 + g * y1) * u + (y3 - y0 + h * y3) * v + y0) / denominator];
 }
 
-export function manualTexels(rgba: Uint8ClampedArray, row: number, mirrored: boolean, quad: ManualQuad) {
-  if (rgba.length !== 16 * 512 * 4 || !Number.isInteger(row) || row < 0 || row > 31 || !validQuad(quad)) throw new Error("Invalid manual fire mask");
+export function manualTexels(rgba: Uint8ClampedArray, row: number, mirrored: boolean, quad: ManualQuad,side=16,rows=32) {
+  if (![16,32].includes(side) || !Number.isInteger(rows) || rows<1 || rgba.length !== side * side * rows * 4 || !Number.isInteger(row) || row < 0 || row >= rows || !validQuad(quad)) throw new Error("Invalid manual fire mask");
   const result: Array<{ points: QuadPoint[]; colour: string; alpha: number }> = [];
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const sourceX = mirrored ? 15 - x : x;
-    const i = ((row * 16 + y) * 16 + sourceX) * 4;
+  for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
+    const sourceX = mirrored ? side - 1 - x : x;
+    const i = ((row * side + y) * side + sourceX) * 4;
     if (!rgba[i + 3]) continue;
     result.push({
-      points: [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]].map(([px, py]) => projectQuad(quad, px / 16, py / 16)),
+      points: [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]].map(([px, py]) => projectQuad(quad, px / side, py / side)),
       colour: `rgb(${rgba[i]}, ${rgba[i + 1]}, ${rgba[i + 2]})`, alpha: rgba[i + 3] / 255,
     });
   }

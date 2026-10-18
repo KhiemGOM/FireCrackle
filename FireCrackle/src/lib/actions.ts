@@ -25,6 +25,7 @@ export type UiAction =
   | { type: "noFire" }
   | { type: "skip" }
   | { type: "undo" }
+  | { type: "setLabel"; label: Label }
   | { type: "clickCell"; col: number; row: number }
   | { type: "fillRange"; start: number; end: number; label: Label };
 

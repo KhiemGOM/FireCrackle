@@ -1,3 +1,4 @@
+import {ANIMATION_ATLASES,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from "react";
 import { useWheel } from "../hooks/useWheel";
 import type { Backend, View } from "../lib/api";
@@ -9,7 +10,7 @@ import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
 import { IconButton } from "./Icon";
 import { DEFAULT_QUAD, type ManualQuad } from "../lib/quadMask";
-import { framePreview, previewSprite, type PreviewSprite } from "../lib/firePreview";
+import { framePreview, previewSprite, spriteWithSheet, labelSprite, type PreviewSprite } from "../lib/firePreview";
 import { compressionGeometry } from "../lib/compressionPreview";
 import { readMaskState, writeMaskState, type MaskState } from "../lib/maskState";
 import { parallelizeQuad } from "../lib/quadTransform";
@@ -51,12 +52,13 @@ export function describeLabel(label: Label): string {
   if (label === "unset") return "unlabelled";
   if (label === "no_fire") return "no fire";
   if (label === "skip") return "skipped";
+  if("texture" in label)return spriteText({...label.texture,sheet:label.texture.atlas.endsWith("_0")?0:1});
   const { sheet, row, mirrored } = label.fire;
   return `row ${row} · sheet ${sheet} · ${mirrored ? "mirrored" : "normal"}`;
 }
 
 function labelClass(label: Label): string {
-  if (isFire(label)) return "fire";
+  if (isFire(label)||typeof label==="object") return "fire";
   return label;
 }
 
@@ -126,6 +128,8 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   const [manualQuad, setManualQuad] = useState<ManualQuad>(saved.manualQuad);
   const [manualSheet, setManualSheet] = useState<0 | 1>(saved.manualSheet);
   const [manualRow, setManualRow] = useState(saved.manualRow);
+  const [manualAtlas,setManualAtlas]=useState<AnimationAtlas|undefined>(saved.manualAtlas);
+  const manualRows=manualAtlas?ANIMATION_ATLASES[manualAtlas].rows:32;
   const [manualMirrored, setManualMirrored] = useState(saved.manualMirrored);
   const [manualOpacity, setManualOpacity] = useState(saved.manualOpacity);
   const [pixelGrid, setPixelGrid] = useState(saved.pixelGrid);
@@ -134,8 +138,8 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   const [compressionQuality, setCompressionQuality] = useState(saved.compressionQuality);
   const [hudOpacity, setHudOpacity] = useState(saved.hudOpacity);
   useEffect(() => {
-    writeMaskState({ hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality }, toolStorage);
-  }, [hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality]);
+    writeMaskState({ hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualAtlas, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality }, toolStorage);
+  }, [hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualAtlas, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality]);
   useEffect(() => {
     if (!manualEnabled && !hudEnabled) return;
     const key = (e: KeyboardEvent) => {
@@ -152,9 +156,9 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
     return () => window.removeEventListener("keydown", key, true);
   }, [manualEnabled, hudEnabled]);
   useEffect(()=> {
-    onPreviewChange?.(manualEnabled?{sheet:manualSheet,row:manualRow,mirrored:manualMirrored}
+    onPreviewChange?.(manualEnabled?{...(manualAtlas?{atlas:manualAtlas}:{}),sheet:manualSheet,row:manualRow,mirrored:manualMirrored}
       :hudEnabled?{sheet:1,row:hudRow,mirrored:false}:null);
-  },[manualEnabled,manualSheet,manualRow,manualMirrored,hudEnabled,hudRow,onPreviewChange]);
+  },[manualEnabled,manualSheet,manualAtlas,manualRow,manualMirrored,hudEnabled,hudRow,onPreviewChange]);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const labelRow = hudRowFromLabel(view.label);
   const delivery = imageSize.width > 0 ? compressionGeometry(imageSize.width,imageSize.height,compressionHeight,manualQuad) : null;
@@ -205,17 +209,19 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
     setManualEnabled(!manualEnabled);
     if (manualEnabled) setMatchingEnabled(false);
     if (manualEnabled) setAnimationOpen(false);
-    if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
+    if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
   }
   function toggleMatcher() {
+    if(manualAtlas)return;
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
-    if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setManualAtlas(undefined); setManualEnabled(true); setHudEnabled(false); }
   }
   /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
+    if(manualAtlas)return;
     if (matchingEnabled) { setMatchingEnabled(false); return; }
-    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualAtlas(undefined); setManualEnabled(true); setHudEnabled(false); }
     setFindToken(n => n + 1);
   }
   const runTool = (action: ToolAction) => {
@@ -254,10 +260,12 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
 
   function selectPreview(sprite: PreviewSprite): boolean {
     setAnimationStop(value => value + 1);
-    const mode = manualEnabled ? "manual" : hudEnabled ? "firstPerson" : "none";
+    const mode = sprite.atlas || manualEnabled ? "manual" : hudEnabled ? "firstPerson" : "none";
+    if(sprite.atlas){setManualEnabled(true);setHudEnabled(false);setMatchingEnabled(false);setAnimationOpen(false);}
     const next = previewSprite(mode, sprite);
     if (!next) return false;
     if (mode === "manual") {
+      setManualAtlas(next.atlas);
       setManualSheet(next.sheet);
       setManualRow(next.row);
       setManualMirrored(next.mirrored);
@@ -453,9 +461,9 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         >
           {url ? <img src={url} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => { setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight }); if (!stillImage && shown !== null && e.currentTarget.getAttribute("src") === urlRef.current) onFramePresented?.(shown); }} /> : <div className="placeholder">decoding…</div>}
           {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
-          {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
+          {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} atlas={manualAtlas} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
-            placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
+            placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
           {ruler.enabled && url && imageSize.width > 0 && <VideoRuler {...imageSize} zoom={xf.scale} points={ruler.points} locked={ruler.locked} onSelect={setRulerSelected} onChange={points => setRuler(current => ({ ...current, points }))} />}
           {guiMaskOn && !stillImage && <GuiMaskOverlay state={guiMask} frame={view.current} />}
         </div>
@@ -480,10 +488,10 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
         <IconButton icon="fire" label="Toggle first-person fire" title="First-person fire · H" aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
-        <IconButton icon="zoomIn" label="Toggle sprite matching tool" title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
+        <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
         <span className="tool-spacer" aria-hidden="true" />
-        <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
+        <IconButton icon="play" label="Toggle sprite animation tool" disabled={!!manualAtlas} title={manualAtlas?"Animation browser currently supports normal fire only":undefined} aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
           setAnimationOpen(!animationOpen);
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
@@ -491,7 +499,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
-        <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
+        <ComparisonProofButton label="Comparison proof" disabled={!!manualAtlas || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
           <label><input type="checkbox" checked={ruler.locked} onChange={e => setRuler(current => ({ ...current, locked: e.target.checked }))} /> Lock unit</label>
@@ -513,17 +521,18 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
       </div>}
       {manualEnabled && <div className="hud-controls" aria-label="Quad mask settings" onKeyDown={(e) => e.stopPropagation()}>
-          <label>Sheet <select aria-label="Manual mask sheet" value={manualSheet} onChange={(e) => setManualSheet(Number(e.target.value) as 0 | 1)}><option value={0}>0</option><option value={1}>1</option></select></label>
-          <IconButton icon="left" label="Previous manual mask row" onClick={() => setManualRow((r) => stepHudRow(r, -1))} />
-          <label>Row <input aria-label="Manual mask row" type="number" min={0} max={31} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < 32) setManualRow(n); }} /></label>
-          <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => stepHudRow(r, 1))} />
+          {manualAtlas&&<><strong>{ANIMATION_ATLASES[manualAtlas].name}</strong><button onClick={()=>setManualAtlas(undefined)}>Fire atlas</button></>}
+          <label>Sheet <select aria-label="Manual mask sheet" value={manualSheet} onChange={(e) => {const next=spriteWithSheet({atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored},Number(e.target.value) as 0|1);setManualAtlas(next.atlas);setManualSheet(next.sheet);setManualRow(next.row);}}><option value={0}>0</option><option value={1}>1</option></select></label>
+          <IconButton icon="left" label="Previous manual mask row" onClick={() => setManualRow((r) => (r-1+manualRows)%manualRows)} />
+          <label>Row <input aria-label="Manual mask row" type="number" min={0} max={manualRows-1} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < manualRows) setManualRow(n); }} /></label>
+          <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => (r+1)%manualRows)} />
           <label><input type="checkbox" checked={manualMirrored} onChange={(e) => setManualMirrored(e.target.checked)} /> Mirrored</label>
           <OpacityControl groupLabel="Mask opacity" toggleLabel="Toggle manual mask opacity"
             sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
           <IconButton icon="reset" label="Reset quad corners" onClick={() => setManualQuad(DEFAULT_QUAD)} />
           <IconButton icon="parallel" label="Make quad a parallelogram" title="Make a parallelogram · P · keeps the center" onClick={() => setManualQuad(parallelizeQuad)} />
-          <label title="FFmpeg encodes all 32 fire rows at their video-relative pixel size on white, using H.264 at 60 fps. Only the extracted fire is displayed. This is a real codec stress test, not YouTube's exact encoding recipe."><input type="checkbox" checked={compressionEnabled} onChange={e=>setCompressionEnabled(e.target.checked)} /> FFmpeg compression</label>
+          <label title="FFmpeg encodes all 32 fire rows at their video-relative pixel size on white, using H.264 at 60 fps. Only the extracted fire is displayed. This is a real codec stress test, not YouTube's exact encoding recipe."><input type="checkbox" disabled={!!manualAtlas} checked={compressionEnabled && !manualAtlas} onChange={e=>setCompressionEnabled(e.target.checked)} /> FFmpeg compression</label>
           {compressionEnabled && <>
             <label>Resolution <select aria-label="Compression resolution" value={compressionHeight} onChange={e=>setCompressionHeight(Number(e.target.value))}>
               <option value={2160}>2160p</option><option value={1440}>1440p</option><option value={1080}>1080p</option><option value={720}>720p</option><option value={480}>480p</option><option value={360}>360p</option>
@@ -534,14 +543,14 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
             {delivery && <span className="hud-hint">{delivery.width}×{delivery.height} frame · quad ≈{delivery.quadWidth.toFixed(1)}×{delivery.quadHeight.toFixed(1)} px · simulated output pixels · zoom only magnifies</span>}
             <span className="hud-hint">H.264 · 4:2:0 · 60 fps · animated fire on white · extracted mask only</span>
           </>}
-          <IconButton icon="copy" label="Use frame label for manual mask" disabled={!isFire(view.label)} onClick={() => { if (isFire(view.label)) { setManualSheet(view.label.fire.sheet as 0 | 1); setManualRow(view.label.fire.row); setManualMirrored(view.label.fire.mirrored); } }} />
+          <IconButton icon="copy" label="Use frame label for manual mask" disabled={!labelSprite(view.label)} onClick={() => {const sprite=labelSprite(view.label);if(sprite)selectPreview(sprite);}} />
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
-      {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
+      {animationOpen && manualEnabled && !manualAtlas && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
           onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
       </div>}
-      {matchingEnabled && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
+      {matchingEnabled && !manualAtlas && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
         {url ? <QuadMatchControls frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {
           setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
           onMatchCandidate?.({sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});

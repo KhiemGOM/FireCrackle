@@ -58,6 +58,15 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals(); });
 
+it('does not project stale pixels with a different atlas size before its load effect runs',()=>{
+ hooks.states[1]={source:'/animation-atlases/soul_fire_0.png',rgba:new Uint8ClampedArray(16*16*32*4)};
+ hooks.refCursor=hooks.stateCursor=0;hooks.effects=[];
+ expect(()=>FireQuadMask({atlas:'lava_still',width:100,height:100,sheet:0,row:19,mirrored:false,opacity:1,quad:DEFAULT_QUAD,onQuad})).not.toThrow();
+ hooks.refCursor=hooks.stateCursor=0;hooks.effects=[];
+ hooks.states[1]={source:'/animation-atlases/lava_still.png',rgba:new Uint8ClampedArray(16*16*20*4)};
+ expect(()=>FireQuadMask({atlas:'lava_flow',width:100,height:100,sheet:1,row:15,mirrored:false,opacity:1,quad:DEFAULT_QUAD,onQuad})).not.toThrow();
+});
+
 describe("manual quad controls", () => {
   it("captures Shift before focused toolbar controls can stop bubbling", () => {
     const bind = vi.spyOn(window, "addEventListener");

@@ -15,6 +15,40 @@ pub enum Label {
     Skip,
     /// A fire sprite: sheet 0 or 1, animation index 0..31, normal or mirrored.
     Fire { sheet: u8, row: u8, mirrored: bool },
+    /// Alternative manual texture observation. Soul-fire rows use normalized animation indices.
+    Texture {
+        atlas: AnimationAtlas,
+        row: u8,
+        mirrored: bool,
+    },
+}
+
+/// Vanilla block-atlas families; fluids remain separate observations, never fire detector outputs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnimationAtlas {
+    SoulFire0,
+    SoulFire1,
+    LavaStill,
+    LavaFlow,
+    WaterStill,
+    WaterFlow,
+}
+impl AnimationAtlas {
+    pub fn rows(self) -> u8 {
+        match self {
+            Self::LavaStill => 20,
+            Self::LavaFlow => 16,
+            _ => 32,
+        }
+    }
+    pub fn fire_sheet(self) -> Option<u8> {
+        match self {
+            Self::SoulFire0 => Some(0),
+            Self::SoulFire1 => Some(1),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,12 +87,31 @@ impl Label {
         match *self {
             Label::Fire { sheet, .. } if sheet >= 2 => Err(LabelError::InvalidSheet(sheet)),
             Label::Fire { row, .. } if row >= 32 => Err(LabelError::InvalidRow(row)),
+            Label::Texture { atlas, row, .. } if row >= atlas.rows() => {
+                Err(LabelError::InvalidRow(row))
+            }
             _ => Ok(()),
         }
     }
 
+    pub fn canonical_fire(&self) -> Option<Label> {
+        match *self {
+            Label::Fire { .. } => Some(*self),
+            Label::Texture {
+                atlas,
+                row,
+                mirrored,
+            } => atlas.fire_sheet().map(|sheet| Label::Fire {
+                sheet,
+                row,
+                mirrored,
+            }),
+            _ => None,
+        }
+    }
+
     pub fn is_fire(&self) -> bool {
-        matches!(self, Label::Fire { .. })
+        self.canonical_fire().is_some()
     }
 }
 

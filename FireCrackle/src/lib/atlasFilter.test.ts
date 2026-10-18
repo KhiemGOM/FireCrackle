@@ -1,5 +1,14 @@
 import { expect, it } from "vitest";
-import { animationPool, appearanceId, nextAppearance, appearanceEdges, edgeFilterValue, matchesEdges, matchingAppearances, sheetEdgeCounts, type AtlasEdges } from "./atlasFilter";
+import { animationPool, appearanceId, nextAppearance, appearanceEdges, edgeFilterValue, matchesEdges, matchingAppearances, sheetEdgeCounts, spriteSheetEdgeCounts, type AtlasEdges } from "./atlasFilter";
+
+it('keeps the fire map callback compatible and counts 32px fluid edges at native size',()=>{
+ const fire=new Uint8ClampedArray(16*16*32*4);
+ expect([fire,fire].map(sheetEdgeCounts).map(rows=>rows.length)).toEqual([32,32]);
+ const fluid=new Uint8ClampedArray(32*32*16*4);
+ for(let y=0;y<32;y++)fluid[(y*32+31)*4+3]=255;
+ expect(spriteSheetEdgeCounts(fluid,32,16)[0].right).toBe(32);
+ expect(spriteSheetEdgeCounts(fluid,32,16)).toHaveLength(16);
+});
 
 it("counts only visible pixels at x=0 and x=15, in each animation row", () => {
   const rgba = new Uint8ClampedArray(16 * 512 * 4);

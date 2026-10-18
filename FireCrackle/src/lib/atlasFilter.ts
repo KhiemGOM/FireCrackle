@@ -28,16 +28,19 @@ export function nextAppearance(pool: PreviewSprite[], current: PreviewSprite, di
  * User-entered inclusive bounds express uncertainty in the footage; no colour threshold is inferred from it.
  */
 export function sheetEdgeCounts(rgba: Uint8ClampedArray): EdgeCounts[] {
-  if (rgba.length !== 16 * 512 * 4) throw new Error("Expected a 16×512 fire sprite sheet");
-  return Array.from({ length: 32 }, (_, row) => {
+  return spriteSheetEdgeCounts(rgba,16,32);
+}
+export function spriteSheetEdgeCounts(rgba: Uint8ClampedArray,side:number,rows:number): EdgeCounts[] {
+  if (![16,32].includes(side)||!Number.isInteger(rows)||rows<1||rgba.length !== side*side*rows*4) throw new Error("Invalid animation sprite sheet");
+  return Array.from({ length: rows }, (_, row) => {
     let left = 0, right = 0;
-    for (let y = row * 16; y < row * 16 + 16; y++) {
-      if (rgba[(y * 16) * 4 + 3] > 0) left++;
-      if (rgba[(y * 16 + 15) * 4 + 3] > 0) right++;
+    for (let y = row * side; y < row * side + side; y++) {
+      if (rgba[(y * side) * 4 + 3] > 0) left++;
+      if (rgba[(y * side + side-1) * 4 + 3] > 0) right++;
     }
     let bottomWhite = 0;
-    for (let x = 0; x < 16; x++) {
-      const i = ((row * 16 + 15) * 16 + x) * 4;
+    for (let x = 0; x < side; x++) {
+      const i = ((row * side + side-1) * side + x) * 4;
       if (rgba[i + 3] === 255 && rgba[i] >= BOTTOM_WHITE_CHANNEL_MIN && rgba[i + 1] >= BOTTOM_WHITE_CHANNEL_MIN && rgba[i + 2] >= BOTTOM_WHITE_CHANNEL_MIN) bottomWhite++;
     }
     return { left, right, bottomWhite };
@@ -52,14 +55,14 @@ export function matchesEdges(counts: EdgeCounts, filter: EdgeFilter): boolean {
     && (filter.bottomWhiteMin == null || (counts.bottomWhite !== undefined && counts.bottomWhite >= filter.bottomWhiteMin))
     && (filter.bottomWhiteMax == null || (counts.bottomWhite !== undefined && counts.bottomWhite <= filter.bottomWhiteMax));
 }
-export function edgeFilterValue(value: string): number | null {
+export function edgeFilterValue(value: string,max=16): number | null {
   if (!value.trim()) return null;
   const count = Number(value);
-  return Number.isInteger(count) && count >= 0 && count <= 16 ? count : null;
+  return Number.isInteger(count) && count >= 0 && count <= max ? count : null;
 }
 export function matchingAppearances(edges: AtlasEdges, filter: EdgeFilter): number {
   let matches = 0;
-  for (const sheet of [0, 1] as const) for (let row = 0; row < 32; row++) for (const mirrored of [false, true]) {
+  for (const sheet of [0, 1] as const) for (let row = 0; row < edges[sheet].length; row++) for (const mirrored of [false, true]) {
     if (matchesAppearance(edges, sheet, row, mirrored, filter)) matches++;
   }
   return matches;

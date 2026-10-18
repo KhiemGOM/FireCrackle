@@ -1,6 +1,7 @@
+import {ANIMATION_ATLASES} from "../lib/animationAtlases";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Backend } from "../lib/api";
-import { atlasSprite, type PreviewSprite } from "../lib/firePreview";
+import { atlasSprite, spriteLabel, spriteWithSheet, type PreviewSprite } from "../lib/firePreview";
 import { isFire, type Label } from "../lib/grid";
 import { spriteText } from "../lib/labelCandidate";
 import { appendImages, clipboardPhotos, IMAGE_ACCEPT, imageIndex, imageView, type GalleryImage } from "../lib/imageGallery";
@@ -61,7 +62,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   const viewer = useRef<VideoPreviewHandle>(null);
   const item = images[imageIndex(index, images.length)];
   const selected = item ? checks[item.id] ?? null : null;
-  const sprite = selected && isFire(selected) ? selected.fire as PreviewSprite : null;
+  const sprite:PreviewSprite|null = selected && isFire(selected) ? selected.fire as PreviewSprite : selected&&typeof selected==="object"&&"texture" in selected?{...selected.texture,sheet:selected.texture.atlas.endsWith("_0")?0:1}:null;
   const view = imageView(index, images.length, sprite);
   useEffect(() => { writePreferences({ atlasFilter: filter }, scopedStorage("images")); }, [filter]);
   useEffect(() => () => { for (const image of currentImages.current) URL.revokeObjectURL(image.url); }, []);
@@ -70,7 +71,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
 
   const stage = useCallback((next: PreviewSprite) => {
     if (!item) return;
-    setChecks(values => ({ ...values, [item.id]: { fire: next } }));
+    setChecks(values => ({ ...values, [item.id]: spriteLabel(next) }));
     viewer.current?.selectSprite(next);
   }, [item?.id]);
   const step = (delta: number) => setIndex(value => imageIndex(value + delta, images.length));
@@ -80,9 +81,9 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
       if (event.ctrlKey || event.metaKey || event.altKey || (event.target as HTMLElement | null)?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test((event.target as HTMLElement | null)?.tagName ?? "")) return;
       const current = sprite ?? preview ?? { sheet: 1 as const, row: 0, mirrored: false };
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step((event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1)); }
-      else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); stage({ ...current, row: (current.row + (event.key === "ArrowUp" ? -1 : 1) + 32) % 32 }); }
+      else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); stage({ ...current, row: (current.row + (event.key === "ArrowUp" ? -1 : 1) + (current.atlas?ANIMATION_ATLASES[current.atlas].rows:32)) % (current.atlas?ANIMATION_ATLASES[current.atlas].rows:32) }); }
       else if (event.key.toLowerCase() === "r") { event.preventDefault(); stage({ ...current, mirrored: !current.mirrored }); }
-      else if (event.key.toLowerCase() === "t") { event.preventDefault(); stage({ ...current, sheet: (1 - current.sheet) as 0 | 1 }); }
+      else if (event.key.toLowerCase() === "t") { event.preventDefault(); stage(spriteWithSheet(current,(1-current.sheet) as 0|1)); }
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
@@ -164,15 +165,15 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
         <Splitter direction="col" label="Image picker width" sign={-1} value={sideWidth} min={SIDE_LIMITS.min} getMax={() => upperBound(area.current?.clientWidth ?? 0, 360, SIDE_LIMITS.max)} onChange={setSideWidth} onReset={() => setSideWidth(400)} />
         <aside className="right">
           <div className="pick-state">
-            <IconButton icon="layers" label="Switch image preview sheet" onClick={() => stage({ sheet: (1 - (sprite?.sheet ?? 1)) as 0 | 1, row: sprite?.row ?? 0, mirrored: sprite?.mirrored ?? false })}>{sprite?.sheet ?? 1}</IconButton>
-            <IconButton icon="mirror" label="Mirror image preview" aria-pressed={sprite?.mirrored ?? false} onClick={() => stage({ sheet: sprite?.sheet ?? 1, row: sprite?.row ?? 0, mirrored: !sprite?.mirrored })}>{sprite?.mirrored ? "mirrored" : "normal"}</IconButton>
+            <IconButton icon="layers" label="Switch image preview sheet" onClick={() => stage(spriteWithSheet(sprite??{sheet:1,row:0,mirrored:false},(1-(sprite?.sheet??1)) as 0|1))}>{sprite?.sheet ?? 1}</IconButton>
+            <IconButton icon="mirror" label="Mirror image preview" aria-pressed={sprite?.mirrored ?? false} onClick={() => stage({...sprite,sheet:sprite?.sheet??1,row:sprite?.row??0,mirrored:!sprite?.mirrored})}>{sprite?.mirrored ? "mirrored" : "normal"}</IconButton>
           </div>
           <div className="candidate-panel"><strong>Image check</strong><div className="candidate-value">{sprite ? spriteText(sprite) : selected === "no_fire" ? "No fire" : "Choose a sprite to compare"}</div>
             <div className="atlas-state preview-state"><b>Preview</b><span>{preview ? spriteText(preview) : "Mask off"}</span></div>
             <div className="candidate-help">Click a sprite to compare · no confirmation needed<br />← → photos · ↑ ↓ sprite row · R mirror · T sheet</div>
           </div>
           <div className="picker-box" ref={picker} onDoubleClick={event => event.ctrlKey && setZoom(1)}>
-            <Picker previewOnly view={view} candidate={selected} preview={preview} cell={pickerCellSize(sideWidth) * zoom} filter={filter} onFilterChange={setFilter} onEdgesChange={setEdges}
+            <Picker onAlternative={next=>stage(next)} previewOnly view={view} candidate={selected} preview={preview} cell={pickerCellSize(sideWidth) * zoom} filter={filter} onFilterChange={setFilter} onEdgesChange={setEdges}
               onNoFire={() => setChecks(values => ({ ...values, [item.id]: "no_fire" }))} onCell={(col, row) => { const next = atlasSprite(col, row); if (next) stage(next); }} />
           </div>
         </aside>

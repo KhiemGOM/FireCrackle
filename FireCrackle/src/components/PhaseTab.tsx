@@ -1,3 +1,5 @@
+import {ANIMATION_CHARTS,fireMaterialChart,isFluidChart,type AnimationChart} from "../lib/animationCharts";
+import {TexturePhases} from "./TexturePhases";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton } from "./Icon";
 import { JoltChart } from "./JoltChart";
@@ -66,7 +68,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   const fps = view.fps || 1;
   const [jolt, setJolt] = useState<JoltState>(() => ({...EMPTY_JOLT}));
   const reference = useMemo(() => timeReference(jolt), [jolt]);
-  const unified = useMemo(() => reviewChart(videoChart,jolt,fps),[videoChart,jolt.data,jolt.session,fps]);
+  const [animation,setAnimation]=useState<AnimationChart>("fire");
+  const unified = useMemo(() => reviewChart(fireMaterialChart(videoChart,animation==="soul"?"soul":"fire"),jolt,fps),[videoChart,jolt.data,jolt.session,fps,animation]);
   const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(unified, reference), reference) : unified, [unified, reference, jolt.clock]);
   const displayPoints = useMemo(()=>(chart?.display_points??chart?.points??[]).slice().sort((a,b)=>a.pts-b.pts),[chart]);
   const originTick = useMemo(()=>chart?.clock_origin_tick ?? reference.tickAt(reference.sampleTimes[0]) ?? 0,[chart,reference]);
@@ -92,6 +95,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
   function changeClock(next:JoltState) {
     setJolt(next); setHover(null); setHoverFlag(null); setSelectedRange(null); setSelectedFlag(null); setInspecting(false); setRulerMatch(null); setPhaseRange(undefined); setRowRange(undefined);
   }
+  const fluid=isFluidChart(animation);
   const drag = useRef<{ x: number; viewport: Viewport; moved: boolean } | null>(null);
 
   const joltFocusRange = useMemo<AxisRange|null>(()=>selectedRange?[selectedRange.first/fps,selectedRange.last/fps]:null,[selectedRange,fps]);
@@ -287,10 +291,11 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
         }} />
         <div className="phase-source-control"><PhaseSourcePicker value={source} onChange={value=>{setSource(value);setChart(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);}} /></div>
         </header>
-      <div className="phase-layout">
+      <div className="phase-view-tabs" role="tablist" aria-label="Animation charts">{ANIMATION_CHARTS.map(([id,label])=><button key={id} role="tab" aria-selected={animation===id} onClick={()=>{setAnimation(id);setHover(null);setHoverFlag(null);setSelectedRange(null);setSelectedFlag(null);setRulerMatch(null);setPhaseRange(undefined);setRowRange(undefined);}}>{label}</button>)}</div>
+      <div className="phase-layout" style={fluid?{gridTemplateColumns:"minmax(0,1fr)"}:undefined}>
       <div className="phase-plots">
       <div className="phase-topbar">
-        <div className="phase-view-tabs" role="tablist" aria-label="Phase views">
+        <div className="phase-view-tabs" role="tablist" aria-label="Phase views" hidden={fluid}>
           {([["phase","Timing"],["row","Sprites"],["jolt","Jolt + Fire"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
         </div>
         <span className="dim">{viewMode==="jolt"?"Jolt + Fire · shared video timeline":jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
@@ -298,9 +303,10 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        <div hidden={viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
+        {fluid&&<TexturePhases key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
+        <div hidden={fluid||viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
 
-        <div hidden={viewMode==="jolt"}>
+        <div hidden={fluid||viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>
           <span className="panel-title">{jolt.clock === "jolt" ? "Fire timing offset (canonical time)" : "Animation timing offset (ticks)"}</span>
           <span className="dim">
@@ -379,7 +385,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
         </div>
       </section>
       </div>
-      <aside className="phase-sidebar" aria-label="Phase flags sidebar">
+      <aside className="phase-sidebar" aria-label="Phase flags sidebar" hidden={fluid}>
       <p className="dim sidebar-hint">Click to locate · Ctrl+click to open in Label</p>
       <FlagsPanel flags={unified?.flags ?? []} details={unified?.flag_details} fps={fps} current={selectedRange?.first ?? view.current} onSeek={onJump}
         onHover={setHoverFlag} onSelect={(flag,openVideo) => openVideo ? onJump(flag.frame) : focusRange({first:flag.frame,last:flag.end_frame}, flag)} />

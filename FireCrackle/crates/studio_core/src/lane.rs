@@ -9,6 +9,7 @@ pub struct Bucket {
     pub frames: u32,
     pub unset: u32,
     pub fire: u32,
+    pub texture: u32,
     pub no_fire: u32,
     pub skip: u32,
     /// Unchecked automatic labels only. Human confirmation keeps history but removes the strip.
@@ -43,6 +44,8 @@ pub fn buckets(store: &LabelStore, flags: &[Flag], start: u32, end: u32, n: usiz
         let b = &mut out[bucket_of(frame)];
         match label {
             Label::Fire { .. } => b.fire += 1,
+            Label::Texture { .. } if label.is_fire() => b.fire += 1,
+            Label::Texture { .. } => b.texture += 1,
             Label::NoFire => b.no_fire += 1,
             Label::Skip => b.skip += 1,
             Label::Unset => {}
@@ -55,7 +58,7 @@ pub fn buckets(store: &LabelStore, flags: &[Flag], start: u32, end: u32, n: usiz
         }
     }
     for b in out.iter_mut() {
-        b.unset = b.frames - b.fire - b.no_fire - b.skip;
+        b.unset = b.frames - b.fire - b.texture - b.no_fire - b.skip;
     }
     for f in flags {
         let (first, last) = (f.frame.max(start), f.end_frame.min(end - 1));

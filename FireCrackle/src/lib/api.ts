@@ -54,6 +54,7 @@ export interface Bucket {
   fire: number;
   no_fire: number;
   skip: number;
+  texture?: number;
   auto_first_person?: number;
   auto_no_fire?: number;
   auto_time_guess?: number;

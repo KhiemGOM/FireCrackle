@@ -1,3 +1,4 @@
+import {ANIMATION_ATLASES,atlasSource,atlasTile,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
 import fire0 from "../assets/fire_0.png";
 import fire1 from "../assets/fire_1.png";
@@ -9,6 +10,7 @@ import { compressionGeometry, type CompressionSettings } from "../lib/compressio
 import { BOX_HANDLES, boxPoint, quadBounds, resizeQuad, rotateQuad, type BoxHandle } from "../lib/quadTransform";
 
 interface Props {
+  atlas?:AnimationAtlas;
   width: number;
   height: number;
   sheet: 0 | 1;
@@ -25,14 +27,16 @@ interface Props {
 }
 
 /** Independent manual reference: dragging it never edits a frame label. */
-export function FireQuadMask({ width, height, sheet, row, mirrored, opacity, quad, onQuad, pixelGrid = false, zoom = 1, compression, frameUrl, placementEnabled = true }: Props) {
+export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opacity, quad, onQuad, pixelGrid = false, zoom = 1, compression, frameUrl, placementEnabled = true }: Props) {
   const clipId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<{ corner: number; last: QuadPoint } | null>(null);
   const [selectedCorner, setSelectedCorner] = useState<number | null>(null);
   const latestQuad = useRef(quad);
   latestQuad.current = quad;
-  const [rgba, setRgba] = useState<Uint8ClampedArray | null>(null);
+  const source=atlas?atlasSource(atlas):sheet === 0 ? fire0 : fire1;
+  const [loaded, setRgba] = useState<{source:string;rgba:Uint8ClampedArray} | null>(null);
+  const rgba=loaded?.source===source?loaded.rgba:null;
   const [error, setError] = useState(false);
   const [screenScale, setScreenScale] = useState(1);
   const [shiftHeld, setShiftHeld] = useState(false);
@@ -46,21 +50,22 @@ export function FireQuadMask({ width, height, sheet, row, mirrored, opacity, qua
     image.onload = () => {
       if (cancelled) return;
       try {
-        if (image.naturalWidth !== 16 || image.naturalHeight !== 512) throw new Error("Invalid sprite sheet");
+        const side=atlas?ANIMATION_ATLASES[atlas].side:16,rows=atlas?ANIMATION_ATLASES[atlas].rows:32;
+        if (image.naturalWidth !== side || image.naturalHeight !== side*rows) throw new Error("Invalid sprite sheet");
         const canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 512;
+        canvas.width = side;
+        canvas.height = side*rows;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("Canvas unavailable");
         ctx.drawImage(image, 0, 0);
-        setRgba(ctx.getImageData(0, 0, 16, 512).data);
+        setRgba({source,rgba:ctx.getImageData(0, 0, side, side*rows).data});
       } catch { setError(true); }
     };
     image.onerror = () => { if (!cancelled) setError(true); };
-    image.src = sheet === 0 ? fire0 : fire1;
+    image.src = source;
     return () => { cancelled = true; };
-  }, [sheet]);
-  const texels = useMemo(() => rgba ? manualTexels(rgba, row, mirrored, quad) : [], [rgba, row, mirrored, quad]);
+  }, [sheet,atlas,source]);
+  const texels = useMemo(() => rgba ? manualTexels(rgba, atlas?atlasTile(atlas,row):row, mirrored, quad,atlas?ANIMATION_ATLASES[atlas].side:16,atlas?ANIMATION_ATLASES[atlas].rows:32) : [], [rgba, row, mirrored, quad,atlas]);
   const delivery = compression ? compressionGeometry(width,height,compression.height,quad) : null;
   const points = (p: Array<[number, number]>) => p.map(([x, y]) => `${x * width},${y * height}`).join(" ");
 

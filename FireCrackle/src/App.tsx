@@ -1,3 +1,4 @@
+import {ANIMATION_ATLASES} from "./lib/animationAtlases";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { version as appVersion } from "../package.json";
 import "./App.css";
@@ -20,10 +21,9 @@ import { Splitter } from "./components/Splitter";
 import { Timeline } from "./components/Timeline";
 import { VideoPane, type VideoPreviewHandle } from "./components/VideoPane";
 import { VideoNotes } from "./components/VideoNotes";
-import { selectAtlasCell, atlasSprite, type PreviewSprite } from "./lib/firePreview";
+import { selectAtlasCell, atlasSprite, spriteLabel, labelSprite, spriteWithSheet, type PreviewSprite } from "./lib/firePreview";
 import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, replacedLabel, spriteText, type CandidateDraft } from "./lib/labelCandidate";
 import { isFire } from "./lib/grid";
-import { stepHudRow } from "./lib/hudOverlay";
 import { useLayout } from "./hooks/useLayout";
 import { usePanelZooms } from "./hooks/usePanelZooms";
 import { useWheel } from "./hooks/useWheel";
@@ -105,11 +105,12 @@ export default function App() {
   const candidate = view ? currentCandidate(view, draft) : null;
   // the saved label Confirm/Enter would overwrite: the Confirm button turns red and reads Replace
   const replaced = view ? replacedLabel(view, candidate) : null;
-  const candidatePick = candidate && isFire(candidate.label) ? candidate.label.fire : view?.pick;
+  const candidateSprite=candidate?labelSprite(candidate.label):null;
+  const candidatePick = candidateSprite ?? view?.pick;
   const stageSprite = useCallback((sprite: PreviewSprite) => {
     if (!view) return;
     setPlayback(STOPPED);
-    setDraft({ frame: view.current, label: { fire: sprite }, origin: "picked" });
+    setDraft({ frame: view.current, label: spriteLabel(sprite), origin: "picked" });
   }, [view?.current]);
   const confirmCandidate = useCallback(() => {
     if (!view || ws.busy.current) return;
@@ -120,7 +121,10 @@ export default function App() {
   }, [view, draft, act, ws.busy]);
   useEffect(() => { setDraft(null); }, [view?.current]);
   useEffect(() => {
-    if (draft && draft.frame === view?.current && isFire(draft.label)) videoPreviewRef.current?.selectSprite(draft.label.fire as PreviewSprite);
+    if(draft && draft.frame===view?.current){
+      if(isFire(draft.label))videoPreviewRef.current?.selectSprite(draft.label.fire as PreviewSprite);
+      else if(typeof draft.label==="object"&&"texture" in draft.label)videoPreviewRef.current?.selectSprite({...draft.label.texture,sheet:draft.label.texture.atlas.endsWith("_0")?0:1});
+    }
   }, [draft?.frame, draft?.label, view?.current]);
   const flagsBoxRef = useRef<HTMLDivElement | null>(null);
   // ctrl + wheel zooms the panel under the cursor (and not the whole window)
@@ -198,13 +202,14 @@ export default function App() {
       }
       if (a.type === "cancelTyping") { setDraft(null); return; }
       if (a.type === "stepPhase") {
-        const sprite = previewSprite ?? (candidate && isFire(candidate.label) ? candidate.label.fire : { ...view!.pick, row: 0 });
-        stageSprite({ ...sprite, sheet: sprite.sheet as 0 | 1, row: stepHudRow(sprite.row, a.dir) });
+        const sprite:PreviewSprite = previewSprite ?? candidateSprite ?? { ...view!.pick, sheet:view!.pick.sheet as 0|1, row: 0 };
+        const count=sprite.atlas?ANIMATION_ATLASES[sprite.atlas].rows:32;
+        stageSprite({ ...sprite, sheet: sprite.sheet as 0 | 1, row: (sprite.row+a.dir+count)%count });
         return;
       }
       if (a.type === "toggleSheet" || a.type === "toggleMirror") {
-        const pick = candidatePick ?? view!.pick;
-        stageSprite({ sheet: (a.type === "toggleSheet" ? 1 - pick.sheet : pick.sheet) as 0 | 1, mirrored: a.type === "toggleMirror" ? !pick.mirrored : pick.mirrored, row: candidate && isFire(candidate.label) ? candidate.label.fire.row : 0 });
+        const sprite:PreviewSprite=candidateSprite??{...view!.pick,sheet:view!.pick.sheet as 0|1,row:0};
+        stageSprite(a.type==='toggleSheet'?spriteWithSheet(sprite,(1-sprite.sheet) as 0|1):{...sprite,mirrored:!sprite.mirrored});
         return;
       }
       const ui = toUiAction(a);
@@ -407,10 +412,10 @@ export default function App() {
             </div>
             {side === "enhance" && <EnhancePanel settings={post.settings} selected={post.selected} onSelect={post.setSelected} onChange={post.change} onReset={post.reset} portalStatus={post.portalStatus} portalFit={post.portalFit} userPresets={post.userPresets} presetName={post.presetName} onPresetName={post.setPresetName} onSavePreset={post.savePreset} onDeletePreset={post.deletePreset} />}
             <div className="pick-state">
-              <IconButton icon="layers" label={`Toggle candidate sheet · current sheet ${candidatePick?.sheet ?? view.pick.sheet}`} className={candidatePick?.sheet === 1 ? "on" : ""} onClick={() => stageSprite({ sheet: (1 - (candidatePick?.sheet ?? view.pick.sheet)) as 0 | 1, row: candidate && isFire(candidate.label) ? candidate.label.fire.row : 0, mirrored: candidatePick?.mirrored ?? view.pick.mirrored })} title="Switch between fire sheets 0 and 1 · T · selects a candidate; Confirm saves">
+              <IconButton icon="layers" label={`Toggle candidate sheet · current sheet ${candidatePick?.sheet ?? view.pick.sheet}`} className={candidatePick?.sheet === 1 ? "on" : ""} onClick={() => stageSprite(spriteWithSheet(candidateSprite??{...view.pick,sheet:view.pick.sheet as 0|1,row:0},(1-(candidatePick?.sheet??view.pick.sheet)) as 0|1))} title="Switch between atlas sheets 0 and 1 · T · selects a candidate; Confirm saves">
                 {candidatePick?.sheet ?? view.pick.sheet}
               </IconButton>
-              <IconButton icon="mirror" label="Mirror candidate" aria-pressed={candidatePick?.mirrored ?? view.pick.mirrored} className={candidatePick?.mirrored ? "on" : ""} onClick={() => stageSprite({ sheet: (candidatePick?.sheet ?? view.pick.sheet) as 0 | 1, row: candidate && isFire(candidate.label) ? candidate.label.fire.row : 0, mirrored: !(candidatePick?.mirrored ?? view.pick.mirrored) })} title="Flip the candidate sprite horizontally · R · Confirm saves">
+              <IconButton icon="mirror" label="Mirror candidate" aria-pressed={candidatePick?.mirrored ?? view.pick.mirrored} className={candidatePick?.mirrored ? "on" : ""} onClick={() => stageSprite({...candidateSprite,sheet:(candidatePick?.sheet??view.pick.sheet) as 0|1,row:candidateSprite?.row??0,mirrored:!(candidatePick?.mirrored??view.pick.mirrored)})} title="Flip the candidate sprite horizontally · R · Confirm saves">
                 {candidatePick?.mirrored ? "mirrored" : "normal"}
               </IconButton>
               <IconButton icon="skip" label="Choose skip" onClick={() => { setPlayback(STOPPED); setDraft({ frame: view.current, label: "skip", origin: "picked" }); }} title="Mark this frame to skip · Shift+X · then Confirm" />
@@ -433,6 +438,7 @@ export default function App() {
             </div>
             <div className="picker-box" ref={pickerBoxRef} onDoubleClick={(e) => e.ctrlKey && resetZoom("picker")}>
               <Picker
+                onAlternative={(sprite,ctrl)=>{setPlayback(STOPPED);if(!ctrl)stageSprite(sprite);videoPreviewRef.current?.selectSprite(sprite);}}
                 onEdgesChange={setAtlasEdges}
                 onNoFire={() => { setPlayback(STOPPED); setDraft({ frame: view.current, label: "no_fire", origin: "picked" }); }}
                 filter={atlasFilter} onFilterChange={setAtlasFilter}

@@ -6,6 +6,7 @@ import type { UiAction } from "./actions";
 import type { Backend, Bucket, Flag, SettingInfo, Suggestion, View } from "./api";
 import type { ChartPoint } from "./chart";
 import type { ThumbStatus } from "./thumbs";
+import {soulFire} from "./animationAtlases";
 import { isFire, labelsEqual, type Label } from "./grid";
 
 const N = 2400;
@@ -215,6 +216,7 @@ export function createMockBackend(): Backend {
           break;
         }
         case "clear": apply("unset"); break;
+        case "setLabel": apply(a.label); break;
         case "noFire": apply("no_fire"); break;
         case "skip": apply("skip"); break;
         case "undo": {
@@ -254,7 +256,8 @@ export function createMockBackend(): Backend {
         if (f < start || f >= end) continue;
         const b = out[idx(f)];
         b.unset--;
-        if (isFire(l)) b.fire++;
+        if (isFire(l)||typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)) b.fire++;
+        else if(typeof l==="object"&&"texture" in l)b.texture=(b.texture??0)+1;
         else if (l === "no_fire") b.no_fire++;
         else if (l === "skip") b.skip++;
       }
@@ -284,8 +287,9 @@ export function createMockBackend(): Backend {
       const points: ChartPoint[] = [];
       for (const f of [...labels.keys()].sort((a, b) => a - b)) {
         const l = labels.get(f)!;
-        if (!isFire(l)) continue;
-        const { row } = (l as Extract<Label, { fire: unknown }>).fire;
+        const sprite=isFire(l)?l.fire:typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)?l.texture:null;
+        if(!sprite)continue;
+        const {row}=sprite;
         const step = row;
         const pts = f / FPS;
         points.push({ frame: f, pts, step, phase: (((TICK_RATE * pts - step) % 32) + 32) % 32 });
@@ -294,7 +298,8 @@ export function createMockBackend(): Backend {
       const runs = points.length
         ? [{ first_frame: points[0].frame, last_frame: points[points.length - 1].frame, points: points.length, center: points[0].phase, width: 1 }]
         : [];
-      return { points: kept, runs, flags: MOCK_FLAGS, tick_rate: TICK_RATE, window_ticks: 2 };
+      const texture_points=[...labels.entries()].filter(([,l])=>typeof l==="object"&&"texture" in l).map(([frame,l])=>({frame,pts:frame/FPS,...(l as Extract<Label,{texture:unknown}>).texture}));
+      return { texture_points, points: kept, runs, flags: MOCK_FLAGS, tick_rate: TICK_RATE, window_ticks: 2 };
     },
     settingsDescribe: async () => settings.map((s) => ({ ...s })),
     async settingsSet(key, value) {

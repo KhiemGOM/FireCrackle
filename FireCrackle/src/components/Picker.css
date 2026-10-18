@@ -1,6 +1,8 @@
 .picker.picker-adaptive {
   scrollbar-gutter: stable;
 }
+.atlas-tabs { display:flex; flex:0 0 auto; gap:6px; margin-bottom:7px; }
+.atlas-tabs button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
 .atlas-options { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 78px; gap: 8px; margin-bottom: 7px; }
 .atlas-filters { min-width: 0; padding: 9px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
 .atlas-no-fire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 100%; min-height: 72px; padding: 6px; border-radius: 8px; background: var(--panel); font-size: 11px; white-space: nowrap; }

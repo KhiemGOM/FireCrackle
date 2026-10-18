@@ -281,10 +281,10 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
       if (b.frames === 0) return;
       const x0 = frameToX(vp, first + (i * len) / n);
       const w = Math.max(1, (len / n) * vp.pxPerFrame);
-      const labelled = b.fire + b.no_fire + b.skip;
+      const labelled = b.fire + b.no_fire + b.skip + (b.texture??0);
       if (labelled > 0) {
         g.globalAlpha = 0.35 + 0.65 * (labelled / b.frames);
-        g.fillStyle = b.fire >= b.no_fire && b.fire >= b.skip ? COLORS.fire : b.no_fire >= b.skip ? COLORS.noFire : COLORS.skip;
+        g.fillStyle = (b.texture??0)>Math.max(b.fire,b.no_fire,b.skip)?"#9d83d5":b.fire >= b.no_fire && b.fire >= b.skip ? COLORS.fire : b.no_fire >= b.skip ? COLORS.noFire : COLORS.skip;
         g.fillRect(x0, laneY, w, LANE_H);
         g.globalAlpha = 1;
       }

@@ -5,14 +5,14 @@ export const PICKER_GAP = 12;
 export const PICKER_HEADER = 32;
 
 /** Find the largest readable sprites among every even division of the sheet. */
-export function pickerLayout(width: number, height: number, preferredCell: number) {
+export function pickerLayout(width: number, height: number, preferredCell: number,rows=ROWS) {
   const preferred = Number.isFinite(preferredCell) ? Math.max(16, Math.floor(preferredCell)) : 16;
-  if (!(width > 0) || !(height > 0)) return { blocks: 1, rowsPerBlock: ROWS, cell: preferred };
+  if (!(width > 0) || !(height > 0)) return { blocks: 1, rowsPerBlock: rows, cell: preferred };
 
-  let best = { blocks: 1, rowsPerBlock: ROWS, cell: 16 };
+  let best = { blocks: 1, rowsPerBlock: rows, cell: 16 };
   let bestOverflow = Infinity;
-  for (let blocks = 1; blocks <= ROWS; blocks *= 2) {
-    const rowsPerBlock = ROWS / blocks;
+  for (let blocks = 1; blocks <= rows; blocks *= 2) {
+    const rowsPerBlock = Math.ceil(rows / blocks);
     const blockWidth = (width - PICKER_GAP * (blocks - 1)) / blocks;
     const across = Math.floor((blockWidth - PICKER_GUTTER) / 4 - 4);
     // Keep one readable strip when even the narrowest block cannot fit.

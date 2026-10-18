@@ -37,7 +37,7 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
   const sections=useMemo(()=>new Set(anchors.map(a=>a.segment??"0")).size,[anchors]);
   return <section className="jolt-panel" aria-label="Jolt time reference">
     <div className="jolt-controls">
-      <strong>Fire X axis</strong>
+      <strong>X axis</strong>
       <div className="jolt-switch" role="group" aria-label="Phase time reference">
         <button aria-pressed={state.clock==="video"} className={state.clock==="video"?"on":""} disabled={pending} onClick={()=>void update({...state,clock:"video"})}>Video time</button>
         <button aria-pressed={state.clock==="jolt"} className={state.clock==="jolt"?"on":""} disabled={pending||!state.data} onClick={()=>void update({...state,clock:"jolt"})}>Canonical time (Jolt ticks)</button>
@@ -47,7 +47,7 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
       {pending&&<span role="status">Loading / saving Jolt data…</span>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {!state.data?<p className="dim">Optional: import Splosh JoltCracker’s JSON export or HTML report for this same video. Fire labels stay unchanged.</p>:<>
+    {!state.data?<p className="dim">Optional: import Splosh JoltCracker’s JSON export or HTML report for this same video. Labels stay unchanged.</p>:<>
       <div className="jolt-sessions" role="group" aria-label="Jolt game and screen">{sessions.map(([key,a])=><button key={key} disabled={pending} className={key===state.session?"on":""} aria-pressed={key===state.session} onClick={()=>void update({...state,session:key})}>Game {a.game} · screen {a.screen}</button>)}</div>
       <details className="phase-help jolt-report-details"><summary>{anchors.length.toLocaleString()} anchors · {sections} sections · report details</summary>
         <p>{state.data.name}{matched===null?"":` · ${matched.toLocaleString()} fire labels with a clock value`}{state.data.unresolved?` · ${state.data.unresolved} unresolved/conflicting entries excluded`:""}</p>

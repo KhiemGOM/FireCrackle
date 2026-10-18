@@ -583,7 +583,7 @@ impl Session {
                     .map(|(frame, label)| FrameObs {
                         frame,
                         pts: self.project.frames[frame as usize].pts,
-                        label,
+                        label: label.canonical_fire().unwrap_or(label),
                     })
                     .collect();
             self.analysis = Some(
@@ -609,7 +609,7 @@ impl Session {
             .map(|(frame, label)| FrameObs {
                 frame,
                 pts: self.project.frames[frame as usize].pts,
-                label,
+                label: label.canonical_fire().unwrap_or(label),
             })
             .collect();
         crate::phase_v2::analyze(&obs, &self.settings).expect("valid labels and timestamps")

@@ -435,6 +435,7 @@ pub enum UiAction {
     Skip,
     Undo,
     ClickCell { col: u32, row: u32 },
+    SetLabel { label: Label },
     FillRange { start: u32, end: u32, label: Label },
 }
 
@@ -479,7 +480,17 @@ const COLUMNS: [(u8, bool); 4] = [(0, false), (1, false), (0, true), (1, true)];
 
 /// What the Phase tab draws.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TextureObservation {
+    pub frame: u32,
+    pub pts: f64,
+    pub atlas: crate::label::AnimationAtlas,
+    pub row: u8,
+    pub mirrored: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PhaseChart {
+    pub texture_points: Vec<TextureObservation>,
     pub label_sources: std::collections::BTreeMap<u32, Vec<crate::label::LabelSource>>,
     pub points: Vec<Point>,
     pub runs: Vec<Run>,
@@ -845,6 +856,9 @@ impl Workspace {
             UiAction::Undo => {
                 self.session.undo();
             }
+            UiAction::SetLabel { label } => {
+                self.session.apply(label).map_err(session_err)?;
+            }
             UiAction::ClickCell { col, row } => {
                 let (sheet, mirrored) = *COLUMNS
                     .get(col as usize)
@@ -926,7 +940,35 @@ impl Workspace {
                 )
             })
             .collect();
+        let texture_points = self
+            .session
+            .store()
+            .iter()
+            .into_iter()
+            .filter_map(|(frame, label)| {
+                if source.is_some_and(|s| !self.session.store().sources(frame).contains(&s)) {
+                    return None;
+                }
+                if let Label::Texture {
+                    atlas,
+                    row,
+                    mirrored,
+                } = label
+                {
+                    Some(TextureObservation {
+                        frame,
+                        pts: self.session.project().frames[frame as usize].pts,
+                        atlas,
+                        row,
+                        mirrored,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
         PhaseChart {
+            texture_points,
             label_sources,
             points: decimate(&a.points, max_points),
             runs: a.runs.clone(),

@@ -28,6 +28,7 @@ function render(candidate:Label = {fire: {sheet: 1, row: 0, mirrored: false}}, f
   hooks.si = hooks.ri = 0; hooks.effects = [];
   const tree = Picker({ view, cell: 40, onCell, onNoFire, candidate, filter, onFilterChange });
   return {
+    tree,
     cells: all(tree, e => e.type === "button" && e.props.className?.startsWith("cell")),
     input: (side: string) => all(tree, e => e.props["aria-label"] === `${side} edge fire pixels`)[0],
     whiteInput: (bound: string) => all(tree, e => e.props["aria-label"] === `${bound} bottom white pixels`)[0],
@@ -52,6 +53,20 @@ beforeEach(() => {
     let sheet = 0;
     return { getContext: () => ({ drawImage: (image: {source: string}) => { sheet = image.source.includes("fire_0") ? 0 : 1; }, getImageData: () => ({data: data[sheet]}) }) };
   } });
+});
+it("keeps the same adaptive grid and controls through fire and soul switches",()=>{
+ let ui=render();
+ const picker=()=>all(ui.tree,e=>e.props.className==="picker picker-adaptive")[0];
+ const choose=(name:string)=>all(ui.tree,e=>e.type==="button"&&e.props.children===name)[0].props.onClick();
+ // Same observer target and shared grid structure remain mounted; size state survives every family.
+ hooks.states[2]={width:700,height:800};
+ ui=render();const fireLayout=picker().props.style;
+ expect(ui.cells).toHaveLength(128);
+ choose('Soul fire');ui=render();
+ expect(ui.cells).toHaveLength(128);expect(picker().props.style).toEqual(fireLayout);
+ expect(ui.input('Left')).toBeDefined();expect(ui.whiteInput('Minimum')).toBeDefined();
+ expect(ui.cells[0].props.onContextMenu).toBeTypeOf('function');
+ choose('Fire');ui=render();expect(picker().props.style).toEqual(fireLayout);expect(ui.cells).toHaveLength(128);
 });
 it("filters bottom white inclusively, keeps dimmed sprites clickable, and clears both bounds", async () => {
   render(); cleanup = hooks.effects.map(effect => effect());

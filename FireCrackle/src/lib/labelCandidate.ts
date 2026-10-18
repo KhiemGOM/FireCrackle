@@ -1,9 +1,10 @@
+import {ANIMATION_ATLASES} from "./animationAtlases";
 import type { View } from "./api";
 import type { UiAction } from "./actions";
-import { atlasSprite, type PreviewSprite } from "./firePreview";
-import { isFire, labelToCell, labelsEqual, type Label } from "./grid";
+import { atlasSprite, spriteLabel, type PreviewSprite } from "./firePreview";
+import { isFire, isTexture, labelToCell, labelsEqual, type Label } from "./grid";
 
-export interface CandidateDraft { frame: number; label: Label; origin: "picked" | "typed"; digits?: string }
+export interface CandidateDraft { frame: number; label: Label; origin: "picked" | "typed"; digits?: string; atlas?:import('./animationAtlases').AnimationAtlas }
 export interface Candidate { label: Label; origin: "picked" | "typed" | "guess" | "saved" }
 export function currentCandidate(view: Pick<View, "current" | "label" | "suggestion">, draft: CandidateDraft | null): Candidate | null {
   if (draft?.frame === view.current) return draft.label === "unset" ? null : { label: draft.label, origin: draft.origin };
@@ -18,6 +19,7 @@ export function candidateConfirmation(candidate: Candidate | null): UiAction | n
   const label = candidate.label;
   if (label === "no_fire") return { type: "noFire" };
   if (label === "skip") return { type: "skip" };
+  if(isTexture(label))return {type:"setLabel",label};
   const cell = labelToCell(label);
   return cell ? { type: "clickCell", ...cell } : null;
 }
@@ -29,17 +31,21 @@ export function replacedLabel(view: Pick<View, "label">, candidate: Candidate | 
   if (view.label === "unset" || !candidate || candidate.label === "unset") return null;
   return labelsEqual(view.label, candidate.label) ? null : view.label;
 }
-export function candidateDigit(frame: number, draft: CandidateDraft | null, digit: number, pick: { sheet: number; mirrored: boolean }): CandidateDraft {
+export function candidateDigit(frame: number, draft: CandidateDraft | null, digit: number, pick: { sheet: number; mirrored: boolean; atlas?:import('./animationAtlases').AnimationAtlas }): CandidateDraft {
   const pending = draft?.frame === frame && draft.digits?.length === 1 && Number(draft.digits) <= 3;
   const digits = pending ? draft!.digits + String(digit) : String(digit);
   const row = Number(digits);
   const col = (pick.mirrored ? 2 : 0) + pick.sheet;
   const sprite = atlasSprite(col, row);
-  return { frame, origin: "typed", label: sprite ? { fire: sprite } : "unset", digits };
+  const atlas=pick.atlas??(draft?.frame===frame?draft.atlas:undefined);
+  const next=sprite?{...sprite,...(atlas?{atlas}:{})}:null;
+  return { frame, origin: "typed", label: next&&(!next.atlas||row<ANIMATION_ATLASES[next.atlas].rows) ? spriteLabel(next) : "unset", digits,...(atlas?{atlas}:{}) };
 }
 export function spriteText(sprite: PreviewSprite | { sheet: number; row: number; mirrored: boolean }): string {
+  if("atlas" in sprite && sprite.atlas)return `${ANIMATION_ATLASES[sprite.atlas].name} · row ${sprite.row} · ${sprite.mirrored?"mirrored":"normal"}`;
   return `row ${sprite.row} · sheet ${sprite.sheet} · ${sprite.mirrored ? "mirrored" : "normal"}`;
 }
 export function candidateText(label: Label | null): string {
+  if(label&&isTexture(label))return spriteText({...label.texture,sheet:label.texture.atlas.endsWith("_0")?0:1});
   return label && isFire(label) ? spriteText(label.fire) : label === "no_fire" ? "No fire" : label === "skip" ? "Skip" : "None selected";
 }
