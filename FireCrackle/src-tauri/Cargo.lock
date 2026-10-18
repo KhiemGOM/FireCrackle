@@ -1156,6 +1156,7 @@ name = "firecrackle"
 version = "0.3.0"
 dependencies = [
  "fire_core",
+ "gtk",
  "no_fire_cnn",
  "reqwest",
  "serde",

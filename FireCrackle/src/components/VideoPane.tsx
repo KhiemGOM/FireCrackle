@@ -23,7 +23,8 @@ import { readVideoView, writeVideoView } from "../lib/viewState";
 import { OpacityControl } from "./OpacityControl";
 import { scopedStorage } from "../lib/scopedStorage";
 import { VideoRotation } from "./VideoRotation";
-import { createComparisonProof, copyComparisonProof, type ProofMask } from "../lib/comparisonProof";
+import { copyFormattedComparisonProof, downloadComparisonProof, type ProofMask, type ProofAction } from "../lib/comparisonProof";
+import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
 import { canvasFrameIo, processFrame } from "../lib/veilFrame";
@@ -403,11 +404,11 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   }
 
   const [proofBusy, setProofBusy] = useState(false);
-  const [proofCopied, setProofCopied] = useState(false);
-  useEffect(() => { if (!proofCopied) return; const timer = setTimeout(() => setProofCopied(false), 2000); return () => clearTimeout(timer); }, [proofCopied]);
-  async function comparisonProof() {
+  const [proofCopied, setProofCopied] = useState<string | undefined>(undefined);
+  useEffect(() => { if (!proofCopied) return; const timer = setTimeout(() => setProofCopied(undefined), 2000); return () => clearTimeout(timer); }, [proofCopied]);
+  async function comparisonProof(action: ProofAction) {
     if (proofBusy) return;
-    setProofBusy(true); setProofCopied(false); setAnimationStop(value => value + 1); onAnimationStart?.();
+    setProofBusy(true); setProofCopied(undefined); setAnimationStop(value => value + 1); onAnimationStart?.();
     try {
       const picture = frameRef.current?.querySelector<HTMLImageElement>(".video-zoom > img");
       const svg = frameRef.current?.querySelector<SVGSVGElement>(manualEnabled ? "svg.fire-quad-mask" : "svg.hud-overlay");
@@ -418,8 +419,10 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         opacity: manualEnabled ? manualOpacity : hudOpacity,
         details: manualEnabled ? (compressionEnabled ? `H.264 · ${compressionHeight}p` : undefined) : `FOV ${hudFov}°` };
       const source = stillImage?.name ?? `Frame ${view.current} · ${formatTimecode(view.pts, view.fps)}`;
-      await copyComparisonProof(createComparisonProof(picture, [mask], source));
-      setProofCopied(true);
+      if (action.destination === "copy") {
+        await copyFormattedComparisonProof(picture, [mask], source, action.format);
+        setProofCopied("Copied!");
+      } else if (await downloadComparisonProof(picture, [mask], source, action.format)) setProofCopied("Saved!");
     } catch (error) { onError(`Comparison proof: ${String(error)}`); }
     finally { setProofBusy(false); }
   }
@@ -487,7 +490,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
-        <IconButton icon="copy" label="Comparison proof" title="Copy a close-up of the aligned fire, original and mask side by side, with sprite details" disabled={proofBusy || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} onClick={() => void comparisonProof()}>{proofBusy ? "Copying…" : proofCopied ? "Copied!" : "Comparison proof"}</IconButton>
+        <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
           <label><input type="checkbox" checked={ruler.locked} onChange={e => setRuler(current => ({ ...current, locked: e.target.checked }))} /> Lock unit</label>

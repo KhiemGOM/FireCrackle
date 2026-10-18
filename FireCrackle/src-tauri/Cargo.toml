@@ -28,6 +28,9 @@ reqwest = { version = "0.13", features = ["blocking"] }
 sha2 = "0.10"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

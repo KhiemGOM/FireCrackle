@@ -436,6 +436,8 @@ pub fn run_app() {
             pov_apply,
             compress_fire_cycle,
             comparison_proof::copy_comparison_proof,
+            comparison_proof::save_comparison_proof,
+            comparison_proof::copy_formatted_comparison_proof,
             open_video,
             view,
             act,

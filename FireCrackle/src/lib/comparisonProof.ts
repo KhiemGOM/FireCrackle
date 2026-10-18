@@ -88,7 +88,14 @@ async function rasterMask(svg: SVGSVGElement): Promise<{ image: HTMLImageElement
   catch (error) { URL.revokeObjectURL(url); throw error; }
 }
 
-export async function createComparisonProof(picture: HTMLImageElement, masks: ProofMask[], source: string): Promise<Blob> {
+export type ProofFormat = "gif" | "webp" | "png" | "jpeg";
+export interface ProofAction {format: ProofFormat; destination: "copy" | "save"}
+
+function canvasBlob(canvas: HTMLCanvasElement, type = "image/png"): Promise<Blob> {
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error("Could not render the comparison proof.")), type, 0.95));
+}
+
+async function renderProof(picture: HTMLImageElement, masks: ProofMask[], source: string, animated = false, type = "image/png"): Promise<{image: Blob; base?: Blob}> {
   if (!picture.complete || !picture.naturalWidth || !picture.naturalHeight) throw Error("Wait for the current picture to load.");
   if (!masks.length) throw Error("Turn on a fire mask before making a comparison proof.");
   const { naturalWidth: width, naturalHeight: height } = picture;
@@ -98,7 +105,11 @@ export async function createComparisonProof(picture: HTMLImageElement, masks: Pr
     const bounds = mask.bounds ?? maskBounds(mask.svg);
     return bounds ? [bounds] : [];
   }));
-  const { panelWidth: w, panelHeight: h, font, header, footer, gap } = proofLayout(crop.width, crop.height);
+  const layout = proofLayout(crop.width, crop.height);
+  // Bound animation cost while retaining the same source crop and readable captions.
+  const scale = animated ? Math.min(1, 640 / Math.max(layout.panelWidth, layout.panelHeight)) : 1;
+  const w = Math.max(1, Math.round(layout.panelWidth * scale)), h = Math.max(1, Math.round(layout.panelHeight * scale));
+  const {font, header, footer, gap} = layout;
   const canvas = document.createElement("canvas");
   canvas.width = w * 2 + gap; canvas.height = header + h + footer;
   const context = canvas.getContext("2d");
@@ -108,11 +119,6 @@ export async function createComparisonProof(picture: HTMLImageElement, masks: Pr
   const drawCrop = (image: CanvasImageSource, x: number) => context.drawImage(image, crop.x, crop.y, crop.width, crop.height, x, header, w, h);
   drawCrop(picture, 0);
   drawCrop(picture, w + gap);
-  for (const layer of layers) {
-    const raster = await rasterMask(layer.svg);
-    try { drawCrop(raster.image, w + gap); }
-    finally { raster.dispose(); }
-  }
   context.fillStyle = "#ffffff"; context.font = `600 ${font}px sans-serif`;
   context.fillText("Original", font, font * 1.5, w - font * 2);
   context.fillText("After · mask comparison", w + gap + font, font * 1.5, w - font * 2);
@@ -123,9 +129,52 @@ export async function createComparisonProof(picture: HTMLImageElement, masks: Pr
     context.fillText(mask.description, w + gap + font, font * (3 + index), w - font * 2);
   });
   context.fillStyle = "#bdc8da";
-  context.fillText(layers.map(mask => `Opacity ${Math.round(proofOpacity(mask.opacity) * 100)}%${mask.details ? ` · ${mask.details}` : ""}`).join(" / "), w + gap + font, font * 4.3, w - font * 2);
+  context.fillText(layers.map(mask => `Opacity ${animated ? "0–" : ""}${Math.round(proofOpacity(mask.opacity) * 100)}%${mask.details ? ` · ${mask.details}` : ""}`).join(" / "), w + gap + font, font * 4.3, w - font * 2);
   context.fillText(`Comparison proof · manually aligned reference overlay · crop ${crop.x},${crop.y} · ${crop.width}×${crop.height} source px`, font, header + h + font * 1.35, canvas.width - font * 2);
-  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error("Could not create the comparison PNG.")), "image/png"));
+  const base = animated ? await canvasBlob(canvas) : undefined;
+  for (const layer of layers) {
+    const raster = await rasterMask(layer.svg);
+    try { drawCrop(raster.image, w + gap); }
+    finally { raster.dispose(); }
+  }
+  return {image: await canvasBlob(canvas, type), base};
+}
+
+export async function createComparisonProof(picture: HTMLImageElement, masks: ProofMask[], source: string): Promise<Blob> {
+  return (await renderProof(picture, masks, source)).image;
+}
+
+/** Animated copies carry the actual file so pasting into Discord preserves every frame. */
+export async function copyFormattedComparisonProof(picture: HTMLImageElement, masks: ProofMask[], source: string, format: ProofFormat): Promise<void> {
+  if (format === "png") return copyComparisonProof(createComparisonProof(picture, masks, source));
+  if (!inTauri()) throw Error("Use the desktop app to copy this format, or use its save button.");
+  const {image, base} = await renderProof(picture, masks, source, format === "gif" || format === "webp");
+  const {invoke} = await import("@tauri-apps/api/core");
+  await invoke("copy_formatted_comparison_proof", {format, png: Array.from(new Uint8Array(await image.arrayBuffer())), base: base ? Array.from(new Uint8Array(await base.arrayBuffer())) : null});
+}
+
+/** Explicit downloads preserve animation; image clipboards generally flatten animated files. */
+export async function downloadComparisonProof(picture: HTMLImageElement, masks: ProofMask[], source: string, format: ProofFormat): Promise<boolean> {
+  const animated = format === "gif" || format === "webp";
+  if (animated && !inTauri()) throw Error("Use the desktop app to save animated comparison proofs.");
+  // Freeze the picture and geometry before the save dialog or any asynchronous work.
+  const pending = renderProof(picture, masks, source, animated, !inTauri() && format === "jpeg" ? "image/jpeg" : "image/png");
+  void pending.catch(() => {});
+  const filename = `comparison-proof.${format === "jpeg" ? "jpg" : format}`;
+  if (inTauri()) {
+    const {save} = await import("@tauri-apps/plugin-dialog");
+    const path = await save({defaultPath: filename, filters: [{name: format.toUpperCase(), extensions: [format === "jpeg" ? "jpg" : format]}]});
+    if (!path) return false;
+    const {image, base} = await pending;
+    const {invoke} = await import("@tauri-apps/api/core");
+    await invoke("save_comparison_proof", {path, format, png: Array.from(new Uint8Array(await image.arrayBuffer())), base: base ? Array.from(new Uint8Array(await base.arrayBuffer())) : null});
+  } else {
+    const {image} = await pending;
+    const url = URL.createObjectURL(image), link = document.createElement("a");
+    link.href = url; link.download = filename; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return true;
 }
 
 /** Copy only: never open a save dialog or silently download a file. */
