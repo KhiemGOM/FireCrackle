@@ -1,9 +1,3 @@
-import {waterColor} from './waterTint';
-type ScreenPicker = {open(options?: {signal?: AbortSignal}): Promise<{sRGBHex: string}>};
-type ScreenPickerConstructor = new () => ScreenPicker;
-const constructor = () => (globalThis as typeof globalThis & {EyeDropper?: ScreenPickerConstructor}).EyeDropper;
-export function hasScreenEyedropper(): boolean { return typeof constructor() === 'function'; }
-
 /** Invert the viewer rotation/scale around its transformed centre, then remove letterboxing. */
 export function imagePixelAt(x:number,y:number,box:{left:number;top:number;width:number;height:number},width:number,height:number,nativeWidth:number,nativeHeight:number,matrix:{a:number;b:number;c:number;d:number}) {
  const {a,b,c,d}=matrix,det=a*d-b*c;
@@ -55,19 +49,4 @@ export function pickImageColor(signal?:AbortSignal):Promise<string|null>{
   };
   window.addEventListener('keydown',key,true);window.addEventListener('pointerdown',down,true);window.addEventListener('pointerup',up,true);window.addEventListener('click',blockClick,true);signal?.addEventListener('abort',abort,{once:true});
  });
-}
-/** Call directly from a user gesture. Escape is a normal cancellation. */
-export async function pickScreenColor(signal?: AbortSignal): Promise<string | null> {
- const Picker = constructor();
- if (!Picker) return pickImageColor(signal);
- try {
-  const result = await new Picker().open({signal});
-  const color = waterColor(result.sRGBHex);
-  if (!color) throw new Error('The screen picker returned an invalid colour.');
-  return color;
- } catch (error) {
-  if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return null;
-  if(error instanceof Error && error.name==='NotSupportedError') return pickImageColor(signal);
-  throw error;
- }
 }

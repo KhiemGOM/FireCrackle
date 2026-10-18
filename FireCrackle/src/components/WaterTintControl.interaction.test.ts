@@ -6,30 +6,34 @@ vi.mock('react',async original=>({...await original<typeof import('react')>(),
  useRef:(initial:any)=>hooks.refs[hooks.r++]??={current:initial},useEffect:()=>{},
 }));
 vi.mock('react-dom',()=>({createPortal:(children:any)=>children}));
+const sampler=vi.hoisted(()=>vi.fn());
+vi.mock('../lib/eyedropper',()=>({pickImageColor:sampler}));
 import {WaterTintControl} from './WaterTintControl';
 type Element=ReactElement<Record<string,any>>;
 function all(node:any):Element[]{return Array.isArray(node)?node.flatMap(all):node&&typeof node==='object'&&'props'in node?[node,...all(node.props.children)]:[];}
 const changed=vi.fn();
 function render(){hooks.i=hooks.r=0;const tree=WaterTintControl({color:'#3f76e4',onChange:changed});return{tree,find:(label:string)=>all(tree).find(e=>e.props['aria-label']===label)!};}
-beforeEach(()=>{hooks.values=[];hooks.refs=[];changed.mockClear();vi.stubGlobal('window',{innerWidth:1200,innerHeight:800});vi.stubGlobal('document',{body:{}});});
+beforeEach(()=>{hooks.values=[];hooks.refs=[];changed.mockClear();sampler.mockReset();vi.stubGlobal('window',{innerWidth:1200,innerHeight:800});vi.stubGlobal('document',{body:{}});});
 afterEach(()=>vi.unstubAllGlobals());
 it('does not disable the eyedropper when the desktop runtime has no browser API',()=>{
  vi.stubGlobal('EyeDropper',undefined);
- expect(render().find('Pick water color from screen').props.disabled).toBe(false);
- expect(render().find('Pick water color from screen').props.title).toContain('video/image');
+ expect(render().find('Pick water color from image').props.disabled).toBe(false);
+ expect(render().find('Pick water color from image').props.title).toContain('video/image');
 });
-it('applies a screen-selected colour and exits sampling mode',async()=>{
- vi.stubGlobal('EyeDropper',class{async open(){return{sRGBHex:'#12ABEF'};}});
- render().find('Pick water color from screen').props.onClick();
+it('uses the image sampler even if the browser advertises a nonworking screen API',async()=>{
+ const open=vi.fn().mockRejectedValue(new DOMException('unavailable','AbortError'));
+ vi.stubGlobal('EyeDropper',class{open=open;});sampler.mockResolvedValue('#12abef');
+ render().find('Pick water color from image').props.onClick();
  await Promise.resolve();await Promise.resolve();await Promise.resolve();
  expect(changed).toHaveBeenCalledWith('#12abef');
- expect(render().find('Pick water color from screen').props.disabled).toBe(false);
+ expect(open).not.toHaveBeenCalled();expect(sampler).toHaveBeenCalledOnce();
+ expect(render().find('Pick water color from image').props.disabled).toBe(false);
 });
 it('cancellation leaves the tint untouched and re-enables the sampler',async()=>{
- vi.stubGlobal('EyeDropper',class{async open(){throw new DOMException('cancel','AbortError');}});
- render().find('Pick water color from screen').props.onClick();
+ sampler.mockResolvedValue(null);
+ render().find('Pick water color from image').props.onClick();
  await Promise.resolve();await Promise.resolve();await Promise.resolve();
- expect(changed).not.toHaveBeenCalled();expect(render().find('Pick water color from screen').props.disabled).toBe(false);
+ expect(changed).not.toHaveBeenCalled();expect(render().find('Pick water color from image').props.disabled).toBe(false);
 });
 it('opens the full colour popover and supports saturation/brightness clicks',()=>{
  let ui=render();ui.find('Pick water color').props.onClick({currentTarget:{getBoundingClientRect:()=>({right:1180,bottom:200})}});

@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {hasScreenEyedropper,pickScreenColor} from '../lib/eyedropper';
+import {pickImageColor} from '../lib/eyedropper';
 import './WaterTintControl.css';
 import {NEUTRAL_WATER_TINT,waterColor} from '../lib/waterTint';
 import {hexToHsv,hsvToHex,saturationValueAt,type Hsv} from '../lib/colorPicker';
@@ -25,16 +25,15 @@ export function WaterTintControl({color,onChange}:{color:string;onChange:(color:
  const sample=async()=>{
   if(sampling)return;setError(null);setPosition(null);setSampling(true);
   const controller=new AbortController();abort.current=controller;
-  try{const next=await pickScreenColor(controller.signal);if(next&&!controller.signal.aborted){setDraft(next);onChange(next);}}
+  try{const next=await pickImageColor(controller.signal);if(next&&!controller.signal.aborted){setDraft(next);onChange(next);}}
   catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:String(e));}
   finally{if(!controller.signal.aborted)setSampling(false);abort.current=null;}
  };
- const supported=hasScreenEyedropper();
  return <div ref={root} role="group" aria-label="Water color" onKeyDown={e=>e.stopPropagation()}>
   <div className="water-tint-bar">
   <span>Tint</span><button type="button" className="water-tint-swatch" aria-label="Pick water color" aria-expanded={!!position} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setPosition(position?null:{left:Math.max(8,Math.min(r.right-272,window.innerWidth-280)),top:Math.max(8,Math.min(r.bottom+6,window.innerHeight-270))});}}><span style={{background:color}}/></button>
   <input aria-label="Water color hex" type="text" value={draft} spellCheck={false} maxLength={7} onChange={e=>{setDraft(e.target.value);const next=waterColor(e.target.value);if(next)onChange(next);}} onBlur={()=>setDraft(color)} aria-invalid={!waterColor(draft)||undefined}/>
-  <button type="button" className="water-eyedropper" aria-label="Pick water color from screen" title={supported?'Pick a screen colour · Escape cancels':'Pick a colour from the video/image · Escape cancels'} disabled={sampling} onClick={()=>void sample()}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m14 5 5 5M4 20l3-1 12-12a2.1 2.1 0 0 0-3-3L4 16zM12 7l5 5"/></svg>{sampling?'Picking…':null}</button>
+  <button type="button" className="water-eyedropper" aria-label="Pick water color from image" title="Pick a colour from the video/image · Escape cancels" disabled={sampling} onClick={()=>void sample()}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m14 5 5 5M4 20l3-1 12-12a2.1 2.1 0 0 0-3-3L4 16zM12 7l5 5"/></svg>{sampling?'Picking…':null}</button>
   <button type="button" disabled={color===NEUTRAL_WATER_TINT} onClick={()=>onChange(NEUTRAL_WATER_TINT)} title="Remove water tint">Untint</button>
   </div>
   {error&&<div className="water-picker-error" role="alert">{error}</div>}
