@@ -15,13 +15,19 @@ checkout while their queued patches are still being assembled.
 | Stronger Enhance presets, gamma and edge controls | Committed; redundant Edge overlay preset removed |
 | GUI screen-driven Auto unveil and compressed-shadow rounding | Committed in `fb77e58` |
 | Animated comparison proof formats and fade | Committed in `606b82a` / `4d5e50a` |
-| Water tint picker / prerendered atlases / fluid chart follow-ups | Pending owner job 191 |
-| Joint texture phase-offset chart | Pending owner job 190 |
-| Final source SHA and clean release snapshot | Pending both feature owners |
+| Water tint / prerendered atlases / fluid Jolt views and layout fixes | Committed in `74f0707` |
+| Inline water colour picker replacing broken native dialog | Fixed in `19ae49a`; browser verification and full 1,324-test frontend suite passed |
+| Joint texture phase-offset chart | `92b2e31` is being superseded: owner job 190 reopened to integrate directly into the existing Timing renderer |
+| Final source SHA and clean release snapshot | Pending the revised Timing integration and final combined checks |
 
-The release coordinator has asked both owners for their final commits, check
-results, feature summaries and limitations. Pending features are not yet promised
-in the public notes. Their source and queue patches remain under their custody.
+The water/fluid owner supplied `74f0707` and `19ae49a`: tint/overlay, Jolt import,
+in-app picker clicks/drag/hue changes, TypeScript/Vite and the full 1,324-test
+frontend suite passed. The earlier joint-chart implementation passed its tests,
+but the user rejected its separate renderer. Job 190 is reopened to put material
+overlays and modulus controls directly into the existing Timing chart, retaining
+its run/gap shading, ruler, sidebar and controls. Do not treat the earlier commit
+or test report as approval of the replacement. Active source/queue patches remain
+under that owner's custody; the joint feature stays out of public notes until done.
 
 ## Preparation checks
 
@@ -53,8 +59,9 @@ release checks against the frozen source once it is ready.
 
 ## Final cut
 
-1. Obtain both feature owners' completion reports and commits; resolve their
-   queued patches and update the notes with the delivered scope and limits.
+1. Obtain the revised existing-Timing integration's completion report and commit;
+   resolve its queued patches and add only the delivered joint-chart scope to the
+   notes. The water picker fix is complete; the chart follow-up blocks the cut.
 2. Confirm no uncommitted feature work is omitted. Select and record a final
    source SHA. Keep later development out of the release snapshot.
 3. Verify versions, source hygiene and asset generation from a clean checkout.
