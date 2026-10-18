@@ -31,7 +31,7 @@ interface Props {
 export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opacity, quad, onQuad, pixelGrid = false, zoom = 1, compression, frameUrl, placementEnabled = true }: Props) {
   const clipId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragging = useRef<{ corner: number; last: QuadPoint } | null>(null);
+  const dragging = useRef<{ corner: number; pointerId: number; last: QuadPoint; offset: QuadPoint; matrix: DOMMatrix; width: number; height: number } | null>(null);
   const [selectedCorner, setSelectedCorner] = useState<number | null>(null);
   const latestQuad = useRef(quad);
   latestQuad.current = quad;
@@ -42,7 +42,7 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
   const [screenScale, setScreenScale] = useState(1);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [transformActive, setTransformActive] = useState(false);
-  const transformDrag = useRef<{ quad: ManualQuad; start: QuadPoint; handle: BoxHandle | null } | null>(null);
+  const transformDrag = useRef<{ quad: ManualQuad; pointerId: number; start: QuadPoint; handle: BoxHandle | null; matrix: DOMMatrix; width: number; height: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
     setRgba(null);
@@ -77,26 +77,25 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
   const delivery = compression ? compressionGeometry(width,height,compression.height,quad) : null;
   const points = (p: Array<[number, number]>) => p.map(([x, y]) => `${x * width},${y * height}`).join(" ");
 
-  function cursorPoint(x: number, y: number): QuadPoint | null {
-    const matrix = svgRef.current?.getScreenCTM();
-    return matrix ? screenToQuadPoint(matrix, x, y, width, height) : null;
-  }
   function begin(e: PointerEvent<SVGElement>, corner: number, select: boolean) {
     if (e.button !== 0) return;
-    const point = cursorPoint(e.clientX, e.clientY);
-    if (!point) return;
+    const matrix = svgRef.current?.getScreenCTM();
+    const point = matrix ? screenToQuadPoint(matrix, e.clientX, e.clientY, width, height) : null;
+    if (!point || !matrix) return;
     e.stopPropagation();
     e.preventDefault();
     if (select) setSelectedCorner(corner);
-    dragging.current = { corner, last: point };
+    const anchor = latestQuad.current[corner];
+    dragging.current = { corner, pointerId: e.pointerId, last: point, offset: [anchor[0] - point[0], anchor[1] - point[1]], matrix, width, height };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent<SVGSVGElement>) {
     const transform = transformDrag.current;
     if (transform) {
+      if (e.pointerId !== transform.pointerId) return;
       e.stopPropagation();
       e.preventDefault();
-      const point = cursorPoint(e.clientX, e.clientY);
+      const point = screenToQuadPoint(transform.matrix, e.clientX, e.clientY, transform.width, transform.height);
       if (!point) return;
       const next = transform.handle
         ? resizeQuad(transform.quad, transform.handle, transform.start, point, width, height)
@@ -106,31 +105,34 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
       return;
     }
     const drag = dragging.current;
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.pointerId) return;
     e.stopPropagation();
-    const point = cursorPoint(e.clientX, e.clientY);
-    if (!point) return;
+    const point = screenToQuadPoint(drag.matrix, e.clientX, e.clientY, drag.width, drag.height);
+    if (!point || (point[0] === drag.last[0] && point[1] === drag.last[1])) return;
     const next = e.ctrlKey
       ? translateQuad(latestQuad.current, [point[0] - drag.last[0], point[1] - drag.last[1]])
-      : moveQuadCorner(latestQuad.current, drag.corner, point);
+      : moveQuadCorner(latestQuad.current, drag.corner, [point[0] + drag.offset[0], point[1] + drag.offset[1]]);
     drag.last = point;
     latestQuad.current = next;
     onQuad(next);
   }
   function stop(e: PointerEvent<SVGSVGElement>) {
-    if (dragging.current !== null || transformDrag.current !== null) e.stopPropagation();
+    const active = dragging.current ?? transformDrag.current;
+    if (active && e.pointerId !== active.pointerId) return;
+    if (active) e.stopPropagation();
     dragging.current = null;
     transformDrag.current = null;
     setTransformActive(false);
   }
   function beginTransform(e: PointerEvent<SVGElement>, handle: BoxHandle | null) {
     if (e.button !== 0) return;
-    const start = cursorPoint(e.clientX, e.clientY);
-    if (!start) return;
+    const matrix = svgRef.current?.getScreenCTM();
+    const start = matrix ? screenToQuadPoint(matrix, e.clientX, e.clientY, width, height) : null;
+    if (!start || !matrix) return;
     e.preventDefault();
     e.stopPropagation();
     setSelectedCorner(null);
-    transformDrag.current = { quad: latestQuad.current, start, handle };
+    transformDrag.current = { quad: latestQuad.current, pointerId: e.pointerId, start, handle, matrix, width, height };
     setTransformActive(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   }

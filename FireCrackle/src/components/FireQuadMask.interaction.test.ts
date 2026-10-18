@@ -68,6 +68,42 @@ it('does not project stale pixels with a different atlas size before its load ef
 });
 
 describe("manual quad controls", () => {
+  it("keeps an off-centre grab still on press and preserves its offset while dragging", () => {
+    const mask = render();
+    // Corner centre is (160, 90), but the pointer hits its eight-pixel handle edge.
+    mask.corners[0].props.onPointerDown(pointer(166, 94));
+    mask.svg.props.onPointerMove(pointer(166, 94));
+    expect(onQuad).not.toHaveBeenCalled();
+    mask.svg.props.onPointerMove(pointer(176, 104));
+    const moved = onQuad.mock.calls[0][0];
+    expect(moved[0][0]).toBeCloseTo(0.35);
+    expect(moved[0][1]).toBeCloseTo(0.25);
+    expect(moved.slice(1)).toEqual(DEFAULT_QUAD.slice(1));
+  });
+
+  it("freezes the screen transform through capture and layout changes", () => {
+    const mask = render();
+    mask.corners[0].props.onPointerDown(pointer(160, 90));
+    // A WebView layout/scroll update must not change this gesture's coordinate frame.
+    Object.assign(hooks.refs[0].current as object, { getScreenCTM: () => ({a:4,b:0,c:0,d:4,e:500,f:600}) });
+    mask.svg.props.onPointerMove(pointer(170, 100));
+    expect(onQuad.mock.calls[0][0][0][0]).toBeCloseTo(0.35);
+    expect(onQuad.mock.calls[0][0][0][1]).toBeCloseTo(0.25);
+  });
+
+  it("ignores another pointer and ends the drag when capture is lost", () => {
+    const mask = render();
+    mask.corners[0].props.onPointerDown(pointer(160, 90));
+    mask.svg.props.onPointerMove({...pointer(220, 130),pointerId:2});
+    mask.svg.props.onPointerUp({...pointer(220, 130),pointerId:2});
+    expect(onQuad).not.toHaveBeenCalled();
+    mask.svg.props.onPointerMove(pointer(170, 100));
+    expect(onQuad).toHaveBeenCalledTimes(1);
+    mask.svg.props.onLostPointerCapture(pointer(170, 100));
+    mask.svg.props.onPointerMove(pointer(180, 110));
+    expect(onQuad).toHaveBeenCalledTimes(1);
+  });
+
   it("captures Shift before focused toolbar controls can stop bubbling", () => {
     const bind = vi.spyOn(window, "addEventListener");
     render();
