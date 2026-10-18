@@ -424,11 +424,11 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       const picture = frameRef.current?.querySelector<HTMLImageElement>(".video-zoom > img");
       const svg = frameRef.current?.querySelector<SVGSVGElement>(manualEnabled ? "svg.fire-quad-mask" : "svg.hud-overlay");
       if (!picture || !svg || shown !== view.current || picture.getAttribute("src") !== url) throw Error("Wait for the picture and mask to load.");
-      const sprite = manualEnabled ? { sheet: manualSheet, row: manualRow, mirrored: manualMirrored } : { sheet: 1, row: hudRow, mirrored: false };
+      const sprite = manualEnabled ? { atlas: manualAtlas, sheet: manualSheet, row: manualRow, mirrored: manualMirrored } : { sheet: 1, row: hudRow, mirrored: false };
       const xs = manualQuad.map(([x]) => x * imageSize.width), ys = manualQuad.map(([, y]) => y * imageSize.height);
       const mask: ProofMask = { svg, ...(manualEnabled ? {bounds: {x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys)}} : {}), description: `${manualEnabled ? "Quad" : "First-person"} · ${spriteText(sprite)}`,
         opacity: manualEnabled ? manualOpacity : hudOpacity,
-        details: manualEnabled ? (compressionEnabled ? `H.264 · ${compressionHeight}p` : undefined) : `FOV ${hudFov}°` };
+        details: manualEnabled ? (compressionEnabled && !manualAtlas ? `H.264 · ${compressionHeight}p` : undefined) : `FOV ${hudFov}°` };
       const source = stillImage?.name ?? `Frame ${view.current} · ${formatTimecode(view.pts, view.fps)}`;
       if (action.destination === "copy") {
         await copyFormattedComparisonProof(picture, [mask], source, action.format);
@@ -493,7 +493,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
         <span className="tool-spacer" aria-hidden="true" />
-        <IconButton icon="play" label="Toggle sprite animation tool" disabled={!!manualAtlas} title={manualAtlas?"Animation browser currently supports normal fire only":undefined} aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
+        <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
           setAnimationOpen(!animationOpen);
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
@@ -501,7 +501,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
-        <ComparisonProofButton label="Comparison proof" disabled={!!manualAtlas || !url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
+        <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
           <label><input type="checkbox" checked={ruler.locked} onChange={e => setRuler(current => ({ ...current, locked: e.target.checked }))} /> Lock unit</label>
@@ -548,9 +548,9 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
           <IconButton icon="copy" label="Use frame label for manual mask" disabled={!labelSprite(view.label)} onClick={() => {const sprite=labelSprite(view.label);if(sprite)selectPreview(sprite);}} />
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
-      {animationOpen && manualEnabled && !manualAtlas && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
-        <AnimationControls current={{sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
-          onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
+      {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
+        <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
+          onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualAtlas(sprite.atlas); setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
       </div>}
       {matchingEnabled && !manualAtlas && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
         {url ? <QuadMatchControls frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {

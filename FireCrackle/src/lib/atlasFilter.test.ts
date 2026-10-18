@@ -87,3 +87,17 @@ it("combines mirrored edge counts with reversible per-appearance exclusions", ()
   expect(animationPool(null,{left:null,right:null,excluded})).toHaveLength(127);
   expect(animationPool(edges,{...filter,excluded:[]})).toHaveLength(32);
 });
+
+it.each([
+  ["soul_fire_0", 128, 32], ["soul_fire_1", 128, 32],
+  ["lava_still", 40, 20], ["lava_flow", 32, 16],
+  ["water_still", 64, 32], ["water_flow", 64, 32],
+] as const)("cycles valid %s appearances without normal-fire filters", (atlas, count, rows) => {
+  const pool = animationPool(null, {left: 99, right: 99}, atlas);
+  expect(pool).toHaveLength(count);
+  expect(pool.every(s => s.atlas?.startsWith(atlas.startsWith("soul") ? "soul_fire" : atlas) && s.row >= 0 && s.row < rows)).toBe(true);
+  expect(new Set(pool.map(s => `${s.atlas}:${s.row}:${s.mirrored}`)).size).toBe(count);
+  expect(nextAppearance(pool, pool[count - 1])).toEqual(pool[0]);
+  expect(nextAppearance(pool, pool[0], -1)).toEqual(pool[count - 1]);
+  expect(nextAppearance(pool, {sheet: 0, row: 2, mirrored: false})).toEqual(pool[0]);
+});

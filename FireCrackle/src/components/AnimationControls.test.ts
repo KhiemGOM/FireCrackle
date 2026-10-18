@@ -61,3 +61,17 @@ it("does not start a timer for an empty pool or run automatically on mount",()=>
   expect(find(root,"Play sprite animation").props.disabled).toBe(true);
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it.each(["lava_still", "lava_flow", "water_still", "water_flow", "soul_fire_0"] as const)("animates %s without fire filters and stops on source change", atlas => {
+  current = {atlas, sheet: atlas.endsWith("_still") || atlas.endsWith("_0") ? 0 : 1, row: 0, mirrored: false};
+  const root = render({filter: {left: 99, right: 99}});
+  expect(find(root, "Animate filtered sprites only")).toBeUndefined();
+  play();
+  for (let i = 0; i < 140; i++) { vi.advanceTimersByTime(250); render(); }
+  expect(onPreview).toHaveBeenCalledTimes(140);
+  expect(onPreview.mock.calls.every(([s]) => s.atlas?.startsWith(atlas.startsWith("soul") ? "soul_fire" : atlas))).toBe(true);
+  current = {atlas: "water_still", sheet: 0, row: 0, mirrored: false};
+  if (atlas === "water_still") current.atlas = "lava_still";
+  render(); vi.advanceTimersByTime(1000);
+  expect(onPreview).toHaveBeenCalledTimes(140);
+});

@@ -8,12 +8,12 @@ export const proofOpacity = (value: number) => value > 0 ? Math.min(1, value) : 
 export function proofCrop(width: number, height: number, bounds: ProofRect[]): ProofRect {
   if (![width, height].every(Number.isFinite) || width <= 0 || height <= 0) throw Error("The picture is not ready yet.");
   if (!bounds.length) return {x: 0, y: 0, width, height};
-  if (bounds.some(b => ![b.x, b.y, b.width, b.height].every(Number.isFinite) || b.width <= 0 || b.height <= 0)) throw Error("The fire mask has invalid bounds.");
+  if (bounds.some(b => ![b.x, b.y, b.width, b.height].every(Number.isFinite) || b.width <= 0 || b.height <= 0)) throw Error("The texture mask has invalid bounds.");
   const left = Math.max(0, Math.min(...bounds.map(b => b.x)));
   const top = Math.max(0, Math.min(...bounds.map(b => b.y)));
   const right = Math.min(width, Math.max(...bounds.map(b => b.x + b.width)));
   const bottom = Math.min(height, Math.max(...bounds.map(b => b.y + b.height)));
-  if (right <= left || bottom <= top) throw Error("The fire mask is outside the picture.");
+  if (right <= left || bottom <= top) throw Error("The texture mask is outside the picture.");
   const pad = Math.max(8, Math.ceil(Math.max(right - left, bottom - top) * 0.2));
   const x = Math.max(0, Math.floor(left - pad)), y = Math.max(0, Math.floor(top - pad));
   return {x, y, width: Math.min(width, Math.ceil(right + pad)) - x, height: Math.min(height, Math.ceil(bottom + pad)) - y};
@@ -104,7 +104,7 @@ function canvasBlob(canvas: HTMLCanvasElement, type = "image/png"): Promise<Blob
 
 async function renderProof(picture: HTMLImageElement, masks: ProofMask[], source: string, animated = false, type = "image/png"): Promise<{image: Blob; base?: Blob}> {
   if (!picture.complete || !picture.naturalWidth || !picture.naturalHeight) throw Error("Wait for the current picture to load.");
-  if (!masks.length) throw Error("Turn on a fire mask before making a comparison proof.");
+  if (!masks.length) throw Error("Turn on a texture mask before making a comparison proof.");
   const { naturalWidth: width, naturalHeight: height } = picture;
   // Clone geometry and pixels synchronously: animation/frame navigation cannot change this proof later.
   const layers = masks.map(mask => ({ ...mask, svg: cleanProofMask(mask, width, height) }));

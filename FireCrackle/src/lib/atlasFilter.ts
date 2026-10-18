@@ -1,3 +1,4 @@
+import { ANIMATION_ATLASES, soulFire, type AnimationAtlas } from "./animationAtlases";
 import type { PreviewSprite } from "./firePreview";
 export interface EdgeCounts { left: number; right: number; bottomWhite?: number }
 export interface EdgeFilter { left: number | null; right: number | null; bottomWhiteMin?: number | null; bottomWhiteMax?: number | null; excluded?: number[] }
@@ -11,8 +12,16 @@ export function matchesAppearance(edges: AtlasEdges | null, sheet: 0 | 1, row: n
   return edges !== null && matchesEdges(appearanceEdges(edges, sheet, row, mirrored), filter);
 }
 /** A complete cycle visits every sheet, mirror and animation row once. */
-export function animationPool(edges: AtlasEdges | null, filter?: EdgeFilter): PreviewSprite[] {
+export function animationPool(edges: AtlasEdges | null, filter?: EdgeFilter, atlas?: AnimationAtlas): PreviewSprite[] {
   const pool: PreviewSprite[] = [];
+  if (atlas) {
+    const sources: AnimationAtlas[] = soulFire(atlas) ? ["soul_fire_0", "soul_fire_1"] : [atlas];
+    for (const source of sources) for (const mirrored of [false, true]) for (let row = 0; row < ANIMATION_ATLASES[source].rows; row++) {
+      const sheet = source.endsWith("_0") || source.endsWith("_still") ? 0 : 1;
+      pool.push({ atlas: source, sheet, row, mirrored });
+    }
+    return pool;
+  }
   for (const sheet of [0, 1] as const) for (const mirrored of [false, true]) for (let row = 0; row < 32; row++) {
     if (!filter || matchesAppearance(edges, sheet, row, mirrored, filter)) pool.push({ sheet, row, mirrored });
   }
@@ -20,7 +29,7 @@ export function animationPool(edges: AtlasEdges | null, filter?: EdgeFilter): Pr
 }
 export function nextAppearance(pool: PreviewSprite[], current: PreviewSprite, direction = 1): PreviewSprite | null {
   if (!pool.length) return null;
-  const index = pool.findIndex(sprite => appearanceId(sprite.sheet, sprite.row, sprite.mirrored) === appearanceId(current.sheet, current.row, current.mirrored));
+  const index = pool.findIndex(sprite => sprite.atlas === current.atlas && appearanceId(sprite.sheet, sprite.row, sprite.mirrored) === appearanceId(current.sheet, current.row, current.mirrored));
   return pool[index < 0 ? direction > 0 ? 0 : pool.length - 1 : (index + direction + pool.length) % pool.length];
 }
 

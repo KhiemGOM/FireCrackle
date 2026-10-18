@@ -14,6 +14,9 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("../hooks/useWheel", () => ({ useWheel: () => {} }));
 import { VideoPane } from "./VideoPane";
+import * as proofs from "../lib/comparisonProof";
+import { ANIMATION_ATLASES } from "../lib/animationAtlases";
+import { AnimationControls } from "./AnimationControls";
 import { OpacityControl } from "./OpacityControl";
 import { createMockBackend } from "../lib/mock";
 import { DEFAULT_MASK_STATE, MASK_STATE_KEY, readMaskState } from "../lib/maskState";
@@ -536,4 +539,35 @@ it("reports presentation only after the current image loads, never for a stale U
   currentTarget.getAttribute = () => img.props.src;
   img.props.onLoad({ currentTarget });
   expect(onFramePresented).toHaveBeenCalledWith(view.current);
+});
+
+it.each(["soul_fire_0", "soul_fire_1", "lava_still", "lava_flow", "water_still", "water_flow"] as const)("enables shared animation and proof for %s while keeping the matcher fire-only", async atlas => {
+  vi.stubGlobal("localStorage", {getItem: () => JSON.stringify({...DEFAULT_MASK_STATE, manualEnabled: true, manualAtlas: atlas}), setItem: vi.fn()});
+  let root = await tree();
+  expect(find(root, "Toggle sprite animation tool")!.props.disabled).toBeFalsy();
+  expect(find(root, "Toggle sprite matching tool")!.props.disabled).toBe(true);
+  // Simulate a decoded frame, then the image's ordinary load callback.
+  hooks.states[0] = "blob:loaded"; hooks.states[1] = 0;
+  root = await tree();
+  function byType(node: Element, type: unknown): Element | undefined {
+    if (node.type === type) return node;
+    for (const child of [node.props.children].flat(Infinity)) if (child && typeof child === "object" && "props" in child) {
+      const found = byType(child, type); if (found) return found;
+    }
+  }
+  byType(root, "img")!.props.onLoad({currentTarget: {naturalWidth: 1920, naturalHeight: 1080, getAttribute: () => "blob:loaded"}});
+  root = await tree();
+  expect(find(root, "Comparison proof")!.props.disabled).toBe(false);
+  const copy = vi.spyOn(proofs, "copyFormattedComparisonProof").mockResolvedValue(undefined);
+  const picture = {getAttribute: () => "blob:loaded"}, svg = {};
+  viewport(root)!.props.ref.current.querySelector = (selector: string) => selector.includes("img") ? picture : svg;
+  find(root, "Comparison proof")!.props.onExport({destination: "copy", format: "png"});
+  await Promise.resolve();
+  expect(copy).toHaveBeenCalledWith(picture, [expect.objectContaining({svg, description: expect.stringContaining(ANIMATION_ATLASES[atlas].name), opacity: DEFAULT_MASK_STATE.manualOpacity, bounds: expect.any(Object)})], expect.any(String), "png");
+  find(root, "Toggle sprite animation tool")!.props.onClick(); root = await tree();
+  const animation = byType(root, AnimationControls)!;
+  expect(animation.props.current.atlas).toBe(atlas);
+  const next = {atlas, sheet: atlas.endsWith("_0") || atlas.endsWith("_still") ? 0 : 1, row: 3, mirrored: true};
+  animation.props.onPreview(next); root = await tree();
+  expect(byType(root, AnimationControls)!.props.current).toEqual(next);
 });
