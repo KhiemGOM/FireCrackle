@@ -17,17 +17,21 @@ checkout while their queued patches are still being assembled.
 | Animated comparison proof formats and fade | Committed in `606b82a` / `4d5e50a` |
 | Water tint / prerendered atlases / fluid Jolt views and layout fixes | Committed in `74f0707` |
 | Inline water colour picker replacing broken native dialog | Fixed in `19ae49a`; browser verification and full 1,324-test frontend suite passed |
-| Joint texture phase-offset chart | `92b2e31` is being superseded: owner job 190 reopened to integrate directly into the existing Timing renderer |
-| Final source SHA and clean release snapshot | Pending the revised Timing integration and final combined checks |
+| Joint texture phase-offset chart | Completed in `38b51e2`; actual Timing renderer reused, superseding the separate chart in `92b2e31` |
+| Still / Flowing fluid naming | Completed in `b730a6f`; 49 targeted tests and typecheck passed |
+| Separate still/flowing water/lava atlas choices and isolated filters | Pending owner follow-up job 196; keeps feature freeze on hold |
+| Final source SHA and clean release snapshot | Pending fluid-source separation and final combined checks |
 
 The water/fluid owner supplied `74f0707` and `19ae49a`: tint/overlay, Jolt import,
 in-app picker clicks/drag/hue changes, TypeScript/Vite and the full 1,324-test
-frontend suite passed. The earlier joint-chart implementation passed its tests,
-but the user rejected its separate renderer. Job 190 is reopened to put material
-overlays and modulus controls directly into the existing Timing chart, retaining
-its run/gap shading, ruler, sidebar and controls. Do not treat the earlier commit
-or test report as approval of the replacement. Active source/queue patches remain
-under that owner's custody; the joint feature stays out of public notes until done.
+frontend suite passed. Joint integration `38b51e2` now reuses the actual Timing
+chart, retaining its run/gap shading, ruler, sidebar and controls. Its owner
+reports 1,323 tests, TypeScript/production build, exact Fire geometry parity and
+native/browser flag selection/focus/Fit checks passing. Provisional wrap choices
+are not a claim of unique agreement; no joint automatic flags are generated.
+The latest user-directed follow-up separates the four fluid atlas choices and
+their filters (job 196). Keep that owner's active patches out of the final freeze
+until its completion report arrives.
 
 ## Preparation checks
 
@@ -37,10 +41,10 @@ under that owner's custody; the joint feature stays out of public notes until do
 | AI model/runtime packaging regression tests | 11 passed |
 | Windows packaging configuration, retry and archive regressions | Passed for 0.4.0 |
 | All five version files / both npm root versions agree | Verified as 0.4.0; build-only publication plan validated without dispatch |
-| Repository source/asset hygiene | Passed; 886 tracked files and 4 boundary regression tests |
+| Repository source/asset hygiene | Passed; latest audit covers 900 tracked files, with 4 boundary regression tests previously passing |
 | Animation / GUI / portal asset-generation regressions | 8 passed; metadata geometry/order checks included |
 | Rust release preflight | Formatting and strict Clippy (`--all-targets --no-deps -- -D warnings`) passed for all four CI crates |
-| Latest pre-freeze desktop build | Earlier 0.3.0 development build passed and launched; not a 0.4.0 package |
+| Latest pre-freeze desktop build | 0.4.0 preview built and launched before the latest feature follow-ups; not a final package |
 | Full final frontend/native checks and clean installation | Pending feature freeze |
 | Windows setup/ZIP from frozen source | Pending feature freeze |
 | Linux AppImage/Debian build, dependency and startup checks | Pending Linux CI after feature freeze |
@@ -59,9 +63,10 @@ release checks against the frozen source once it is ready.
 
 ## Final cut
 
-1. Obtain the revised existing-Timing integration's completion report and commit;
-   resolve its queued patches and add only the delivered joint-chart scope to the
-   notes. The water picker fix is complete; the chart follow-up blocks the cut.
+1. Obtain the fluid-source separation follow-up's completion report and commit;
+   resolve its queued patches and update the notes with the delivered picker
+   scope. Joint Timing integration and the inline water picker are complete;
+   job 196 is the remaining feature hold.
 2. Confirm no uncommitted feature work is omitted. Select and record a final
    source SHA. Keep later development out of the release snapshot.
 3. Verify versions, source hygiene and asset generation from a clean checkout.
