@@ -15,6 +15,7 @@ import { FlagCompare } from "./FlagCompare";
 import { JoltPanel } from "./JoltPanel";
 import {ChartCursor} from "./ChartCursor";
 import {TexturePhases} from './TexturePhases';
+import {JointTexturePhases} from './JointTexturePhases';
 type Element=ReactElement<Record<string,any>>;
 const flag:Flag={frame:800,end_frame:820,severity:"hard",kind:"phase_shift",phase_delta:5};
 const jump=vi.fn();
@@ -25,6 +26,17 @@ function all(node:any,predicate:(e:Element)=>boolean):Element[] {
 }
 function render(){hooks.cursor=hooks.refCursor=0;hooks.effects=[];return PhaseTab({backend:{} as Backend,view:{fps:60,frame_count:1000,current:20} as View,version:0,onJump:jump});}
 function flags(root:Element){return all(root,e=>e.type===FlagsPanel)[0];}
+it('adds exactly one joint offset tab and keeps the source clock and complete evidence',()=>{
+ let root=render();
+ all(root,e=>e.props.role==='tab'&&e.props.children==='All textures')[0].props.onClick();root=render();
+ const joint=all(root,e=>e.type===JointTexturePhases);
+ expect(joint).toHaveLength(1);expect(joint[0].props.clock.kind).toBe('video');
+ expect(joint[0].props.chart).toBe(hooks.values[0]);
+ expect(all(root,e=>e.type===TexturePhases)).toHaveLength(0);
+ expect(all(root,e=>e.props['aria-label']==='Phase flags sidebar')[0].props.hidden).toBe(true);
+ all(root,e=>e.props.role==='tab'&&e.props.children==='Fire')[0].props.onClick();root=render();
+ expect(all(root,e=>e.type===JointTexturePhases)).toHaveLength(0);
+});
 it("plain flag selection keeps Jolt + Fire open and focuses its shared video timeline",()=>{
   hooks.values[14]='jolt';
   let root=render();flags(root).props.onSelect(flag,false);root=render();
@@ -68,14 +80,14 @@ it('gives every animation its own tab and sends only its atlas to the shared flu
 
 it("uses the same Timing/Sprites workspace for either X-axis source and Fit resets both axes",()=>{
   let root=render();
-  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Fire','Soul fire','Still lava','Flowing lava','Still water','Flowing water','Timing','Sprites','Jolt + Fire']);
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Fire','Soul fire','Still lava','Flowing lava','Still water','Flowing water','All textures','Timing','Sprites','Jolt + Fire']);
   hooks.values[16]=[-4,4];hooks.values[17]=[-85,116];
   root=render();
   all(root,e=>e.props.label==="Fit entire timing offset timeline")[0].props.onClick();
   expect(hooks.values[16]).toBeUndefined();expect(hooks.values[17]).toBeUndefined();
   all(root,e=>e.type===JoltPanel)[0].props.onChange({version:1,clock:'jolt',data:null,session:''});
   root=render();
-  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Fire','Soul fire','Still lava','Flowing lava','Still water','Flowing water','Timing','Sprites','Jolt + Fire']);
+  expect(all(root,e=>e.props.role==="tab").map(e=>e.props.children)).toEqual(['Fire','Soul fire','Still lava','Flowing lava','Still water','Flowing water','All textures','Timing','Sprites','Jolt + Fire']);
 });
 
 it("keeps flag selection in the chart and opens and closes video inspection separately",()=>{
