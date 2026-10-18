@@ -150,7 +150,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
               <div className="gutter" />
               {COLUMNS.map((_, c) => (
                 <div key={c} className="sheet">
-                  {columnHeader(c)?.sheet}
+                  {atlasKind==='water'||atlasKind==='lava'?(COLUMNS[c].sheet===0?'Still':'Flowing'):columnHeader(c)?.sheet}
                 </div>
               ))}
             </div>
