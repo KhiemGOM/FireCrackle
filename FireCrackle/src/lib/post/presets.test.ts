@@ -72,8 +72,8 @@ describe("the built-in presets are useful and not cluttered", () => {
   };
 
   it("includes explicit contrast and edge views alongside the existing footage aids", () => {
-    expect(PRESETS.map(p => p.id)).toEqual(["high-contrast", "find-edges", "edge-overlay", "dark", "fire", "edges"]);
-    expect(PRESETS.map(p => p.name)).toEqual(["High contrast", "Find edges", "Edge overlay", "Dark scene", "Fire focus", "Texture detail"]);
+    expect(PRESETS.map(p => p.id)).toEqual(["high-contrast", "find-edges", "dark", "fire", "edges"]);
+    expect(PRESETS.map(p => p.name)).toEqual(["High contrast", "Find edges", "Dark scene", "Fire focus", "Texture detail"]);
   });
 
   it("each switch on at most three effects", () => {
