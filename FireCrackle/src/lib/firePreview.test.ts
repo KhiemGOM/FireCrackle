@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { atlasSprite, framePreview, previewSprite, selectAtlasCell } from "./firePreview";
+import { atlasSprite, framePreview, previewSprite, selectAtlasCell, labelSprite } from "./firePreview";
+
+it('maps still and flowing material previews to their own sheet controls',()=>{
+ expect(labelSprite({texture:{atlas:'water_still',row:5,mirrored:false}})?.sheet).toBe(0);
+ expect(labelSprite({texture:{atlas:'lava_still',row:5,mirrored:false}})?.sheet).toBe(0);
+ expect(labelSprite({texture:{atlas:'water_flow',row:5,mirrored:false}})?.sheet).toBe(1);
+});
 
 describe("atlas preview selection", () => {
   it("Ctrl+click consumes an active preview selection without labeling or navigation", () => {

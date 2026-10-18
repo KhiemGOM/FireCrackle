@@ -23,7 +23,6 @@ import { VideoPane, type VideoPreviewHandle } from "./components/VideoPane";
 import { VideoNotes } from "./components/VideoNotes";
 import { selectAtlasCell, atlasSprite, spriteLabel, labelSprite, spriteWithSheet, type PreviewSprite } from "./lib/firePreview";
 import { candidateConfirmation, candidateDigit, candidateText, currentCandidate, replacedLabel, spriteText, type CandidateDraft } from "./lib/labelCandidate";
-import { isFire } from "./lib/grid";
 import { useLayout } from "./hooks/useLayout";
 import { usePanelZooms } from "./hooks/usePanelZooms";
 import { useWheel } from "./hooks/useWheel";
@@ -122,8 +121,8 @@ export default function App() {
   useEffect(() => { setDraft(null); }, [view?.current]);
   useEffect(() => {
     if(draft && draft.frame===view?.current){
-      if(isFire(draft.label))videoPreviewRef.current?.selectSprite(draft.label.fire as PreviewSprite);
-      else if(typeof draft.label==="object"&&"texture" in draft.label)videoPreviewRef.current?.selectSprite({...draft.label.texture,sheet:draft.label.texture.atlas.endsWith("_0")?0:1});
+      const sprite=labelSprite(draft.label);
+      if(sprite)videoPreviewRef.current?.selectSprite(sprite);
     }
   }, [draft?.frame, draft?.label, view?.current]);
   const flagsBoxRef = useRef<HTMLDivElement | null>(null);

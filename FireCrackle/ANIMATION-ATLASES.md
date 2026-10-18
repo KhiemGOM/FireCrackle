@@ -40,3 +40,26 @@ fire analysis can normalize soul-fire observations to the shared fire tick while
 keeping the stored material intact; fluid observations never enter fire flags.
 The GUI/veil preprocessing implementation is unchanged by this feature. Historical
 accuracy measurements are not re-certified by these UI and metadata tests.
+
+## Water color
+
+The water atlas offers a color picker, `#RRGGBB` field, and Untinted reset.
+The selected color is a local viewing preference shared by the picker, Images
+workspace, and manual overlay; it never changes labels or animation timing.
+
+Vanilla 1.16.5 `FluidRenderer.render` obtains `BiomeColors.getWaterColor`, splits
+RGB into channels divided by 255, and passes those values as vertex color. The
+texture's RGB is multiplied by that color. `waterTint.ts` performs that tint once
+over each complete still/flow sheet, preserving alpha and native dimensions;
+RGBA8 results use nearest integer rounding. The original image is never modified.
+Lighting, face shading, fog, and world transparency are separate rendering effects
+and are not baked into the picker tint. White is the uncolored reference.
+
+Both originals are decoded once, concurrent requests share their work, and the
+last four color variants are cached. Changing the selected frame or mirror does
+not regenerate a sheet. Water filters count the prerendered pixels actually shown.
+
+Every individual animation also has a Jolt view: recovered GUI time over video
+time, then that animation's possible phase offsets using its own period. Held
+images and still lava's two directions remain intervals. Extrapolated missing
+clock coverage is marked as display only. These views do not combine materials.

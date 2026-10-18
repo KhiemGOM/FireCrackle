@@ -1,3 +1,6 @@
+import {useWaterTint} from "../hooks/useWaterTint";
+import {renderWaterAtlases,type WaterAtlas} from "../lib/waterTint";
+import {WaterTintControl} from "./WaterTintControl";
 import {ANIMATION_ATLASES,atlasSource,atlasTile,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import fire0 from "../assets/fire_0.png";
@@ -51,10 +54,12 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const setWhiteMax=(value:number|null)=>{if(atlasKind==='fire')setLocalWhiteMax(value);updateFilter({...activeFilter,bottomWhiteMax:value});};
   const [edges, setEdges] = useState<AtlasEdges | null>(null);
   const [edgeError, setEdgeError] = useState(false);
+  const water=useWaterTint(atlasKind==="water");
   useEffect(() => { onEdgesChange?.(atlasKind==='fire'?edges:null); }, [edges, onEdgesChange,atlasKind]);
   useEffect(() => {
     let cancelled = false;setEdges(null);setEdgeError(false);
     const load = (src: string,atlas:AnimationAtlas|null) => new Promise<ReturnType<typeof sheetEdgeCounts>>((resolve, reject) => {
+      if(atlas==="water_still"||atlas==="water_flow"){void renderWaterAtlases(water.color).then(sheets=>{const sheet=sheets[atlas];resolve(spriteSheetEdgeCounts(sheet.rgba,sheet.width,ANIMATION_ATLASES[atlas].rows));}).catch(reject);return;}
       const image = new Image();
       image.onload = () => {
         try {
@@ -73,7 +78,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
     });
     void Promise.all(atlasIds.map((atlas,i)=>load(atlas?atlasSource(atlas):i===0?fire0:fire1,atlas))).then((counts) => { if (!cancelled) setEdges(counts as AtlasEdges); }).catch(() => { if (!cancelled) setEdgeError(true); });
     return () => { cancelled = true; };
-  }, [atlasKind]);
+  }, [atlasKind,water.color]);
   useEffect(() => {
     const picker = pickerRef.current;
     if (!picker) return;
@@ -103,6 +108,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const invalidWhiteRange = bottomWhiteMin !== null && bottomWhiteMax !== null && bottomWhiteMin > bottomWhiteMax;
   const atlasTabs=<div className="atlas-tabs" role="group" aria-label="Animation atlas">{([['fire','Fire'],['soul_fire','Soul fire'],['lava','Lava'],['water','Water']] as const).map(([id,name])=><button key={id} aria-pressed={atlasKind===id} onClick={()=>setAtlasKind(id)}>{name}</button>)}</div>;
   return (<>{atlasTabs}
+    {atlasKind==="water"&&<WaterTintControl color={water.color} onChange={water.setColor}/>}
     <div className="atlas-options" onKeyDown={(e) => e.stopPropagation()}>
     <section className="atlas-filters" aria-label="Visual sprite filters">
       <div className="atlas-filter-heading"><Icon name="filter" /><strong>Sprite pixels</strong><span role="status">{edgeError ? "Counts unavailable" : edges ? `${matchingAppearances(edges, activeFilter)} / ${edges.reduce((n,sheet)=>n+sheet.length*2,0)} match` : "Reading pixels…"}</span></div>
@@ -165,7 +171,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
                     const manualExcluded = excluded.includes(id);
                     const filteredOut = manualExcluded || (counts !== null && !matchesAppearance(edges, col.sheet, row, col.mirrored, activeFilter));
                     const states = [isChosen && "Candidate", isShown && "Preview", isSug && `Time guess from frame ${view.suggestion?.from_frame}`, isAlt && "Alternate time guess", isCurrent && "Saved label"].filter(Boolean);
-                    const sheetImg = atlas?atlasSource(atlas):col.sheet === 0 ? fire0 : fire1;
+                    const sheetImg = atlas==="water_still"||atlas==="water_flow"?water.sheets?.[atlas as WaterAtlas].url??(water.color==="#ffffff"?atlasSource(atlas):""):atlas?atlasSource(atlas):col.sheet === 0 ? fire0 : fire1;
                     return (
                       <button
                         key={c}
@@ -180,7 +186,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
                         <span
                           className="sprite"
                           style={{
-                            backgroundImage: `url(${sheetImg})`,
+                            backgroundImage: sheetImg?`url(${sheetImg})`:"none",
                             backgroundSize: `${CELL}px ${CELL * count}px`,
                             backgroundPosition: `0 -${(atlas?atlasTile(atlas,row):row) * CELL}px`,
                             transform: col.mirrored ? "scaleX(-1)" : undefined,

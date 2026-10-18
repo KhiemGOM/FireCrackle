@@ -1,3 +1,4 @@
+import {getWaterTint,renderWaterAtlases,subscribeWaterTint} from "../lib/waterTint";
 import {ANIMATION_ATLASES,atlasSource,atlasTile,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
 import fire0 from "../assets/fire_0.png";
@@ -46,6 +47,13 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
     let cancelled = false;
     setRgba(null);
     setError(false);
+    if(atlas==="water_still"||atlas==="water_flow"){
+      let generation=0;
+      const update=()=>{const mine=++generation;setRgba(null);setError(false);
+        void renderWaterAtlases(getWaterTint()).then(sheets=>{if(!cancelled&&mine===generation)setRgba({source,rgba:sheets[atlas].rgba});}).catch(()=>{if(!cancelled&&mine===generation)setError(true);});};
+      update();const unsubscribe=subscribeWaterTint(update);
+      return()=>{cancelled=true;unsubscribe();};
+    }
     const image = new Image();
     image.onload = () => {
       if (cancelled) return;

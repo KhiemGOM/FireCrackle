@@ -296,15 +296,15 @@ export function PhaseTab({ backend, view, version, onJump, videoKey }: Props) {
       <div className="phase-plots">
       <div className="phase-topbar">
         <div className="phase-view-tabs" role="tablist" aria-label="Phase views" hidden={fluid}>
-          {([["phase","Timing"],["row","Sprites"],["jolt","Jolt + Fire"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
+          {([["phase","Timing"],["row","Sprites"],["jolt",animation==="soul"?"Jolt + Soul fire":"Jolt + Fire"]] as const).map(([id,label])=><button key={id} role="tab" aria-selected={viewMode===id} onClick={()=>setViewMode(id)}>{label}</button>)}
         </div>
-        <span className="dim">{viewMode==="jolt"?"Jolt + Fire · shared video timeline":jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
-        <button className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
+        <span className="dim" hidden={fluid}>{viewMode==="jolt"?`Jolt + ${animation==="soul"?"Soul fire":"Fire"} · shared video timeline`:jolt.clock==="jolt"?"Canonical time · GUI ticks":"Video time"}</span>
+        <button style={{marginLeft:"auto"}} className="icon-button icon-only" onClick={()=>setFullscreen(!fullscreen)} aria-pressed={fullscreen} aria-label={fullscreen?"Exit fullscreen":"Fullscreen chart"} title={fullscreen?"Exit fullscreen (Esc)":"Fullscreen chart"}><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={fullscreen?"M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5":"M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"} /></svg></button>
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        {fluid&&<TexturePhases key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
-        <div hidden={fluid||viewMode!=="jolt"}><JoltChart key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
+        {fluid&&<TexturePhases jolt={jolt} key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
+        <div hidden={fluid||viewMode!=="jolt"}><JoltChart materialName={animation==="soul"?"Soul fire":"Fire"} key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
 
         <div hidden={fluid||viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>
