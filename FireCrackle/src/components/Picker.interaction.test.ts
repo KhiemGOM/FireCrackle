@@ -22,11 +22,12 @@ function all(node: Element, test: (e: Element) => boolean): Element[] {
 }
 const onCell = vi.fn();
 const onNoFire = vi.fn();
+const onAlternative = vi.fn();
 const view = { label: "unset", suggestion: null } as View;
 let cleanup: Array<void | (() => void)> = [];
 function render(candidate:Label = {fire: {sheet: 1, row: 0, mirrored: false}}, filter?: EdgeFilter, onFilterChange?: (filter: EdgeFilter) => void) {
   hooks.si = hooks.ri = 0; hooks.effects = [];
-  const tree = Picker({ view, cell: 40, onCell, onNoFire, candidate, filter, onFilterChange });
+  const tree = Picker({ view, cell: 40, onCell, onNoFire, onAlternative, candidate, filter, onFilterChange });
   return {
     tree,
     cells: all(tree, e => e.type === "button" && e.props.className?.startsWith("cell")),
@@ -57,16 +58,45 @@ beforeEach(() => {
 it("keeps the same adaptive grid and controls through fire and soul switches",()=>{
  let ui=render();
  const picker=()=>all(ui.tree,e=>e.props.className==="picker picker-adaptive")[0];
- const choose=(name:string)=>all(ui.tree,e=>e.type==="button"&&e.props.children===name)[0].props.onClick();
+ const choose=(name:string)=>all(ui.tree,e=>e.type==="button"&&e.props['aria-label']===name)[0].props.onClick();
  // Same observer target and shared grid structure remain mounted; size state survives every family.
  hooks.states[2]={width:700,height:800};
  ui=render();const fireLayout=picker().props.style;
  expect(ui.cells).toHaveLength(128);
  choose('Soul fire');ui=render();
  expect(ui.cells).toHaveLength(128);expect(picker().props.style).toEqual(fireLayout);
- expect(ui.input('Left')).toBeDefined();expect(ui.whiteInput('Minimum')).toBeDefined();
+ expect(ui.input('Left')).toBeUndefined();expect(ui.whiteInput('Minimum')).toBeUndefined();
  expect(ui.cells[0].props.onContextMenu).toBeTypeOf('function');
  choose('Fire');ui=render();expect(picker().props.style).toEqual(fireLayout);expect(ui.cells).toHaveLength(128);
+});
+it("separates fluid sources and absence labels, with no inactive source cells or filters",()=>{
+ let ui=render();
+ for(const [name,atlas,count,sheet] of [
+  ['Still lava','lava_still',40,0],['Flowing lava','lava_flow',32,1],
+  ['Still water','water_still',64,0],['Flowing water','water_flow',64,1],
+ ] as const){
+  all(ui.tree,e=>e.type==='button'&&e.props['aria-label']===name)[0].props.onClick();ui=render();
+  expect(ui.cells).toHaveLength(count);
+  expect(ui.input('Left')).toBeUndefined();
+  expect(ui.whiteInput('Minimum')).toBeUndefined();
+  onAlternative.mockClear();ui.cells[0].props.onClick({ctrlKey:false});
+  expect(onAlternative).toHaveBeenCalledWith({atlas,sheet,row:0,mirrored:false},false);
+  const button=all(ui.tree,e=>e.props['aria-label']===`Choose no ${atlas.startsWith('water')?'water':'lava'}`)[0];
+  onNoFire.mockClear();button.props.onClick();
+  expect(onNoFire).toHaveBeenCalledWith({no_texture:{atlas}});
+  ui.cells[0].props.onContextMenu({preventDefault:vi.fn(),stopPropagation:vi.fn()});
+  expect(render().cells[0].props.className).not.toContain('manual-filter-miss');
+ }
+});
+it("does not read stale shorter-sheet pixel counts while switching to water",()=>{
+ let ui=render();
+ all(ui.tree,e=>e.type==='button'&&e.props['aria-label']==='Flowing lava')[0].props.onClick();
+ // A shorter atlas may still be in state during the first render after a switch.
+ hooks.states[8]=[Array(16).fill({left:1,right:1}),Array(16).fill({left:1,right:1})];
+ ui=render();
+ all(ui.tree,e=>e.type==='button'&&e.props['aria-label']==='Still water')[0].props.onClick();
+ expect(()=>render()).not.toThrow();
+ expect(render().cells).toHaveLength(64);
 });
 it("filters bottom white inclusively, keeps dimmed sprites clickable, and clears both bounds", async () => {
   render(); cleanup = hooks.effects.map(effect => effect());

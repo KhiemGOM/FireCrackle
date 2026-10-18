@@ -160,10 +160,17 @@ it("up/down step and wrap animation phases while preserving sheet and mirror wit
 });
 
 it("No fire is a reviewed marker saved only after confirmation", () => {
-  let ui = render(); ui.picker.props.onNoFire();
+  let ui = render(); ui.picker.props.onNoFire("no_fire");
   expect(fixture.act).not.toHaveBeenCalled(); ui = render();
   expect(ui.picker.props.candidate).toBe("no_fire"); ui.confirm.props.onClick();
   expect(fixture.act).toHaveBeenCalledExactlyOnceWith({type: "noFire"});
+});
+it("saves only the selected source's absence on confirmation",()=>{
+ const label={no_texture:{atlas:"water_still"}};
+ let ui=render();ui.picker.props.onNoFire(label);
+ expect(fixture.act).not.toHaveBeenCalled();ui=render();
+ expect(ui.picker.props.candidate).toEqual(label);ui.confirm.props.onClick();
+ expect(fixture.act).toHaveBeenCalledExactlyOnceWith({type:"setLabel",label});
 });
 it("shares the atlas edge filters with video matching without labeling", () => {
   let ui=render();

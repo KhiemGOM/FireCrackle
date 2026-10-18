@@ -53,6 +53,7 @@ export interface Bucket {
   unset: number;
   fire: number;
   no_fire: number;
+  no_texture?: number;
   skip: number;
   texture?: number;
   auto_first_person?: number;

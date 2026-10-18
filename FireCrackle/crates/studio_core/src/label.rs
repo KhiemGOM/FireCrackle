@@ -11,6 +11,8 @@ pub enum Label {
     Unset,
     /// Looked at, no fire visible.
     NoFire,
+    /// Looked at, this alternative animation source is absent. Does not imply no fire.
+    NoTexture { atlas: AnimationAtlas },
     /// Looked at, deliberately skipped.
     Skip,
     /// A fire sprite: sheet 0 or 1, animation index 0..31, normal or mirrored.

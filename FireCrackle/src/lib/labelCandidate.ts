@@ -19,7 +19,7 @@ export function candidateConfirmation(candidate: Candidate | null): UiAction | n
   const label = candidate.label;
   if (label === "no_fire") return { type: "noFire" };
   if (label === "skip") return { type: "skip" };
-  if(isTexture(label))return {type:"setLabel",label};
+  if(isTexture(label)||typeof label==='object'&&'no_texture' in label)return {type:"setLabel",label};
   const cell = labelToCell(label);
   return cell ? { type: "clickCell", ...cell } : null;
 }
@@ -46,6 +46,7 @@ export function spriteText(sprite: PreviewSprite | { sheet: number; row: number;
   return `row ${sprite.row} · sheet ${sprite.sheet} · ${sprite.mirrored ? "mirrored" : "normal"}`;
 }
 export function candidateText(label: Label | null): string {
+  if(label&&typeof label==='object'&&'no_texture' in label)return `No ${ANIMATION_ATLASES[label.no_texture.atlas].name.toLowerCase()}`;
   if(label&&isTexture(label))return spriteText({...label.texture,sheet:label.texture.atlas.endsWith("_0")?0:1});
   return label && isFire(label) ? spriteText(label.fire) : label === "no_fire" ? "No fire" : label === "skip" ? "Skip" : "None selected";
 }

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { pickerLayout, PICKER_GAP, PICKER_GUTTER, PICKER_HEADER } from "./pickerLayout";
 
 describe("adaptive fire sheet", () => {
+  it("fits the same shared grid with two columns for one fluid source",()=>{
+    expect(pickerLayout(94,1184,32,32,2)).toEqual({blocks:1,rowsPerBlock:32,cell:32});
+  });
   it("uses two equal blocks in the tall sidebar from the reference", () => {
     expect(pickerLayout(445, 1240, 48)).toEqual({ blocks: 2, rowsPerBlock: 16, cell: 44 });
   });

@@ -52,12 +52,14 @@ export function describeLabel(label: Label): string {
   if (label === "unset") return "unlabelled";
   if (label === "no_fire") return "no fire";
   if (label === "skip") return "skipped";
+  if("no_texture" in label)return `No ${ANIMATION_ATLASES[label.no_texture.atlas].name.toLowerCase()}`;
   if("texture" in label)return spriteText({...label.texture,sheet:label.texture.atlas.endsWith("_0")?0:1});
   const { sheet, row, mirrored } = label.fire;
   return `row ${row} · sheet ${sheet} · ${mirrored ? "mirrored" : "normal"}`;
 }
 
 function labelClass(label: Label): string {
+  if(typeof label==="object"&&"no_texture" in label)return "skip";
   if (isFire(label)||typeof label==="object") return "fire";
   return label;
 }

@@ -258,6 +258,7 @@ export function createMockBackend(): Backend {
         b.unset--;
         if (isFire(l)||typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)) b.fire++;
         else if(typeof l==="object"&&"texture" in l)b.texture=(b.texture??0)+1;
+        else if(typeof l==="object"&&"no_texture" in l)b.no_texture=(b.no_texture??0)+1;
         else if (l === "no_fire") b.no_fire++;
         else if (l === "skip") b.skip++;
       }

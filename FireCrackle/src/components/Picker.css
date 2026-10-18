@@ -1,7 +1,13 @@
 .picker.picker-adaptive {
   scrollbar-gutter: stable;
 }
-.atlas-tabs { display:flex; flex:0 0 auto; gap:6px; margin-bottom:7px; }
+.atlas-tabs { display:flex; flex-wrap:wrap; flex:0 0 auto; gap:6px; margin-bottom:7px; }
+.atlas-options.absence-only { display:flex; }
+.atlas-options.absence-only .atlas-no-fire { width:auto; min-height:30px; flex-direction:row; padding:4px 10px; }
+.atlas-options.absence-only .no-fire-art { width:22px; height:22px; }
+.picker-adaptive .picker-head,.picker-adaptive .picker-row { grid-template-columns:22px repeat(var(--columns,4),calc(var(--cell,22px) + 4px)); }
+.picker-adaptive .picker-head .group { grid-column:span var(--group-span,2); }
+.picker-adaptive .picker-head .group { font-size:11px; }
 .atlas-tabs button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
 .atlas-options { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 78px; gap: 8px; margin-bottom: 7px; }
 .atlas-filters { min-width: 0; padding: 9px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }

@@ -1,5 +1,14 @@
 import { expect, it } from "vitest";
-import { candidateConfirmation, candidateDigit, currentCandidate, replacedLabel } from "./labelCandidate";
+import { candidateConfirmation, candidateDigit, currentCandidate, replacedLabel, candidateText } from "./labelCandidate";
+import {labelsEqual} from './grid';
+it('confirms source-specific absence without turning it into no fire',()=>{
+ const label={no_texture:{atlas:'water_still' as const}};
+ expect(candidateConfirmation({label,origin:'picked'})).toEqual({type:'setLabel',label});
+ expect(candidateText(label)).toBe('No still water');
+ expect(labelsEqual(label,{no_texture:{atlas:'water_still'}})).toBe(true);
+ expect(labelsEqual(label,{no_texture:{atlas:'water_flow'}})).toBe(false);
+ expect(labelsEqual(label,'no_fire')).toBe(false);
+});
 const view = { current: 10, label: "unset" as const, suggestion: { sheet: 1, row: 7, mirrored: false, alt_row: 8, from_frame: 1 } };
 it("requires a separate confirmation action and never carries a draft into another frame", () => {
   const draft = { frame: 10, label: { fire: { sheet: 0, row: 31, mirrored: true } }, origin: "picked" as const };

@@ -1,4 +1,4 @@
-import type { TextureSprite } from "./animationAtlases";
+import type { AnimationAtlas, TextureSprite } from "./animationAtlases";
 // The sprite picker grid: 4 columns x 32 rows, like the reference image
 // (Normal: sheet 0, sheet 1 | Mirrored: sheet 0, sheet 1).
 
@@ -8,7 +8,8 @@ export type Label =
   | "no_fire"
   | "skip"
   | { fire: { sheet: number; row: number; mirrored: boolean } }
-  | { texture: TextureSprite };
+  | { texture: TextureSprite }
+  | { no_texture: { atlas: AnimationAtlas } };
 
 export interface Cell {
   col: number;
@@ -60,6 +61,8 @@ export function isFire(label: Label): label is { fire: { sheet: number; row: num
 
 export function isTexture(label: Label): label is {texture:TextureSprite} {return typeof label === "object" && label !== null && "texture" in label;}
 export function labelsEqual(a: Label, b: Label): boolean {
+  if(typeof a==='object'&&'no_texture' in a)return typeof b==='object'&&'no_texture' in b&&a.no_texture.atlas===b.no_texture.atlas;
+  if(typeof b==='object'&&'no_texture' in b)return false;
   if(isTexture(a)&&isTexture(b))return a.texture.atlas===b.texture.atlas&&a.texture.row===b.texture.row&&a.texture.mirrored===b.texture.mirrored;
   if(isTexture(a)||isTexture(b))return false;
   if (isFire(a) && isFire(b)) {

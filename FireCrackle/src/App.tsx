@@ -95,6 +95,7 @@ export default function App() {
   const workareaRef = useRef<HTMLElement | null>(null);
   const { zooms, wheel: zoomWheel, reset: resetZoom } = usePanelZooms();
   const pickerBoxRef = useRef<HTMLDivElement | null>(null);
+  const activeAbsence = useRef<import("./lib/grid").Label>("no_fire");
   const videoPreviewRef = useRef<VideoPreviewHandle | null>(null);
   const [draft, setDraft] = useState<CandidateDraft | null>(null);
   const [previewSprite, setPreviewSprite] = useState<PreviewSprite | null>(null);
@@ -196,7 +197,7 @@ export default function App() {
       }
       if (a.type === "noFire" || a.type === "skip") {
         setPlayback(STOPPED);
-        setDraft({ frame: view!.current, label: a.type === "noFire" ? "no_fire" : "skip", origin: "picked" });
+        setDraft({ frame: view!.current, label: a.type === "noFire" ? activeAbsence.current : "skip", origin: "picked" });
         return;
       }
       if (a.type === "cancelTyping") { setDraft(null); return; }
@@ -439,7 +440,8 @@ export default function App() {
               <Picker
                 onAlternative={(sprite,ctrl)=>{setPlayback(STOPPED);if(!ctrl)stageSprite(sprite);videoPreviewRef.current?.selectSprite(sprite);}}
                 onEdgesChange={setAtlasEdges}
-                onNoFire={() => { setPlayback(STOPPED); setDraft({ frame: view.current, label: "no_fire", origin: "picked" }); }}
+                onAbsenceChange={label => { activeAbsence.current=label; }}
+                onNoFire={label => { setPlayback(STOPPED); setDraft({ frame: view.current, label, origin: "picked" }); }}
                 filter={atlasFilter} onFilterChange={setAtlasFilter}
                 view={view}
                 candidate={candidate?.label ?? null}

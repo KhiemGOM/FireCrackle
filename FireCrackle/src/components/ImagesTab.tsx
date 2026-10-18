@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import type { Backend } from "../lib/api";
 import { atlasSprite, spriteLabel, spriteWithSheet, type PreviewSprite } from "../lib/firePreview";
 import { isFire, type Label } from "../lib/grid";
-import { spriteText } from "../lib/labelCandidate";
+import { spriteText, candidateText } from "../lib/labelCandidate";
 import { appendImages, clipboardPhotos, IMAGE_ACCEPT, imageIndex, imageView, type GalleryImage } from "../lib/imageGallery";
 import { pickerCellSize, SIDE_LIMITS, VIDEO_LIMITS, upperBound } from "../lib/layout";
 import { scopedStorage } from "../lib/scopedStorage";
@@ -168,13 +168,13 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
             <IconButton icon="layers" label="Switch image preview sheet" onClick={() => stage(spriteWithSheet(sprite??{sheet:1,row:0,mirrored:false},(1-(sprite?.sheet??1)) as 0|1))}>{sprite?.sheet ?? 1}</IconButton>
             <IconButton icon="mirror" label="Mirror image preview" aria-pressed={sprite?.mirrored ?? false} onClick={() => stage({...sprite,sheet:sprite?.sheet??1,row:sprite?.row??0,mirrored:!sprite?.mirrored})}>{sprite?.mirrored ? "mirrored" : "normal"}</IconButton>
           </div>
-          <div className="candidate-panel"><strong>Image check</strong><div className="candidate-value">{sprite ? spriteText(sprite) : selected === "no_fire" ? "No fire" : "Choose a sprite to compare"}</div>
+          <div className="candidate-panel"><strong>Image check</strong><div className="candidate-value">{sprite ? spriteText(sprite) : selected ? candidateText(selected) : "Choose a sprite to compare"}</div>
             <div className="atlas-state preview-state"><b>Preview</b><span>{preview ? spriteText(preview) : "Mask off"}</span></div>
             <div className="candidate-help">Click a sprite to compare · no confirmation needed<br />← → photos · ↑ ↓ sprite row · R mirror · T sheet</div>
           </div>
           <div className="picker-box" ref={picker} onDoubleClick={event => event.ctrlKey && setZoom(1)}>
             <Picker onAlternative={next=>stage(next)} previewOnly view={view} candidate={selected} preview={preview} cell={pickerCellSize(sideWidth) * zoom} filter={filter} onFilterChange={setFilter} onEdgesChange={setEdges}
-              onNoFire={() => setChecks(values => ({ ...values, [item.id]: "no_fire" }))} onCell={(col, row) => { const next = atlasSprite(col, row); if (next) stage(next); }} />
+              onNoFire={label => setChecks(values => ({ ...values, [item.id]: label }))} onCell={(col, row) => { const next = atlasSprite(col, row); if (next) stage(next); }} />
           </div>
         </aside>
       </main>}
