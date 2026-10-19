@@ -53,7 +53,7 @@ fn bad_imports_are_atomic_including_invalid_late_entries_and_wrong_video() {
     let mut cases = vec!["{".to_string(), json.replace("video-id", "other-video")];
     let base: serde_json::Value = serde_json::from_str(&json).unwrap();
     for (key, value) in [
-        ("version", serde_json::json!(3)),
+        ("version", serde_json::json!(4)),
         ("frame_count", serde_json::json!(7)),
         ("format", serde_json::json!("other")),
     ] {
@@ -74,7 +74,10 @@ fn bad_imports_are_atomic_including_invalid_late_entries_and_wrong_video() {
     for bad in cases {
         let mut store = source();
         let before = store.export_json("video-id");
-        assert!(store.import_json(&bad, "video-id").is_err());
+        assert!(
+            store.import_json(&bad, "video-id").is_err(),
+            "accepted invalid archive: {bad}"
+        );
         assert_eq!(store.export_json("video-id"), before);
     }
 }
