@@ -76,7 +76,8 @@ export default function App() {
     createBackend().then(value => setBackend(withErrorReporting(value))).catch((e) => { setStartupError(String(e)); reportError("Start FireCrackle", e); });
   }, []);
 
-  const ws = useWorkspace(backend);
+  const [extraSources, setExtraSources] = useState(readExtraSources);
+  const ws = useWorkspace(backend, !extraSources);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
   useEffect(() => subscribeFailures(() => { if (getFailures().length) setPlayback(STOPPED); }), []);
@@ -85,7 +86,6 @@ export default function App() {
   playbackView.current = view;
   const framePresented = useCallback((frame: number) => { presented.current = frame; }, []);
   const [showSettings, setShowSettings] = useState(false);
-  const [extraSources, setExtraSources] = useState(readExtraSources);
   const changeExtraSources = (enabled: boolean) => { saveExtraSources(enabled); setExtraSources(enabled); setPreviewSprite(null); setDraft(null); activeAbsence.current = "no_fire"; };
   const [showKeys, setShowKeys] = useState(false);
   const [showCredits, setShowCredits] = useState(false);

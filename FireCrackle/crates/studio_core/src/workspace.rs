@@ -415,6 +415,7 @@ impl FrameService {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum UiAction {
+    AnalysisMode { combined: bool },
     Step { frames: i64 },
     BigStep { dir: i64 },
     ManualStep { frames: i64 },
@@ -490,6 +491,7 @@ pub struct TextureObservation {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PhaseChart {
+    pub normal_points: Vec<Point>,
     pub texture_points: Vec<TextureObservation>,
     pub label_sources: std::collections::BTreeMap<u32, Vec<crate::label::LabelSource>>,
     pub points: Vec<Point>,
@@ -790,6 +792,7 @@ impl Workspace {
             }
         };
         match action {
+            UiAction::AnalysisMode { combined } => self.session.set_combined_fire(combined),
             UiAction::ManualStep { frames } => {
                 self.session.manual_advance(frames).map_err(session_err)?;
             }
@@ -940,34 +943,56 @@ impl Workspace {
                 )
             })
             .collect();
+        let normal_points = crate::phase_v2::analyze(
+            &self.session.fire_observations(source, Some(false)),
+            self.session.settings(),
+        )
+        .expect("valid normal fire")
+        .points;
+        let project_frames = &self.session.project().frames;
         let texture_points = self
             .session
             .store()
             .iter()
             .into_iter()
-            .filter_map(|(frame, label)| {
-                if source.is_some_and(|s| !self.session.store().sources(frame).contains(&s)) {
-                    return None;
-                }
-                if let Label::Texture {
-                    atlas,
-                    row,
-                    mirrored,
-                } = label
-                {
-                    Some(TextureObservation {
-                        frame,
-                        pts: self.session.project().frames[frame as usize].pts,
-                        atlas,
-                        row,
-                        mirrored,
-                    })
+            .flat_map(|(frame, label)| {
+                let sources = self.session.store().sources(frame);
+                let labels: Vec<_> = if let Label::FirePair { soul, .. } = label {
+                    if source.is_some_and(|s| !soul.has_source(s)) {
+                        vec![]
+                    } else {
+                        vec![soul.label(true)]
+                    }
+                } else if source.is_some_and(|s| !sources.contains(&s)) {
+                    vec![]
                 } else {
-                    None
-                }
+                    vec![label]
+                };
+                labels
+                    .into_iter()
+                    .filter_map(move |label| {
+                        if let Label::Texture {
+                            atlas,
+                            row,
+                            mirrored,
+                        } = label
+                        {
+                            Some(TextureObservation {
+                                frame,
+                                pts: project_frames[frame as usize].pts,
+                                atlas,
+                                row,
+                                mirrored,
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect();
         PhaseChart {
+            normal_points,
             texture_points,
             label_sources,
             points: decimate(&a.points, max_points),

@@ -16,10 +16,12 @@ import type { Label } from "../lib/grid";
 import type { EdgeFilter } from "../lib/atlasFilter";
 
 type Element = ReactElement<Record<string, any>>;
-it('defaults to the 0.3 fire-only picker even after an alternate was selected',()=>{
+it('defaults to Fire + Soul fire and hides fluids after an alternate was selected',()=>{
  hooks.states[0]='water_flow';hooks.si=hooks.ri=0;
  const root=Picker({view,cell:40,onCell});
- expect(all(root,e=>e.props['aria-label']==='Animation atlas')).toHaveLength(0);
+ expect(all(root,e=>e.props['aria-label']==='Animation atlas')).toHaveLength(1);
+ expect(all(root,e=>e.props['aria-label']==='Soul fire')).toHaveLength(1);
+ expect(all(root,e=>e.props['aria-label']==='Flowing water')).toHaveLength(0);
  expect(all(root,e=>e.props['aria-label']==='Choose no fire')).toHaveLength(1);
  expect(all(root,e=>e.type==='button'&&e.props.className?.startsWith('cell'))).toHaveLength(128);
 });

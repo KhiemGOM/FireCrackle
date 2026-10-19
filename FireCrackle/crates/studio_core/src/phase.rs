@@ -79,6 +79,8 @@ pub enum Severity {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FlagKind {
+    /// Simultaneous normal/soul readings disagree on their shared vanilla animation row.
+    FireConflict,
     /// A short run whose phase differs from compatible phase on both sides.
     PhaseOutlier,
     /// The phase changes and stays changed (a cut, a resource reload, leaving the world, a lag drop).

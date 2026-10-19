@@ -10,6 +10,8 @@ import { createTrailingThrottle } from "../lib/writeThrottle";
 
 /** Actions that change labels: after them the timeline lanes and the flag list must be refreshed. */
 const MUTATING = new Set<UiAction["type"]>([
+  "analysisMode",
+  "setLabel",
   "clickCell",
   "digit",
   "flushTyped",
@@ -71,7 +73,7 @@ export interface WorkspaceState {
   clearError: () => void;
 }
 
-export function useWorkspace(backend: Backend | null): WorkspaceState {
+export function useWorkspace(backend: Backend | null, combinedFire = true): WorkspaceState {
   const [view, setView] = useState<View | null>(null);
   const [flags, setFlags] = useState<Flag[]>([]);
   const [settings, setSettings] = useState<SettingInfo[]>([]);
@@ -304,6 +306,24 @@ export function useWorkspace(backend: Backend | null): WorkspaceState {
     const timer = setInterval(()=>void refresh(),1000);
     return () => {live=false;clearInterval(timer);};
   },[backend,isOpen,remember]);
+
+  const modeVideo = videoPath.current;
+  useEffect(() => {
+    if (!backend || !modeVideo) return;
+    let live = true, timer: ReturnType<typeof setTimeout> | undefined;
+    const sync = async () => {
+      if (!live) return;
+      if (busy.current) { timer = setTimeout(() => void sync(), 25); return; }
+      busy.current = true;
+      try {
+        const next = await backend.act({type:"analysisMode",combined:combinedFire});
+        if (live && videoPath.current === modeVideo) { setView(next); setVersion(n=>n+1); }
+      } catch (error) { if (live) setError(messageOf(error)); }
+      finally { busy.current = false; }
+    };
+    void sync();
+    return () => { live = false; clearTimeout(timer); };
+  }, [backend, modeVideo, combinedFire]);
 
   return { view, projects, forgetProject, videoPath: videoPath.current ?? undefined, flags, settings, error, version, opening, saveStatus, save, transferLabels, transferring, applyAutomation, busy, open, act, setSetting, clearError: () => setError(null) };
 }

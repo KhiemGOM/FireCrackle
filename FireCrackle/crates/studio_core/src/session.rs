@@ -138,6 +138,7 @@ pub struct Session {
     typer: RowTyper,
     log: Vec<String>,
     analysis: Option<Analysis>,
+    combined_fire: bool,
 }
 
 impl Session {
@@ -170,6 +171,7 @@ impl Session {
             typer: RowTyper::new(),
             log: Vec::new(),
             analysis: None,
+            combined_fire: true,
         })
     }
 
@@ -390,7 +392,15 @@ impl Session {
         }
         let now = self.project.frames[self.current as usize].pts;
         let mut trusted = Vec::new();
-        for (frame, label) in self.store.iter() {
+        for observation in self.fire_observations(
+            None,
+            if self.combined_fire {
+                None
+            } else {
+                Some(false)
+            },
+        ) {
+            let (frame, label) = (observation.frame, observation.label);
             let Label::Fire {
                 sheet,
                 row,
@@ -567,52 +577,124 @@ impl Session {
         }
     }
 
-    /// Phase evidence uses independently chosen labels, never accepted clock predictions.
+    pub fn set_combined_fire(&mut self, combined: bool) {
+        if self.combined_fire != combined {
+            self.combined_fire = combined;
+            self.analysis = None;
+        }
+    }
+
+    /// Per-reading provenance remains independent even when two appearances share a frame.
+    pub fn fire_observations(
+        &self,
+        source: Option<LabelSource>,
+        soul: Option<bool>,
+    ) -> Vec<FrameObs> {
+        let mut frames = std::collections::BTreeMap::new();
+        // Prefer normal fire for one clock point when both agree or conflict; retain both originals.
+        for family in [true, false] {
+            if soul.is_some_and(|s| s != family) {
+                continue;
+            }
+            for (frame, label) in self.store.iter() {
+                if let Some(reading) = label.fire_reading(family, &self.store.sources(frame)) {
+                    let included = source.map_or_else(
+                        || {
+                            reading.has_source(LabelSource::Manual)
+                                || reading.has_source(LabelSource::FirstPerson)
+                        },
+                        |s| reading.has_source(s),
+                    );
+                    if included {
+                        frames.insert(
+                            frame,
+                            FrameObs {
+                                frame,
+                                pts: self.project.frames[frame as usize].pts,
+                                label: reading.label(false),
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        frames.into_values().collect()
+    }
+
+    fn build_analysis(&self, source: Option<LabelSource>) -> Analysis {
+        let observations = self.fire_observations(source, None);
+        let mut result = if self.combined_fire {
+            crate::phase_v2::analyze(&observations, &self.settings)
+                .expect("valid fire observations")
+        } else {
+            let mut normal = crate::phase_v2::analyze(
+                &self.fire_observations(source, Some(false)),
+                &self.settings,
+            )
+            .expect("valid normal fire");
+            let soul = crate::phase_v2::analyze(
+                &self.fire_observations(source, Some(true)),
+                &self.settings,
+            )
+            .expect("valid soul fire");
+            normal.flags.extend(soul.flags);
+            normal.flag_details.extend(soul.flag_details);
+            // The chart API also supplies each material separately; this is only the shared frame projection.
+            normal.points = crate::phase_v2::analyze(&observations, &self.settings)
+                .expect("valid observations")
+                .points;
+            normal
+        };
+        if self.combined_fire {
+            for (frame, label) in self.store.iter() {
+                if let Label::FirePair { normal, soul } = label {
+                    let included = |r: crate::label::FireReading| {
+                        source.map_or_else(
+                            || {
+                                r.has_source(LabelSource::Manual)
+                                    || r.has_source(LabelSource::FirstPerson)
+                            },
+                            |s| r.has_source(s),
+                        )
+                    };
+                    if normal.row != soul.row && included(normal) && included(soul) {
+                        let delta = (soul.row as i16 - normal.row as i16).rem_euclid(32) as f64;
+                        result.flags.push(Flag {
+                            frame,
+                            end_frame: frame,
+                            kind: crate::phase::FlagKind::FireConflict,
+                            severity: crate::phase::Severity::Hard,
+                            phase_delta: delta,
+                        });
+                        result.flag_details.push(crate::phase_v2::FlagDetail {
+                            frame,
+                            end_frame: frame,
+                            kind: crate::phase::FlagKind::FireConflict,
+                            explanation: crate::phase_v2::Explanation::FireConflict,
+                            clock_delta: delta,
+                            held_ticks: None,
+                        });
+                    }
+                }
+            }
+        }
+        result.flags.sort_by_key(|f| f.frame);
+        result.flag_details.sort_by_key(|f| f.frame);
+        result
+    }
+
+    /// One clock in normal mode; independent fire clocks in All sources.
     pub fn analysis(&mut self) -> &Analysis {
         if self.analysis.is_none() {
-            let obs: Vec<FrameObs> =
-                self.store
-                    .iter()
-                    .into_iter()
-                    .filter(|(frame, l)| {
-                        l.is_fire()
-                            && self.store.sources(*frame).iter().any(|s| {
-                                matches!(s, LabelSource::Manual | LabelSource::FirstPerson)
-                            })
-                    })
-                    .map(|(frame, label)| FrameObs {
-                        frame,
-                        pts: self.project.frames[frame as usize].pts,
-                        label: label.canonical_fire().unwrap_or(label),
-                    })
-                    .collect();
-            self.analysis = Some(
-                crate::phase_v2::analyze(&obs, &self.settings)
-                    .expect("labels, settings and project timestamps are valid"),
-            );
+            self.analysis = Some(self.build_analysis(None));
         }
         self.analysis.as_ref().expect("just computed")
     }
-
     pub fn flags(&mut self) -> &[Flag] {
         &self.analysis().flags
     }
-
     pub fn analysis_for_source(&self, source: LabelSource) -> Analysis {
-        let obs: Vec<_> = self
-            .store
-            .iter()
-            .into_iter()
-            .filter(|(frame, label)| {
-                label.is_fire() && self.store.sources(*frame).contains(&source)
-            })
-            .map(|(frame, label)| FrameObs {
-                frame,
-                pts: self.project.frames[frame as usize].pts,
-                label: label.canonical_fire().unwrap_or(label),
-            })
-            .collect();
-        crate::phase_v2::analyze(&obs, &self.settings).expect("valid labels and timestamps")
+        self.build_analysis(Some(source))
     }
 
     /// Log lines for every change since the last call (undo included), ready for `AutosaveLog::append`.

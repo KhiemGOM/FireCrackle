@@ -11,6 +11,7 @@ use serde::Serialize;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Explanation {
+    FireConflict,
     LocalDeparture,
     PersistentMismatch,
     RecoveredDeparture,
@@ -263,6 +264,7 @@ pub fn analyze(obs: &[FrameObs], s: &Settings) -> Result<Analysis, String> {
             }
         } else {
             match f.kind {
+                FlagKind::FireConflict => Explanation::FireConflict,
                 FlagKind::PhaseOutlier => Explanation::LocalDeparture,
                 FlagKind::PhaseShift => Explanation::PersistentMismatch,
                 FlagKind::PhaseExcursion => Explanation::RecoveredDeparture,

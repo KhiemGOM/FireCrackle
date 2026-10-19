@@ -32,8 +32,8 @@ export function FlagsPanel({ flags, fps, current, onSeek,details=[],onHover,onSe
               <button onClick={(e) => onSelect ? onSelect(f, e.ctrlKey) : onSeek(f.frame)}
                 onMouseEnter={() => onHover?.(f)} onMouseLeave={() => onHover?.(null)}
                 onFocus={() => onHover?.(f)} onBlur={() => onHover?.(null)}
-                title={`${text.hint} ${priorityHint(f.severity)}${onSelect ? " Click to focus charts · Ctrl+click to open video." : ""}`}>
-                <span className={`sev ${f.severity}`} title={priorityHint(f.severity)}>{f.severity}</span>
+                title={`${text.hint} ${priorityHint(f.severity,f.kind)}${onSelect ? " Click to focus charts · Ctrl+click to open video." : ""}`}>
+                <span className={`sev ${f.severity}`} title={priorityHint(f.severity,f.kind)}>{f.severity}</span>
                 <span className="kind">{text.name}</span>
                 <span className="where">
                   frame {f.frame}

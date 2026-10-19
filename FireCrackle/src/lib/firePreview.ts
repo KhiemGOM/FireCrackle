@@ -1,7 +1,7 @@
 import {validAtlasRow,type AnimationAtlas} from "./animationAtlases";
 import type {Label} from "./grid";
 import type { View } from "./api";
-import { COLUMNS, isFire } from "./grid";
+import { COLUMNS, isFire, fireLabel } from "./grid";
 
 export interface PreviewSprite {
   atlas?: AnimationAtlas;
@@ -33,7 +33,7 @@ export function selectAtlasCell(ctrlKey: boolean, col: number, row: number, prev
 
 /** Prefer the destination prediction; an explicit label is a useful fallback. */
 export function framePreview(view: Pick<View, "suggestion" | "label">): PreviewSprite | null {
-  if(typeof view.label==='object'&&'texture' in view.label)return labelSprite(view.label);
+  if(typeof view.label==='object'&&('texture' in view.label||'fire_pair' in view.label))return labelSprite(view.label);
   if (view.suggestion) {
     const sprite = previewSprite("manual", view.suggestion as PreviewSprite);
     if (sprite) return sprite;
@@ -44,6 +44,7 @@ export function framePreview(view: Pick<View, "suggestion" | "label">): PreviewS
 export function spriteLabel(sprite:PreviewSprite):Label {return sprite.atlas?{texture:{atlas:sprite.atlas,row:sprite.row,mirrored:sprite.mirrored}}:{fire:sprite};}
 
 export function labelSprite(label:Label):PreviewSprite|null {
+  if(typeof label==='object'&&'fire_pair' in label)return labelSprite(fireLabel(label)!);
   if(isFire(label))return label.fire as PreviewSprite;
   if(typeof label==='object'&&'texture' in label)return {...label.texture,sheet:label.texture.atlas.endsWith('_0')||label.texture.atlas.endsWith('_still')?0:1};
   return null;

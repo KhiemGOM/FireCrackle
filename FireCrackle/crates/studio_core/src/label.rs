@@ -17,12 +17,49 @@ pub enum Label {
     Skip,
     /// A fire sprite: sheet 0 or 1, animation index 0..31, normal or mirrored.
     Fire { sheet: u8, row: u8, mirrored: bool },
+    /// Two simultaneous readings of the shared fire clock, retaining appearance and evidence origin.
+    FirePair {
+        normal: FireReading,
+        soul: FireReading,
+    },
     /// Alternative manual texture observation. Soul-fire rows use normalized animation indices.
     Texture {
         atlas: AnimationAtlas,
         row: u8,
         mirrored: bool,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FireReading {
+    pub sheet: u8,
+    pub row: u8,
+    pub mirrored: bool,
+    pub sources: u8,
+}
+impl FireReading {
+    pub fn label(self, soul: bool) -> Label {
+        if soul {
+            Label::Texture {
+                atlas: if self.sheet == 0 {
+                    AnimationAtlas::SoulFire0
+                } else {
+                    AnimationAtlas::SoulFire1
+                },
+                row: self.row,
+                mirrored: self.mirrored,
+            }
+        } else {
+            Label::Fire {
+                sheet: self.sheet,
+                row: self.row,
+                mirrored: self.mirrored,
+            }
+        }
+    }
+    pub fn has_source(self, source: LabelSource) -> bool {
+        self.sources & source.bit() != 0
+    }
 }
 
 /// Vanilla block-atlas families; fluids remain separate observations, never fire detector outputs.
@@ -92,6 +129,20 @@ impl Label {
             Label::Texture { atlas, row, .. } if row >= atlas.rows() => {
                 Err(LabelError::InvalidRow(row))
             }
+            Label::FirePair { normal, soul } => {
+                normal.label(false).validate()?;
+                soul.label(true).validate()?;
+                if normal.sheet >= 2
+                    || soul.sheet >= 2
+                    || normal.sources == 0
+                    || soul.sources == 0
+                    || normal.sources > 15
+                    || soul.sources > 15
+                {
+                    return Err(LabelError::InvalidSheet(normal.sheet.max(soul.sheet)));
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -99,6 +150,7 @@ impl Label {
     pub fn canonical_fire(&self) -> Option<Label> {
         match *self {
             Label::Fire { .. } => Some(*self),
+            Label::FirePair { normal, .. } => Some(normal.label(false)),
             Label::Texture {
                 atlas,
                 row,
@@ -114,6 +166,72 @@ impl Label {
 
     pub fn is_fire(&self) -> bool {
         self.canonical_fire().is_some()
+    }
+
+    pub fn fire_reading(self, soul: bool, sources: &BTreeSet<LabelSource>) -> Option<FireReading> {
+        let bits = sources.iter().fold(0, |bits, source| bits | source.bit());
+        match self {
+            Label::FirePair {
+                normal,
+                soul: other,
+            } => Some(if soul { other } else { normal }),
+            Label::Fire {
+                sheet,
+                row,
+                mirrored,
+            } if !soul => Some(FireReading {
+                sheet,
+                row,
+                mirrored,
+                sources: bits,
+            }),
+            Label::Texture {
+                atlas,
+                row,
+                mirrored,
+            } if soul => atlas.fire_sheet().map(|sheet| FireReading {
+                sheet,
+                row,
+                mirrored,
+                sources: bits,
+            }),
+            _ => None,
+        }
+    }
+    pub fn merge_fire(
+        self,
+        incoming: Label,
+        old_sources: &BTreeSet<LabelSource>,
+        new_sources: &BTreeSet<LabelSource>,
+    ) -> Label {
+        let updated = |soul| {
+            let mut next = incoming.fire_reading(soul, new_sources).unwrap();
+            if let Some(old) = self.fire_reading(soul, old_sources) {
+                if old.sheet == next.sheet && old.row == next.row && old.mirrored == next.mirrored {
+                    next.sources |= old.sources;
+                }
+            }
+            next
+        };
+        if let Label::Fire { .. } = incoming {
+            if let Some(soul) = self.fire_reading(true, old_sources) {
+                return Label::FirePair {
+                    normal: updated(false),
+                    soul,
+                };
+            }
+        }
+        if let Label::Texture { atlas, .. } = incoming {
+            if atlas.fire_sheet().is_some() {
+                if let Some(normal) = self.fire_reading(false, old_sources) {
+                    return Label::FirePair {
+                        normal,
+                        soul: updated(true),
+                    };
+                }
+            }
+        }
+        incoming
     }
 }
 
@@ -133,6 +251,16 @@ pub enum LabelSource {
     FirstPerson,
     TimeGuess,
     NoFire,
+}
+impl LabelSource {
+    pub fn bit(self) -> u8 {
+        match self {
+            Self::Manual => 1,
+            Self::FirstPerson => 2,
+            Self::TimeGuess => 4,
+            Self::NoFire => 8,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -209,14 +337,26 @@ impl LabelStore {
     pub fn export_json(&self, fingerprint: &str) -> String {
         let archive = LabelArchive {
             format: "firecrackle-labels".into(),
-            version: 2,
+            version: if self
+                .labels
+                .values()
+                .any(|l| matches!(l, Label::FirePair { .. }))
+            {
+                3
+            } else {
+                2
+            },
             fingerprint: fingerprint.into(),
             frame_count: self.frame_count,
             labels: self
                 .iter()
                 .into_iter()
                 .map(|(frame, label)| Entry {
-                    version: 2,
+                    version: if matches!(label, Label::FirePair { .. }) {
+                        3
+                    } else {
+                        2
+                    },
                     frame,
                     label,
                     predicted: self.is_predicted(frame),
@@ -235,7 +375,7 @@ impl LabelStore {
         };
         let archive: LabelArchive = serde_json::from_str(text.trim_start_matches('\u{feff}'))
             .map_err(|e| bad(&format!("Invalid label file: {e}")))?;
-        if archive.format != "firecrackle-labels" || archive.version != 2 {
+        if archive.format != "firecrackle-labels" || ![2, 3].contains(&archive.version) {
             return Err(bad("Unsupported label export format or version"));
         }
         if archive.frame_count != self.frame_count || archive.fingerprint != fingerprint {
@@ -247,7 +387,7 @@ impl LabelStore {
         for entry in &archive.labels {
             self.check_frame(entry.frame)?;
             entry.label.validate()?;
-            if entry.version != 2
+            if ![2, 3].contains(&entry.version)
                 || !seen.insert(entry.frame)
                 || (entry.predicted && !entry.label.is_fire())
             {
@@ -303,7 +443,11 @@ impl LabelStore {
     /// Persist both value and source; accepted guesses must not become calibration evidence on restart.
     pub fn log_line(&self, frame: u32) -> String {
         serde_json::to_string(&Entry {
-            version: 2,
+            version: if matches!(self.get(frame), Label::FirePair { .. }) {
+                3
+            } else {
+                2
+            },
             frame,
             label: self.get(frame),
             predicted: self.is_predicted(frame),
@@ -366,6 +510,18 @@ impl LabelStore {
                 LabelSource::Manual
             });
         }
+        let label = prev.merge_fire(label, &old_sources, &sources);
+        if let Label::FirePair { normal, soul } = label {
+            sources = [
+                LabelSource::Manual,
+                LabelSource::FirstPerson,
+                LabelSource::TimeGuess,
+                LabelSource::NoFire,
+            ]
+            .into_iter()
+            .filter(|s| normal.has_source(*s) || soul.has_source(*s))
+            .collect();
+        }
         if prev == label && old_sources == sources {
             return Ok(false);
         }
@@ -421,6 +577,21 @@ impl LabelStore {
                 };
                 if label != Label::Unset {
                     sources.insert(LabelSource::Manual);
+                }
+                let label = prev.merge_fire(label, &old_sources, &sources);
+                if let Label::FirePair { normal, soul } = label {
+                    sources = [
+                        LabelSource::Manual,
+                        LabelSource::FirstPerson,
+                        LabelSource::TimeGuess,
+                        LabelSource::NoFire,
+                    ]
+                    .into_iter()
+                    .filter(|s| normal.has_source(*s) || soul.has_source(*s))
+                    .collect();
+                }
+                if prev == label && old_sources == sources {
+                    continue;
                 }
                 step.push((f, prev, self.is_predicted(f), old_sources));
                 self.put(f, label);
@@ -483,7 +654,7 @@ impl LabelStore {
                 }
             };
             entry.label.validate()?;
-            if entry.version > 2 {
+            if entry.version > 3 {
                 return Err(LabelError::Parse {
                     line: line_no,
                     msg: "Unsupported label log version".into(),
@@ -506,7 +677,11 @@ impl LabelStore {
 /// One versioned animation-index log entry, without a trailing newline.
 pub fn log_line(frame: u32, label: Label) -> String {
     serde_json::to_string(&Entry {
-        version: 2,
+        version: if matches!(label, Label::FirePair { .. }) {
+            3
+        } else {
+            2
+        },
         frame,
         label,
         predicted: false,

@@ -53,6 +53,7 @@ export function describeLabel(label: Label): string {
   if (label === "no_fire") return "no fire";
   if (label === "skip") return "skipped";
   if("no_texture" in label)return `No ${ANIMATION_ATLASES[label.no_texture.atlas].name.toLowerCase()}`;
+  if("fire_pair" in label)return `Fire row ${label.fire_pair.normal.row} · Soul fire row ${label.fire_pair.soul.row}${label.fire_pair.normal.row===label.fire_pair.soul.row?"":" · CONFLICT"}`;
   if("texture" in label)return spriteText({...label.texture,sheet:label.texture.atlas.endsWith("_0")?0:1});
   const { sheet, row, mirrored } = label.fire;
   return `row ${row} · sheet ${sheet} · ${mirrored ? "mirrored" : "normal"}`;

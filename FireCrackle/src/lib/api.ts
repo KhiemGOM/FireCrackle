@@ -37,7 +37,7 @@ export interface View {
   save_error: string | null;
 }
 
-export type FlagKind = "phase_outlier" | "phase_shift" | "phase_excursion" | "jolt_report";
+export type FlagKind = "fire_conflict" | "phase_outlier" | "phase_shift" | "phase_excursion" | "jolt_report";
 export type Severity = "hard" | "soft" | "jolt";
 
 export interface Flag {

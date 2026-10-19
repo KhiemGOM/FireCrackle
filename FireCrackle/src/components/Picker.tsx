@@ -5,7 +5,7 @@ import {ANIMATION_ATLASES,atlasSource,atlasTile,type AnimationAtlas} from "../li
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import fire0 from "../assets/fire_0.png";
 import fire1 from "../assets/fire_1.png";
-import { COLUMNS, columnHeader, labelToCell, suggestionCells, type Label } from "../lib/grid";
+import { COLUMNS, columnHeader, labelToCell, suggestionCells, fireLabel, type Label } from "../lib/grid";
 import type { PreviewSprite } from "../lib/firePreview";
 import type { View } from "../lib/api";
 import { pickerLayout } from "../lib/pickerLayout";
@@ -34,14 +34,14 @@ interface Props {
 /** The 32 sprite rows, divided into equal blocks to fit the panel. */
 export function Picker({ view, cell, onCell, candidate = null, preview = null, filter, onFilterChange, onNoFire, onEdgesChange, previewOnly = false, onAlternative, onAbsenceChange, extraSources = false }: Props) {
   const [selectedAtlasKind,setAtlasKind]=useState<"fire"|"soul_fire"|"lava_still"|"lava_flow"|"water_still"|"water_flow">("fire");
-  const atlasKind = extraSources ? selectedAtlasKind : "fire";
+  const atlasKind = extraSources || selectedAtlasKind === "soul_fire" ? selectedAtlasKind : "fire";
   const atlasIds: [AnimationAtlas|null,AnimationAtlas|null] = atlasKind==='soul_fire'?['soul_fire_0','soul_fire_1']:atlasKind.startsWith('lava')?['lava_still','lava_flow']:atlasKind.startsWith('water')?['water_still','water_flow']:[null,null];
   const fluid=atlasKind.startsWith('water')||atlasKind.startsWith('lava');
   const columns=fluid?(atlasKind.endsWith('_flow')?[1,3]:[0,2]):[0,1,2,3];
   const rows=fluid?ANIMATION_ATLASES[atlasKind as AnimationAtlas].rows:32;
   const maxPixels=16;
-  const absence:Label=atlasKind==='fire'?'no_fire':{no_texture:{atlas:atlasKind==='soul_fire'?'soul_fire_0':atlasKind as AnimationAtlas}};
-  const absenceName=atlasKind.startsWith('water')?'No water':atlasKind.startsWith('lava')?'No lava':atlasKind==='soul_fire'?'No soul fire':'No fire';
+  const absence:Label=!extraSources||atlasKind==='fire'?'no_fire':{no_texture:{atlas:atlasKind==='soul_fire'?'soul_fire_0':atlasKind as AnimationAtlas}};
+  const absenceName=atlasKind.startsWith('water')?'No water':atlasKind.startsWith('lava')?'No lava':atlasKind==='soul_fire'&&extraSources?'No soul fire':'No fire';
   const absent=(label:Label|null)=>JSON.stringify(label)===JSON.stringify(absence);
   const [familyFilters,setFamilyFilters]=useState<Partial<Record<typeof atlasKind,EdgeFilter>>>({});
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +100,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   }, []);
   const { blocks, rowsPerBlock, cell: CELL } = pickerLayout(size.width, size.height, cell,rows,columns.length);
   const cellFor=(label:Label)=>{
+    if(typeof label==='object'&&'fire_pair' in label)label=fireLabel(label,atlasKind==='soul_fire')!;
     if(typeof label==='object'&&'texture' in label){const sheet=atlasIds.indexOf(label.texture.atlas);return sheet<0?null:{col:sheet+(label.texture.mirrored?2:0),row:label.texture.row};}
     return atlasKind==='fire'?labelToCell(label):null;
   };
@@ -116,7 +117,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
 
   const filterActive = left !== null || right !== null || bottomWhiteMin !== null || bottomWhiteMax !== null;
   const invalidWhiteRange = bottomWhiteMin !== null && bottomWhiteMax !== null && bottomWhiteMin > bottomWhiteMax;
-  const atlasTabs=extraSources && <div className="atlas-tabs" role="group" aria-label="Animation atlas">{([['fire','Fire','Fire'],['soul_fire','Soul fire','Soul'],['lava_still','Still lava','S. lava'],['lava_flow','Flowing lava','F. lava'],['water_still','Still water','S. water'],['water_flow','Flowing water','F. water']] as const).map(([id,name,short])=><button key={id} aria-label={name} title={name} aria-pressed={atlasKind===id} onClick={()=>setAtlasKind(id)}>{short}</button>)}</div>;
+  const atlasTabs=<div className="atlas-tabs" role="group" aria-label="Animation atlas">{([['fire','Fire','Fire'],['soul_fire','Soul fire','Soul'],['lava_still','Still lava','S. lava'],['lava_flow','Flowing lava','F. lava'],['water_still','Still water','S. water'],['water_flow','Flowing water','F. water']] as const).filter(([id])=>extraSources||id==='fire'||id==='soul_fire').map(([id,name,short])=><button key={id} aria-label={name} title={name} aria-pressed={atlasKind===id} onClick={()=>setAtlasKind(id)}>{short}</button>)}</div>;
   return (<>{atlasTabs}
     {atlasKind.startsWith("water")&&<WaterTintControl color={water.color} onChange={water.setColor}/>}
     <div className={`atlas-options${atlasKind!=="fire"?" absence-only":""}`} onKeyDown={(e) => e.stopPropagation()}>

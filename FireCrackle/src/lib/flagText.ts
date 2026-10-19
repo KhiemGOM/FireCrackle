@@ -1,6 +1,7 @@
 import type { FlagKind,Severity } from "./api";
 
-export function priorityHint(severity:Severity):string {
+export function priorityHint(severity:Severity,kind?:FlagKind):string {
+  if(kind==='fire_conflict')return 'HARD: simultaneous fire and soul fire readings must agree on their animation row in normal mode.';
   if(severity==='jolt')return 'Imported Jolt report flag. This is a reported interval, separate from the fire checker’s hard/soft priority.';
   return severity==="hard"
     ? "Large timing discrepancy: inspect the footage. Lag or a capture hold can cause this too."
@@ -8,6 +9,7 @@ export function priorityHint(severity:Severity):string {
 }
 
 export function flagText(kind:FlagKind,explanation?:string):{name:string;hint:string} {
+  if(kind==='fire_conflict')return {name:'Fire / soul fire row conflict',hint:'Normal fire and soul fire on this frame have different animation rows. Their vanilla animation clock is shared. Check both saved readings.'};
   if(explanation?.startsWith("jolt_removed:"))return {name:"Jolt · reported cut interval",hint:explanation.slice("jolt_removed:".length).trim()};
   if(explanation?.startsWith("jolt_stalled:"))return {name:"Jolt · reported clock stall",hint:explanation.slice("jolt_stalled:".length).trim()};
   if(explanation?.startsWith("forward_jump:"))return {name:"Forward animation jump",hint:explanation.slice("forward_jump:".length).trim()};

@@ -9,11 +9,16 @@ export type AnimationChart = typeof ANIMATION_CHARTS[number][0];
 export const isFluidChart=(id:AnimationChart):id is Exclude<AnimationAtlas,'soul_fire_0'|'soul_fire_1'>=>id!=='fire'&&id!=='soul';
 
 /** Keep material provenance even though normal and soul fire share a 32-tick clock. */
-export function fireMaterialChart(chart:PhaseChart|null,material:'fire'|'soul'):PhaseChart|null {
+export function fireMaterialChart(chart:PhaseChart|null,material:'fire'|'soul'|'combined'):PhaseChart|null {
  if(!chart)return null;
+ if(material==='combined')return forwardTransitionChart(chart);
  const soulFrames=new Set((chart.texture_points??[]).filter(p=>soulFire(p.atlas)).map(p=>p.frame));
  if(material==='fire'&&!soulFrames.size)return chart;
- const points=chart.points.filter(p=>soulFrames.has(p.frame)===(material==='soul'));
+ const points=chart.normal_points
+  ? material==='fire' ? chart.normal_points : (chart.texture_points??[])
+    .filter(p=>soulFire(p.atlas))
+    .map(p=>({frame:p.frame,pts:p.pts,step:p.row,phase:modulo(chart.tick_rate*p.pts-p.row,32)}))
+  : chart.points.filter(p=>soulFrames.has(p.frame)===(material==='soul'));
  // Recalculate local review events on this source; never reuse a cross-material transition.
  return forwardTransitionChart({...chart,points,runs:[],reference_phase:points[0]?.phase??null,flags:[],flag_details:[]});
 }

@@ -44,7 +44,7 @@ pub fn buckets(store: &LabelStore, flags: &[Flag], start: u32, end: u32, n: usiz
         }
         let b = &mut out[bucket_of(frame)];
         match label {
-            Label::Fire { .. } => b.fire += 1,
+            Label::Fire { .. } | Label::FirePair { .. } => b.fire += 1,
             Label::Texture { .. } if label.is_fire() => b.fire += 1,
             Label::Texture { .. } => b.texture += 1,
             Label::NoFire => b.no_fire += 1,

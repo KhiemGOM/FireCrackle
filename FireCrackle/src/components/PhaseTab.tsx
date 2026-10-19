@@ -72,7 +72,7 @@ export function PhaseTab({ backend, view, version, onJump, videoKey, extraSource
   const reference = useMemo(() => timeReference(jolt), [jolt]);
   const [selectedAnimation,setAnimation]=useState<AnimationChart|"joint">("fire");
   const animation = extraSources ? selectedAnimation : "fire";
-  const unified = useMemo(() => reviewChart(fireMaterialChart(videoChart,animation==="soul"?"soul":"fire"),jolt,fps),[videoChart,jolt.data,jolt.session,fps,animation]);
+  const unified = useMemo(() => reviewChart(fireMaterialChart(videoChart,!extraSources?"combined":animation==="soul"?"soul":"fire"),jolt,fps),[videoChart,jolt.data,jolt.session,fps,animation,extraSources]);
   const chart = useMemo(() => jolt.clock === "jolt" ? correctedJoltChart(joltPhase(unified, reference), reference) : unified, [unified, reference, jolt.clock]);
   const displayPoints = useMemo(()=>(chart?.display_points??chart?.points??[]).slice().sort((a,b)=>a.pts-b.pts),[chart]);
   const originTick = useMemo(()=>chart?.clock_origin_tick ?? reference.tickAt(reference.sampleTimes[0]) ?? 0,[chart,reference]);

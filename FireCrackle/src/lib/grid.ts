@@ -4,12 +4,26 @@ import type { AnimationAtlas, TextureSprite } from "./animationAtlases";
 
 /** A frame label, in the JSON shape the Rust `Label` serialises to. */
 export type Label =
+  | { fire_pair: { normal: FireReading; soul: FireReading } }
   | "unset"
   | "no_fire"
   | "skip"
   | { fire: { sheet: number; row: number; mirrored: boolean } }
   | { texture: TextureSprite }
   | { no_texture: { atlas: AnimationAtlas } };
+
+export interface FireReading {sheet:number;row:number;mirrored:boolean;sources:number}
+/** Original appearance per family; a paired frame is still one labelled frame. */
+export function fireLabel(label:Label,soul=false):Label|null {
+  if(typeof label==='object'&&'fire_pair' in label){const r=soul?label.fire_pair.soul:label.fire_pair.normal;return soul?{texture:{atlas:r.sheet===0?'soul_fire_0':'soul_fire_1',row:r.row,mirrored:r.mirrored}}:{fire:{sheet:r.sheet,row:r.row,mirrored:r.mirrored}};}
+  return soul?isTexture(label)&&label.texture.atlas.startsWith('soul_fire')?label:null:isFire(label)?label:null;
+}
+export function mergeFireLabels(previous:Label,incoming:Label):Label {
+  const normal=fireLabel(incoming)??fireLabel(previous),soul=fireLabel(incoming,true)??fireLabel(previous,true);
+  if(!normal||!soul||(!fireLabel(incoming)&&!fireLabel(incoming,true)))return incoming;
+  const n=(normal as {fire:FireReading}).fire,s=(soul as {texture:{atlas:string;row:number;mirrored:boolean}}).texture;
+  return {fire_pair:{normal:{sheet:n.sheet,row:n.row,mirrored:n.mirrored,sources:1},soul:{sheet:s.atlas.endsWith('_0')?0:1,row:s.row,mirrored:s.mirrored,sources:1}}};
+}
 
 export interface Cell {
   col: number;
@@ -61,6 +75,7 @@ export function isFire(label: Label): label is { fire: { sheet: number; row: num
 
 export function isTexture(label: Label): label is {texture:TextureSprite} {return typeof label === "object" && label !== null && "texture" in label;}
 export function labelsEqual(a: Label, b: Label): boolean {
+  if(typeof a==='object'&&'fire_pair' in a||typeof b==='object'&&'fire_pair' in b)return JSON.stringify(a)===JSON.stringify(b);
   if(typeof a==='object'&&'no_texture' in a)return typeof b==='object'&&'no_texture' in b&&a.no_texture.atlas===b.no_texture.atlas;
   if(typeof b==='object'&&'no_texture' in b)return false;
   if(isTexture(a)&&isTexture(b))return a.texture.atlas===b.texture.atlas&&a.texture.row===b.texture.row&&a.texture.mirrored===b.texture.mirrored;

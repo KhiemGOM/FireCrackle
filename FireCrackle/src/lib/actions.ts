@@ -6,6 +6,7 @@ import type { Label } from "./grid";
 
 /** The actions the backend understands (mirrors the Rust `UiAction`). */
 export type UiAction =
+  | {type:"analysisMode";combined:boolean}
   | { type: "step"; frames: number }
   | { type: "bigStep"; dir: number }
   | { type: "manualStep"; frames: number }

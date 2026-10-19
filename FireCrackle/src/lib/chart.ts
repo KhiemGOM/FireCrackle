@@ -37,6 +37,7 @@ export interface ChartRun {
 }
 
 export interface PhaseChart {
+  normal_points?: ChartPoint[];
   texture_points?: import("./animationAtlases").TextureObservation[];
   /** Includes display-only estimates. Never use for detection, fitting or agreement statistics. */
   display_points?: ChartPoint[];

@@ -6,8 +6,9 @@ import type { UiAction } from "./actions";
 import type { Backend, Bucket, Flag, SettingInfo, Suggestion, View } from "./api";
 import type { ChartPoint } from "./chart";
 import type { ThumbStatus } from "./thumbs";
+import {labelSprite} from "./firePreview";
 import {soulFire} from "./animationAtlases";
-import { isFire, labelsEqual, type Label } from "./grid";
+import { isFire, labelsEqual, fireLabel, mergeFireLabels, type Label } from "./grid";
 
 const N = 2400;
 const FPS = 30;
@@ -88,13 +89,16 @@ export function createMockBackend(): Backend {
         ? { state: "running", count: 0, error: null }
         : { state: "ready", count: 40, error: null };
 
+  let combinedFire = true;
+  const currentFlags = (): Flag[] => [...MOCK_FLAGS,...(combinedFire?[...labels.entries()].flatMap(([frame,label]):Flag[]=>typeof label==='object'&&'fire_pair' in label&&label.fire_pair.normal.row!==label.fire_pair.soul.row?[{frame,end_frame:frame,kind:'fire_conflict',severity:'hard',phase_delta:(label.fire_pair.soul.row-label.fire_pair.normal.row+32)%32}]:[]):[])].sort((a,b)=>a.frame-b.frame);
   const get = (f: number): Label => labels.get(f) ?? "unset";
   const clamp = (f: number) => Math.max(0, Math.min(N - 1, f));
 
   function put(changes: Array<[number, Label]>, inferred=false) {
     const undo: Array<[number, Label, boolean]> = [];
-    for (const [f, l] of changes) {
+    for (const [f, incoming] of changes) {
       const prev = get(f);
+      const l = mergeFireLabels(prev,incoming);
       const wasPredicted=predicted.has(f);
       if (labelsEqual(prev, l) && wasPredicted === inferred) continue;
       undo.push([f, prev, wasPredicted]);
@@ -118,12 +122,12 @@ export function createMockBackend(): Backend {
   function suggestion(): Suggestion | null {
     let best: { f: number; d: number } | null = null;
     for (const [f, l] of labels) {
-      if (!isFire(l) || f === current || predicted.has(f)) continue;
+      if (!labelSprite(l) || f === current || predicted.has(f)) continue;
       const d = Math.abs(f - current);
       if (!best || d < best.d || (d === best.d && f < best.f)) best = { f, d };
     }
     if (!best) return null;
-    const src = labels.get(best.f)! as Extract<Label, { fire: unknown }>;
+    const src = labelSprite(labels.get(best.f)!)!;
     const x = TICK_RATE * ((current - best.f) / FPS);
     let adv: number;
     let alt: number | null;
@@ -140,8 +144,8 @@ export function createMockBackend(): Backend {
         alt = fl + 1;
       }
     }
-    const row = (a: number) => (((src.fire.row + a) % 32) + 32) % 32;
-    return { sheet: src.fire.sheet, mirrored: src.fire.mirrored, row: row(adv), alt_row: alt === null ? null : row(alt), from_frame: best.f };
+    const row = (a: number) => (((src.row + a) % 32) + 32) % 32;
+    return { sheet: src.sheet, mirrored: src.mirrored, row: row(adv), alt_row: alt === null ? null : row(alt), from_frame: best.f };
   }
 
   function view(): View {
@@ -155,7 +159,7 @@ export function createMockBackend(): Backend {
       typed_pending: typed,
       suggestion: suggestion(),
       labelled_count: labels.size,
-      flag_count: MOCK_FLAGS.length,
+      flag_count: currentFlags().length,
       warnings: ["Mock backend: a synthetic video, nothing is saved."],
       save_error: null,
     };
@@ -178,6 +182,7 @@ export function createMockBackend(): Backend {
     async act(a: UiAction) {
       if (a.type !== "digit" && a.type !== "flushTyped") typed = null;
       switch (a.type) {
+        case 'analysisMode': combinedFire=a.combined;break;
         case "manualStep": manualAdvance(a.frames);break;
         case "manualBigStep": manualAdvance(Math.sign(a.dir)*num("label.big_step_frames"));break;
         case "step": current = clamp(current + a.frames); break;
@@ -188,7 +193,7 @@ export function createMockBackend(): Backend {
         case "nextUnlabelled": current = nextUnlabelled(Math.sign(a.dir) || 1); break;
         case "nextFlag": {
           const dir = Math.sign(a.dir) || 1;
-          const fs = MOCK_FLAGS.map((f) => f.frame);
+          const fs = currentFlags().map((f) => f.frame);
           const hit = dir > 0 ? fs.find((f) => f > current) : [...fs].reverse().find((f) => f < current);
           if (hit !== undefined) current = hit;
           break;
@@ -256,13 +261,13 @@ export function createMockBackend(): Backend {
         if (f < start || f >= end) continue;
         const b = out[idx(f)];
         b.unset--;
-        if (isFire(l)||typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)) b.fire++;
+        if (fireLabel(l)||fireLabel(l,true)) b.fire++;
         else if(typeof l==="object"&&"texture" in l)b.texture=(b.texture??0)+1;
         else if(typeof l==="object"&&"no_texture" in l)b.no_texture=(b.no_texture??0)+1;
         else if (l === "no_fire") b.no_fire++;
         else if (l === "skip") b.skip++;
       }
-      for (const fl of MOCK_FLAGS) {
+      for (const fl of currentFlags()) {
         const a = Math.max(fl.frame, start);
         const z = Math.min(fl.end_frame, end - 1);
         if (a > z) continue;
@@ -270,7 +275,7 @@ export function createMockBackend(): Backend {
       }
       return out;
     },
-    flags: async () => MOCK_FLAGS,
+    flags: async () => currentFlags(),
     // dev only: a thumbnail every 60 frames, "generated" after a short pause so the running state shows
     async thumbsStart() {
       if (thumbsReadyAt === 0) thumbsReadyAt = Date.now() + 1200;
@@ -288,7 +293,7 @@ export function createMockBackend(): Backend {
       const points: ChartPoint[] = [];
       for (const f of [...labels.keys()].sort((a, b) => a - b)) {
         const l = labels.get(f)!;
-        const sprite=isFire(l)?l.fire:typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)?l.texture:null;
+        const canonical=fireLabel(l);const sprite=canonical&&isFire(canonical)?canonical.fire:typeof l==="object"&&"texture" in l&&soulFire(l.texture.atlas)?l.texture:null;
         if(!sprite)continue;
         const {row}=sprite;
         const step = row;
@@ -299,8 +304,9 @@ export function createMockBackend(): Backend {
       const runs = points.length
         ? [{ first_frame: points[0].frame, last_frame: points[points.length - 1].frame, points: points.length, center: points[0].phase, width: 1 }]
         : [];
-      const texture_points=[...labels.entries()].filter(([,l])=>typeof l==="object"&&"texture" in l).map(([frame,l])=>({frame,pts:frame/FPS,...(l as Extract<Label,{texture:unknown}>).texture}));
-      return { texture_points, points: kept, runs, flags: MOCK_FLAGS, tick_rate: TICK_RATE, window_ticks: 2 };
+      const normal_points=points.filter(p=>!!fireLabel(get(p.frame)));
+      const texture_points=[...labels.entries()].map(([frame,label])=>[frame,fireLabel(label,true)??label] as const).filter(([,l])=>typeof l==="object"&&"texture" in l).map(([frame,l])=>({frame,pts:frame/FPS,...(l as Extract<Label,{texture:unknown}>).texture}));
+      return { normal_points, texture_points, points: kept, runs, flags: currentFlags(), tick_rate: TICK_RATE, window_ticks: 2 };
     },
     settingsDescribe: async () => settings.map((s) => ({ ...s })),
     async settingsSet(key, value) {

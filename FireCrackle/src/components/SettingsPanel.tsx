@@ -80,8 +80,8 @@ export function SettingsPanel({ settings, onSet, onClose, extraSources = false, 
         <div className="modal-body">
           <section>
             <h3>Texture sources</h3>
-            <label><input type="checkbox" checked={extraSources} onChange={e => onExtraSources?.(e.target.checked)} /> Enable extra texture sources</label>
-            <p className="setting-explain">Soul fire, lava, water and combined charts. Off keeps the 0.3 fire-only interface. Saved for this app.</p>
+              <label><input type="checkbox" checked={extraSources} onChange={e => onExtraSources?.(e.target.checked)} /> All sources · separate analysis</label>
+              <p className="setting-explain">Off: Fire + Soul fire share one timeline and analysis. On: separate fire/soul charts, plus lava, water and All textures. Original sources stay saved.</p>
           </section>
           {groups.map((g) => (
             <section key={g}>

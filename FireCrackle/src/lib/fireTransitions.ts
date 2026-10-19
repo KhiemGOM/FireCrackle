@@ -7,6 +7,10 @@ export const FORWARD_TICK_SLACK = 1;
 /** Share the same local review events on both chart clocks; phase stays available for inspection. */
 export function forwardTransitionChart(chart: PhaseChart): PhaseChart {
   const {flags,details}=fireTransitions(chart.points,chart.tick_rate);
+  flags.push(...chart.flags.filter(f=>f.kind==='fire_conflict'));
+  details.push(...(chart.flag_details??[]).filter(d=>d.kind==='fire_conflict'));
+  flags.sort((a,b)=>a.frame-b.frame);
+  details.sort((a,b)=>a.frame-b.frame);
   return {...chart,flags,flag_details:details};
 }
 
