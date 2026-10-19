@@ -27,6 +27,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
   const [index, setIndex] = useState(0);
   const [checks, setChecks] = useState<Record<string, Label>>({});
   const [preview, setPreview] = useState<PreviewSprite | null>(null);
+  const [firstPersonAllowed, setFirstPersonAllowed] = useState(true);
   const [edges, setEdges] = useState<AtlasEdges | null>(null);
   const [filter, setFilter] = useState(() => readPreferences(scopedStorage("images")).atlasFilter);
   const [sideWidth, setSideWidth] = useState(400);
@@ -155,7 +156,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
     {restoring ? <div className="images-empty" role="status">Restoring saved photos…</div> : !item ? <div className="images-empty"><h2>Check fire in a photo</h2><p>Add several photos, drop them here, or paste a screenshot with Ctrl+V. Photos and their mask settings are saved locally on this device.</p><button className="big" onClick={() => input.current?.click()}>Add photos…</button></div>
       : <main className="workarea" ref={area} style={{ "--side-w": `${sideWidth}px`, "--video-h": `${videoHeight}px` } as CSSProperties}>
         <section className="left">
-          <VideoPane key={item.id} videoKey={`image:${item.id}`} storageScope={`image:${item.id}`} stateStorage={stateStorage} stillImage={item}
+          <VideoPane firstPersonAllowed={firstPersonAllowed} key={item.id} videoKey={`image:${item.id}`} storageScope={`image:${item.id}`} stateStorage={stateStorage} stillImage={item}
             backend={backend} view={view} atlasFilter={filter} atlasEdges={edges} previewRef={viewer}
             onPreviewChange={setPreview} onMatchCandidate={stage} onStep={step} onError={setError} />
           <Splitter direction="row" label="Image height" value={videoHeight} min={VIDEO_LIMITS.min} getMax={() => upperBound(area.current?.clientHeight ?? 0, 170, VIDEO_LIMITS.max)} onChange={setVideoHeight} onReset={() => setVideoHeight(520)} />
@@ -176,7 +177,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
             <div className="candidate-help">Click a sprite to compare · no confirmation needed<br />← → photos · ↑ ↓ sprite row · R mirror · T sheet</div>
           </div>
           <div className="picker-box" ref={picker} onDoubleClick={event => event.ctrlKey && setZoom(1)}>
-            <Picker onAlternative={next=>stage(next)} previewOnly view={view} candidate={selected} preview={preview} cell={pickerCellSize(sideWidth) * zoom} filter={filter} onFilterChange={setFilter} onEdgesChange={setEdges}
+            <Picker onFirstPersonAllowedChange={setFirstPersonAllowed} onAlternative={next=>stage(next)} previewOnly view={view} candidate={selected} preview={preview} cell={pickerCellSize(sideWidth) * zoom} filter={filter} onFilterChange={setFilter} onEdgesChange={setEdges}
               onNoFire={label => setChecks(values => ({ ...values, [item.id]: label }))} onCell={(col, row) => { const next = atlasSprite(col, row); if (next) stage(next); }} />
           </div>
         </aside>

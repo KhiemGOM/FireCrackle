@@ -38,11 +38,11 @@ function viewport(node: Element): Element | undefined {
 async function pane() {
   return viewport(await tree())!;
 }
-async function tree() {
+async function tree(extra: Partial<Parameters<typeof VideoPane>[0]> = {}) {
   hooks.stateCursor = hooks.refCursor = 0;
   hooks.effects = [];
   const backend = createMockBackend();
-  const root = VideoPane({ backend, view: await backend.view(), onError: vi.fn() });
+  const root = VideoPane({ backend, view: await backend.view(), onError: vi.fn(), ...extra });
   const frame = viewport(root)!;
   frame.props.ref.current ??= {offsetParent: {}, getBoundingClientRect: () => ({width: 0, height: 0})};
   return root;
@@ -570,4 +570,21 @@ it.each(["soul_fire_0", "soul_fire_1", "lava_still", "lava_flow", "water_still",
   const next = {atlas, sheet: atlas.endsWith("_0") || atlas.endsWith("_still") ? 0 : 1, row: 3, mirrored: true};
   animation.props.onPreview(next); root = await tree();
   expect(byType(root, AnimationControls)!.props.current).toEqual(next);
+});
+
+it("disables first-person for soul selection, clears an active overlay, and allows normal fire again", async () => {
+  let root=await tree();
+  find(root,"Toggle first-person fire")!.props.onClick();root=await tree();
+  expect(find(root,"First-person fire settings")).toBeDefined();
+  root=await tree({firstPersonAllowed:false});
+  expect(find(root,"Toggle first-person fire")!.props.disabled).toBe(true);
+  expect(find(root,"First-person fire settings")).toBeUndefined();
+  find(root,"Toggle first-person fire")!.props.onClick();
+  const clear=hooks.effects.find(effect=>effect.toString().includes("!firstPersonAllowed"));
+  expect(clear).toBeDefined();clear!();
+  root=await tree();
+  expect(find(root,"Toggle first-person fire")!.props.disabled).toBe(false);
+  expect(find(root,"First-person fire settings")).toBeUndefined();
+  find(root,"Toggle first-person fire")!.props.onClick();
+  expect(find(await tree(),"First-person fire settings")).toBeDefined();
 });

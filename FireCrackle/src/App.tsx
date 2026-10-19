@@ -107,6 +107,7 @@ export default function App() {
   const [draft, setDraft] = useState<CandidateDraft | null>(null);
   const [previewSprite, setPreviewSprite] = useState<PreviewSprite | null>(null);
   const [atlasFilter, setAtlasFilter] = useState<EdgeFilter>(readPreferences().atlasFilter);
+  const [firstPersonAllowed, setFirstPersonAllowed] = useState(true);
   const [atlasEdges, setAtlasEdges] = useState<AtlasEdges | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
   useEffect(() => { if (ws.error) reportError("Project action", ws.error); }, [ws.error]);
@@ -378,7 +379,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
+            <VideoPane firstPersonAllowed={firstPersonAllowed} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
             <Splitter
               direction="row"
               label="Video height"
@@ -455,7 +456,7 @@ export default function App() {
             <div className="picker-box" ref={pickerBoxRef} onDoubleClick={(e) => e.ctrlKey && resetZoom("picker")}>
               <Picker extraSources={extraSources}
                 onAlternative={(sprite,ctrl)=>{setPlayback(STOPPED);if(!ctrl)stageSprite(sprite);videoPreviewRef.current?.selectSprite(sprite);}}
-                onEdgesChange={setAtlasEdges}
+                onFirstPersonAllowedChange={setFirstPersonAllowed} onEdgesChange={setAtlasEdges}
                 onAbsenceChange={label => { activeAbsence.current=label; }}
                 onNoFire={label => { setPlayback(STOPPED); setDraft({ frame: view.current, label, origin: "picked" }); }}
                 filter={atlasFilter} onFilterChange={setAtlasFilter}

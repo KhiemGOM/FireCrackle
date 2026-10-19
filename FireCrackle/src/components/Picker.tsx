@@ -15,6 +15,7 @@ import "./Picker.css";
 
 interface Props {
   extraSources?: boolean;
+  onFirstPersonAllowedChange?: (allowed: boolean) => void;
   onAlternative?: (sprite:PreviewSprite,ctrl:boolean)=>void;
   previewOnly?: boolean;
   filter?: EdgeFilter;
@@ -32,7 +33,7 @@ interface Props {
 }
 
 /** The 32 sprite rows, divided into equal blocks to fit the panel. */
-export function Picker({ view, cell, onCell, candidate = null, preview = null, filter, onFilterChange, onNoFire, onEdgesChange, previewOnly = false, onAlternative, onAbsenceChange, extraSources = false }: Props) {
+export function Picker({ onFirstPersonAllowedChange, view, cell, onCell, candidate = null, preview = null, filter, onFilterChange, onNoFire, onEdgesChange, previewOnly = false, onAlternative, onAbsenceChange, extraSources = false }: Props) {
   const [selectedAtlasKind,setAtlasKind]=useState<"fire"|"soul_fire"|"lava_still"|"lava_flow"|"water_still"|"water_flow">("fire");
   const atlasKind = extraSources || selectedAtlasKind === "soul_fire" ? selectedAtlasKind : "fire";
   const atlasIds: [AnimationAtlas|null,AnimationAtlas|null] = atlasKind==='soul_fire'?['soul_fire_0','soul_fire_1']:atlasKind.startsWith('lava')?['lava_still','lava_flow']:atlasKind.startsWith('water')?['water_still','water_flow']:[null,null];
@@ -66,6 +67,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const edges=edgesKind.current===atlasKind?loadedEdges:null;
   const [edgeError, setEdgeError] = useState(false);
   useEffect(()=>{onAbsenceChange?.(absence);},[atlasKind,onAbsenceChange]);
+  useEffect(() => { onFirstPersonAllowedChange?.(atlasKind === "fire"); }, [atlasKind, onFirstPersonAllowedChange]);
   const water=useWaterTint(atlasKind.startsWith("water"));
   useEffect(() => { onEdgesChange?.(atlasKind==='fire'?edges:null); }, [edges, onEdgesChange,atlasKind]);
   useEffect(() => {

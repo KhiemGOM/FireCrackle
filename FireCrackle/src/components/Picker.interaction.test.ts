@@ -234,3 +234,15 @@ it("filters soul's own shifted pixels, mirrors edges, and isolates source settin
   all(ui.tree,e=>e.props['aria-label']==='Fire')[0].props.onClick();
   expect(render().input("Left").props.value).toBe(7);
 });
+
+it("reports first-person availability immediately when changing atlas tabs", () => {
+  const report=vi.fn();
+  function draw(){hooks.si=hooks.ri=0;hooks.effects=[];return Picker({extraSources:true,view,cell:40,onCell,onFirstPersonAllowedChange:report});}
+  let root=draw();
+  const reportEffect=()=>hooks.effects.find(effect=>effect.toString().includes("onFirstPersonAllowedChange"))!();
+  reportEffect();expect(report).toHaveBeenLastCalledWith(true);
+  all(root,e=>e.props['aria-label']==='Soul fire')[0].props.onClick();root=draw();
+  reportEffect();expect(report).toHaveBeenLastCalledWith(false);
+  all(root,e=>e.props['aria-label']==='Fire')[0].props.onClick();draw();
+  reportEffect();expect(report).toHaveBeenLastCalledWith(true);
+});

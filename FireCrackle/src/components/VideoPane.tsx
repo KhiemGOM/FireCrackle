@@ -66,6 +66,7 @@ function labelClass(label: Label): string {
 }
 
 interface Props {
+  firstPersonAllowed?: boolean;
   stillImage?: { name: string; url: string };
   storageScope?: string;
   stateStorage?: Pick<Storage, "getItem" | "setItem">;
@@ -99,7 +100,7 @@ interface Props {
 }
 
 /** The current frame, with its number, time and label over it. */
-export function VideoPane({ backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
+export function VideoPane({ firstPersonAllowed = true, backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
@@ -124,7 +125,8 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   const restored = useRef<MaskState | null>(null);
   if (!restored.current) restored.current = readMaskState(toolStorage);
   const saved = restored.current;
-  const [hudEnabled, setHudEnabled] = useState(saved.hudEnabled);
+  const [hudRequested, setHudEnabled] = useState(saved.hudEnabled);
+  const hudEnabled = firstPersonAllowed && hudRequested;
   const [hudRow, setHudRow] = useState(saved.hudRow);
   const [hudFov, setHudFov] = useState(saved.hudFov);
   const [manualEnabled, setManualEnabled] = useState(saved.manualEnabled);
@@ -202,11 +204,13 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
   const [findToken, setFindToken] = useState(0);
   const [matchPick, setMatchPick] = useState<{ index: number; n: number } | null>(null);
   function toggleRuler() { setRuler(current => ({ ...current, enabled: !current.enabled })); }
+  useEffect(() => { if (!firstPersonAllowed) setHudEnabled(false); }, [firstPersonAllowed]);
   function toggleFirstPerson() {
+    if (!firstPersonAllowed) return;
     setAnimationOpen(false);
     setMatchingEnabled(false);
     setHudEnabled(!hudEnabled);
-    if (!hudEnabled) { setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
+    if (!hudEnabled) { setManualAtlas(undefined); setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
   }
   function toggleQuad() {
     setManualEnabled(!manualEnabled);
@@ -490,7 +494,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
       </div>
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
-        <IconButton icon="fire" label="Toggle first-person fire" title="First-person fire · H" aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
+        <IconButton icon="fire" label="Toggle first-person fire" disabled={!firstPersonAllowed} title={firstPersonAllowed ? "First-person fire · H" : "First-person burning uses normal fire only"} aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
         <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
         <span className="tool-spacer" aria-hidden="true" />
