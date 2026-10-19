@@ -204,8 +204,8 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
       <g opacity={compression ? 1 : opacity} clipPath={`url(#${clipId})`}>
         {compression && frameUrl && delivery ? rgba && <CompressedQuad rgba={rgba} quad={quad} row={row} mirrored={mirrored}
           width={delivery.width} height={delivery.height} displayWidth={width} displayHeight={height} opacity={opacity} quality={compression.quality} />
-          : <FireTexels texels={texels} pixelGrid={pixelGrid} scaleX={width} scaleY={height} />}
-        {compression && pixelGrid && <g fill="none">{texels.map((p,i)=><polygon key={i} points={points(p.points)} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth={0.7} vectorEffect="non-scaling-stroke" />)}</g>}
+          : <FireTexels texels={texels} pixelGrid={pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} />}
+        {compression && pixelGrid && <g fill="none">{texels.map((p,i)=><polygon key={i} points={points(p.points)} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth={0.7 / screenScale} />)}</g>}
       </g>
       <polygon className="fire-quad-guide" points={points(quad)} strokeWidth={2 / screenScale} onPointerDown={(e) => { if (e.ctrlKey) begin(e, selectedCorner ?? 0, false); }} />
       {!transformMode && quad.map(([x, y], i) => <circle key={i} className={`fire-quad-handle${selectedCorner === i ? " selected" : ""}`} cx={x * width} cy={y * height}

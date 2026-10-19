@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useSvgScreenScale } from "../hooks/useSvgScreenScale";
 import fire1 from "../assets/fire_1.png";
 import { hudTexels } from "../lib/hudOverlay";
 import "./HudOverlay.css";
@@ -11,11 +12,14 @@ interface Props {
   fov: number;
   opacity: number;
   pixelGrid: boolean;
+  zoom?: number;
 }
 
 /** A visual reference only: no detector decisions and no label writes. */
-export function HudOverlay({ width, height, row, fov, opacity, pixelGrid }: Props) {
+export function HudOverlay({ width, height, row, fov, opacity, pixelGrid, zoom = 1 }: Props) {
   const clipId = useId();
+  const svgRef = useRef<SVGSVGElement>(null);
+  const screenScale = useSvgScreenScale(svgRef, width, height, zoom);
   const [rgba, setRgba] = useState<Uint8ClampedArray | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -40,10 +44,10 @@ export function HudOverlay({ width, height, row, fov, opacity, pixelGrid }: Prop
   }, []);
   const texels = useMemo(() => rgba && width > 0 && height > 0 ? hudTexels(rgba, row, width, height, fov) : [], [rgba, row, width, height, fov]);
   if (error) return <div className="hud-error" role="alert">Could not load the HUD fire texture.</div>;
-  return <svg className="hud-overlay" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ opacity }} aria-label={`First-person fire preview, row ${row}, sheet 1`}>
+  return <svg ref={svgRef} className="hud-overlay" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ opacity }} aria-label={`First-person fire preview, row ${row}, sheet 1`}>
     <defs><clipPath id={clipId}><rect width={width} height={height} /></clipPath></defs>
     <g clipPath={`url(#${clipId})`}>
-      <FireTexels texels={texels} pixelGrid={pixelGrid} />
+      <FireTexels texels={texels} pixelGrid={pixelGrid} screenScale={screenScale} />
     </g>
   </svg>;
 }

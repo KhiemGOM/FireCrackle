@@ -18,3 +18,10 @@ describe("fire preview pixel grid", () => {
     }
   });
 });
+
+it.each([0.125, 1, 8, 64, 256])("keeps grid width at 0.7 screen pixels at scale %s", screenScale => {
+  const svg=renderToStaticMarkup(createElement(FireTexels,{texels:[{points:[[0,0],[1,0],[1,1]],colour:"red",alpha:1}],pixelGrid:true,screenScale}));
+  const width=Number(svg.match(/stroke-width="([^"]+)"/)![1]);
+  expect(width*screenScale).toBeCloseTo(0.7,12);
+  expect(svg).not.toContain("non-scaling-stroke");
+});

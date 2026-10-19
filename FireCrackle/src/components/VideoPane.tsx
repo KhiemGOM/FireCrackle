@@ -463,7 +463,7 @@ export function VideoPane({ backend, view, onError, onFramePresented, previewRef
           style={{ transform: `translate(${xf.x}px, ${xf.y}px) rotate(${xf.angle ?? 0}deg) scale(${xf.scale})` }}
         >
           {url ? <img src={url} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => { setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight }); if (!stillImage && shown !== null && e.currentTarget.getAttribute("src") === urlRef.current) onFramePresented?.(shown); }} /> : <div className="placeholder">decoding…</div>}
-          {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
+          {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} zoom={xf.scale} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
           {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} atlas={manualAtlas} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
             placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
