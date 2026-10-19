@@ -1,0 +1,351 @@
+{
+  "plan": {
+    "task": "normal_fire32_animation_phase; one ranked top3, not concatenated candidate lists",
+    "temperatures": [
+      0.01,
+      0.03,
+      0.1,
+      0.3
+    ],
+    "cnn_weights": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "matcher_phase_reduction": "maximum similarity across appearances of each phase",
+    "fusion": "weight*CNNsoftmax + (1-weight)*softmax(phase_score/temperature); unusable matcher is uniform",
+    "selection": "maximum calibration top3; tie minimum calibration crossentropy, higher CNNweight, lower temperature",
+    "calibration": {
+      "recording": "2026-10-17 17-04-31.mkv",
+      "crops": 157,
+      "frames": 53
+    },
+    "test": {
+      "recording": "2026-10-16 00-40-22.mkv",
+      "crops": 617,
+      "frames": 179
+    },
+    "training": false,
+    "synthetic": false,
+    "budget": "about5minutes",
+    "tie_ranking": "descending fused probability, then ascending animation phase"
+  },
+  "selection": {
+    "chosen": {
+      "temperature": 0.01,
+      "cnn_weight": 0.25,
+      "calibration": {
+        "n": 157,
+        "top1": 106,
+        "top3": 127,
+        "top3_accuracy": 0.8089171974522293,
+        "cross_entropy": 1.3440220983709792
+      }
+    },
+    "bank": [
+      {
+        "temperature": 0.01,
+        "cnn_weight": 0.0,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 116,
+          "top3_accuracy": 0.7388535031847133,
+          "cross_entropy": 1.5868309728812415
+        }
+      },
+      {
+        "temperature": 0.01,
+        "cnn_weight": 0.25,
+        "calibration": {
+          "n": 157,
+          "top1": 106,
+          "top3": 127,
+          "top3_accuracy": 0.8089171974522293,
+          "cross_entropy": 1.3440220983709792
+        }
+      },
+      {
+        "temperature": 0.01,
+        "cnn_weight": 0.5,
+        "calibration": {
+          "n": 157,
+          "top1": 109,
+          "top3": 126,
+          "top3_accuracy": 0.802547770700637,
+          "cross_entropy": 1.308319980686171
+        }
+      },
+      {
+        "temperature": 0.01,
+        "cnn_weight": 0.75,
+        "calibration": {
+          "n": 157,
+          "top1": 108,
+          "top3": 124,
+          "top3_accuracy": 0.7898089171974523,
+          "cross_entropy": 1.3507478118382408
+        }
+      },
+      {
+        "temperature": 0.01,
+        "cnn_weight": 1.0,
+        "calibration": {
+          "n": 157,
+          "top1": 97,
+          "top3": 118,
+          "top3_accuracy": 0.7515923566878981,
+          "cross_entropy": 1.5745967248480008
+        }
+      },
+      {
+        "temperature": 0.03,
+        "cnn_weight": 0.0,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 116,
+          "top3_accuracy": 0.7388535031847133,
+          "cross_entropy": 2.025245310973014
+        }
+      },
+      {
+        "temperature": 0.03,
+        "cnn_weight": 0.25,
+        "calibration": {
+          "n": 157,
+          "top1": 109,
+          "top3": 126,
+          "top3_accuracy": 0.802547770700637,
+          "cross_entropy": 1.6759769513453648
+        }
+      },
+      {
+        "temperature": 0.03,
+        "cnn_weight": 0.5,
+        "calibration": {
+          "n": 157,
+          "top1": 105,
+          "top3": 123,
+          "top3_accuracy": 0.7834394904458599,
+          "cross_entropy": 1.5483200972124396
+        }
+      },
+      {
+        "temperature": 0.03,
+        "cnn_weight": 0.75,
+        "calibration": {
+          "n": 157,
+          "top1": 102,
+          "top3": 121,
+          "top3_accuracy": 0.7707006369426752,
+          "cross_entropy": 1.502760430695919
+        }
+      },
+      {
+        "temperature": 0.03,
+        "cnn_weight": 1.0,
+        "calibration": {
+          "n": 157,
+          "top1": 97,
+          "top3": 118,
+          "top3_accuracy": 0.7515923566878981,
+          "cross_entropy": 1.5745967248480008
+        }
+      },
+      {
+        "temperature": 0.1,
+        "cnn_weight": 0.0,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 116,
+          "top3_accuracy": 0.7388535031847133,
+          "cross_entropy": 2.7482372114347133
+        }
+      },
+      {
+        "temperature": 0.1,
+        "cnn_weight": 0.25,
+        "calibration": {
+          "n": 157,
+          "top1": 101,
+          "top3": 122,
+          "top3_accuracy": 0.7770700636942676,
+          "cross_entropy": 2.075814386234209
+        }
+      },
+      {
+        "temperature": 0.1,
+        "cnn_weight": 0.5,
+        "calibration": {
+          "n": 157,
+          "top1": 100,
+          "top3": 120,
+          "top3_accuracy": 0.7643312101910829,
+          "cross_entropy": 1.7952856438726026
+        }
+      },
+      {
+        "temperature": 0.1,
+        "cnn_weight": 0.75,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 119,
+          "top3_accuracy": 0.7579617834394905,
+          "cross_entropy": 1.630953933773615
+        }
+      },
+      {
+        "temperature": 0.1,
+        "cnn_weight": 1.0,
+        "calibration": {
+          "n": 157,
+          "top1": 97,
+          "top3": 118,
+          "top3_accuracy": 0.7515923566878981,
+          "cross_entropy": 1.5745967248480008
+        }
+      },
+      {
+        "temperature": 0.3,
+        "cnn_weight": 0.0,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 116,
+          "top3_accuracy": 0.7388535031847133,
+          "cross_entropy": 3.206859130181504
+        }
+      },
+      {
+        "temperature": 0.3,
+        "cnn_weight": 0.25,
+        "calibration": {
+          "n": 157,
+          "top1": 99,
+          "top3": 119,
+          "top3_accuracy": 0.7579617834394905,
+          "cross_entropy": 2.2388094506169685
+        }
+      },
+      {
+        "temperature": 0.3,
+        "cnn_weight": 0.5,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 119,
+          "top3_accuracy": 0.7579617834394905,
+          "cross_entropy": 1.8767129261063182
+        }
+      },
+      {
+        "temperature": 0.3,
+        "cnn_weight": 0.75,
+        "calibration": {
+          "n": 157,
+          "top1": 98,
+          "top3": 119,
+          "top3_accuracy": 0.7579617834394905,
+          "cross_entropy": 1.6665603344171958
+        }
+      },
+      {
+        "temperature": 0.3,
+        "cnn_weight": 1.0,
+        "calibration": {
+          "n": 157,
+          "top1": 97,
+          "top3": 118,
+          "top3_accuracy": 0.7515923566878981,
+          "cross_entropy": 1.5745967248480008
+        }
+      }
+    ]
+  },
+  "test": {
+    "cnn128": {
+      "n": 617,
+      "top1": 425,
+      "top3": 495,
+      "top3_accuracy": 0.8022690437601296,
+      "cross_entropy": 1.286441445350647,
+      "groups": {
+        "block": {
+          "n": 425,
+          "top1": 305,
+          "top3": 354,
+          "top3_accuracy": 0.8329411764705882,
+          "cross_entropy": 1.1348726749420166
+        },
+        "entity": {
+          "n": 192,
+          "top1": 120,
+          "top3": 141,
+          "top3_accuracy": 0.734375,
+          "cross_entropy": 1.6219452619552612
+        }
+      }
+    },
+    "fusion": {
+      "n": 617,
+      "top1": 419,
+      "top3": 514,
+      "top3_accuracy": 0.833063209076175,
+      "cross_entropy": 1.3655056101212002,
+      "groups": {
+        "block": {
+          "n": 425,
+          "top1": 279,
+          "top3": 353,
+          "top3_accuracy": 0.8305882352941176,
+          "cross_entropy": 1.349577500023081
+        },
+        "entity": {
+          "n": 192,
+          "top1": 140,
+          "top3": 161,
+          "top3_accuracy": 0.8385416666666666,
+          "cross_entropy": 1.4007631454946408
+        }
+      }
+    },
+    "deterministic": {
+      "n": 617,
+      "top1": 363,
+      "top3": 420,
+      "top3_accuracy": 0.6807131280388979
+    }
+  },
+  "paired_vs_cnn": {
+    "both_hit": 473,
+    "fusion_only_hit": 41,
+    "cnn_only_hit": 22,
+    "both_miss": 81
+  },
+  "matcher_seconds": 19.359538699999998,
+  "analysis_seconds": 0.23200980000183336,
+  "baseline_parity": 617,
+  "dataset_sha256": "1366cff9892877305e434e8af0c969ba7b83c1470f1165cabfbec8cc74b1c753",
+  "cnn_cache_sha256": "08de225359f445b1ccb57e9b41f34cad99329151bf99ca22ca24a3adea25ebc8",
+  "matcher_source_hashes": {
+    "quadMatch.cjs": "a3230adba5fbdceb38e1823dbb709b477a90da7e23e832cc9d2fdeff1fe2def0",
+    "quadMask.cjs": "8163fef8d4bb9925e1c4dee49cee2ca3a9a5b1ffed63fae449dee21f405d02d1",
+    "fireColourMask.cjs": "611185224370f305509c93234b72eb9eacca1f51bc9f29d23dc009e64dd260a5"
+  },
+  "shared_preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "source_hashes": {
+    "audit.py": "13cc73459e0e52ed004aadab13538a3b03051e6c0d48b4b4cf71566efc9b4ce5",
+    "run.py": "95911e25bbce04322b700218dbc410c73e7eb0525c2e87906c75ffe307dad54d",
+    "scores.mjs": "612ab5787515b60ab1a7bc9799cb423474604cc1fca2f1d6dec726cb8f03ad65"
+  },
+  "limitation": "One familiar test recording with correlated quads; frozen deterministic baseline lacks app geometry refinement. No app changes or newCNNinference."
+}

@@ -374,3 +374,66 @@ node FireCrackle/scripts/fire-ai/row32/hybrid/matcher.mjs
 python FireCrackle/scripts/fire-ai/row32/hybrid/run.py
 python FireCrackle/scripts/fire-ai/row32/hybrid/audit.py
 ```
+
+## One fused top-three list: 128px CNN + deterministic scores
+
+After the owner clarified that the app is a shortlist helper, they approved
+recovering the full deterministic phase scores and combining them with the128px
+CNN. This run returns exactly three distinct animation phases from one fused
+ranking, rather than concatenating two top-three lists into up to six candidates.
+The source recordings,157 calibration crops and617 test crops are unchanged.
+All other catalogue sources retain the frozen128px coverage roles/exclusions;
+training data provides checkpoint provenance only. No retraining, synthetic
+fire, new CNN inference or change to shared preprocessing was needed.
+
+Each deterministic phase receives its maximum similarity across appearances.
+Softmax with a temperature converts these32 scores to a normalized distribution;
+an unusable deterministic observation supplies a uniform distribution. The
+fused probability is `w * CNN_probability + (1-w) * matcher_probability`.
+The calibration-only bank uses temperatures .01,.03,.1,.3 and CNN weights
+0,.25,.5,.75,1. Maximum calibration top-three coverage selects the combination;
+ties use lower cross entropy, higher CNN weight, then lower temperature.
+The selected settings are saved before test arrays are loaded. Ranking ties
+use ascending animation phase.
+
+Calibration selects **25% CNN +75% deterministic**, with deterministic
+temperature **.01**:127/157 correct in the top three (80.9%),106/157 top one.
+These percentages apply after score normalization; raw template similarities
+are not interpreted as probabilities. Calibration has only53 source frames and
+the search can overfit it.
+
+| Method | Top-three correct /617 | Top-three accuracy | Block /425 | Entity /192 |
+|---|---:|---:|---:|---:|
+| Frozen deterministic control, distinct phases | 420 | 68.1% | 270 | 150 |
+| 128px CNN | 495 | 80.2% | 354 | 141 |
+| **One fused three-phase ranking** | **514** | **83.3%** | **353** | **161** |
+
+Relative to the CNN,473 test crops retain correct-phase coverage,41 gain it,
+22 lose it and81 remain misses. The net gain is19 cases (+3.08 percentage points).
+Block coverage drops one case; entity improves20. The earlier two-CNN64/128
+ensemble reached509/617 (82.5%); the five-case difference is a development
+comparison, not evidence of a statistically reliable advantage on new videos.
+
+Top-one accuracy is419/617 (67.9%), below128px alone425/617 (68.9%): the selected
+fusion optimizes the requested three-candidate helper rather than automatic
+top-one decisions. The prior hybrid confidence-routing result443/617 optimized
+top one and is a different method. The88.2% union result needed up to six slots
+and must not be presented as a three-slot result.
+
+Rescoring774 crops took19.36seconds, with all617 historical deterministic top
+phases and top scores reproduced exactly. Cached CNN calibration/analysis took
+under one second. Joint app latency was not benchmarked. This is still one
+familiar test recording with correlated quads; the frozen deterministic control
+does not include the app's geometry refinement. No production app changes were
+made by this research experiment.
+
+Two targeted probability/ranking tests and an independent calibration-selection
+and prediction recount pass. Aggregate metrics are in
+`scripts/fire-ai/row32/fusion/results.json`; full phase scores and per-case
+predictions remain private in `.board/row32-fusion`.
+
+```text
+node FireCrackle/scripts/fire-ai/row32/fusion/scores.mjs
+python FireCrackle/scripts/fire-ai/row32/fusion/run.py
+python FireCrackle/scripts/fire-ai/row32/fusion/audit.py
+```
