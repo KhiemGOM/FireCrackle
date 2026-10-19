@@ -118,7 +118,7 @@ public final class FireLabel {
      * The sprite's animation step is mapped through the .mcmeta frame order: fire_0 plays rows
      * 16..31,0..15, so its displayed row is (step + 16) % 32, while fire_1 is plain 0..31.
      */
-    private static int spriteFrame(SpriteIdentifier id) {
+    static int spriteFrame(SpriteIdentifier id) {
         try {
             Sprite sprite = id.getSprite();
             SpriteAccessor accessor = (SpriteAccessor) sprite;
@@ -139,6 +139,7 @@ public final class FireLabel {
             Path file = dir.resolve("labels-" + stamp + ".jsonl");
             log = new LabelLog(Files.newBufferedWriter(file, StandardCharsets.UTF_8));
             LOGGER.info("Writing frame labels to {}", file);
+            LOGGER.info("Soul fire quad capture enabled: soul_fires / s0 / s1 are recorded separately from normal fire");
         } catch (IOException e) {
             failLog(e);
         }

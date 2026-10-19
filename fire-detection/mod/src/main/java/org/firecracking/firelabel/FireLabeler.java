@@ -133,6 +133,7 @@ final class FireLabeler {
 
     private static final Map<Long, CachedFire> CACHE = new HashMap<Long, CachedFire>();
     private static Sprite cachedSprite0;
+    private static Sprite cachedSoulSprite0;
 
     private FireLabeler() {}
 
@@ -146,6 +147,7 @@ final class FireLabeler {
 
     private static FrameRecord labelFrame(MinecraftClient client, int frameId, long tick, int row0, int row1) {
         List<FireSourceLabel> out = new ArrayList<FireSourceLabel>();
+        List<FireSourceLabel> soulOut = new ArrayList<FireSourceLabel>();
         FrameCapture.Frame data = FrameCapture.take();
         ClientWorld world = client.world;
         // the framebuffer size goes into every row; a minimised window (0x0) throws and the frame is omitted
@@ -159,9 +161,17 @@ final class FireLabeler {
 
         final Sprite sprite0 = ModelLoader.FIRE_0.getSprite();
         final Sprite sprite1 = ModelLoader.FIRE_1.getSprite();
-        if (sprite0 != cachedSprite0) {
+        final Sprite soul0 = SoulFireSprites.ZERO.getSprite();
+        final Sprite soul1 = SoulFireSprites.ONE.getSprite();
+        final int soulRow0 = FireLabel.spriteFrame(SoulFireSprites.ZERO);
+        final int soulRow1 = FireLabel.spriteFrame(SoulFireSprites.ONE);
+        if (soulRow0 < 0 || soulRow1 < 0) {
+            throw new IllegalStateException("Soul fire animation unavailable; refusing incomplete labels");
+        }
+        if (sprite0 != cachedSprite0 || soul0 != cachedSoulSprite0) {
             CACHE.clear(); // resources were reloaded: quads and sprites are new objects
             cachedSprite0 = sprite0;
+            cachedSoulSprite0 = soul0;
         }
         final int fr0 = row0;
         final int fr1 = row1;
@@ -170,6 +180,11 @@ final class FireLabeler {
             (tx, ty) -> !sprite1.isPixelTransparent(fr1, tx, ty)
         };
         int[] rows = {row0, row1};
+        int[] soulRows = {soulRow0, soulRow1};
+        TexelMask[] soulMasks = {
+            (tx, ty) -> !soul0.isPixelTransparent(soulRow0, tx, ty),
+            (tx, ty) -> !soul1.isPixelTransparent(soulRow1, tx, ty)
+        };
         int texels = sprite0.getWidth();
         // RaycastContext needs a non-null entity (it builds a ShapeContext from it); the camera entity is a safe pick
         Entity viewer = client.getCameraEntity() != null ? client.getCameraEntity() : client.player;
@@ -191,7 +206,8 @@ final class FireLabeler {
             }
         }
         int blockLabelsBefore = out.size();
-        labelBlocks(client, world, data, w, h, masks, rows, texels, blocks, entities, sprite0, sprite1, out);
+        labelBlocks(client, world, data, w, h, masks, rows, texels, blocks, entities, sprite0, sprite1, out,
+                soulMasks, soulRows, soul0, soul1, soulOut);
         if (DEBUG && frameCounter % 300 == 1) {
             LOGGER.info("fire stats: tracked={} evaluated={} blockLabels={} quadsOfLastBlock={} entityQuads={} occludingEntities={}",
                     FireTracker.positions().size(), statEvaluated, out.size() - blockLabelsBefore,
@@ -201,7 +217,7 @@ final class FireLabeler {
         }
         labelEntities(data, w, h, masks, rows, texels, blocks, entities, out);
         labelOverlay(data, w, h, masks, rows, texels, out);
-        return new FrameRecord(frameId, tick, row0, row1, w, h, out);
+        return new FrameRecord(frameId, tick, row0, row1, w, h, out, soulRow0, soulRow1, soulOut);
     }
 
     // ---------------------------------------------------------------- fire blocks
@@ -209,7 +225,8 @@ final class FireLabeler {
     private static void labelBlocks(
             MinecraftClient client, ClientWorld world, FrameCapture.Frame data, int w, int h,
             TexelMask[] masks, int[] rows, int texels, Occluder blocks, EntityOccluder entities,
-            Sprite sprite0, Sprite sprite1, List<FireSourceLabel> out) {
+            Sprite sprite0, Sprite sprite1, List<FireSourceLabel> out,
+            TexelMask[] soulMasks, int[] soulRows, Sprite soul0, Sprite soul1, List<FireSourceLabel> soulOut) {
         Projector projector = new Projector(data.worldMvp, w, h);
         double[] cam = data.camera;
         Occluder occluder = (c, target) -> blocks.blocked(c, target) || entities.blocked(c, target, -1);
@@ -224,7 +241,7 @@ final class FireLabeler {
                 continue;
             }
             BlockState state = world.getBlockState(pos);
-            if (!state.isOf(Blocks.FIRE)) {
+            if (!FireTracker.isFire(state)) {
                 it.remove();
                 CACHE.remove(key);
                 continue;
@@ -242,9 +259,12 @@ final class FireLabeler {
                 continue;
             }
 
+            boolean soul = state.isOf(Blocks.SOUL_FIRE);
+            int[] sourceRows = soul ? soulRows : rows;
+            TexelMask[] sourceMasks = soul ? soulMasks : masks;
             CachedFire fire = CACHE.get(key);
             if (fire == null || fire.state != state) {
-                fire = new CachedFire(state, buildQuads(client, state, pos, sprite0, sprite1));
+                fire = new CachedFire(state, buildQuads(client, state, pos, soul ? soul0 : sprite0, soul ? soul1 : sprite1));
                 CACHE.put(key, fire);
             }
             statEvaluated++;
@@ -255,12 +275,12 @@ final class FireLabeler {
             Variants variants = new Variants();
             for (CachedQuad cq : fire.quads) {
                 QuadVisibility.Result r = QuadVisibility.evaluate(
-                        cq.quad, cam, projector, texels, masks[cq.sheet], occluder, MACRO, true, gui);
-                variants.add(cq.sheet, rows[cq.sheet], cq.quad, cam, projector, r);
+                        cq.quad, cam, projector, texels, sourceMasks[cq.sheet], occluder, MACRO, true, gui);
+                variants.add(cq.sheet, sourceRows[cq.sheet], cq.quad, cam, projector, r);
             }
-            List<FirePart> parts = variants.parts(rows);
+            List<FirePart> parts = variants.parts(sourceRows);
             if (!parts.isEmpty()) {
-                out.add(FireSourceLabel.block(pos.getX(), pos.getY(), pos.getZ(), dist, parts, variants.quads));
+                (soul ? soulOut : out).add(FireSourceLabel.block(pos.getX(), pos.getY(), pos.getZ(), dist, parts, variants.quads));
             }
         }
     }

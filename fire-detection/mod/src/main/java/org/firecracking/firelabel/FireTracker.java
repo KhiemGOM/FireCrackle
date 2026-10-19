@@ -63,7 +63,7 @@ public final class FireTracker {
         }
     }
 
-    private static boolean isFire(BlockState state) {
-        return state.isOf(Blocks.FIRE);
+    public static boolean isFire(BlockState state) {
+        return state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE);
     }
 }

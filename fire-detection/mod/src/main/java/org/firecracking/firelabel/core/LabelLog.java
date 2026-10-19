@@ -32,8 +32,20 @@ public final class LabelLog implements Closeable, Flushable {
                 .append(",\"h\":").append(r.height)
                 .append(",\"fire\":").append(r.fire())
                 .append(",\"fires\":[");
+        appendSources(sb, r.fires());
+        sb.append(']');
+        if (r.hasSoulCapture) {
+            sb.append(",\"s0\":").append(r.s0).append(",\"s1\":").append(r.s1)
+                    .append(",\"soul\":").append(!r.soulFires().isEmpty()).append(",\"soul_fires\":[");
+            appendSources(sb, r.soulFires());
+            sb.append(']');
+        }
+        return sb.append('}').toString();
+    }
+
+    private static void appendSources(StringBuilder sb, java.util.List<FireSourceLabel> sources) {
         boolean first = true;
-        for (FireSourceLabel s : r.fires()) {
+        for (FireSourceLabel s : sources) {
             if (!first) {
                 sb.append(',');
             }
@@ -86,7 +98,6 @@ public final class LabelLog implements Closeable, Flushable {
             }
             sb.append('}');
         }
-        return sb.append("]}").toString();
     }
 
     private static void appendQuad(StringBuilder sb, FireQuadLabel q) {

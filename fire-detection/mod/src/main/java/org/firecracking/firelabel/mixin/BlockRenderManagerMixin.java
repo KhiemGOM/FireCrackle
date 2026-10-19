@@ -30,7 +30,7 @@ public class BlockRenderManagerMixin {
             boolean cull,
             Random random,
             CallbackInfoReturnable<Boolean> cir) {
-        if (state.isOf(Blocks.FIRE)) {
+        if (FireTracker.isFire(state)) {
             FireTracker.add(pos);
         }
     }

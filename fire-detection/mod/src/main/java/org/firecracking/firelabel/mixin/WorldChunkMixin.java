@@ -16,7 +16,7 @@ public abstract class WorldChunkMixin {
     @Inject(method = "setBlockState", at = @At("RETURN"))
     private void firelabel$trackNewFire(
             BlockPos pos, BlockState state, boolean moved, CallbackInfoReturnable<BlockState> cir) {
-        if (state.isOf(Blocks.FIRE) && ((WorldChunk) (Object) this).getWorld().isClient()) {
+        if (FireTracker.isFire(state) && ((WorldChunk) (Object) this).getWorld().isClient()) {
             FireTracker.add(pos);
         }
     }
