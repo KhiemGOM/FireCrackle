@@ -316,3 +316,83 @@ Pattern scoring verifies their production source hashes before running. The
 next useful hypothesis is separating visible-plane evidence from other cyan
 content. These experiments establish neither a working ownership mask nor a
 complete causal explanation of every mismatch.
+
+## Outline-only plane separation follow-up
+
+Tested12 additional variants against the loose control, using only the supplied
+quad, native shared-unveiled RGB and the complete atlas. No other recorded planes,
+target alpha masks, row labels or depth were available to the scoring methods.
+All178 tuning quads were evaluated first; none beat the23 exact tuning control.
+The115 previously reused validation quads were then evaluated for completeness,
+not for selecting a replacement. No production change or new acceptance gate.
+
+The flatness family samples25 bilinear RGB positions inside each expected texel
+at offsets .2,.35,.5,.65,.8 along each axis. The maximum channel's90th-minus-10th
+percentile span estimates internal colour variation. Masks retain texels below
+8,16 or32 code values, or relative spans .05,.10,.20 divided by max(32, mean
+maximum-channel brightness). A soft variant scales each original probe weight by
+`1 / (1 + (span/16)^2)`. These extra probes determine weights only: they never
+create additional matching votes or bypass native-pixel caps. Compression,
+resampling, particles and crossed fire faces can all cause internal variation;
+flatness is not proof of ownership.
+
+The connected-support family computes candidate-specific positive colour votes
+under each original common-gain hypothesis. It retains the largest four-connected
+or eight-connected texel component, or the two largest four-connected components.
+Two additional variants require at least three of the original four probes in a
+cell to support that same gain: sum all such cells, or retain the largest
+eight-connected component. All scores retain the fixed256-cell denominator.
+This tests spatial consistency of a candidate, not a candidate-independent
+ownership mask. Genuine fire holes and occlusions can disconnect valid evidence.
+
+| Method | Exact tuning /178 | Exact validation /115 | Correct validation row |
+|---|---:|---:|---:|
+| Loose control |23|13|45|
+| Interior span <=8 |19|12|46|
+| Interior span <=16 |19|10|43|
+| Interior span <=32 |21|12|44|
+| Relative span <=.05 |17|10|44|
+| Relative span <=.10 |22|12|46|
+| Relative span <=.20 |20|12|43|
+| Soft flatness weighting |21|11|42|
+| Largest four-connected region |18|10|39|
+| Largest eight-connected region |18|11|42|
+| Largest two four-connected regions |22|10|42|
+| Three coherent probes per cell |14|9|39|
+| Coherent cells, largest eight-connected region |16|10|39|
+
+The hypotheses reduce exact accuracy. Flatness discards useful target evidence
+along with clutter; local smoothness and connected cyan support do not reliably
+identify which physical face is visible. This does not establish that overlapping
+planes explain every mismatch, or that an improved ownership method cannot work.
+An independently supervised visible-plane mask would be a useful next diagnostic;
+the current recording has no dense fire-over-fire ownership ground truth.
+
+Audited all293 benchmark targets directly against joined capture records:
+canonical corner differences are zero, sheet0 physical-to-animation conversion
+agrees once per target, and logged UV endpoints have the expected .002 inset.
+This checks agreement with the capture, not independent proof of the game's
+rendered visibility or label accuracy. It found no new mapping discrepancy.
+
+Six targeted tests cover robust spans, off-grid internal edges, component
+adjacency/row wrapping, diagonal connectivity, common-gain separation, coherence
+requirements and zero native weights. All293 loose control predictions reproduce
+the previous run's identity and score within1e-12. Scores are finite and bounded;
+all3,809 per-method cases are retained in [soul-plane-results.csv](soul-plane-results.csv).
+The13 variants process tuning in26.40s and validation in18.38s in the final run,
+with both split processes running concurrently; this is whole-experiment runtime,
+not application inference speed. The app was not rebuilt because its matcher is
+unchanged.
+
+Reproduction requires the earlier native prepared corpus and pattern runtime:
+
+```text
+node --test FireCrackle/scripts/soul-plane-eval.test.mjs
+node FireCrackle/scripts/soul-plane-eval.mjs .board/soul-quad/real tune
+node FireCrackle/scripts/soul-plane-eval.mjs .board/soul-quad/real validation
+```
+
+Evaluator SHA-256: `5844c6d4004d9d8c4cadcb7395944f58446f8147a5c8833774f119e7ffdc9ae8`.
+Loose scorer runtime SHA-256: `c59f011f07dafeaa592b8bc100e392fae1ef31da4a5d121b4dae1a1e7b98d8e0`.
+Manifest remains `04dea1eb91c161cb2a6e8a2441aacba5fd6a933dd44c3880e4d7db8483aff404`.
+Images, textures, capture records and prepared data remain ignored local files.
