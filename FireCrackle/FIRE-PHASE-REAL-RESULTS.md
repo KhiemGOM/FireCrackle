@@ -292,3 +292,85 @@ python FireCrackle/scripts/fire-ai/row32/preprocessing/test_preprocessing.py
 python FireCrackle/scripts/fire-ai/row32/preprocessing/run.py
 python FireCrackle/scripts/fire-ai/row32/preprocessing/audit.py
 ```
+
+## Frozen 128px CNN + deterministic matcher
+
+The owner approved agreement acceptance and confidence selection on the same
+157 calibration crops from V10/later, then one evaluation on the same617 test
+crops from V06/quad1. This is normal-fire phase classification with frozen
+weights and the existing shared-gain deterministic matcher, not the64px CNN
+ensemble above. No synthetic fire, additional training or preprocessing change.
+All other source roles/exclusions inherit the128px coverage manifest; training
+sources supply checkpoint provenance only in this inference experiment.
+
+Native calibration frames were redecoded and unveiled through the canonical
+Rust binding. All157 original64px crop hashes match. The deterministic control
+reproduces all617 historical test top phases and scores exactly, with unchanged
+matcher source hashes. Test observations were already familiar development
+data; this is not fresh blind validation.
+
+Calibration selects a global hard selector: retain the CNN guess except when
+the methods disagree, CNN maximum probability is below .50, and the matcher's
+relative distinct-phase score margin is at least .03. The margin is
+`(best_score - best_other_phase_score) / abs(best_score)`; it is a heuristic,
+not a calibrated probability. Selection searches CNN thresholds0,.25,.5,.75,1.01
+and matcher margins0,.01,.03,.1, maximizing calibration exact-phase accuracy.
+Ties prefer fewer overrides, lower CNN threshold, then higher matcher margin.
+No per-source or per-phase rules were selected using test outcomes. This is
+decision routing, not an average of incompatible CNN probabilities and template
+similarity scores. The selection is saved before test predictions are loaded.
+
+Calibration correct counts: CNN97/157, matcher98/157, selected ensemble115/157.
+
+| Method | Correct /617 | Accuracy | Block /425 | Entity /192 |
+|---|---:|---:|---:|---:|
+| Deterministic matcher | 363 | 58.8% | 222 | 141 |
+| 128px CNN | 425 | 68.9% | 305 | 120 |
+| **Selected hybrid** | **443** | **71.8%** | **299** | **144** |
+
+The selector overrides173 CNN predictions:57 repairs and39 spoiled correct
+predictions, for18 net additional correct cases (+2.92 percentage points).
+The block result drops6 while entity improves24. The gain therefore does not
+establish universal improvement, and source-based routing would need a separate
+agreed calibration experiment rather than choosing from these test outcomes.
+
+Correctness cross-tab on all617 test crops:
+
+| | Matcher correct | Matcher wrong |
+|---|---:|---:|
+| CNN correct | 295 | 130 |
+| CNN wrong | 68 | 124 |
+
+Of the124 cases where both are wrong,6 share the same wrong phase and118
+disagree. They agree on301/617 crops (48.8% coverage):295 correct,6 wrong,
+**98.0% accepted accuracy**. Among316 disagreements, CNN alone is correct130
+times, matcher alone68, neither118. The union493/617 (79.9%) is an oracle upper
+bound, not an achieved ensemble. Aggregate32-phase confusion matrices are saved
+in `scripts/fire-ai/row32/hybrid/results.json`: rows are true animation phase,
+columns predicted phase0..31 plus an abstain column. No control abstains here.
+
+A separate agreement gate picks the lowest CNN probability threshold with zero
+calibration errors, at least5 accepted crops and at least2 frames. It selects.24
+(74/74 correct calibration). On test it accepts287:282 correct,5 wrong,
+330 abstained,98.3% accepted accuracy at46.5% coverage. That small improvement
+over plain agreement rejects14 crops, including13 correct ones; there is little
+benefit in this extra threshold. Neither agreement rule guarantees correctness
+or changes automatic-confirmation policy in the app.
+
+Preparation took4.93seconds; rescoring774 calibration/test crops with the frozen
+matcher took22.02seconds, including cached-frame loading and RGBA assembly.
+Cached CNN decision analysis took under1second; no new CNN inference was needed.
+These are batch research timings, not a jointly measured app latency benchmark.
+The benchmark remains one familiar test recording with correlated quads and a
+small calibration recording. No app integration was made.
+
+Two targeted selector tests plus an independent cached-prediction, confusion
+matrix and calibration-choice recount pass. Per-case predictions, native frames
+and labels remain ignored/private in `.board/row32-hybrid`.
+
+```text
+python FireCrackle/scripts/fire-ai/row32/hybrid/prepare.py
+node FireCrackle/scripts/fire-ai/row32/hybrid/matcher.mjs
+python FireCrackle/scripts/fire-ai/row32/hybrid/run.py
+python FireCrackle/scripts/fire-ai/row32/hybrid/audit.py
+```
