@@ -1,0 +1,31 @@
+{
+  "variants": [
+    "unchanged",
+    "gamma_0.8",
+    "gamma_1.25",
+    "median_3",
+    "unsharp_1"
+  ],
+  "details": {
+    "gamma": "uint8 round(255*(x/255)**exponent), same LUT per RGB channel",
+    "median": "Pillow3x3 RGB median",
+    "unsharp": "Pillow radius1,amount100%,threshold3"
+  },
+  "selection": "minimum calibration cross entropy; unchanged first for ties",
+  "calibration": 157,
+  "test": 617,
+  "weight128_bank": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "training": false,
+  "shared_unveil": "unchanged already-applied canonical source",
+  "budget": "5-10minutes",
+  "pillow": "12.3.0",
+  "torch": "2.10.0+cu128",
+  "numpy": "2.5.2",
+  "device": "cuda"
+}

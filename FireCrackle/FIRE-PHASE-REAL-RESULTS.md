@@ -1,6 +1,6 @@
 # Real-only normal-fire phase models
 
-19 October 2026. **The 128px ResNet-101 is the best AI in this pilot:425/617
+19 October 2026. **The 128px ResNet-101 is the best individual model in this pilot:425/617
 (68.9%), versus 393/617 (63.7%) at 64px.** It still loses to the deterministic
 matcher on entity fire. The initial 64px architecture comparison is below;
 the approved 128px follow-up and measured trade-offs are at the end.
@@ -56,7 +56,7 @@ screened for ownership/alpha consistency; it is not a global oracle, and its
 warning counts and provenance remain in the manifest. Final fit source counts
 are 2,818 + 119 + 69. Neither pixels nor model inputs contain the ownership mask.
 
-The early, clip1 and clip2 recordings have boxes and phase labels but lack real
+The early, clip 1 and clip 2 recordings have boxes and phase labels but lack real
 per-plane corners; they are explicitly excluded from this **true outlined-quad**
 pilot. Boxes are not passed off as quad corners. Four short pilots lack qualified
 aligned quad truth. Two older ownership prototypes are pending a compatible local
@@ -114,7 +114,7 @@ full-frame unveil, checkpoint loading and cold GPU initialization. CPU uses four
 threads; GPU is this machine's RTX 4060 Laptop. These timings are specific to this
 run and should not be compared as controlled speedups against historical timings.
 
-| Model | CPU median / p95 | CUDA median / p95 |
+| Model | CPU median / p 95 | CUDA median / p 95 |
 |---|---:|---:|
 | ResNet-18 | 35.3 / 38.1 ms | 6.1 / 10.1 ms |
 | ResNet-101 | 164.9 / 176.1 ms | 17.9 / 25.6 ms |
@@ -224,5 +224,71 @@ python FireCrackle/scripts/fire-ai/row32/resolution/audit.py --timing
 The stop-file is a manual graceful-stop request, checked at epoch boundaries;
 leave it absent for the 12-epoch cap. Two crop tests and the full-backbone
 output/gradient/BatchNorm parity test pass. The audit checks exact cohort/target
-parity and recounts paired predictions. Preprocessing variants and ensembles are
-requested follow-ups, in that order; neither has been run in this experiment.
+parity and recounts paired predictions. The subsequent approved inference-only
+preprocessing and cached-ensemble follow-up is recorded below.
+
+## Inference-only preprocessing and cached ensemble
+
+The owner approved this fixed batch after the resolution comparison. All CNN
+weights stayed frozen. Only the 157 calibration crops were used to select the
+input transform, ensemble weight and confidence gate. There was no retraining,
+new recording, synthetic fire, new inverse or change to the shared unveil.
+
+| 128px input | Calibration correct /157 | Calibration cross entropy |
+|---|---:|---:|
+| **Unchanged** | **97** | **1.5746** |
+| Gamma .8 (brighter) | 79 | 1.9676 |
+| Gamma 1.25 (darker) | 72 | 2.1225 |
+| Median 3x3 | 95 | 1.6213 |
+| Mild unsharp | 92 | 1.7251 |
+
+**None of these preprocessing options helped calibration.** The minimum-loss
+selection therefore retained unchanged input. The four altered inputs were not
+evaluated on the held-out set to find a more flattering result; cached unchanged
+test predictions were reused. This does not test retraining with preprocessing
+or every possible enhancement method.
+
+Gamma used `round(255*(x/255)**exponent)` independently on RGB channels. Median
+used Pillow's 3x3 filter; unsharp used radius 1, amount 100%, threshold 3. Measured
+transform costs per calibration crop were .17/.19 ms for the two gamma options,
+2.34 ms for median, and .64 ms for unsharp. Four calibration-only inference passes,
+weight selection and cached test scoring took 17.4 seconds total; unchanged
+probabilities were reused without another inference pass.
+
+The subsequent ensemble averaged **probabilities**, not logits, using a fixed
+128px-weight bank of 0,.25,.5,.75,1. Minimum calibration cross entropy selected
+**75% 128px + 25% 64px**. This choice and its calibration-fitted confidence threshold
+were frozen before scoring the held-out ensemble; no new CNN inference was
+needed for the ensemble calculation.
+
+| Method | Correct /617 | Accuracy | Blocks /425 | Entities /192 | Top 3 /617 |
+|---|---:|---:|---:|---:|---:|
+| Unchanged 128px | 425 | 68.9% | 305 (71.8%) | 120 (62.5%) | 495 (80.2%) |
+| **75/25 ensemble** | **429** | **69.5%** | **306 (72.0%)** | **123 (64.1%)** | **509 (82.5%)** |
+
+The top-one gain is four net cases (+.65 percentage points). A deployed ensemble
+would need both models, so this small observed gain has an additional inference
+cost; joint runtime was not benchmarked in this cached-output experiment.
+
+| Method | Calibrated threshold | Correct accepted | Wrong accepted | Abstained /617 |
+|---|---:|---:|---:|---:|
+| Unchanged 128px | .69 | 246 | 5 | 366 |
+| Ensemble | .57 | 288 | 9 | 320 |
+
+The ensemble covers more cases but its accepted-phase error is 9/297 (3.0%),
+versus 5/251 (2.0%) for 128px alone. These are phase-classification errors, not
+no-fire false clears. The original calibration-zero-error gate is not a guarantee
+of zero errors elsewhere. All results remain a development comparison on one
+familiar test recording, with correlated quads per frame; no app behavior or
+automatic-confirmation policy changed.
+
+Code and aggregate metrics are in `scripts/fire-ai/row32/preprocessing/`.
+Per-case probabilities, input variants and truth stay private under
+`.board/row32-preprocessing`. The three targeted transform/ensemble tests and an
+independent calibration-selection/prediction recount pass.
+
+```text
+python FireCrackle/scripts/fire-ai/row32/preprocessing/test_preprocessing.py
+python FireCrackle/scripts/fire-ai/row32/preprocessing/run.py
+python FireCrackle/scripts/fire-ai/row32/preprocessing/audit.py
+```
