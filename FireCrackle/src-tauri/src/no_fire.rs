@@ -17,10 +17,17 @@ pub(crate) fn configure(folder: PathBuf) {
     let _ = RESOURCES.set(folder);
 }
 pub(crate) fn model_path(name: &str) -> PathBuf {
-    let folder = RESOURCES.get().cloned().unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/ai"));
+    let folder = RESOURCES
+        .get()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/ai"));
     let file = folder.join(name);
     #[cfg(debug_assertions)]
-    if !file.is_file() { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/ai").join(name); }
+    if !file.is_file() {
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("runtime/ai")
+            .join(name);
+    }
     file
 }
 #[cfg(target_os = "linux")]
