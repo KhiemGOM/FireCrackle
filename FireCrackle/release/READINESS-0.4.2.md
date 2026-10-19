@@ -11,8 +11,15 @@
 
 Local gates passed: all 83 targeted UI/scorer tests under the exact checked-in dependency lock; frontend production build; optimized Windows desktop build; portable ZIP contents/checksums including both phase models; three model-staging tests; native CPU/DirectML routing/parity; all four release Rust formatting checks; Linux verifier shell syntax and its new native phase smoke executable. Rebuilding the frontend under the restored lock produced byte-identical assets to the built executable. The portable archive is explicitly a local tester with dirty-source provenance, not a frozen public-release artifact.
 
-Linux package validation now requires both model files/metadata in Debian and AppImage outputs and runs both packaged phase models through the native CPU engine. Actual Linux package builds/startup checks still require CI.
+Linux package validation now requires both model files/metadata in Debian and AppImage outputs and runs both packaged phase models through the native CPU engine. Both Linux package builds, native model CPU smoke checks and packaged application startup checks passed in release CI.
 
 The owner explicitly approved publishing both trained model files. Both are public at the `quad-phase-model-v1` build-resource release, and GitHub's server SHA-256 digests and byte sizes match the pinned manifests. Clean Windows/Linux builds download those URLs and verify hashes before use.
 
-Pending before application publication: run both platform release builds from a frozen commit and verify their packages and provenance.
+Published: https://github.com/KhiemGOM/FireCrackle/releases/tag/v0.4.2
+
+- Frozen application commit: `cf1452ded200af94ecd26547370cdf73da97fced`.
+- Successful Windows/Linux build, validation and publisher run: https://github.com/KhiemGOM/FireCrackle/actions/runs/39291792592.
+- Public assets include Windows installer and portable ZIP, Linux Debian and AppImage packages, checksum manifests and notices. Publisher verified both platform provenance and uploaded SHA-256 digests before making the draft public.
+- First CI attempt stopped safely on an obsolete regression fixture that treated supported label archive version 3 as unsupported. The fixture now checks version 4; targeted import/combined-label tests and both complete platform release gates passed.
+- Only main was pushed. Recordings, local game assets, research caches and work branches were not published. The two trained ONNX files were published separately with explicit owner approval.
+
