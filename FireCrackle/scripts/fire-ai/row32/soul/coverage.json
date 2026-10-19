@@ -1,0 +1,1018 @@
+{
+  "catalogue": "docs/TRAINING_DATA_CATALOGUE.md",
+  "catalogue_commit": "59cb55f2adde57fd098a918b300d6009b2de981f",
+  "inventory_sha256": "e6485d6b4798d8c6c7b5470f70063b09f715f01bc8116d1d73e6919786f0afc7",
+  "sources": [
+    {
+      "recording": "fire-detection/data/video/2026-10-15 14-15-51.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-15 14-48-36.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-15 18-18-16.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-15 23-48-59.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-15 23-50-25.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-16 00-40-22.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-16 01-41-58.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-16 01-42-43.mp4",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-16 18-23-42.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-17 17-04-31.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-17 18-28-42.mkv",
+      "roles": {},
+      "samples_used": 0,
+      "reason": "Excluded: no audited eligible soul-fire phase labels in this recording; normal-fire targets are a separate model"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-19 16-49-48.mkv",
+      "roles": {
+        "calibration": 178,
+        "test": 115
+      },
+      "samples_used": 293,
+      "reason": "Approved soul-fire cohort; per-target renderer labels and readable geometry"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-19 22-59-52.mkv",
+      "roles": {
+        "train": 2350
+      },
+      "samples_used": 2350,
+      "reason": "Approved soul-fire cohort; per-target renderer labels and readable geometry"
+    },
+    {
+      "recording": "fire-detection/data/video/2026-10-19 23-27-30.mkv",
+      "roles": {
+        "test": 1983
+      },
+      "samples_used": 1983,
+      "reason": "Approved soul-fire cohort; per-target renderer labels and readable geometry"
+    }
+  ],
+  "dataset_families": [
+    {
+      "path": ".board/boundary-robust/additional/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/boundary-robust/audit-cases.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/boundary-robust/codec-data/h264-crf24/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/boundary-robust/codec-data/h264-crf32/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/boundary-robust/codec-data/uncompressed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/backgrounds-reviewed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/backgrounds/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/baseline-reviewed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/codec/h264-crf24/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/codec/h264-crf32/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/codec/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/codec/uncompressed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/inventory.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/large-bg/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/resnet18/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/resnet18/small-control/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival-curated/review.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival-fit/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival-train-dense/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival-train/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-ai/survival/review.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/fire-size-gallery/cases.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/checkout/FireCrackle/scripts/fire-ai/survival-review.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/full-clip2/review/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/resnets/resnet18/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/resnets/resnet50/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/run3/control/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/run3/positive_aux/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/continuation/vit1/vit_b_16/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/run1/dataset.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/run1/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/run2/dataset.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/run2/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/image-presence/run2/review.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/no-fire-parallel/fragment-review/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/no-fire-parallel/fragment-review/translucency-new/examples.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/new_recording/exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/new_recording/rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/quad1/exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/quad1/rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/survival1/exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-all-videos/survival1/rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/additional-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/additional-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/codec-h264-crf24/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/codec-h264-crf32/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/codec-uncompressed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/quad1-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/reviewed-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/reviewed-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/survival-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/mixed/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/additional-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/additional-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/codec-h264-crf24/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/codec-h264-crf32/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/codec-uncompressed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/quad1-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/reviewed-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/reviewed-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/survival-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/survival/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/additional-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/additional-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/codec-h264-crf24/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/codec-h264-crf32/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/codec-uncompressed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/freeze.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/quad1-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/reviewed-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/reviewed-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/survival-exact/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-mask/synthetic/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/new-test-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/new-test/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/reviewed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/survival/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/finetune/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/new-test-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/new-test/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/reviewed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/survival/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/previous/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/new-test-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/new-test/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/quad1-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/reviewed/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/survival-rough/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/survival/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-recorded/scratch/synthetic/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/occlusion-review/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/ownership-review/examples.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil-v2/clip1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil-v2/clip2.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil-v2/quad1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil-v2/survival1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil/clip1-pilot20.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil/clip1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil/clip2.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil/quad1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-dual-veil/survival1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-ablation/clip1-pilot20.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-ablation/clip1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-ablation/clip2.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-ablation/quad1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-ablation/survival1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-integrated/clip1-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-integrated/clip2-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-integrated/survival1-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip1-features.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip1-pilot20-features.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip1-pilot20.jsonl.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip1.jsonl.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip2-features.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/clip2.jsonl.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/quad1-features.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/quad1.jsonl.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/survival1-features.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-remaining/survival1.jsonl.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-stages/clip1-pilot20.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-stages/clip1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-stages/clip2.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-stages/quad1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-stages/survival1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-support/clip1-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-support/clip2-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-gui-support/survival1-spatial.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-independent-20261018/early.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-independent-20261018/later.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-lint/later.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/clip1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/clip2.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/early.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/later.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/quad1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/pov-integration/final-v1/survival1.meta.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-128/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/candidates.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/inventory.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/later/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/new_normal/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/ownership/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/selected.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32-real/survival1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32/extra-eligible.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/row32/selected.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/soul-12m/candidates.json",
+      "role": "provenance_only",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/soul-12m/selected.json",
+      "role": "provenance_only",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/soul-holdout/candidates.json",
+      "role": "provenance_only",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/soul-holdout/selected.json",
+      "role": "provenance_only",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": ".board/soul-quad/real/manifest.json",
+      "role": "provenance_only",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": "FireCrackle/src-tauri/target/actual-quad1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": "FireCrackle/src-tauri/target/quad-eval-clip1/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    },
+    {
+      "path": "FireCrackle/src-tauri/target/quad-eval-clip2/manifest.json",
+      "role": "excluded",
+      "reason": "Use explicitly selected canonical cohorts only; derived cache duplicates, ordinary-fire/other tasks, synthetic data and predictions are not additional soul phase truth"
+    }
+  ],
+  "provenance": {
+    "new_soul12": {
+      "video": "fire-detection\\data\\video\\2026-10-19 22-59-52.mkv",
+      "video_sha256": "856e8afe84d23fc456c89e6ea19e6ff7cfb09b7749bb3ebe0235dea797a211b5",
+      "joined_sha256": "be8c69dc76719b9810a4034bfc92054d93d952c2139d477878fe2001cb50bb11",
+      "snapshot": {
+        "source": "fire-detection\\mod\\run\\firelabel\\labels-20261019-225832.jsonl",
+        "bytes": 162735315,
+        "sha256": "aa1f4fd71bec931bcbd052c84348ae9e61b48bd4bb9974429cb4eb776ed16d12",
+        "snapshot": "complete lines only; original capture remains live"
+      }
+    },
+    "soul_holdout": {
+      "video": "fire-detection\\data\\video\\2026-10-19 23-27-30.mkv",
+      "video_sha256": "56fb5799a475fd9b75a636fc301c279f7b7523d1358f0ea87d47a93b2262bc72",
+      "joined_sha256": "eb61007ad7c043f1620a063bd0f70840ebeb0d40a5ae1a11390515a1df6473d8",
+      "snapshot": {
+        "source": "fire-detection/mod/run/firelabel/labels-20261019-225832.jsonl",
+        "bytes": 279728700,
+        "sha256": "3ebeb2cc2d9869b5c8ba647f3f4a4eaec03ac35049c85291d9859fafa4b33c97",
+        "snapshot": "complete lines only; original capture remains live"
+      }
+    },
+    "older_soul": {
+      "video": "fire-detection/data/video/2026-10-19 16-49-48.mkv",
+      "video_sha256": "1c678af07852ffa490c012f4ba4caca5a3eef31780baf5e43dc5ac41f0338641",
+      "joined_sha256": "f044875d40fe9954b9e498ad4725b5a510d463f1d8f9991cf7defc645ab7d23f",
+      "selection_sha256": "aa726f8350e25c39e8add4e477d8a8f4285706a93fdcb2c5fd768c5456cfb319",
+      "calibration_end_video_frame": 5880,
+      "secondary_test_start_video_frame": 6120
+    }
+  },
+  "older_selection_sha256": "aa726f8350e25c39e8add4e477d8a8f4285706a93fdcb2c5fd768c5456cfb319",
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "session_caveat": "new_soul12 and soul_holdout share Minecraft session/world; disjoint rendered frames. Older calibration and secondary test use preserved temporal purge.",
+  "frozen_holdout_split_sha256": "5c7056ecdf6f880caf45e1cbacf4bf84582fa6c78bbada6f850fba6ad8437797",
+  "reused_helper_sha256": {
+    "FireCrackle/scripts/fire-ai/render.py": "8cbf9f196ccef58e87a561ea38eaecd313a9975f889605c31a18e8557fd253d8",
+    "FireCrackle/scripts/fire-ai/row32/real/prepare.py": "f8775686589e8c9f82f883837906b5bcf7d4f5e690e749daeaf268a5e7d7f5fa",
+    "FireCrackle/scripts/fire-ai/row32/real/train.py": "1d577bbdfd087862033023d34e010c13ed676ba541dd0cc8915fc4d6dfb49102",
+    "FireCrackle/scripts/fire-ai/row32/large/models.py": "58c7ce30d801fa2dcc7e1404c609a82e3ecb60623f9dd322ba62fe86fd5c8afb",
+    "FireCrackle/scripts/fire-ai/row32/resolution/checkpointing.py": "dd3b84191303efd463de22f1f1151d4e2fe42872751c7ad62c0cd825ac32fc3e",
+    "fire-detection/bench/no_fire/veil_native.py": "218db4e794ed54445212bcee327097fc1a61bc26900e941bb60f1e09abfb804d"
+  }
+}

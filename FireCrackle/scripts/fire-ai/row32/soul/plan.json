@@ -1,0 +1,28 @@
+{
+  "material": "soul_fire_blocks",
+  "model": "128px ResNet101; generic ImageNet, no fire-trained checkpoint",
+  "train": 2350,
+  "calibration": 178,
+  "test_new": 1983,
+  "test_older": 115,
+  "max_epochs": 12,
+  "patience": 3,
+  "min_epochs": 4,
+  "steps": 32,
+  "batch": 64,
+  "microbatch": 32,
+  "seed": 219,
+  "metric": "animation phase in one ranked top3",
+  "fusion": {
+    "cnn_weight": 0.25,
+    "deterministic_temperature": 0.01
+  },
+  "budget": "20\u201330 minutes estimated; stop after12epochs or early stopping",
+  "synthetic_fire": false,
+  "augmentation": "horizontal flip, brightness .85\u20131.15, Gaussian noise1.5/255",
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "plan": {
+    "material": "soul_fire_blocks",
+    "model": "128px ResNet101; generic ImageNet, no fire-trained checkpoint",
+    "train": 2350,
+    "calibration": 178,
+    "test_new": 1983,
+    "test_older": 115,
+    "max_epochs": 12,
+    "patience": 3,
+    "min_epochs": 4,
+    "steps": 32,
+    "batch": 64,
+    "microbatch": 32,
+    "seed": 219,
+    "metric": "animation phase in one ranked top3",
+    "fusion": {
+      "cnn_weight": 0.25,
+      "deterministic_temperature": 0.01
+    },
+    "budget": "20\u201330 minutes estimated; stop after12epochs or early stopping",
+    "synthetic_fire": false,
+    "augmentation": "horizontal flip, brightness .85\u20131.15, Gaussian noise1.5/255",
+    "preprocessing": {
+      "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+      "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+      "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+    }
+  },
+  "results": {
+    "calibration_older_soul": {
+      "deterministic": {
+        "n": 178,
+        "top1": 74,
+        "top3": 81,
+        "unusable": 6,
+        "top3_accuracy": 0.4550561797752809
+      },
+      "cnn128": {
+        "n": 178,
+        "top1": 106,
+        "top3": 123,
+        "top3_accuracy": 0.6910112359550562
+      },
+      "fusion": {
+        "n": 178,
+        "top1": 112,
+        "top3": 128,
+        "top3_accuracy": 0.7191011235955056
+      }
+    },
+    "tests_older_soul": {
+      "deterministic": {
+        "n": 115,
+        "top1": 45,
+        "top3": 62,
+        "unusable": 0,
+        "top3_accuracy": 0.5391304347826087
+      },
+      "cnn128": {
+        "n": 115,
+        "top1": 69,
+        "top3": 85,
+        "top3_accuracy": 0.7391304347826086
+      },
+      "fusion": {
+        "n": 115,
+        "top1": 71,
+        "top3": 86,
+        "top3_accuracy": 0.7478260869565218
+      }
+    },
+    "tests_soul_holdout": {
+      "deterministic": {
+        "n": 1983,
+        "top1": 1079,
+        "top3": 1233,
+        "unusable": 52,
+        "top3_accuracy": 0.6217851739788199
+      },
+      "cnn128": {
+        "n": 1983,
+        "top1": 1144,
+        "top3": 1451,
+        "top3_accuracy": 0.7317196167423097
+      },
+      "fusion": {
+        "n": 1983,
+        "top1": 1370,
+        "top3": 1588,
+        "top3_accuracy": 0.8008068582955119
+      }
+    }
+  },
+  "cnn_training": {
+    "chosen_epoch": 5,
+    "completed_epochs": 8,
+    "calibration": {
+      "n": 178,
+      "correct": 106,
+      "accuracy": 0.5955055952072144,
+      "top3": 123,
+      "loss": 1.8237571716308594,
+      "macro_recall": 0.630034327507019
+    },
+    "test": {
+      "n": 2098,
+      "correct": 1213,
+      "accuracy": 0.5781697034835815,
+      "top3": 1536,
+      "loss": 1.61616849899292,
+      "macro_recall": 0.5708260536193848
+    },
+    "recordings": {
+      "older_soul": {
+        "n": 115,
+        "correct": 69,
+        "accuracy": 0.6000000238418579,
+        "top3": 85,
+        "loss": 1.579891562461853,
+        "macro_recall": 0.5839370489120483
+      },
+      "soul_holdout": {
+        "n": 1983,
+        "correct": 1144,
+        "accuracy": 0.5769037008285522,
+        "top3": 1451,
+        "loss": 1.618272304534912,
+        "macro_recall": 0.5713420510292053
+      }
+    },
+    "seconds": 644.9828382999985,
+    "inference_ms": {
+      "median": 14.058400000067195,
+      "p95": 23.498085001847357
+    },
+    "gpu_peak_allocated_mb": 3447.3291015625,
+    "dataset_sha256": "5df0ef4b72cfbe1fce3569d7f398806d3b230a17a2b8ed917b151290e9a792da"
+  },
+  "cpu_speed": {
+    "backend": "PyTorch float32,4CPUthreads; single128crop, normalization plus network only",
+    "load_seconds": 0.5527132999995956,
+    "median_ms": 490.7681999975466,
+    "p95_ms": 534.0672700011055,
+    "runs": 15
+  },
+  "matcher": {
+    "source_hashes": {
+      "quadMatch.cjs": "a3230adba5fbdceb38e1823dbb709b477a90da7e23e832cc9d2fdeff1fe2def0",
+      "quadMask.cjs": "8163fef8d4bb9925e1c4dee49cee2ca3a9a5b1ffed63fae449dee21f405d02d1",
+      "fireColourMask.cjs": "611185224370f305509c93234b72eb9eacca1f51bc9f29d23dc009e64dd260a5",
+      "pattern-loose.cjs": "c59f011f07dafeaa592b8bc100e392fae1ef31da4a5d121b4dae1a1e7b98d8e0"
+    },
+    "seconds": 64.5096258,
+    "timing_ms": {
+      "median": 20.38690000000497,
+      "p95": 46.639900000001944
+    },
+    "method": "Frozen G,B,R loose shared-gain score; maximum over appearances; three distinct animation phases; known quad without geometry refinement"
+  },
+  "dataset_sha256": "5df0ef4b72cfbe1fce3569d7f398806d3b230a17a2b8ed917b151290e9a792da",
+  "shared_preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "coverage_sha256": "ee50723b5f169189ca7611bcc806aed22d88c6eed7df11a25d84a4ba8858b445",
+  "source_hashes": {
+    "cpu_speed.py": "efbfb708c66bf5274bd86b6acfa79778dd7165aa3e0fce4c992aff85766b7d1f",
+    "matcher.mjs": "ae529388cce85539d05279654e0a308a1f398105dd4b70ce604c12b3a4a180cc",
+    "prepare.py": "ac448eabfc7ae3e2c6a68273b945b5ab5fbb1ff945b063d89eaa02b09d6c9cfb",
+    "report.py": "ab537d3c523945d5896dc4c8308124fbda06abdf28973b6a274b5c9f89ba6410",
+    "train.py": "ceb7f8a557bb64a9c3e40e71565a0d3cd4927621795bc58826ce78ab92be73ec"
+  },
+  "limitations": "New evaluation is a separate video from same game session/world; correlated quads, not independent scenes. Older secondary check has only13frames and is familiar. Fixed original-quad matcher, no geometry refinement. Timing is PyTorch model-only, not app ONNX or end-to-end. No app changes or deployment."
+}
