@@ -1,3 +1,23 @@
+# Mandatory video training catalogue
+
+- Before any AI training, fine-tuning, distillation, calibration or model-comparison run,
+  read [`docs/TRAINING_DATA_CATALOGUE.md`](docs/TRAINING_DATA_CATALOGUE.md) and refresh
+  its inventory with `python scripts/catalogue_training_data.py --write`.
+- Default full-data runs use **all relevant, eligible training sources** in that growing
+  catalogue, including newly recorded videos. Do not silently reuse an old hard-coded
+  subset. Every run must save a coverage manifest accounting for each original recording
+  and relevant dataset family as train/validation/test/excluded/unavailable, with reasons,
+  actual sample counts, source hashes and preprocessing versions. Explicit ablations may
+  use subsets but must identify themselves and account for omitted data.
+- Preserve held-out recordings/time blocks and temporal purge gaps; never put validation
+  or test data into training just to claim full coverage. Deduplicate overlapping caches,
+  repeated renderer frames and augmented descendants by original source/target identity.
+  Keep partial/unknown ownership, material identity and label provenance. Predictions,
+  auto-labels, weak masks and GUI clock reports are not interchangeable with ground truth.
+- Add new recordings, schemas, label streams and reusable derived pools to the catalogue
+  before use. Keep the catalogue, generated inventory and per-run coverage reports current.
+  Never commit the actual private recordings, labels, tensors, game assets or model caches.
+
 # Shared image preprocessing
 
 ## One automatic unveil implementation
