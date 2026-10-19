@@ -53,19 +53,27 @@ def validate_splits(rows):
 
 def main(args):
     torch.set_num_threads(4);torch.manual_seed(219);np.random.seed(219)
-    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu');out=BASE/args.architecture;out.mkdir(exist_ok=True)
-    metadata=json.loads((BASE/'manifest.json').read_text());rows=metadata['samples'];validate_splits(rows)
-    data=np.load(BASE/'real.npz');split=data['split'];ids={s:np.flatnonzero(split==s) for s in ['train','calibration','test']}
+    if torch.cuda.is_available() and args.memory_fraction is not None:torch.cuda.set_per_process_memory_fraction(args.memory_fraction)
+    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu');out=args.data/args.architecture;out.mkdir(exist_ok=True)
+    metadata=json.loads((args.data/'manifest.json').read_text());rows=metadata['samples'];validate_splits(rows)
+    data=np.load(args.data/'real.npz');split=data['split'];ids={s:np.flatnonzero(split==s) for s in ['train','calibration','test']}
     # Test RGB is not put through the network until checkpoint selection completes.
     tx=torch.from_numpy(data['x'][ids['train']].transpose(0,3,1,2).copy()).to(device).float()/255
     ty=torch.tensor(data['y'][ids['train']],device=device,dtype=torch.long)
     cx=torch.from_numpy(data['x'][ids['calibration']].transpose(0,3,1,2).copy()).float()/255;cy=torch.tensor(data['y'][ids['calibration']],dtype=torch.long)
     frames=collections.Counter((rows[i]['video'],rows[i]['frame']) for i in ids['train']);phases=collections.Counter(rows[i]['phase'] for i in ids['train'])
     weights=torch.tensor([1/(frames[(rows[i]['video'],rows[i]['frame'])]*np.sqrt(phases[rows[i]['phase']])) for i in ids['train']],device=device)
-    model=model_for(args.architecture,True).to(device);optimizer=torch.optim.AdamW(model.parameters(),lr=.0002,weight_decay=.02);schedule=torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,args.epochs);scaler=torch.amp.GradScaler('cuda',enabled=device.type=='cuda')
+    model=model_for(args.architecture,True).to(device)
+    if args.checkpoint:
+        if args.architecture not in ('resnet18','resnet101'):raise ValueError('Checkpointing is implemented for ResNet only')
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'resolution'))
+        from checkpointing import enable
+        enable(model)
+    optimizer=torch.optim.AdamW(model.parameters(),lr=.0002,weight_decay=.02);schedule=torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,args.epochs);scaler=torch.amp.GradScaler('cuda',enabled=device.type=='cuda')
     best=float('inf');history=[];start=time.perf_counter()
-    config=dict(architecture=args.architecture,epochs=args.epochs,steps=args.steps,batch=64,microbatch=32,seed=219,device=str(device),parameters=sum(p.numel() for p in model.parameters()),training='real recorded RGB only',initialization='generic ImageNet; no fire-trained checkpoint',dataset_sha256=metadata['dataset_sha256'],splits=metadata['splits'])
+    config=dict(architecture=args.architecture,input_size=int(tx.shape[-1]),activation_checkpointing=args.checkpoint,cuda_memory_fraction=args.memory_fraction,epochs=args.epochs,steps=args.steps,batch=64,microbatch=32,seed=219,device=str(device),parameters=sum(p.numel() for p in model.parameters()),training='real recorded RGB only',initialization='generic ImageNet; no fire-trained checkpoint',dataset_sha256=metadata['dataset_sha256'],splits=metadata['splits'])
     (out/'config.json').write_text(json.dumps(config,indent=2));print(json.dumps(config),flush=True)
+    if device.type=='cuda':torch.cuda.reset_peak_memory_stats()
     for epoch in range(args.epochs):
         model.train();total=0
         for step in range(args.steps):
@@ -80,6 +88,9 @@ def main(args):
         if cal['loss']<best:
             best=cal['loss'];torch.save(dict(state_dict=model.cpu().state_dict(),epoch=epoch+1,config=config),out/'best.pt');model.to(device)
         (out/'history.json').write_text(json.dumps(history,indent=2))
+        if args.stop_file is not None and args.stop_file.exists():
+            print(json.dumps(dict(early_stop=True,after_epoch=epoch+1,reason=args.stop_file.read_text())),flush=True)
+            break
     checkpoint=torch.load(out/'best.pt',map_location=device,weights_only=True);model.load_state_dict(checkpoint['state_dict']);cal_logits=predict(model,cx,device)
     ex=torch.from_numpy(data['x'][ids['test']].transpose(0,3,1,2).copy()).float()/255;ey=torch.tensor(data['y'][ids['test']],dtype=torch.long);test_logits=predict(model,ex,device)
     result=dict(config=config,chosen_epoch=checkpoint['epoch'],calibration=metrics(cal_logits,cy),test=metrics(test_logits,ey),groups={})
@@ -87,13 +98,18 @@ def main(args):
         ix=[j for j,i in enumerate(ids['test']) if rows[i]['source']==source];result['groups'][source]=metrics(test_logits[ix],ey[ix])
     np.savez_compressed(out/'predictions.npz',indices=ids['test'],logits=test_logits.numpy(),truth=ey.numpy(),calibration_indices=ids['calibration'],calibration_logits=cal_logits.numpy())
     # Paired historical control, still from the wholly held-out quad1 recording.
-    old_rows=json.loads((ROOT/'.board/row32/selected.json').read_text());old=np.load(ROOT/'.board/row32/real.npz')
-    old_ids=[i for i,r in enumerate(old_rows) if r['kind']=='orange' and r['split']=='validation']
-    ox=torch.from_numpy(old['x'][old_ids].transpose(0,3,1,2).copy()).float()/255;oy=torch.tensor(old['y'][old_ids],dtype=torch.long)
-    old_logits=predict(model,ox,device);result['historical_99']=metrics(old_logits,oy);result['historical_99']['deterministic_correct']=sum(old_rows[i]['phase']==old_rows[i]['baselinePhase'] for i in old_ids)
-    np.savez_compressed(out/'historical-predictions.npz',indices=old_ids,logits=old_logits.numpy(),truth=oy.numpy())
+    if not args.no_historical:
+        old_rows=json.loads((ROOT/'.board/row32/selected.json').read_text());old=np.load(ROOT/'.board/row32/real.npz')
+        old_ids=[i for i,r in enumerate(old_rows) if r['kind']=='orange' and r['split']=='validation']
+        ox=torch.from_numpy(old['x'][old_ids].transpose(0,3,1,2).copy()).float()/255;oy=torch.tensor(old['y'][old_ids],dtype=torch.long)
+        old_logits=predict(model,ox,device);result['historical_99']=metrics(old_logits,oy);result['historical_99']['deterministic_correct']=sum(old_rows[i]['phase']==old_rows[i]['baselinePhase'] for i in old_ids)
+        np.savez_compressed(out/'historical-predictions.npz',indices=old_ids,logits=old_logits.numpy(),truth=oy.numpy())
     result['seconds']=time.perf_counter()-start;result['source_hashes']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),Path(__file__).with_name('prepare.py'),Path(__file__).with_name('inventory.py'),Path(__file__).with_name('select.mjs'),Path(__file__).parents[1]/'large/models.py']}
+    result['completed_epochs']=len(history)
+    if args.checkpoint:
+        path=Path(__file__).resolve().parents[1]/'resolution/checkpointing.py';result['source_hashes'][str(path.relative_to(ROOT))]=hashlib.sha256(path.read_bytes()).hexdigest()
+    if device.type=='cuda':result['gpu_peak_allocated_mb']=torch.cuda.max_memory_allocated()/1048576;result['gpu_peak_reserved_mb']=torch.cuda.max_memory_reserved()/1048576
     (out/'results.json').write_text(json.dumps(result,indent=2));print(json.dumps(result),flush=True)
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('architecture',choices=['resnet18','resnet101','vit_b16']);parser.add_argument('--epochs',type=int,default=12);parser.add_argument('--steps',type=int,default=32);main(parser.parse_args())
+    parser=argparse.ArgumentParser();parser.add_argument('architecture',choices=['resnet18','resnet101','vit_b16']);parser.add_argument('--epochs',type=int,default=12);parser.add_argument('--steps',type=int,default=32);parser.add_argument('--data',type=Path,default=BASE);parser.add_argument('--no-historical',action='store_true');parser.add_argument('--checkpoint',action='store_true');parser.add_argument('--memory-fraction',type=float);parser.add_argument('--stop-file',type=Path);main(parser.parse_args())

@@ -81,20 +81,21 @@ def raster(sprite, quad, size=SIZE):
     return rgba.reshape(size,size,4)
 
 
-def rectify(image, quad):
-    t=(np.arange(OUT)+.5)/OUT
+def rectify(image, quad, size=OUT):
+    if not isinstance(size,int) or size<1:raise ValueError('Positive integer crop size required')
+    t=(np.arange(size)+.5)/size
     u,v=np.meshgrid(t,t)
     xy=project(homography(quad), np.stack([u,v],axis=-1))-.5
     x,y=xy[:,0],xy[:,1]
     x0,y0=np.floor(x).astype(int),np.floor(y).astype(int)
     dx,dy=x-x0,y-y0
     h,w=image.shape[:2]
-    out=np.zeros((OUT*OUT,3),np.float64)
+    out=np.zeros((size*size,3),np.float64)
     for ax,ay,weight in [(0,0,(1-dx)*(1-dy)),(1,0,dx*(1-dy)),(0,1,(1-dx)*dy),(1,1,dx*dy)]:
         ix,iy=x0+ax,y0+ay
         valid=(ix>=0)&(iy>=0)&(ix<w)&(iy<h)
         out[valid]+=image[iy[valid],ix[valid],:3]*weight[valid,None]
-    return np.uint8(np.clip(out.reshape(OUT,OUT,3),0,255))
+    return np.uint8(np.clip(out.reshape(size,size,3),0,255))
 
 
 def colour_mask(rgb):

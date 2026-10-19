@@ -1,7 +1,9 @@
 # Real-only normal-fire phase models
 
-19 October 2026. **ResNet-101 is the best AI in this pilot, but does not replace
-the matcher:** it improves block-fire accuracy while losing on entity fire.
+19 October 2026. **The 128px ResNet-101 is the best AI in this pilot:425/617
+(68.9%), versus 393/617 (63.7%) at 64px.** It still loses to the deterministic
+matcher on entity fire. The initial 64px architecture comparison is below;
+the approved 128px follow-up and measured trade-offs are at the end.
 No production matcher or automatic confirmation was changed. Outputs are the
 32 animation phases; sheet and mirror are not prediction targets.
 
@@ -141,3 +143,86 @@ Three targeted split/phase tests and the two-architecture shape/finite-output
 test pass. The prediction audit recounts metrics, checks exact test targets and
 dataset hashes, and rejects any recording crossing fit/calibration/test roles.
 No broad app test suite is needed for this offline research-only change.
+
+## Approved resolution follow-up: 128x128
+
+The owner approved a native 128px ResNet-101 comparison using the same 3,006 fit,
+157 calibration and 617 test crops, generic ImageNet initialization, and no
+synthetic fire. The existing 64px crop cache is **not enlarged**. Every full native
+frame is first checked to reproduce its old 64px crop SHA-256 exactly, then sampled
+directly at 128px. All 3,780 case identities, phases, outlines, source roles and
+shared-unveil hashes remain identical.
+
+The original 12-epoch/32-update/batch 64/microbatch 32 recipe is retained as a cap.
+The owner additionally requested manual early stopping: calibration loss is
+reviewed each epoch; after at least 4 epochs, three consecutive epochs without a
+new calibration-loss minimum trigger a graceful stop and evaluation of the best
+checkpoint. No held-out test result influences this decision.
+
+A naive 128px microbatch exceeds the 8GB GPU's dedicated memory. Chunked activation
+checkpointing avoids spilling into system memory while retaining microbatch 32.
+Recomputation preserves BatchNorm running means, variances and observation counts;
+a targeted full-backbone test verifies identical outputs, parameter gradients and
+buffers. A 75% allocator limit leaves room for the desktop. This is a memory
+implementation change, not a smaller training batch.
+
+The run completed the 12-epoch cap in 837.5 seconds. Early stopping was manually
+checked: epochs 8/9 worsened after 7, but 10 recovered to a new minimum;12 produced
+another minimum. Three consecutive non-improving checks never occurred, so no
+early stop was triggered. Checkpoint 12 was selected using calibration loss 1.5746,
+before evaluating the held-out set once.
+
+| Input | Correct /617 | Accuracy | Blocks /425 | Entities /192 | Top 3 /617 |
+|---|---:|---:|---:|---:|---:|
+| 64x64 | 393 | 63.7% | 288 (67.8%) | 105 (54.7%) | 483 (78.3%) |
+| **128x128** | **425** | **68.9%** | **305 (71.8%)** | **120 (62.5%)** | **495 (80.2%)** |
+
+That is 32 additional correct guesses, +5.2 percentage points. Paired cases:
+352 correct with both models,73 correct only at 128px,41 correct only at 64px,
+and 151 wrong with both. These disagreements justify testing an ensemble later;
+they are not evidence that a particular ensemble will attain their combined
+correct-case count. The deterministic matcher remains stronger on entities:
+141/192 (73.4%), compared with 120/192 (62.5%) for the 128px model.
+
+Using the same calibration-only zero-error selection rule for confidence gates:
+
+| Input | Threshold | Correct accepted | Wrong accepted | Abstained /617 |
+|---|---:|---:|---:|---:|
+| 64x64 | .83 | 165 | 2 | 450 |
+| 128x128 | .69 | 246 | 5 | 366 |
+
+The 128px gate increases correct coverage to 39.9%, but 5/251 accepted guesses are
+wrong (2.0%). Higher overall accuracy does not remove the need for review.
+
+Controlled warm latency was remeasured for both checkpoints in the same audit,
+with four CPU threads,10 warmups and 30 timed calls per device:
+
+| Input | CPU median /p 95 | CUDA median /p 95 |
+|---|---:|---:|
+| 64x64 | 169.0 /184.7 ms | 18.1 /23.8 ms |
+| 128x128 | 516.8 /555.7 ms | 21.7 /28.4 ms |
+
+This includes native-frame quad sampling through probabilities returned to CPU;
+decoding, full-frame unveil and cold loading remain excluded. Training peaked at
+3,574 MiB allocated /5,850 MiB reserved GPU memory. Checkpoint recomputation adds
+training work, and changing input shape also changes augmentation/random draws;
+this single-seed comparison is not an exhaustive causal architecture study.
+
+New scripts live in `scripts/fire-ai/row32/resolution/`; aggregate comparison
+metrics and all-source coverage are saved there. Reproduction after catalogue
+refresh and exact source availability:
+
+```text
+python FireCrackle/scripts/fire-ai/row32/resolution/test_resolution.py
+python FireCrackle/scripts/fire-ai/row32/resolution/test_checkpointing.py
+python FireCrackle/scripts/fire-ai/row32/resolution/prepare.py
+python FireCrackle/scripts/fire-ai/row32/resolution/register.py
+python FireCrackle/scripts/fire-ai/row32/real/train.py resnet101 --data .board/row32-128 --no-historical --checkpoint --memory-fraction 0.75 --stop-file .board/row32-128/STOP
+python FireCrackle/scripts/fire-ai/row32/resolution/audit.py --timing
+```
+
+The stop-file is a manual graceful-stop request, checked at epoch boundaries;
+leave it absent for the 12-epoch cap. Two crop tests and the full-backbone
+output/gradient/BatchNorm parity test pass. The audit checks exact cohort/target
+parity and recounts paired predictions. Preprocessing variants and ensembles are
+requested follow-ups, in that order; neither has been run in this experiment.

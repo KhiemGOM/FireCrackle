@@ -1,0 +1,18 @@
+{
+  "approved_by": "Owner: sure,I agree; revised duration approved with manual early stopping",
+  "architecture": "resnet101",
+  "input_size": 128,
+  "fit": 3006,
+  "calibration": 157,
+  "test": 617,
+  "max_epochs": 12,
+  "manual_early_stop": "review calibration loss every epoch; request graceful stop after3 consecutive epochs without a new minimum, minimum4epochs; test untouched until stop",
+  "steps": 32,
+  "batch": 64,
+  "microbatch": 32,
+  "seed": 219,
+  "initialization": "generic ImageNet",
+  "synthetic_fire": false,
+  "preprocessing": "unchanged shared automatic unveil; optional preprocessing and ensembles later, separate agreed plan",
+  "selection": "calibration cross entropy; no target-test selection"
+}

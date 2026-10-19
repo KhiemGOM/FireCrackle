@@ -1,0 +1,606 @@
+{
+  "models": {
+    "64": {
+      "config": {
+        "architecture": "resnet101",
+        "epochs": 12,
+        "steps": 32,
+        "batch": 64,
+        "microbatch": 32,
+        "seed": 219,
+        "device": "cuda",
+        "parameters": 42762336,
+        "training": "real recorded RGB only",
+        "initialization": "generic ImageNet; no fire-trained checkpoint",
+        "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+        "splits": {
+          "train": {
+            "crops": 3006,
+            "videos": [
+              "new_normal",
+              "ownership",
+              "survival1"
+            ],
+            "frames": 915,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          "calibration": {
+            "crops": 157,
+            "videos": [
+              "later"
+            ],
+            "frames": 53,
+            "phases": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              14,
+              15,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              24,
+              25,
+              26,
+              27,
+              28,
+              30,
+              31
+            ]
+          },
+          "test": {
+            "crops": 617,
+            "videos": [
+              "quad1"
+            ],
+            "frames": 179,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          }
+        }
+      },
+      "chosen_epoch": 11,
+      "calibration": {
+        "n": 157,
+        "correct": 90,
+        "accuracy": 0.5732483863830566,
+        "top3": 113,
+        "loss": 1.7612264156341553,
+        "macro_recall": 0.6064106225967407
+      },
+      "test": {
+        "n": 617,
+        "correct": 393,
+        "accuracy": 0.6369529962539673,
+        "top3": 483,
+        "loss": 1.3982514142990112,
+        "macro_recall": 0.6307775378227234
+      },
+      "groups": {
+        "block": {
+          "n": 425,
+          "correct": 288,
+          "accuracy": 0.677647054195404,
+          "top3": 352,
+          "loss": 1.2230074405670166,
+          "macro_recall": 0.7410845160484314
+        },
+        "entity": {
+          "n": 192,
+          "correct": 105,
+          "accuracy": 0.546875,
+          "top3": 131,
+          "loss": 1.7861617803573608,
+          "macro_recall": 0.5152686238288879
+        }
+      },
+      "historical_99": {
+        "n": 99,
+        "correct": 42,
+        "accuracy": 0.42424243688583374,
+        "top3": 60,
+        "loss": 2.126857042312622,
+        "macro_recall": 0.4704401195049286,
+        "deterministic_correct": 59
+      },
+      "seconds": 158.0733177000002,
+      "source_hashes": {
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\train.py": "12e5ede18834ceb782e76dd7784c5bf858c7d850c5704973d0d632f00c994a4c",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\prepare.py": "f8775686589e8c9f82f883837906b5bcf7d4f5e690e749daeaf268a5e7d7f5fa",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\inventory.py": "132e84b64d7555065f116c1b6b92fe45d947e882b5b559763cf2db5fbbf9b731",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\select.mjs": "54eb4d071f89ccf46c27ce6f5f0d045d20b5876482dfd1ef45a34a3e17c624df",
+        "FireCrackle\\scripts\\fire-ai\\row32\\large\\models.py": "58c7ce30d801fa2dcc7e1404c609a82e3ecb60623f9dd322ba62fe86fd5c8afb"
+      },
+      "confidence_gate": {
+        "threshold": 0.8300000000000001,
+        "correct": 165,
+        "wrong": 2,
+        "abstained": 450,
+        "accepted": 167
+      },
+      "checkpoint_sha256": "fb6643cc3afb019511789feeb185621dd7f6e2422fc4dbf01cfc919346a97f6e",
+      "timing": {
+        "cpu": {
+          "median_ms": 169.0045499981352,
+          "p95_ms": 184.66271499801223,
+          "warmup": 10,
+          "samples": 30,
+          "cpu_threads": 4
+        },
+        "cuda": {
+          "median_ms": 18.100700001014047,
+          "p95_ms": 23.8271000000168,
+          "warmup": 10,
+          "samples": 30,
+          "cpu_threads": 4
+        }
+      }
+    },
+    "128": {
+      "config": {
+        "architecture": "resnet101",
+        "input_size": 128,
+        "activation_checkpointing": true,
+        "cuda_memory_fraction": 0.75,
+        "epochs": 12,
+        "steps": 32,
+        "batch": 64,
+        "microbatch": 32,
+        "seed": 219,
+        "device": "cuda",
+        "parameters": 42762336,
+        "training": "real recorded RGB only",
+        "initialization": "generic ImageNet; no fire-trained checkpoint",
+        "dataset_sha256": "1366cff9892877305e434e8af0c969ba7b83c1470f1165cabfbec8cc74b1c753",
+        "splits": {
+          "train": {
+            "crops": 3006,
+            "videos": [
+              "new_normal",
+              "ownership",
+              "survival1"
+            ],
+            "frames": 915,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          "calibration": {
+            "crops": 157,
+            "videos": [
+              "later"
+            ],
+            "frames": 53,
+            "phases": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              14,
+              15,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              24,
+              25,
+              26,
+              27,
+              28,
+              30,
+              31
+            ]
+          },
+          "test": {
+            "crops": 617,
+            "videos": [
+              "quad1"
+            ],
+            "frames": 179,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          }
+        }
+      },
+      "chosen_epoch": 12,
+      "calibration": {
+        "n": 157,
+        "correct": 97,
+        "accuracy": 0.6178343892097473,
+        "top3": 118,
+        "loss": 1.574596643447876,
+        "macro_recall": 0.6375274062156677
+      },
+      "test": {
+        "n": 617,
+        "correct": 425,
+        "accuracy": 0.6888168454170227,
+        "top3": 495,
+        "loss": 1.286441445350647,
+        "macro_recall": 0.6636523008346558
+      },
+      "groups": {
+        "block": {
+          "n": 425,
+          "correct": 305,
+          "accuracy": 0.7176470756530762,
+          "top3": 354,
+          "loss": 1.1348727941513062,
+          "macro_recall": 0.7336431741714478
+        },
+        "entity": {
+          "n": 192,
+          "correct": 120,
+          "accuracy": 0.625,
+          "top3": 141,
+          "loss": 1.6219455003738403,
+          "macro_recall": 0.6150873303413391
+        }
+      },
+      "seconds": 837.4997610000028,
+      "source_hashes": {
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\train.py": "1d577bbdfd087862033023d34e010c13ed676ba541dd0cc8915fc4d6dfb49102",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\prepare.py": "f8775686589e8c9f82f883837906b5bcf7d4f5e690e749daeaf268a5e7d7f5fa",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\inventory.py": "132e84b64d7555065f116c1b6b92fe45d947e882b5b559763cf2db5fbbf9b731",
+        "FireCrackle\\scripts\\fire-ai\\row32\\real\\select.mjs": "54eb4d071f89ccf46c27ce6f5f0d045d20b5876482dfd1ef45a34a3e17c624df",
+        "FireCrackle\\scripts\\fire-ai\\row32\\large\\models.py": "58c7ce30d801fa2dcc7e1404c609a82e3ecb60623f9dd322ba62fe86fd5c8afb",
+        "FireCrackle\\scripts\\fire-ai\\row32\\resolution\\checkpointing.py": "dd3b84191303efd463de22f1f1151d4e2fe42872751c7ad62c0cd825ac32fc3e"
+      },
+      "completed_epochs": 12,
+      "gpu_peak_allocated_mb": 3573.8388671875,
+      "gpu_peak_reserved_mb": 5850.0,
+      "confidence_gate": {
+        "threshold": 0.6900000000000001,
+        "correct": 246,
+        "wrong": 5,
+        "abstained": 366,
+        "accepted": 251
+      },
+      "checkpoint_sha256": "17196bbcd168f5b149f322e8cc83af67ad16bdac4f847f53abf3bf889fefb668",
+      "timing": {
+        "cpu": {
+          "median_ms": 516.7681999992055,
+          "p95_ms": 555.6736950014965,
+          "warmup": 10,
+          "samples": 30,
+          "cpu_threads": 4
+        },
+        "cuda": {
+          "median_ms": 21.7439000007289,
+          "p95_ms": 28.396419998898626,
+          "warmup": 10,
+          "samples": 30,
+          "cpu_threads": 4
+        }
+      }
+    }
+  },
+  "paired": {
+    "both_correct": 352,
+    "only64_correct": 41,
+    "only128_correct": 73,
+    "both_wrong": 151
+  },
+  "baseline": {
+    "test": {
+      "n": 617,
+      "correct": 363,
+      "accuracy": 0.5883306320907618
+    },
+    "groups": {
+      "block": {
+        "n": 425,
+        "correct": 222,
+        "accuracy": 0.5223529411764706
+      },
+      "entity": {
+        "n": 192,
+        "correct": 141,
+        "accuracy": 0.734375
+      }
+    },
+    "source_hashes": {
+      "quadMatch.cjs": "a3230adba5fbdceb38e1823dbb709b477a90da7e23e832cc9d2fdeff1fe2def0",
+      "quadMask.cjs": "8163fef8d4bb9925e1c4dee49cee2ca3a9a5b1ffed63fae449dee21f405d02d1",
+      "fireColourMask.cjs": "611185224370f305509c93234b72eb9eacca1f51bc9f29d23dc009e64dd260a5"
+    }
+  },
+  "splits": {
+    "train": {
+      "crops": 3006,
+      "videos": [
+        "new_normal",
+        "ownership",
+        "survival1"
+      ],
+      "frames": 915,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    "calibration": {
+      "crops": 157,
+      "videos": [
+        "later"
+      ],
+      "frames": 53,
+      "phases": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        14,
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        24,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31
+      ]
+    },
+    "test": {
+      "crops": 617,
+      "videos": [
+        "quad1"
+      ],
+      "frames": 179,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    }
+  },
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "native64_pixel_parity_checked": 3780,
+  "dataset_sha256": "1366cff9892877305e434e8af0c969ba7b83c1470f1165cabfbec8cc74b1c753",
+  "reference64_dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+  "plan": {
+    "approved_by": "Owner: sure,I agree; revised duration approved with manual early stopping",
+    "architecture": "resnet101",
+    "input_size": 128,
+    "fit": 3006,
+    "calibration": 157,
+    "test": 617,
+    "max_epochs": 12,
+    "manual_early_stop": "review calibration loss every epoch; request graceful stop after3 consecutive epochs without a new minimum, minimum4epochs; test untouched until stop",
+    "steps": 32,
+    "batch": 64,
+    "microbatch": 32,
+    "seed": 219,
+    "initialization": "generic ImageNet",
+    "synthetic_fire": false,
+    "preprocessing": "unchanged shared automatic unveil; optional preprocessing and ensembles later, separate agreed plan",
+    "selection": "calibration cross entropy; no target-test selection"
+  }
+}
