@@ -437,3 +437,98 @@ node FireCrackle/scripts/fire-ai/row32/fusion/scores.mjs
 python FireCrackle/scripts/fire-ai/row32/fusion/run.py
 python FireCrackle/scripts/fire-ai/row32/fusion/audit.py
 ```
+
+## Native ONNX integration and eager model preparation
+
+The owner approved integrating the128px CNN + deterministic top-three ensemble
+through the existing no-fire Rust/ONNX Runtime path, with eager loading. The
+normal-fire checkpoint is exported with RGB float32 NHWC input `[1,128,128,3]`
+and32 animation-phase logits; normalization is inside the graph. The app does
+not use Python or PyTorch. No new fitting or synthetic fire was introduced.
+
+Exported weights SHA-256:
+`432c12518e0dc80818c965b7e785b14ed4138a98c47b9990e037fcaea6b7faf8`.
+The model is170,892,279bytes (163.0MiB). It stays outside Git. Versioned metadata
+is `release/quad-phase-model.json`; both staging and native loading verify its
+hash. The same metadata supplies the frontend fusion constants.
+
+On all157 calibration and617 test crops, ONNX CPU differs slightly from the
+older cached CUDA output (maximum logit difference .00831; probability .00136).
+Of774 crops,773 retain top one and772 retain the same full top-three set. Direct
+CPU PyTorch checks on the six largest CUDA-difference cases instead match ONNX
+within .0000043 logits, identifying the earlier GPU arithmetic as the relevant
+reference difference. Do not claim bitwise cached-GPU equivalence.
+
+Rechecking the original calibration bank on ONNX outputs selects the same .01
+temperature and25% CNN weight (127/157 top three). The deployed-score fusion
+still reaches **514/617 test top-three correct** and419/617 top one. Only one full
+test top-three set changes from the cached-CUDA fusion; correctness totals do
+not change. These are the same familiar recordings, not new validation.
+
+The production matcher uses shared Rust/WASM automatic unveil and native128px
+rectification for the model. Eligibility matches the geometry gate: fully
+onscreen, at least3 native pixels per texel and anisotropy at most2.5. Smaller,
+clipped or squashed quads retain the deterministic helper. Soul/other textures
+are not routed through this normal-fire model. Browser-only mode also retains
+the deterministic helper.
+
+Phase fusion uses original-outline deterministic evidence. Optional per-sprite
+corner fitting still provides each proposed phase's best appearance/geometry;
+atlas filters remain enforced. The helper displays three distinct animation
+phases, retaining preview shortcuts and explicit confirmation. Native inference
+errors are reported and the colour matcher remains available. Stale responses
+after frame/quad changes are discarded.
+
+The no-fire ORT engine now exposes phase inference through the same dynamic
+library loader and platform backends. Existing no-fire backend selection and
+CPU fallback are preserved. Phase GPU selection validates numerical agreement
+and speed, then stops after finding a faster valid adapter. Runtime GPU failures
+retry on CPU. No second platform-specific inference stack was added.
+
+Preparation starts on a background blocking task during native app setup. A CPU
+session is published first; CPU warmup and first-crop smoke measured2.75seconds
+total in the debug build, including model read/hash/session creation. GPU
+compilation/probing happens outside the match mutex, and a simultaneous second
+match completed in329ms on CPU. The session remains resident and switches to GPU
+once ready; F5 does not require recreating it.
+
+Native release-mode ORT measurement on this RTX4060 Laptop selected DirectML0:
+mean14.44ms per128px inference over20 warm requests, maximum CPU/GPU logit
+difference .0000029. Initial exhaustive two-adapter preparation took75seconds,
+which motivated the CPU-first/off-lock design and first-fast-adapter selection.
+That historical preparation time is not a blocking first-click requirement.
+Python ORT CPU measured session creation .334seconds and mean312.9ms per crop
+(four threads,774 sequential crops). These are component measurements, not
+complete click-to-preview app latency.
+
+Real frontend rectification was audited on nine native crops:4,206 of442,368
+channels differ by one code value from NumPy's homography/truncation arithmetic;
+all nine preserve ONNX top-one and top-three predictions. The frontend fusion
+also reproduces every one of772 usable real calibration/test score-vector
+rankings. Two no-evidence calibration cases are outside that ranking audit.
+
+Targeted checks pass:20 frontend tests including real-pixel/ranking audits,
+shared no-fire preprocessing/runtime tests (with the actual native DLL/model),
+two native phase tests including actual-model/CPU-during-GPU-preparation smoke,
+two staging/tamper tests, frontend production build and native debug build.
+Linux code reuses the existing provider path; a Linux binary was not built on
+this Windows host.
+
+Both Windows/Linux release scripts stage `quad-phase-v1.onnx` beside the same
+ORT resources. The local verified export is ready and can be supplied through
+`FIRECRACKLE_PHASE_MODEL_SOURCE`. Its public model-asset URL is intentionally
+unset until publication is authorized; a remote release build fails clearly
+instead of silently packaging a missing model. No release asset was published
+by this integration task.
+
+Reproduction (from the repo root except the frontend test):
+
+```text
+python FireCrackle/scripts/fire-ai/row32/onnx/export.py
+python FireCrackle/scripts/fire-ai/row32/onnx/fixtures.py
+# From FireCrackle, with FIRECRACKLE_PHASE_PARITY=1:
+npm test -- --run src/lib/quadPhase.test.ts src/lib/quadMatch.test.ts
+npx vitest run --config scripts/fire-ai/row32/onnx/vitest.config.ts
+python FireCrackle/scripts/fire-ai/row32/onnx/fixtures.py --verify
+python FireCrackle/scripts/prepare-quad-phase.py
+```

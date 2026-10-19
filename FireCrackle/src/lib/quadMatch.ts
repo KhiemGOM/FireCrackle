@@ -5,10 +5,13 @@ import { buildFireColourMask } from "./fireColourMask";
 import { matchesAppearance, sheetEdgeCounts, type AtlasEdges, type EdgeFilter } from "./atlasFilter";
 
 export interface MatchImage { width:number; height:number; data:Uint8ClampedArray }
-export interface QuadCandidate extends PreviewSprite { score:number; quad:ManualQuad; support?:number; maskSamples?:number; regions?:number }
+export interface QuadCandidate extends PreviewSprite { score:number; quad:ManualQuad; support?:number; maskSamples?:number; regions?:number; phaseScore?:number }
 export interface QuadMatch {
   status:"clear"|"ambiguous"|"weak"|"insufficient"|"filtered";
   candidates:QuadCandidate[]; margin:number; searched:number;
+  /** Original-outline evidence for phase fusion; fitted candidates retain their geometry. */
+  phaseCandidates?:QuadCandidate[]; allCandidates?:QuadCandidate[];
+  ai?:{provider?:string;error?:string};
 }
 interface Samples {probes:number;weights:Float64Array;rgb:Float64Array;fire:Uint8Array;valid:Uint8Array;count:number}
 interface Template extends PreviewSprite {rgb:Float64Array;alpha:Uint8Array; bounds:[number,number,number,number]}
@@ -112,8 +115,8 @@ function similarity(observed:Samples,model:Template):{score:number;support:numbe
 /** Search128 appearances and small position/scale corrections inside the supplied outline.
  * No clock prediction or UI overlay is an input; only the original frame pixels.
  */
-export function matchFireQuad(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,options:{refineGeometry?:boolean;filter?:EdgeFilter}={}):QuadMatch {
-  return match(image,sheets,quad,false,true,options.refineGeometry??true,options.filter);
+export function matchFireQuad(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,options:{refineGeometry?:boolean;filter?:EdgeFilter;phaseEvidence?:boolean}={}):QuadMatch {
+  return match(image,sheets,quad,false,true,options.refineGeometry??true,options.filter,options.phaseEvidence);
 }
 
 /** Oracle-box evaluation adapter: labels bound visible opacity, not the full
@@ -124,7 +127,7 @@ export function matchFireBox(image:MatchImage,sheets:[Uint8ClampedArray,Uint8Cla
   return match(image,sheets,box,true,options.stretch);
 }
 
-function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,opaqueBox:boolean,stretch=true,refineGeometry=true,filter?:EdgeFilter):QuadMatch {
+function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,opaqueBox:boolean,stretch=true,refineGeometry=true,filter?:EdgeFilter,phaseEvidence=false):QuadMatch {
   const insufficient:QuadMatch={status:"insufficient",candidates:[],margin:0,searched:0};
   if(!validQuad(quad)||image.width<=0||image.height<=0||image.data.length!==image.width*image.height*4||sheets.some(s=>s.length!==16*512*4))return insufficient;
   const w=Math.hypot((quad[1][0]-quad[0][0])*image.width,(quad[1][1]-quad[0][1])*image.height);
@@ -138,6 +141,10 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
   if(!models.length)return {status:"filtered",candidates:[],margin:0,searched:0};
   const envelope=[[-.1,-.1],[1.1,-.1],[1.1,1.1],[-.1,1.1]].map(([u,v])=>projectQuad(quad,u,v)) as ManualQuad;
   const mask=buildFireColourMask(image,sheets,refineGeometry&&validQuad(envelope)?envelope:quad);
+  // Fusion was calibrated on fixed outlines and a fixed-outline colour mask.
+  // Keep this independent of the optional per-appearance corner optimization.
+  const fixed=phaseEvidence?sampleFrame(image,quad,buildFireColourMask(image,sheets,quad)):null;
+  const phaseCandidates=fixed?models.map(model=>({sheet:model.sheet,row:model.row,mirrored:model.mirrored,quad,...similarity(fixed,model)})):undefined;
   const best:QuadCandidate[]=models.map(({sheet,row,mirrored})=>({sheet,row,mirrored,score:0,quad}));
   let enoughVisible=false;
   if(refineGeometry&&!opaqueBox) {
@@ -190,5 +197,5 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
   best.sort((a,b)=>b.score-a.score);
   const margin=best[0].score-(best[1]?.score??0);
   const status=best[0].score===0?"weak":(best[0].support??0)<32||(best[0].regions??0)<3?"insufficient":margin<0.03?"ambiguous":"clear";
-  return {status,candidates:best.slice(0,5),margin,searched:models.length};
+  return {status,candidates:best.slice(0,5),margin,searched:models.length,...(phaseCandidates?{phaseCandidates,allCandidates:best}:{})};
 }

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "name": "FireCrackle normal-fire quad phase ResNet101128",
+  "file": "quad-phase-v1.onnx",
+  "url": null,
+  "sha256": "432c12518e0dc80818c965b7e785b14ed4138a98c47b9990e037fcaea6b7faf8",
+  "checkpoint_sha256": "17196bbcd168f5b149f322e8cc83af67ad16bdac4f847f53abf3bf889fefb668",
+  "input_shape": [1,128,128,3],
+  "output": "32 animation-phase logits",
+  "cnn_weight": 0.25,
+  "matcher_temperature": 0.01,
+  "provenance": "Generic ImageNet initialization, fine-tuned on real normal-fire quad crops only. Soul fire is not validated. No synthetic fire or recordings/assets are bundled in the model.",
+  "distribution": "Local verified model is ready. Set FIRECRACKLE_PHASE_MODEL_SOURCE or publish a model asset and pin its URL before remote release builds."
+}

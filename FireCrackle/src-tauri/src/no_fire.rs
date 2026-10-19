@@ -16,13 +16,20 @@ static ENGINE: Mutex<Option<Engine>> = Mutex::new(None);
 pub(crate) fn configure(folder: PathBuf) {
     let _ = RESOURCES.set(folder);
 }
+pub(crate) fn model_path(name: &str) -> PathBuf {
+    let folder = RESOURCES.get().cloned().unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/ai"));
+    let file = folder.join(name);
+    #[cfg(debug_assertions)]
+    if !file.is_file() { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/ai").join(name); }
+    file
+}
 #[cfg(target_os = "linux")]
 static CACHE: OnceLock<PathBuf> = OnceLock::new();
 #[cfg(target_os = "linux")]
 pub(crate) fn configure_cache(folder: PathBuf) {
     let _ = CACHE.set(folder);
 }
-fn runtime() -> Result<PathBuf, String> {
+pub(crate) fn runtime() -> Result<PathBuf, String> {
     #[cfg(target_os = "linux")]
     if let Some(path) = std::env::var_os("FIRECRACKLE_AI_RUNTIME") {
         return Ok(PathBuf::from(path));

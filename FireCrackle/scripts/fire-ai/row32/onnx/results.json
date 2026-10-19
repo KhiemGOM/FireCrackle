@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "name": "FireCrackle normal-fire quad phase ResNet101128",
+  "checkpoint_sha256": "17196bbcd168f5b149f322e8cc83af67ad16bdac4f847f53abf3bf889fefb668",
+  "onnx_sha256": "432c12518e0dc80818c965b7e785b14ed4138a98c47b9990e037fcaea6b7faf8",
+  "input_shape": [
+    1,
+    128,
+    128,
+    3
+  ],
+  "input_type": "float32 RGB0..255",
+  "output": "32 animation-phase logits",
+  "opset": 17,
+  "cnn_weight": 0.25,
+  "matcher_temperature": 0.01,
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "cpu_session_load_seconds": 0.3336697999984608,
+  "max_logit_error_vs_cached_cuda": 0.00830090045928955,
+  "max_probability_error_vs_cached_cuda": 0.0013550668954849243,
+  "top1_parity_vs_cached_cuda": 773,
+  "top3_parity_vs_cached_cuda": 772,
+  "max_logit_error_vs_cpu_reference": 4.291534423828125e-06,
+  "cpu_mean_ms": 312.9244565330586,
+  "cpu_p95_ms": 358.5021599988977,
+  "checkpoint_provenance": "ImageNet initialization; trained on real recorded normal fire only; no synthetic fire; soul not validated"
+}

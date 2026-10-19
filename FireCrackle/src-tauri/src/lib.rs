@@ -16,6 +16,7 @@ mod gui;
 mod jolt;
 mod no_fire;
 mod pov;
+mod quad_phase;
 mod scan_cache;
 mod url_import;
 
@@ -413,6 +414,7 @@ pub fn run_app() {
             no_fire::configure(app.path().resource_dir()?.join("ai"));
             #[cfg(target_os = "linux")]
             no_fire::configure_cache(app.path().app_local_data_dir()?.join("ai"));
+            quad_phase::eager_load();
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -430,6 +432,7 @@ pub fn run_app() {
             no_fire_status,
             no_fire_cancel,
             no_fire_candidates,
+            quad_phase::quad_phase,
             pov_start,
             pov_status,
             pov_cancel,

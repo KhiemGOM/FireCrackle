@@ -7,6 +7,9 @@ import { Icon } from "./Icon";
 import type { EdgeFilter } from "../lib/atlasFilter";
 import { readPreferences, writePreferences } from "../lib/preferences";
 import { reportError } from "../lib/appErrors";
+import {invoke,isTauri} from "@tauri-apps/api/core";
+import {fuseQuadPhases} from "../lib/quadPhase";
+import {phaseMatchInput} from "../lib/quadPhaseInput";
 import "./QuadMatchControls.css";
 
 interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void;
@@ -88,18 +91,36 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
       const [image,sheets]=await Promise.all([readImage(frameUrl),readAtlas()]);
       await new Promise(resolve=>window.setTimeout(resolve,0));
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
-      const options={refineGeometry:adjustQuad,...(activeFilter?{filter:activeFilter}:{})};
-      const data=typeof Worker==="undefined"?matchFireQuad(image,sheets,quad,options):await new Promise<QuadMatch>((resolve,reject)=>{
+      const options={refineGeometry:adjustQuad,phaseEvidence:isTauri(),...(activeFilter?{filter:activeFilter}:{})};
+      type Reply={result:QuadMatch;rgb?:Uint8Array};
+      const reply=typeof Worker==="undefined"?await(async():Promise<Reply>=>{
+        const input=options.phaseEvidence?await phaseMatchInput(image,quad):{image,rgb:undefined,error:undefined};
+        const result=matchFireQuad(input.image,sheets,quad,{...options,phaseEvidence:!!input.rgb});
+        if(input.error)result.ai={error:input.error};
+        return {result,rgb:input.rgb};
+      })():await new Promise<Reply>((resolve,reject)=>{
         const worker=new Worker(new URL("../lib/quadMatch.worker.ts",import.meta.url),{type:"module"});
         const stop=()=>{finish();reject(new Error("Matching cancelled"));};
         const finish=()=>{worker.terminate();if(cancel.current===stop)cancel.current=null;};
         cancel.current=stop;
-        worker.onmessage=(event:MessageEvent<{result?:QuadMatch;error?:string}>)=>{
-          finish();if(event.data.result)resolve(event.data.result);else reject(new Error(event.data.error??"Matching failed"));
+        worker.onmessage=(event:MessageEvent<{result?:QuadMatch;error?:string;rgb?:Uint8Array}>)=>{
+          finish();if(event.data.result)resolve({result:event.data.result,rgb:event.data.rgb});else reject(new Error(event.data.error??"Matching failed"));
         };
         worker.onerror=event=>{finish();reject(new Error(event.message||"Matching worker failed"));};
         worker.postMessage({image,sheets,quad,options},[image.data.buffer as ArrayBuffer]);
       });
+      if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
+      let data=reply.result;
+      if(data.ai?.error)reportError("Quad AI unavailable — colour matcher used",data.ai.error);
+      if(reply.rgb&&data.phaseCandidates?.length){
+        try {
+          const answer=await invoke<{logits:number[];provider:string}>("quad_phase",{rgb:Array.from(reply.rgb)});
+          data=fuseQuadPhases(data,answer.logits,answer.provider);
+        }catch(error){
+          data={...data,ai:{error:String(error)}};
+          if(mine===token.current&&latest.current.key===start&&!latest.current.disabled)reportError("Quad AI unavailable — colour matcher used",String(error));
+        }
+      }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       const best=data.status==="clear"?data.candidates[0]:undefined;
       setResult({key:best?identity(frameUrl,best.quad,adjustQuad,activeFilter):start,data,selected:best});
@@ -113,13 +134,13 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     onPreview(candidate);
   }
   const summary=current?.error?`Match failed: ${current.error}`:!current?.data?"Uses your quad outline. Preview a match, then Confirm/Enter to label."
-    :current.selected?`Colour guess: ${name(current.selected)}. Verify before confirming.`
+    :current.selected?`${current.data.ai?.provider?"AI + colour":"Colour"} guess: ${name(current.selected)}. Verify before confirming.`
     :current.data.status==="filtered"?"No sprites pass the atlas filters. Change the counts or turn off Only filtered sprites."
     :current.data.status==="insufficient"?"Too few visible pixels. Adjust the quad or use a larger fire."
     :current.data.status==="weak"?"Too little matching colour evidence. Closest candidates shown."
-    :"Close matches. Click a numbered candidate to preview.";
+    :current.data.ai?.provider?"AI + colour matches. Click a numbered candidate to preview.":"Close matches. Click a numbered candidate to preview.";
   const info=[summary,`Atlas edges: left ${filter?.left??"Any"}, right ${filter?.right??"Any"}. ${onlyFiltered?"Filters applied before matching.":"Searching all sprites."}`,
-    current?.data?`Tried ${current.data.searched} / 128 sprites.`:"",adjustQuad?"Per-sprite corner fitting enabled, bounded to 120% of your outline.":"Your quad corners stay fixed.","Results are previews; only Confirm/Enter saves a label."].filter(Boolean).join("\n");
+    current?.data?`Tried ${current.data.searched} / 128 sprites.`:"",current?.data?.ai?.provider?`128px AI + colour matcher · ${current.data.ai.provider}. Three distinct animation phases.`:"",current?.data?.ai?.error?`AI unavailable: ${current.data.ai.error}. Colour matcher used.`:"",adjustQuad?"Per-sprite corner fitting enabled, bounded to 120% of your outline.":"Your quad corners stay fixed.","Results are previews; only Confirm/Enter saves a label."].filter(Boolean).join("\n");
   return <div className="match-controls">
     <button className="icon-button with-text" style={{whiteSpace:"nowrap",flexShrink:0}} disabled={disabled||busy===key} onClick={()=>void find()} title={`Compare ${onlyFiltered?"sprites passing the atlas filters":"all 128 sprite appearances"} using original video pixels. ${adjustQuad?"Optimize each sprite’s four corners inside a 120% envelope.":"Keep your quad corners fixed."} Previews only; never saves a label.`}>
       <Icon name="zoomIn" /> {busy===key?"Matching…":"Find best match"}
@@ -127,7 +148,7 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     <label title="Apply the atlas left/right edge filters before trying any sprite"><input type="checkbox" aria-label="Only filtered sprites" checked={onlyFiltered} onChange={e=>setOnlyFiltered(e.target.checked)} /> Only filtered sprites</label>
     <label title="Optimize position, size and perspective for each sprite, within 120% of your outline. Off keeps all four corners exactly where you placed them."><input type="checkbox" aria-label="Adjust quad while matching" checked={adjustQuad} onChange={e=>setAdjustQuad(e.target.checked)} /> Adjust quad</label>
     {current?.data?.candidates.slice(0,3).map((c,i)=> {
-      const details=[`Match ${i+1}: ${name(c)}`,`${Math.round(c.score*256)} votes · ${c.support??"—"} matching / ${c.maskSamples??"—"} fire-colour samples`,`${c.regions??"—"} supported regions · ${current.data!.searched} sprites tried`,current.selected===c?"Currently previewed":"Click to preview",adjustQuad?"May move and resize the quad":"Quad corners stay fixed","Positive colour evidence, not a probability. Confirm/Enter saves the label."].join("\n");
+      const details=[`Match ${i+1}: ${name(c)}`,c.phaseScore!==undefined?`AI + colour phase rank score ${c.phaseScore.toFixed(3)}`:"",`${Math.round(c.score*256)} votes · ${c.support??"—"} matching / ${c.maskSamples??"—"} fire-colour samples`,`${c.regions??"—"} supported regions · ${current.data!.searched} sprites tried`,current.selected===c?"Currently previewed":"Click to preview",adjustQuad?"May move and resize the quad":"Quad corners stay fixed","Rank scores are not guaranteed confidence. Confirm/Enter saves the label."].filter(Boolean).join("\n");
       return <span className="match-hover" key={`${c.sheet}-${c.row}-${c.mirrored}`}>
         <button className="match-rank" disabled={disabled} aria-label={`Preview match ${i+1}: ${name(c)}`} aria-pressed={current.selected===c} onClick={()=>preview(c)}
           onMouseEnter={showDetails} onMouseLeave={hideDetails} onFocus={showDetails} onBlur={hideDetails}>{i+1}</button>

@@ -47,7 +47,7 @@ impl Engine {
             .as_ref()
             .map_err(Clone::clone)?;
         ort::init_from(runtime.to_string_lossy())
-            .with_name("FireCrackle no-fire")
+            .with_name("FireCrackle AI")
             .commit()
             .map_err(|e| e.to_string())?;
         let builder = || -> ort::Result<SessionBuilder> {
@@ -127,23 +127,31 @@ impl Engine {
     }
     /// Bounded startup probe. Never select a numerically inconsistent or slower GPU.
     pub fn auto(runtime: &Path, model: &[u8], cancel: &AtomicBool) -> Result<Self, String> {
+        Self::auto_shape(runtime, model, cancel, 224, 1, 3)
+    }
+    /// Same backend selection, numerical check and CPU fallback as no-fire.
+    /// One bounded probe avoids repeatedly running a large quad model on CPU.
+    pub fn auto_phase(runtime: &Path, model: &[u8], cancel: &AtomicBool) -> Result<Self, String> {
+        Self::auto_shape(runtime, model, cancel, 128, 32, 1)
+    }
+    fn auto_shape(runtime: &Path, model: &[u8], cancel: &AtomicBool, side: usize, outputs: usize, probes_count: usize) -> Result<Self, String> {
         let mut best = Self::load(runtime, model, false, 2)?;
-        let probes: Vec<Vec<u8>> = (0..3)
+        let probes: Vec<Vec<u8>> = (0..probes_count)
             .map(|k| {
-                (0..224 * 224 * 3)
+                (0..side * side * 3)
                     .map(|i| ((i * 17 + k * 53) % 256) as u8)
                     .collect()
             })
             .collect();
         let mut refs = Vec::new();
         for p in &probes {
-            refs.push(best.score_view(p)?);
+            refs.push(best.infer_view(p, side, outputs)?);
         }
         let measure = |engine: &mut Self| -> Result<f64, String> {
             let start = std::time::Instant::now();
             for _ in 0..3 {
                 for p in &probes {
-                    engine.score_view(p)?;
+                    engine.infer_view(p, side, outputs)?;
                 }
             }
             Ok(start.elapsed().as_secs_f64())
@@ -162,8 +170,8 @@ impl Engine {
             }
             let consistent = probes.iter().zip(&refs).all(|(p, r)| {
                 candidate
-                    .score_view(p)
-                    .is_ok_and(|s| (s - r).abs() <= 0.0001)
+                    .infer_view(p, side, outputs)
+                    .is_ok_and(|scores| scores.iter().zip(r).all(|(s,r)| (s-r).abs() <= 0.0001))
             });
             if !consistent {
                 continue;
@@ -173,17 +181,27 @@ impl Engine {
             {
                 best = candidate;
                 best_time = time;
+                // Large click-to-match models need not compile a second GPU
+                // after finding an already validated, faster first adapter.
+                // Preserve the no-fire scanner's existing exhaustive selection.
+                if outputs == 32 { break; }
             }
         }
         let _ = (cancel, best_time, refs);
         Ok(best)
     }
     pub fn score_view(&mut self, rgb: &[u8]) -> Result<f32, String> {
-        if rgb.len() != 224 * 224 * 3 {
+        Ok(self.infer_view(rgb, 224, 1)?[0])
+    }
+    pub fn phase_view(&mut self, rgb: &[u8]) -> Result<Vec<f32>, String> {
+        self.infer_view(rgb, 128, 32)
+    }
+    fn infer_view(&mut self, rgb: &[u8], side: usize, count: usize) -> Result<Vec<f32>, String> {
+        if rgb.len() != side * side * 3 {
             return Err("Invalid AI image view".into());
         }
         let tensor = Tensor::from_array((
-            [1usize, 224, 224, 3],
+            [1usize, side, side, 3],
             rgb.iter().map(|v| *v as f32).collect::<Vec<_>>(),
         ))
         .map_err(|e| e.to_string())?;
@@ -194,11 +212,10 @@ impl Engine {
         let (_, values) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| e.to_string())?;
-        let score = *values.first().ok_or("AI returned no score")?;
-        if !score.is_finite() {
+        if values.len() != count || values.iter().any(|s| !s.is_finite()) {
             return Err("AI returned invalid evidence".into());
         }
-        Ok(score)
+        Ok(values.to_vec())
     }
     pub fn clear_frame(
         &mut self,
