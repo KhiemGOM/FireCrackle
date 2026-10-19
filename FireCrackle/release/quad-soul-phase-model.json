@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "FireCrackle soul-fire quad phase ResNet101128",
+  "file": "quad-soul-phase-v1.onnx",
+  "url": null,
+  "sha256": "566d3d6b445e8d93fc1c0aecfba1b2928d7a10a5b5a34872352c51e805667880",
+  "checkpoint_sha256": "13de10523baea0f7305e515f3b37990657732f8abaf47ebf2bc546b609ba314c",
+  "input_shape": [
+    1,
+    128,
+    128,
+    3
+  ],
+  "output": "32 animation-phase logits",
+  "cnn_weight": 0.25,
+  "matcher_temperature": 0.01,
+  "provenance": "Generic ImageNet initialization, fine-tuned only on real recorded soul-fire quads. Separate from the ordinary-fire model. No synthetic fire examples.",
+  "distribution": "Hash-pinned model asset required for clean release builds."
+}

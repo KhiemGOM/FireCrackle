@@ -15,7 +15,7 @@ work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
 dpkg-deb --extract "$deb" "$work/deb"
 binary="$work/deb/usr/bin/firecrackle"
-for resource in no-fire-v3.onnx native.zip ONNX-Runtime-LICENSE.txt; do
+for resource in no-fire-v3.onnx quad-phase-v1.onnx quad-phase-v1.json quad-soul-phase-v1.onnx quad-soul-phase-v1.json native.zip ONNX-Runtime-LICENSE.txt; do
   [[ -n $(find "$work/deb" -type f -name "$resource" -print -quit) ]] || { echo "Missing AI resource: $resource" >&2; exit 1; }
 done
 test -x "$binary"
@@ -34,6 +34,9 @@ fi
   "$image" --appimage-extract >/dev/null
 )
 test -x "$work/squashfs-root/AppRun"
+for resource in quad-phase-v1.onnx quad-phase-v1.json quad-soul-phase-v1.onnx quad-soul-phase-v1.json; do
+  [[ -n $(find "$work/squashfs-root" -type f -name "$resource" -print -quit) ]] || { echo "Missing AppImage AI resource: $resource" >&2; exit 1; }
+done
 for notice in LICENSE.txt THIRD_PARTY_NOTICES.txt README-linux.txt; do
   [[ -n $(find "$work/squashfs-root" -type f -name "$notice" -print -quit) ]] || {
     echo "Missing AppImage notice: $notice" >&2; exit 1;
@@ -45,8 +48,13 @@ python3 -c 'import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv
 ai_runtime="$work/ai/libonnxruntime.so"
 ai_model="$(find "$work/deb" -type f -name no-fire-v3.onnx -print -quit)"
 python3 -c 'import sys; open(sys.argv[1],"wb").write(bytes(224*224*3))' "$work/black.rgb"
-cargo build --release --manifest-path "$project/crates/no_fire_cnn/Cargo.toml" --example infer
+cargo build --release --manifest-path "$project/crates/no_fire_cnn/Cargo.toml" --example infer --example phase
 "$CARGO_TARGET_DIR/release/examples/infer" "$ai_runtime" "$ai_model" "$work/black.rgb" cpu
+python3 -c 'import sys; open(sys.argv[1],"wb").write(bytes(128*128*3))' "$work/phase.rgb"
+for model in quad-phase-v1.onnx quad-soul-phase-v1.onnx; do
+  packaged="$(find "$work/deb" -type f -name "$model" -print -quit)"
+  "$CARGO_TARGET_DIR/release/examples/phase" "$ai_runtime" "$packaged" "$work/phase.rgb"
+done
 # Remote CI only: exercise both packages under a virtual display, without touching the user's desktop.
 for app in "$binary" "$work/squashfs-root/AppRun"; do
   status=0

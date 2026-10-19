@@ -1,6 +1,7 @@
 import {projectQuad,validQuad,type ManualQuad} from "./quadMask";
 import type {MatchImage,QuadCandidate,QuadMatch} from "./quadMatch";
 import model from "../../release/quad-phase-model.json";
+import soulModel from "../../release/quad-soul-phase-model.json";
 
 /** Same geometry-only eligibility as the real-data calibration: >=3px/texel. */
 export function readablePhaseQuad(q:ManualQuad,w:number,h:number):boolean {
@@ -35,7 +36,8 @@ export function phasePixels(image:MatchImage,q:ManualQuad):Uint8Array {
 }
 function softmax(values:number[]):number[] {const max=Math.max(...values),p=values.map(v=>Math.exp(v-max)),sum=p.reduce((a,b)=>a+b,0);return p.map(v=>v/sum);}
 /** One phase ranking; atlas row already IS animation phase. Preserve each phase's best appearance. */
-export function fuseQuadPhases(result:QuadMatch,logits:number[],provider:string):QuadMatch {
+export function fuseQuadPhases(result:QuadMatch,logits:number[],provider:string,material:"normal"|"soul"="normal"):QuadMatch {
+  const settings=material==="soul"?soulModel:model;
   if(logits.length!==32||logits.some(v=>!Number.isFinite(v)))throw Error("Quad AI returned invalid phases");
   const evidence=result.phaseCandidates,appearances=result.allCandidates;
   if(!evidence?.length||!appearances?.length)return result;
@@ -43,8 +45,8 @@ export function fuseQuadPhases(result:QuadMatch,logits:number[],provider:string)
   for(const c of evidence)scores[c.row]=Math.max(scores[c.row],c.score);
   for(const c of appearances){const old=byPhase.get(c.row);if(!old||c.score>old.score)byPhase.set(c.row,c);}
   const allowed=[...byPhase.keys()].sort((a,b)=>a-b),cnn=softmax(logits),best=Math.max(...allowed.map(p=>scores[p]));
-  const manual=best>0?softmax(allowed.map(p=>scores[p]/model.matcher_temperature)):allowed.map(()=>1/allowed.length);
-  const ranks=allowed.map((phase,i)=>({phase,score:model.cnn_weight*cnn[phase]+(1-model.cnn_weight)*manual[i]})).sort((a,b)=>b.score-a.score||a.phase-b.phase);
+  const manual=best>0?softmax(allowed.map(p=>scores[p]/settings.matcher_temperature)):allowed.map(()=>1/allowed.length);
+  const ranks=allowed.map((phase,i)=>({phase,score:settings.cnn_weight*cnn[phase]+(1-settings.cnn_weight)*manual[i]})).sort((a,b)=>b.score-a.score||a.phase-b.phase);
   const candidates=ranks.slice(0,3).map(r=>({...byPhase.get(r.phase)!,phaseScore:r.score}));
   return {...result,candidates,margin:ranks[0].score-(ranks[1]?.score??0),ai:{provider}};
 }

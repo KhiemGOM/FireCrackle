@@ -134,7 +134,14 @@ impl Engine {
     pub fn auto_phase(runtime: &Path, model: &[u8], cancel: &AtomicBool) -> Result<Self, String> {
         Self::auto_shape(runtime, model, cancel, 128, 32, 1)
     }
-    fn auto_shape(runtime: &Path, model: &[u8], cancel: &AtomicBool, side: usize, outputs: usize, probes_count: usize) -> Result<Self, String> {
+    fn auto_shape(
+        runtime: &Path,
+        model: &[u8],
+        cancel: &AtomicBool,
+        side: usize,
+        outputs: usize,
+        probes_count: usize,
+    ) -> Result<Self, String> {
         let mut best = Self::load(runtime, model, false, 2)?;
         let probes: Vec<Vec<u8>> = (0..probes_count)
             .map(|k| {
@@ -171,7 +178,7 @@ impl Engine {
             let consistent = probes.iter().zip(&refs).all(|(p, r)| {
                 candidate
                     .infer_view(p, side, outputs)
-                    .is_ok_and(|scores| scores.iter().zip(r).all(|(s,r)| (s-r).abs() <= 0.0001))
+                    .is_ok_and(|scores| scores.iter().zip(r).all(|(s, r)| (s - r).abs() <= 0.0001))
             });
             if !consistent {
                 continue;
@@ -184,7 +191,9 @@ impl Engine {
                 // Large click-to-match models need not compile a second GPU
                 // after finding an already validated, faster first adapter.
                 // Preserve the no-fire scanner's existing exhaustive selection.
-                if outputs == 32 { break; }
+                if outputs == 32 {
+                    break;
+                }
             }
         }
         let _ = (cancel, best_time, refs);

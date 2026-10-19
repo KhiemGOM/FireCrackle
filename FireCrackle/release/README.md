@@ -1,7 +1,7 @@
 # Releasing FireCrackle
 
-Current target: **0.4.1**. See [hotfix notes](notes-v0.4.1.md) for its scope and
-[0.4.0 readiness](READINESS-0.4.0.md) for the preceding feature release's gates.
+Current target: **0.4.2**. See [release notes](notes-v0.4.2.md) and
+[0.4.2 readiness](READINESS-0.4.2.md) for model integration and publication gates.
 Freeze the release commit before building either platform. The `prepare_release.py` command below pushes a release
 branch and requests publication; it is not a preparation-only command.
 

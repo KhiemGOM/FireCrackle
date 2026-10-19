@@ -1,4 +1,4 @@
-import {ANIMATION_ATLASES,type AnimationAtlas} from "../lib/animationAtlases";
+import {ANIMATION_ATLASES,soulFire,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from "react";
 import { useWheel } from "../hooks/useWheel";
 import type { Backend, View } from "../lib/api";
@@ -219,16 +219,16 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
   }
   function toggleMatcher() {
-    if(manualAtlas)return;
+    if(manualAtlas&&!soulFire(manualAtlas))return;
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
-    if (!matchingEnabled) { setManualAtlas(undefined); setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
   }
   /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
-    if(manualAtlas)return;
+    if(manualAtlas&&!soulFire(manualAtlas))return;
     if (matchingEnabled) { setMatchingEnabled(false); return; }
-    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualAtlas(undefined); setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
     setFindToken(n => n + 1);
   }
   const runTool = (action: ToolAction) => {
@@ -495,7 +495,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
         <IconButton icon="fire" label="Toggle first-person fire" disabled={!firstPersonAllowed} title={firstPersonAllowed ? "First-person fire · H" : "First-person burning uses normal fire only"} aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
-        <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
+        <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas&&!soulFire(manualAtlas)} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
         <span className="tool-spacer" aria-hidden="true" />
         <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
@@ -557,10 +557,10 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
           onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualAtlas(sprite.atlas); setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
       </div>}
-      {matchingEnabled && !manualAtlas && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
-        {url ? <QuadMatchControls frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {
-          setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
-          onMatchCandidate?.({sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
+      {matchingEnabled && (!manualAtlas||soulFire(manualAtlas)) && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
+        {url ? <QuadMatchControls material={manualAtlas&&soulFire(manualAtlas)?"soul":"normal"} frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {
+          setManualAtlas(candidate.atlas);setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
+          onMatchCandidate?.({atlas:candidate.atlas,sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
         }} /> : <span className="hud-hint">Open a video to match sprites</span>}
       </div>}
       {guiMaskOn && !stillImage && <div className="hud-controls" aria-label="GUI mask settings" onKeyDown={e => e.stopPropagation()}>

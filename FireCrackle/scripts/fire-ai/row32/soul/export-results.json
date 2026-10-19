@@ -1,0 +1,70 @@
+{
+  "model": {
+    "schema": 1,
+    "name": "FireCrackle soul-fire quad phase ResNet101128",
+    "file": "quad-soul-phase-v1.onnx",
+    "url": null,
+    "sha256": "566d3d6b445e8d93fc1c0aecfba1b2928d7a10a5b5a34872352c51e805667880",
+    "checkpoint_sha256": "13de10523baea0f7305e515f3b37990657732f8abaf47ebf2bc546b609ba314c",
+    "input_shape": [
+      1,
+      128,
+      128,
+      3
+    ],
+    "output": "32 animation-phase logits",
+    "cnn_weight": 0.25,
+    "matcher_temperature": 0.01,
+    "provenance": "Generic ImageNet initialization, fine-tuned only on real recorded soul-fire quads. Separate from the ordinary-fire model. No synthetic fire examples.",
+    "distribution": "Hash-pinned model asset required for clean release builds."
+  },
+  "checks": [
+    {
+      "id": "older-300-0-0",
+      "cpu_error": 2.339482307434082e-06,
+      "cached_gpu_error": 0.0017960071563720703
+    },
+    {
+      "id": "older-2340-0-3",
+      "cpu_error": 2.1457672119140625e-06,
+      "cached_gpu_error": 0.0020284652709960938
+    },
+    {
+      "id": "older-5280-16-1",
+      "cpu_error": 2.384185791015625e-06,
+      "cached_gpu_error": 0.0023522377014160156
+    },
+    {
+      "id": "older-6300-0-0",
+      "cpu_error": 4.5299530029296875e-06,
+      "cached_gpu_error": 0.0021952390670776367
+    },
+    {
+      "id": "older-6900-9-0",
+      "cpu_error": 2.384185791015625e-06,
+      "cached_gpu_error": 0.002464771270751953
+    },
+    {
+      "id": "older-7080-2-5",
+      "cpu_error": 2.86102294921875e-06,
+      "cached_gpu_error": 0.0019156932830810547
+    },
+    {
+      "id": "soul_holdout-soul-99-0-0",
+      "cpu_error": 3.337860107421875e-06,
+      "cached_gpu_error": 0.002303600311279297
+    },
+    {
+      "id": "soul_holdout-soul-6358-0-2",
+      "cpu_error": 3.337860107421875e-06,
+      "cached_gpu_error": 0.0018933415412902832
+    },
+    {
+      "id": "soul_holdout-soul-9251-10-2",
+      "cpu_error": 2.3245811462402344e-06,
+      "cached_gpu_error": 0.0012067556381225586
+    }
+  ],
+  "model_bytes": 170892279,
+  "source_sha256": "673ab90be339367853a103244efbc50592182e296a997075d6df6c78cb92e011"
+}

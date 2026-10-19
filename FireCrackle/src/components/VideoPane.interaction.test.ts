@@ -541,11 +541,11 @@ it("reports presentation only after the current image loads, never for a stale U
   expect(onFramePresented).toHaveBeenCalledWith(view.current);
 });
 
-it.each(["soul_fire_0", "soul_fire_1", "lava_still", "lava_flow", "water_still", "water_flow"] as const)("enables shared animation and proof for %s while keeping the matcher fire-only", async atlas => {
+it.each(["soul_fire_0", "soul_fire_1", "lava_still", "lava_flow", "water_still", "water_flow"] as const)("enables animation and proof for %s and matching for soul fire", async atlas => {
   vi.stubGlobal("localStorage", {getItem: () => JSON.stringify({...DEFAULT_MASK_STATE, manualEnabled: true, manualAtlas: atlas}), setItem: vi.fn()});
   let root = await tree();
   expect(find(root, "Toggle sprite animation tool")!.props.disabled).toBeFalsy();
-  expect(find(root, "Toggle sprite matching tool")!.props.disabled).toBe(true);
+  expect(find(root, "Toggle sprite matching tool")!.props.disabled).toBe(!atlas.startsWith("soul_fire"));
   // Simulate a decoded frame, then the image's ordinary load callback.
   hooks.states[0] = "blob:loaded"; hooks.states[1] = 0;
   root = await tree();

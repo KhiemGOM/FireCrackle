@@ -10,9 +10,11 @@ import { reportError } from "../lib/appErrors";
 import {invoke,isTauri} from "@tauri-apps/api/core";
 import {fuseQuadPhases} from "../lib/quadPhase";
 import {phaseMatchInput} from "../lib/quadPhaseInput";
+import {matchSoulQuad} from "../lib/quadSoul";
+import {atlasSource,atlasTile} from "../lib/animationAtlases";
 import "./QuadMatchControls.css";
 
-interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void;
+interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void; material?:"normal"|"soul";
   /** Increases to ask for a match run (the M key). */ runToken?:number;
   /** A request to preview the nth candidate (M then 1, 2, 3); `n` makes each request distinct. */ pick?:{index:number;n:number}|null }
 function readImage(src:string):Promise<MatchImage> {
@@ -29,15 +31,20 @@ function readImage(src:string):Promise<MatchImage> {
     image.onerror=()=>reject(new Error("Could not load matching image"));image.src=src;
   });
 }
-let atlas:Promise<[Uint8ClampedArray,Uint8ClampedArray]>|null=null;
-function readAtlas() {
-  if(!atlas)atlas=Promise.all([readImage(fire0),readImage(fire1)]).then(images=> {
+const atlases=new Map<string,Promise<[Uint8ClampedArray,Uint8ClampedArray]>>();
+function readAtlas(material:"normal"|"soul") {
+  if(!atlases.has(material))atlases.set(material,Promise.all((material==="soul"?[atlasSource("soul_fire_0"),atlasSource("soul_fire_1")]:[fire0,fire1]).map(readImage)).then(images=> {
     if(images.some(i=>i.width!==16||i.height!==512))throw new Error("Invalid fire texture sheets");
-    return [images[0].data,images[1].data] as [Uint8ClampedArray,Uint8ClampedArray];
-  }).catch(e=>{atlas=null;throw e;});
-  return atlas;
+    return images.map((image,sheet)=>{
+      if(material!=="soul")return image.data;
+      const normalized=new Uint8ClampedArray(image.data.length),source=sheet===0?"soul_fire_0":"soul_fire_1";
+      for(let row=0;row<32;row++){const start=atlasTile(source,row)*16*16*4;normalized.set(image.data.subarray(start,start+16*16*4),row*16*16*4);}
+      return normalized;
+    }) as [Uint8ClampedArray,Uint8ClampedArray];
+  }).catch(e=>{atlases.delete(material);throw e;}));
+  return atlases.get(material)!;
 }
-const identity=(frameUrl:string,quad:ManualQuad,adjustQuad=false,filter?:EdgeFilter)=>JSON.stringify([frameUrl,quad,adjustQuad,filter]);
+const identity=(frameUrl:string,quad:ManualQuad,adjustQuad=false,filter?:EdgeFilter,material="normal")=>JSON.stringify([frameUrl,quad,adjustQuad,filter,material]);
 const name=(c:QuadCandidate)=>`row ${c.row} · sheet ${c.sheet} · ${c.mirrored?"mirrored":"normal"}`;
 function showDetails(e:SyntheticEvent<HTMLButtonElement>) {
   const tip=e.currentTarget.nextElementSibling as HTMLElement|null;
@@ -52,12 +59,12 @@ function hideDetails(e:SyntheticEvent<HTMLButtonElement>) {
   tip?.hidePopover?.();
 }
 
-export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null}:Props) {
+export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null,material="normal"}:Props) {
   const saved=readPreferences();
   const [adjustQuad,setAdjustQuad]=useState(saved.matchAdjustQuad);
   const [onlyFiltered,setOnlyFiltered]=useState(saved.matchOnlyFiltered);
   const activeFilter=onlyFiltered?filter:undefined;
-  const key=identity(frameUrl,quad,adjustQuad,activeFilter),latest=useRef({key,disabled,onPreview});latest.current={key,disabled,onPreview};
+  const key=identity(frameUrl,quad,adjustQuad,activeFilter,material),latest=useRef({key,disabled,onPreview});latest.current={key,disabled,onPreview};
   const token=useRef(0);
   const cancel=useRef<null|(()=>void)>(null);
   const [busy,setBusy]=useState<string|null>(null);
@@ -88,14 +95,15 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     setBusy(start);setResult(null);
     try {
       // Read the original JPEG, never the displayed overlay or a screenshot.
-      const [image,sheets]=await Promise.all([readImage(frameUrl),readAtlas()]);
+      const [image,sheets]=await Promise.all([readImage(frameUrl),readAtlas(material)]);
       await new Promise(resolve=>window.setTimeout(resolve,0));
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
-      const options={refineGeometry:adjustQuad,phaseEvidence:isTauri(),...(activeFilter?{filter:activeFilter}:{})};
+      const options={refineGeometry:adjustQuad,...(isTauri()?{phaseEvidence:true}:{}),...(material==="soul"?{material}:{}),...(activeFilter?{filter:activeFilter}:{})};
       type Reply={result:QuadMatch;rgb?:Uint8Array};
       const reply=typeof Worker==="undefined"?await(async():Promise<Reply>=>{
         const input=options.phaseEvidence?await phaseMatchInput(image,quad):{image,rgb:undefined,error:undefined};
-        const result=matchFireQuad(input.image,sheets,quad,{...options,phaseEvidence:!!input.rgb});
+        const matcher=material==="soul"?matchSoulQuad:matchFireQuad;
+        const result=matcher(input.image,sheets,quad,{refineGeometry:adjustQuad,...(activeFilter?{filter:activeFilter}:{}),...(input.rgb?{phaseEvidence:true}:{})});
         if(input.error)result.ai={error:input.error};
         return {result,rgb:input.rgb};
       })():await new Promise<Reply>((resolve,reject)=>{
@@ -114,8 +122,8 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
       if(data.ai?.error)reportError("Quad AI unavailable — colour matcher used",data.ai.error);
       if(reply.rgb&&data.phaseCandidates?.length){
         try {
-          const answer=await invoke<{logits:number[];provider:string}>("quad_phase",{rgb:Array.from(reply.rgb)});
-          data=fuseQuadPhases(data,answer.logits,answer.provider);
+          const answer=await invoke<{logits:number[];provider:string}>("quad_phase",{rgb:Array.from(reply.rgb),material});
+          data=fuseQuadPhases(data,answer.logits,answer.provider,material);
         }catch(error){
           data={...data,ai:{error:String(error)}};
           if(mine===token.current&&latest.current.key===start&&!latest.current.disabled)reportError("Quad AI unavailable — colour matcher used",String(error));
@@ -123,14 +131,14 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
       }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       const best=data.status==="clear"?data.candidates[0]:undefined;
-      setResult({key:best?identity(frameUrl,best.quad,adjustQuad,activeFilter):start,data,selected:best});
+      setResult({key:best?identity(frameUrl,best.quad,adjustQuad,activeFilter,material):start,data,selected:best});
       if(best)latest.current.onPreview(best);
     }catch(e){if(mine===token.current&&latest.current.key===start)setResult({key:start,error:String(e)});}
     finally{if(mine===token.current)setBusy(null);}
   }
   function preview(candidate:QuadCandidate) {
     if(!current?.data||disabled)return;
-    setResult({...current,key:identity(frameUrl,candidate.quad,adjustQuad,activeFilter),selected:candidate});
+    setResult({...current,key:identity(frameUrl,candidate.quad,adjustQuad,activeFilter,material),selected:candidate});
     onPreview(candidate);
   }
   const summary=current?.error?`Match failed: ${current.error}`:!current?.data?"Uses your quad outline. Preview a match, then Confirm/Enter to label."

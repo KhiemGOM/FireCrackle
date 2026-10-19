@@ -69,7 +69,8 @@ function templates(sheets:[Uint8ClampedArray,Uint8ClampedArray]):Template[] {
  * and colour mismatches add zero. Never divide by the observed mask size:
  * revealing another sample must not dilute evidence already collected.
  */
-function similarity(observed:Samples,model:Template):{score:number;support:number;maskSamples:number;regions:number} {
+function similarity(observed:Samples,model:Template,tolerance:[number,number]=[.06,.10]):{score:number;support:number;maskSamples:number;regions:number} {
+  const [greenTolerance,blueTolerance]=tolerance;
   let maskSamples=0,support=0;
   // A texel is a flat colour: lighting can scale the whole face, but cannot
   // independently turn every expected texel into an arbitrary brightness.
@@ -87,10 +88,10 @@ function similarity(observed:Samples,model:Template):{score:number;support:numbe
       const a=i*3,t=cell*3,R=Math.max(model.rgb[t],1),r=Math.max(observed.rgb[a],1);
       const dg=Math.abs(observed.rgb[a+1]/r-model.rgb[t+1]/R);
       const db=Math.abs(observed.rgb[a+2]/r-model.rgb[t+2]/R);
-      if(dg>0.06||db>0.10)continue;
+      if(dg>greenTolerance||db>blueTolerance)continue;
       const bin=Math.round((Math.log2(r/R)+5)*12);
       if(bin<0||bin>=histogram.length)continue;
-      const vote=(1-0.5*(dg/0.06+db/0.10))*observed.weights[i]/observed.probes;
+      const vote=(1-0.5*(dg/greenTolerance+db/blueTolerance))*observed.weights[i]/observed.probes;
       histogram[bin]+=vote;hits[i]=vote;bins[i]=bin;
     }
     if(masked)maskSamples++;
@@ -115,8 +116,8 @@ function similarity(observed:Samples,model:Template):{score:number;support:numbe
 /** Search128 appearances and small position/scale corrections inside the supplied outline.
  * No clock prediction or UI overlay is an input; only the original frame pixels.
  */
-export function matchFireQuad(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,options:{refineGeometry?:boolean;filter?:EdgeFilter;phaseEvidence?:boolean}={}):QuadMatch {
-  return match(image,sheets,quad,false,true,options.refineGeometry??true,options.filter,options.phaseEvidence);
+export function matchFireQuad(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,options:{refineGeometry?:boolean;filter?:EdgeFilter;phaseEvidence?:boolean;colourTolerance?:[number,number]}={}):QuadMatch {
+  return match(image,sheets,quad,false,true,options.refineGeometry??true,options.filter,options.phaseEvidence,options.colourTolerance);
 }
 
 /** Oracle-box evaluation adapter: labels bound visible opacity, not the full
@@ -127,7 +128,8 @@ export function matchFireBox(image:MatchImage,sheets:[Uint8ClampedArray,Uint8Cla
   return match(image,sheets,box,true,options.stretch);
 }
 
-function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,opaqueBox:boolean,stretch=true,refineGeometry=true,filter?:EdgeFilter,phaseEvidence=false):QuadMatch {
+function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],quad:ManualQuad,opaqueBox:boolean,stretch=true,refineGeometry=true,filter?:EdgeFilter,phaseEvidence=false,colourTolerance?:[number,number]):QuadMatch {
+  const score=(observed:Samples,model:Template)=>similarity(observed,model,colourTolerance);
   const insufficient:QuadMatch={status:"insufficient",candidates:[],margin:0,searched:0};
   if(!validQuad(quad)||image.width<=0||image.height<=0||image.data.length!==image.width*image.height*4||sheets.some(s=>s.length!==16*512*4))return insufficient;
   const w=Math.hypot((quad[1][0]-quad[0][0])*image.width,(quad[1][1]-quad[0][1])*image.height);
@@ -144,7 +146,7 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
   // Fusion was calibrated on fixed outlines and a fixed-outline colour mask.
   // Keep this independent of the optional per-appearance corner optimization.
   const fixed=phaseEvidence?sampleFrame(image,quad,buildFireColourMask(image,sheets,quad)):null;
-  const phaseCandidates=fixed?models.map(model=>({sheet:model.sheet,row:model.row,mirrored:model.mirrored,quad,...similarity(fixed,model)})):undefined;
+  const phaseCandidates=fixed?models.map(model=>({sheet:model.sheet,row:model.row,mirrored:model.mirrored,quad,...score(fixed,model)})):undefined;
   const best:QuadCandidate[]=models.map(({sheet,row,mirrored})=>({sheet,row,mirrored,score:0,quad}));
   let enoughVisible=false;
   if(refineGeometry&&!opaqueBox) {
@@ -155,10 +157,10 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
         const observed=sampleFrame(image,shape,mask,1);
         if(observed.count<64)return 0;
         enoughVisible=true;
-        return similarity(observed,model).score;
+        return score(observed,model).score;
       },160);
-      const evidence=similarity(sampleFrame(image,fit.quad,mask),model);
-      const initial=similarity(original,model);
+      const evidence=score(sampleFrame(image,fit.quad,mask),model);
+      const initial=score(original,model);
       best[i]=evidence.score>initial.score?{...best[i],...evidence,quad:fit.quad}:{...best[i],...initial,quad};
     }
     // Every appearance gets its own fit; spend the finer sampling budget on
@@ -168,7 +170,7 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
       optimizeQuad(quad,shape=>{
         const observed=sampleFrame(image,shape,mask);
         if(observed.count<64)return 0;
-        const evidence=similarity(observed,models[i]);
+        const evidence=score(observed,models[i]);
         if(evidence.score>best[i].score)best[i]={...best[i],...evidence,quad:shape};
         return evidence.score;
       },120,best[i].quad);
@@ -188,7 +190,7 @@ function match(image:MatchImage,sheets:[Uint8ClampedArray,Uint8ClampedArray],qua
         }
         if(!observed||observed.count<64)continue;
         enoughVisible=true;
-        const evidence=similarity(observed,models[i]);
+        const evidence=score(observed,models[i]);
         if(evidence.score>best[i].score)best[i]={...best[i],...evidence,quad:expanded};
       }
     }

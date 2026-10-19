@@ -17,8 +17,8 @@ import { QuadMatchControls } from "./QuadMatchControls";
 const pending=new Map<string,{onload:(()=>void)|null}>();
 const q:ManualQuad=[[0,0],[1,0],[1,1],[0,1]];
 const best={sheet:1 as const,row:12,mirrored:true,score:0.95,quad:q};
-function render(frameUrl:string,onPreview:(candidate:QuadCandidate)=>void,disabled=false,filter?:EdgeFilter) {
-  hooks.cursor=0;return QuadMatchControls({frameUrl,quad:q,disabled,onPreview,filter});
+function render(frameUrl:string,onPreview:(candidate:QuadCandidate)=>void,disabled=false,filter?:EdgeFilter,material:"normal"|"soul"="normal") {
+  hooks.cursor=0;return QuadMatchControls({frameUrl,quad:q,disabled,onPreview,filter,material});
 }
 function buttons(node:unknown):ReactElement<Record<string,unknown>>[] {
   if(Array.isArray(node))return node.flatMap(buttons);
@@ -45,6 +45,18 @@ beforeEach(()=> {
   vi.mocked(matchFireQuad).mockReturnValue({status:"clear",candidates:[best],margin:0.1,searched:128});
 });
 afterEach(()=>{hooks.cleanup?.();vi.unstubAllGlobals();});
+
+it("routes soul matching to the frozen cyan scorer and preserves its source on preview",async()=>{
+  const preview=vi.fn();(buttons(render("frame-soul",preview,false,undefined,"soul"))[0].props.onClick as ()=>void)();
+  pending.get("frame-soul")!.onload?.();await settle();
+  expect(vi.mocked(matchFireQuad).mock.calls[0][3]).toEqual({refineGeometry:true,colourTolerance:[.18,.30]});
+  expect(preview).toHaveBeenCalledWith(expect.objectContaining({atlas:"soul_fire_1",row:12}));
+});
+it("discards an in-flight normal match when the same frame switches to soul fire",async()=>{
+  const preview=vi.fn();(buttons(render("frame-switch",preview))[0].props.onClick as ()=>void)();
+  render("frame-switch",preview,false,undefined,"soul");pending.get("frame-switch")!.onload?.();await settle();
+  expect(matchFireQuad).not.toHaveBeenCalled();expect(preview).not.toHaveBeenCalled();
+});
 
 it("previews a clear match only after original image decoding completes",async()=> {
   const preview=vi.fn();(buttons(render("frame-a",preview))[0].props.onClick as ()=>void)();
