@@ -5,10 +5,11 @@ import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import ts from 'typescript';
 import {boundaryFeatures,featureScore} from './boundary-robust-eval.mjs';
+import {quadReadability,READABLE_QUAD} from './soul-quad-size-audit.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),dir=path.resolve(process.argv[2]??''),split=process.argv[3]??'tune';
 if(!['tune','validation'].includes(split))throw Error('Specify tune or validation');
-const names=(process.argv[4]??'raw,blue,green,ratio,wide025,wide05,wide1,pair').split(',');
+const names=(!process.argv[4]||process.argv[4].startsWith('--')?'raw,blue,green,ratio,wide025,wide05,wide1,pair':process.argv[4]).split(',');
 const boundaryKinds={boundary025:['aggregate',.25],boundary1:['aggregate',1],gradient1:['gradient',1],facing1:['facing',1]};
 const known={raw:'raw',blue:'blue',green:'green',ratio:'blue',wide025:'blue',wide05:'blue',wide1:'blue',pair:'blue',tolerant:'green',loose:'green',...Object.fromEntries(Object.keys(boundaryKinds).map(n=>[n,'green']))};
 if(names.some(x=>!known[x]))throw Error('Unknown scoring variant');
@@ -72,7 +73,8 @@ for(const axis of axes){palettes[axis]=sheets.map(s=>channels(s,axis));models[ax
 hashes.boundaryResearch=createHash('sha256').update(fs.readFileSync(path.join(root,'scripts/boundary-robust-eval.mjs'))).digest('hex');
 const rows=[],timing=Object.fromEntries(names.map(n=>[n,0])),sharedTiming={};
 const start=performance.now();let frame=-1,images;
-const samples=manifest.samples.filter(x=>x.split===split);
+const allQuads=process.argv.includes('--all-quads');
+const samples=manifest.samples.filter(x=>x.split===split&&(allQuads||quadReadability(x.quad,manifest.width,manifest.height).eligible));
 let verified=0;
 for(const item of samples){
  if(frame!==item.frame){
@@ -112,10 +114,10 @@ for(const item of samples){
  rows.push(row);if(rows.length%100===0)console.error(`${split}: ${rows.length}/${samples.length}`);
 }
 function summary(items,name){const p=items.map(x=>x.predictions[name]);return {quads:p.length,frames:new Set(items.map(x=>x.frame)).size,exact:p.filter(x=>x.correct).length,top3:p.filter(x=>x.top3).length,row:p.filter(x=>x.rowCorrect).length,accepted_correct:p.filter(x=>x.status==='clear'&&x.correct).length,accepted_wrong:p.filter(x=>x.status==='clear'&&!x.correct).length};}
-const result={kind:manifest.kind,split,names,hashes,verified,manifest_sha256:createHash('sha256').update(fs.readFileSync(path.join(dir,'manifest.json'))).digest('hex'),elapsed_seconds:(performance.now()-start)/1000,timing_ms:timing,mask_sample_ms:sharedTiming,
+const result={kind:manifest.kind,split,names,selection:allQuads?'all_quads':READABLE_QUAD,hashes,verified,manifest_sha256:createHash('sha256').update(fs.readFileSync(path.join(dir,'manifest.json'))).digest('hex'),elapsed_seconds:(performance.now()-start)/1000,timing_ms:timing,mask_sample_ms:sharedTiming,
  summary:Object.fromEntries(names.map(n=>[n,summary(rows,n)])),groups:{},rows};
 for(const [name,filter] of [['high_visibility',r=>r.visibility>=.75],['low_visibility',r=>r.visibility<.25],['unveiled',r=>r.unveiled],['sheet0',r=>r.expected[0]===0],['sheet1',r=>r.expected[0]===1]])result.groups[name]=Object.fromEntries(names.map(n=>[n,summary(rows.filter(filter),n)]));
-const tagIndex=process.argv.indexOf('--tag'),tag=tagIndex<0?'scores':process.argv[tagIndex+1];
+const tagIndex=process.argv.indexOf('--tag'),tag=tagIndex<0?(allQuads?'scores':'readable-scores'):process.argv[tagIndex+1];
 if(!tag||!/^[a-zA-Z0-9_-]+$/.test(tag))throw Error('Invalid output tag');
 fs.writeFileSync(path.join(dir,`${tag}-${split}.json`),JSON.stringify(result));
 console.log(JSON.stringify({...result,rows:undefined}));

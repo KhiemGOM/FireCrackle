@@ -4,6 +4,17 @@
 
 ## Result
 
+**Updated size/shape scope:** at the owner's request, new benchmark runs default
+to fully on-screen quads with at least 3 output pixels per texture texel in the
+most compressed direction and local directional stretch at most 2.5. On this
+subset the tuning-selected soul method gets **13/115 exact (11.3%)**, with the
+correct row on45/115 (39.1%). The existing normal-fire scorer gets **47/99 exact
+(47.5%)** on its older recording under the identical geometry rule:45/79 entities
+(57.0%) and2/20 blocks (10.0%). Soul here is all blocks. These are different
+recordings, so the block comparison does not prove equivalent generalization.
+
+The historical all-quad results below are retained for traceability.
+
 The new recording and soul labels synchronize correctly. Reusing the fire scorer
 with a cyan colour basis improves ranking, but none of the tested methods is
 ready for automatic soul labels. The tuning-selected three-times colour tolerance
@@ -117,17 +128,62 @@ Recommendation: keep the application unchanged. The recording is useful for
 future target-plane ownership and colour/lighting diagnostics; ranking improvements
 here do not justify automatic confirmation or a claimed solved soul matcher.
 
+## Large, non-squashed quads: requested scope
+
+The geometry cutoff was declared before inspecting its selected prediction counts.
+It uses only recorded geometry and output resolution: all four corners inside the
+frame, a projective Jacobian sampled on a33x33 grid covering texture-cell corners
+and centres, minimum singular scale >=3 output pixels per texel, maximum singular
+scale/minimum <=2.5. This checks diagonal compression as well as edge length.
+It does not inspect sprite identity, outcomes, distance labels or colour scores.
+It is a sampled geometric readability proxy, not proof that compression preserves
+every colour boundary. Overlap/occlusion are not silently removed.
+
+| Recorded material / scorer | Readable quads | Exact correct | Correct row | Correct / wrong gate passes |
+|---|---:|---:|---:|---:|
+| Normal fire, preceding independent-gain scorer |99 (18 frames)|41 (41.4%)|47|27 /8|
+| Normal fire, established shared-gain scorer |99 (18 frames)|47 (47.5%)|53|26 /8|
+| Normal fire blocks, established scorer |20 (5 frames)|2 (10.0%)|6|0 /8|
+| Normal fire entities, established scorer |79 (16 frames)|45 (57.0%)|47|26 /0|
+| Soul fire, unchanged colour basis |115 (13 frames)|3 (2.6%)|24|0 /0|
+| Soul fire, green basis |115 (13 frames)|6 (5.2%)|34|0 /0|
+| Soul fire, tuning-selected3x tolerance |115 (13 frames)|13 (11.3%)|45|3 /21|
+
+The normal-fire source is the original Quad1 validation recording; it is not a
+normal-fire measurement from the new soul video. The earlier7/802 number applies
+the unadapted normal-fire scorer to soul textures/pixels. It is not the scorer's
+accuracy on normal fire. The unfiltered normal-fire historical result is87/310
+(28.1%), or78/310 (25.2%) before shared gain.
+
+All14 soul variants were rerun on the115 selected cases. Each prediction matches
+the corresponding cached all-quad prediction; only the denominator changes.
+Six targeted geometry controls pass: adequate square, small square, diagonal
+squash with long edges, rotation invariance, extreme stretch, clipping/degeneracy.
+Production-adapter parity again passes on12 nonzero scores. The gate is still
+unsuitable:21 of24 selected-method passes are wrong. No scorer was retuned on
+this subset. The selected IDs, geometric scales and complete per-method summaries
+are retained in `.board/soul-quad/size-audit.json`.
+
+New default output is `readable-scores-SPLIT.json`; historical all-quad output is
+only recreated with explicit `--all-quads`. To audit the same subset on both
+recordings without rerunning inference:
+
+```text
+node FireCrackle/scripts/soul-quad-size-audit.mjs .board/soul-quad/real FireCrackle/src-tauri/target/actual-quad1 .board/soul-quad/size-audit.json
+node --test FireCrackle/scripts/soul-quad-size-audit.test.mjs
+```
+
 ## Reproduction and checks
 
 From repository root, after decoding with the matching label log:
 
 ```text
 python FireCrackle/scripts/prepare-soul-quad-eval.py VIDEO JOINED .board/soul-quad/real --ffmpeg FFMPEG --stride 60 --tune-end 5880 --validation-start 6120
-node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune
-node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune green,tolerant,loose --tag tolerance --verify
-node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real validation raw,blue,green,ratio,wide025,wide05,wide1,pair,tolerant,loose --verify
-node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune green,boundary025,boundary1,gradient1,facing1 --tag boundary --verify
-node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real validation green,boundary025,boundary1,gradient1,facing1 --tag boundary --verify
+node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune --all-quads
+node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune green,tolerant,loose --tag tolerance --verify --all-quads
+node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real validation raw,blue,green,ratio,wide025,wide05,wide1,pair,tolerant,loose --verify --all-quads
+node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real tune green,boundary025,boundary1,gradient1,facing1 --tag boundary --verify --all-quads
+node FireCrackle/scripts/soul-quad-eval.mjs .board/soul-quad/real validation green,boundary025,boundary1,gradient1,facing1 --tag boundary --verify --all-quads
 ```
 
 Local Minecraft textures are loaded
