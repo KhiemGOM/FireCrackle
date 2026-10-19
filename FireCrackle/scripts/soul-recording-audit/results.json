@@ -1,0 +1,357 @@
+{
+  "media": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "width": 1920,
+        "height": 1080,
+        "avg_frame_rate": "60/1"
+      }
+    ],
+    "format": {
+      "duration": "740.684000"
+    }
+  },
+  "counts": {
+    "video_frames": 44439,
+    "matched_video_frames": 44439,
+    "video_frames_with_soul": 28449,
+    "video_frames_with_normal": 27095,
+    "sampled_unique_frames": 4032,
+    "soul_sources": 6790,
+    "soul_quads_before_gate": 38736,
+    "normal_sources": 9858,
+    "normal_quads_before_gate": 49958,
+    "normal_low_visibility": 21254,
+    "repeated_video_renderer_frames": 9834,
+    "duplicate_renderer_samples": 8,
+    "soul_low_visibility": 14404,
+    "soul_extreme_projection": 7,
+    "soul_missing": 42,
+    "soul_backface_or_small": 767,
+    "normal_backface_or_small": 415,
+    "normal_missing": 6,
+    "normal_extreme_projection": 1
+  },
+  "per_minute": {
+    "0": {
+      "sampled_frames": 325,
+      "soul_frames": 176
+    },
+    "1": {
+      "sampled_frames": 327,
+      "soul_frames": 120
+    },
+    "2": {
+      "sampled_frames": 327,
+      "soul_frames": 221
+    },
+    "3": {
+      "sampled_frames": 328,
+      "soul_frames": 265
+    },
+    "4": {
+      "sampled_frames": 327,
+      "soul_frames": 112
+    },
+    "5": {
+      "sampled_frames": 327,
+      "soul_frames": 217
+    },
+    "6": {
+      "sampled_frames": 327,
+      "soul_frames": 278
+    },
+    "7": {
+      "sampled_frames": 323,
+      "soul_frames": 208
+    },
+    "8": {
+      "sampled_frames": 327,
+      "soul_frames": 207
+    },
+    "9": {
+      "sampled_frames": 327,
+      "soul_frames": 235
+    },
+    "10": {
+      "sampled_frames": 327,
+      "soul_frames": 233
+    },
+    "11": {
+      "sampled_frames": 328,
+      "soul_frames": 235
+    },
+    "12": {
+      "sampled_frames": 112,
+      "soul_frames": 80
+    }
+  },
+  "video": "fire-detection\\data\\video\\2026-10-19 22-59-52.mkv",
+  "video_sha256": "856e8afe84d23fc456c89e6ea19e6ff7cfb09b7749bb3ebe0235dea797a211b5",
+  "snapshot": {
+    "source": "fire-detection\\mod\\run\\firelabel\\labels-20261019-225832.jsonl",
+    "bytes": 162735315,
+    "sha256": "aa1f4fd71bec931bcbd052c84348ae9e61b48bd4bb9974429cb4eb776ed16d12",
+    "snapshot": "complete lines only; original capture remains live"
+  },
+  "joined_sha256": "be8c69dc76719b9810a4034bfc92054d93d952c2139d477878fe2001cb50bb11",
+  "selection": "same geometry-only gate as normal-fire corpus;stride11unique rendered frames,visibility>=.95; no fitting/scoring/split",
+  "geometry": {
+    "minPixelsPerTexel": 3,
+    "maxAnisotropy": 2.5,
+    "gridSteps": 32,
+    "requireFullyOnscreen": true
+  },
+  "rejected": {
+    "soul_small_or_squashed": 19160,
+    "soul_anisotropic": 818,
+    "normal_small_or_squashed": 25608,
+    "normal_clipped": 749,
+    "soul_clipped": 1161,
+    "normal_anisotropic": 513
+  },
+  "all_eligible": {
+    "soul": {
+      "quads": 2377,
+      "frames": 841,
+      "phases": [
+        83,
+        80,
+        57,
+        87,
+        78,
+        66,
+        84,
+        73,
+        91,
+        86,
+        77,
+        78,
+        78,
+        86,
+        85,
+        73,
+        67,
+        74,
+        72,
+        67,
+        70,
+        87,
+        71,
+        71,
+        58,
+        64,
+        62,
+        69,
+        83,
+        76,
+        65,
+        59
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 57,
+      "max_phase_count": 91,
+      "per_minute": {
+        "0": 441,
+        "1": 136,
+        "2": 72,
+        "3": 284,
+        "4": 50,
+        "5": 233,
+        "6": 389,
+        "7": 210,
+        "8": 175,
+        "9": 83,
+        "10": 48,
+        "11": 170,
+        "12": 86
+      },
+      "groups": {
+        "block": 2377
+      }
+    },
+    "normal": {
+      "quads": 1412,
+      "frames": 437,
+      "phases": [
+        40,
+        65,
+        34,
+        40,
+        58,
+        38,
+        28,
+        48,
+        35,
+        38,
+        30,
+        49,
+        44,
+        30,
+        51,
+        53,
+        33,
+        40,
+        58,
+        45,
+        31,
+        60,
+        29,
+        70,
+        38,
+        55,
+        31,
+        55,
+        49,
+        42,
+        61,
+        34
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 28,
+      "max_phase_count": 70,
+      "per_minute": {
+        "0": 279,
+        "1": 221,
+        "2": 318,
+        "3": 320,
+        "4": 81,
+        "5": 27,
+        "6": 1,
+        "7": 28,
+        "9": 29,
+        "10": 1,
+        "11": 20,
+        "12": 87
+      },
+      "groups": {
+        "block": 781,
+        "entity": 631
+      }
+    }
+  },
+  "capped8_per_frame": {
+    "soul": {
+      "quads": 2350,
+      "frames": 841,
+      "phases": [
+        83,
+        80,
+        57,
+        85,
+        78,
+        66,
+        82,
+        73,
+        91,
+        86,
+        77,
+        78,
+        78,
+        86,
+        78,
+        73,
+        67,
+        74,
+        69,
+        64,
+        70,
+        80,
+        70,
+        71,
+        58,
+        64,
+        62,
+        69,
+        81,
+        76,
+        65,
+        59
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 57,
+      "max_phase_count": 91,
+      "per_minute": {
+        "0": 437,
+        "1": 136,
+        "2": 72,
+        "3": 284,
+        "4": 50,
+        "5": 231,
+        "6": 388,
+        "7": 208,
+        "8": 165,
+        "9": 83,
+        "10": 48,
+        "11": 162,
+        "12": 86
+      },
+      "groups": {
+        "block": 2350
+      }
+    },
+    "normal": {
+      "quads": 1405,
+      "frames": 437,
+      "phases": [
+        40,
+        64,
+        34,
+        40,
+        58,
+        38,
+        28,
+        48,
+        35,
+        38,
+        30,
+        48,
+        44,
+        30,
+        51,
+        52,
+        33,
+        40,
+        58,
+        45,
+        31,
+        60,
+        29,
+        66,
+        38,
+        55,
+        31,
+        55,
+        49,
+        42,
+        61,
+        34
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 28,
+      "max_phase_count": 66,
+      "per_minute": {
+        "0": 279,
+        "1": 220,
+        "2": 314,
+        "3": 318,
+        "4": 81,
+        "5": 27,
+        "6": 1,
+        "7": 28,
+        "9": 29,
+        "10": 1,
+        "11": 20,
+        "12": 87
+      },
+      "groups": {
+        "block": 777,
+        "entity": 628
+      }
+    }
+  },
+  "split": "Not assigned; fresh recording audit only, owner agreement required before fitting",
+  "correlation": "One recording, repeated nearby quads; selected counts are not independent scenes."
+}
