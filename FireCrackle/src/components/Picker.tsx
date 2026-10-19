@@ -40,6 +40,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const columns=fluid?(atlasKind.endsWith('_flow')?[1,3]:[0,2]):[0,1,2,3];
   const rows=fluid?ANIMATION_ATLASES[atlasKind as AnimationAtlas].rows:32;
   const maxPixels=16;
+  const filterable=atlasKind==="fire"||atlasKind==="soul_fire";
   const absence:Label=!extraSources||atlasKind==='fire'?'no_fire':{no_texture:{atlas:atlasKind==='soul_fire'?'soul_fire_0':atlasKind as AnimationAtlas}};
   const absenceName=atlasKind.startsWith('water')?'No water':atlasKind.startsWith('lava')?'No lava':atlasKind==='soul_fire'&&extraSources?'No soul fire':'No fire';
   const absent=(label:Label|null)=>JSON.stringify(label)===JSON.stringify(absence);
@@ -60,14 +61,16 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const setExcluded=(value:number[])=>{if(atlasKind==='fire')setLocalExcluded(value);updateFilter({...activeFilter,excluded:value});};
   const setWhiteMin=(value:number|null)=>{if(atlasKind==='fire')setLocalWhiteMin(value);updateFilter({...activeFilter,bottomWhiteMin:value});};
   const setWhiteMax=(value:number|null)=>{if(atlasKind==='fire')setLocalWhiteMax(value);updateFilter({...activeFilter,bottomWhiteMax:value});};
-  const [edges, setEdges] = useState<AtlasEdges | null>(null);
+  const [loadedEdges, setEdges] = useState<AtlasEdges | null>(null);
+  const edgesKind=useRef(atlasKind);
+  const edges=edgesKind.current===atlasKind?loadedEdges:null;
   const [edgeError, setEdgeError] = useState(false);
   useEffect(()=>{onAbsenceChange?.(absence);},[atlasKind,onAbsenceChange]);
   const water=useWaterTint(atlasKind.startsWith("water"));
   useEffect(() => { onEdgesChange?.(atlasKind==='fire'?edges:null); }, [edges, onEdgesChange,atlasKind]);
   useEffect(() => {
     let cancelled = false;setEdges(null);setEdgeError(false);
-    if(atlasKind!=="fire")return;
+    if(!filterable)return;
     const load = (src: string,atlas:AnimationAtlas|null) => new Promise<ReturnType<typeof sheetEdgeCounts>>((resolve, reject) => {
       if(atlas==="water_still"||atlas==="water_flow"){void renderWaterAtlases(water.color).then(sheets=>{const sheet=sheets[atlas];resolve(spriteSheetEdgeCounts(sheet.rgba,sheet.width,ANIMATION_ATLASES[atlas].rows));}).catch(reject);return;}
       const image = new Image();
@@ -86,7 +89,7 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
       image.onerror = () => reject(new Error("Could not load fire pixels"));
       image.src = src;
     });
-    void Promise.all(atlasIds.map((atlas,i)=>load(atlas?atlasSource(atlas):i===0?fire0:fire1,atlas))).then((counts) => { if (!cancelled) setEdges(counts as AtlasEdges); }).catch(() => { if (!cancelled) setEdgeError(true); });
+    void Promise.all(atlasIds.map((atlas,i)=>load(atlas?atlasSource(atlas):i===0?fire0:fire1,atlas))).then((counts) => { if (!cancelled) { edgesKind.current=atlasKind; setEdges(counts as AtlasEdges); } }).catch(() => { if (!cancelled) setEdgeError(true); });
     return () => { cancelled = true; };
   }, [atlasKind,water.color]);
   useEffect(() => {
@@ -120,13 +123,13 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
   const atlasTabs=<div className="atlas-tabs" role="group" aria-label="Animation atlas">{([['fire','Fire','Fire'],['soul_fire','Soul fire','Soul'],['lava_still','Still lava','S. lava'],['lava_flow','Flowing lava','F. lava'],['water_still','Still water','S. water'],['water_flow','Flowing water','F. water']] as const).filter(([id])=>extraSources||id==='fire'||id==='soul_fire').map(([id,name,short])=><button key={id} aria-label={name} title={name} aria-pressed={atlasKind===id} onClick={()=>setAtlasKind(id)}>{short}</button>)}</div>;
   return (<>{atlasTabs}
     {atlasKind.startsWith("water")&&<WaterTintControl color={water.color} onChange={water.setColor}/>}
-    <div className={`atlas-options${atlasKind!=="fire"?" absence-only":""}`} onKeyDown={(e) => e.stopPropagation()}>
-    {atlasKind==="fire"&&<section className="atlas-filters" aria-label="Visual sprite filters">
+    <div className={`atlas-options${!filterable?" absence-only":""}`} onKeyDown={(e) => e.stopPropagation()}>
+    {filterable&&<section className="atlas-filters" aria-label="Visual sprite filters">
       <div className="atlas-filter-heading"><Icon name="filter" /><strong>Sprite pixels</strong><span role="status">{edgeError ? "Counts unavailable" : edges ? `${matchingAppearances(edges, activeFilter)} / ${edges.reduce((n,sheet)=>n+sheet.length*2,0)} match` : "Reading pixels…"}</span></div>
       <div className="atlas-filter-inputs">
         <label>Left <input type="number" min={0} max={maxPixels} step={1} placeholder="Any" aria-label="Left edge fire pixels" value={left ?? ""} onChange={(e) => setLeft(edgeFilterValue(e.target.value,maxPixels))} /></label>
         <label>Right <input type="number" min={0} max={maxPixels} step={1} placeholder="Any" aria-label="Right edge fire pixels" value={right ?? ""} onChange={(e) => setRight(edgeFilterValue(e.target.value,maxPixels))} /></label>
-        <IconButton icon="reset" label="Clear sprite pixel filters" disabled={!filterActive} onClick={() => { setLocalLeft(null); setLocalRight(null); setLocalWhiteMin(null); setLocalWhiteMax(null); updateFilter({ ...activeFilter, left: null, right: null, bottomWhiteMin: null, bottomWhiteMax: null }); }} />
+        <IconButton icon="reset" label="Clear sprite pixel filters" disabled={!filterActive} onClick={() => { if(atlasKind==="fire"){setLocalLeft(null); setLocalRight(null); setLocalWhiteMin(null); setLocalWhiteMax(null);} updateFilter({ ...activeFilter, left: null, right: null, bottomWhiteMin: null, bottomWhiteMax: null }); }} />
         {excluded.length > 0 && <IconButton icon="erase" label="Clear manual sprite exclusions" title={`Include all ${excluded.length} manually excluded sprites`} onClick={() => setExcluded([])}>{excluded.length}</IconButton>}
       </div>
       <div className="atlas-filter-inputs" role="group" aria-label="Bottom white inclusive range" title="Total white and near-white pixels across the entire bottom row, adding every separate patch. Enter a range to allow for cream pixels or uncertain footage. Near-white includes RGB channels 245–255. Both bounds are inclusive; blank means no bound.">
@@ -178,10 +181,10 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
                     const isAlt = sug.alt?.col === c && sug.alt.row === row;
                     const isChosen = chosen?.col === c && chosen.row === row;
                     const isShown = shown?.col === c && shown.row === row;
-                    const counts = atlasKind==="fire"&&edges ? appearanceEdges(edges, col.sheet, row, col.mirrored) : null;
+                    const counts = filterable&&edges ? appearanceEdges(edges, col.sheet, row, col.mirrored) : null;
                     const id = appearanceId(col.sheet, row, col.mirrored);
                     const manualExcluded = excluded.includes(id);
-                    const filteredOut = atlasKind==="fire"&&(manualExcluded || (counts !== null && !matchesAppearance(edges, col.sheet, row, col.mirrored, activeFilter)));
+                    const filteredOut = filterable&&(manualExcluded || (counts !== null && !matchesAppearance(edges, col.sheet, row, col.mirrored, activeFilter)));
                     const states = [isChosen && "Candidate", isShown && "Preview", isSug && `Time guess from frame ${view.suggestion?.from_frame}`, isAlt && "Alternate time guess", isCurrent && "Saved label"].filter(Boolean);
                     const sheetImg = atlas==="water_still"||atlas==="water_flow"?water.sheets?.[atlas as WaterAtlas].url??(water.color==="#ffffff"?atlasSource(atlas):""):atlas?atlasSource(atlas):col.sheet === 0 ? fire0 : fire1;
                     return (
@@ -190,9 +193,9 @@ export function Picker({ view, cell, onCell, candidate = null, preview = null, f
                         className={`cell${isCurrent ? " atlas-saved" : ""}${isSug ? " atlas-time" : ""}${isAlt ? " atlas-alt" : ""}${isChosen ? " atlas-candidate" : ""}${isShown ? " atlas-preview" : ""}${filteredOut ? " edge-filter-miss" : ""}${manualExcluded ? " manual-filter-miss" : ""}`}
                         aria-label={`row ${row}, sheet ${col.sheet}, ${col.mirrored ? "mirrored" : "normal"}${counts ? `; left ${counts.left}, right ${counts.right} edge pixels` : ""}${filteredOut ? "; outside filter, still selectable" : ""}${states.length ? `; ${states.join(", ")}` : ""}`}
                         aria-pressed={isChosen}
-                        title={`row ${row} · sheet ${col.sheet} · ${col.mirrored ? "mirrored" : "normal"}${counts ? `\nEdge pixels: left ${counts.left} · right ${counts.right} · bottom white ${counts.bottomWhite ?? "unknown"}` : ""}${filteredOut ? "\nOutside filter · still selectable" : ""}${states.length ? `\n${states.join(" · ")}` : ""}\n${previewOnly ? "Click: preview sprite" : "Click: select candidate · Ctrl+click: preview only"}${atlasKind==="fire"?`\nRight-click: ${manualExcluded ? "restore candidate" : "mark as non-candidate"}`:""}`}
+                        title={`row ${row} · sheet ${col.sheet} · ${col.mirrored ? "mirrored" : "normal"}${counts ? `\nEdge pixels: left ${counts.left} · right ${counts.right} · bottom white ${counts.bottomWhite ?? "unknown"}` : ""}${filteredOut ? "\nOutside filter · still selectable" : ""}${states.length ? `\n${states.join(" · ")}` : ""}\n${previewOnly ? "Click: preview sprite" : "Click: select candidate · Ctrl+click: preview only"}${filterable?`\nRight-click: ${manualExcluded ? "restore candidate" : "mark as non-candidate"}`:""}`}
                         onClick={(e) => atlas?onAlternative?.({atlas,sheet:col.sheet,row,mirrored:col.mirrored},e.ctrlKey):onCell(c,row,e.ctrlKey)}
-                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if(atlasKind!=="fire")return; setExcluded(manualExcluded ? excluded.filter(value => value !== id) : [...excluded, id]); }}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if(!filterable)return; setExcluded(manualExcluded ? excluded.filter(value => value !== id) : [...excluded, id]); }}
                         tabIndex={-1}
                       >
                         <span

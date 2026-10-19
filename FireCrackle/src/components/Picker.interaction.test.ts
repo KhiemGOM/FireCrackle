@@ -5,7 +5,7 @@ vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useState: (initial: unknown) => {
     const i = hooks.si++; if (!(i in hooks.states)) hooks.states[i] = initial;
-    return [hooks.states[i], (next: unknown) => { hooks.states[i] = next; }];
+    return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === "function" ? next(hooks.states[i]) : next; }];
   },
   useRef: (initial: unknown) => hooks.refs[hooks.ri++] ??= {current: initial},
   useEffect: (effect: () => void | (() => void)) => { hooks.effects.push(effect); },
@@ -74,7 +74,7 @@ it("keeps the same adaptive grid and controls through fire and soul switches",()
  expect(ui.cells).toHaveLength(128);
  choose('Soul fire');ui=render();
  expect(ui.cells).toHaveLength(128);expect(picker().props.style).toEqual(fireLayout);
- expect(ui.input('Left')).toBeUndefined();expect(ui.whiteInput('Minimum')).toBeUndefined();
+ expect(ui.input('Left')).toBeDefined();expect(ui.whiteInput('Minimum')).toBeDefined();
  expect(ui.cells[0].props.onContextMenu).toBeTypeOf('function');
  choose('Fire');ui=render();expect(picker().props.style).toEqual(fireLayout);expect(ui.cells).toHaveLength(128);
 });
@@ -198,4 +198,39 @@ it("visually filters exact outermost counts while keeping every cell and click w
   expect(render().input("Left").props.value).toBe(0);
   ui = render(); ui.input("Left").props.onChange({target: {value: ""}});
   expect(render().cells.every(e => !e.props.className.includes("edge-filter-miss"))).toBe(true);
+});
+
+it("filters soul's own shifted pixels, mirrors edges, and isolates source settings", async () => {
+  let ui=render();
+  ui.input("Left").props.onChange({target:{value:"7"}});
+  ui=render();
+  all(ui.tree,e=>e.props['aria-label']==='Soul fire')[0].props.onClick();
+  ui=render();
+  expect(ui.input("Left").props.value).toBe("");
+  cleanup=hooks.effects.map(effect=>effect());
+  await Promise.resolve();await Promise.resolve();
+  ui=render();
+  // Test sheet 0's pixel row 0 maps to normalized animation row 16.
+  const own=ui.cells.find(e=>e.props['aria-label'].startsWith('row 16, sheet 0, normal'))!;
+  expect(own.props.title).toMatch(/left 3.*right 7.*bottom white 5/);
+  const mirrored=ui.cells.find(e=>e.props['aria-label'].startsWith('row 16, sheet 0, mirrored'))!;
+  expect(mirrored.props.title).toMatch(/left 7.*right 3/);
+  ui.input("Left").props.onChange({target:{value:"3"}});ui=render();
+  ui.whiteInput("Minimum").props.onChange({target:{value:"5"}});ui=render();
+  expect(ui.cells.filter(e=>!e.props.className.includes('edge-filter-miss'))).toHaveLength(1);
+  const kept=ui.cells.find(e=>!e.props.className.includes('edge-filter-miss'))!;
+  kept.props.onContextMenu({preventDefault:vi.fn(),stopPropagation:vi.fn()});ui=render();
+  expect(ui.cells.every(e=>e.props.className.includes('edge-filter-miss'))).toBe(true);
+  const rejected=ui.cells.find(e=>e.props.className.includes('manual-filter-miss'))!;
+  onAlternative.mockClear();rejected.props.onClick({ctrlKey:false});
+  expect(onAlternative).toHaveBeenCalledWith({atlas:'soul_fire_0',sheet:0,row:16,mirrored:false},false);
+  all(ui.tree,e=>e.props['aria-label']==='Fire')[0].props.onClick();ui=render();
+  expect(ui.input("Left").props.value).toBe(7);
+  expect(ui.cells.every(e=>!e.props.className.includes('manual-filter-miss'))).toBe(true);
+  all(ui.tree,e=>e.props['aria-label']==='Soul fire')[0].props.onClick();ui=render();
+  expect(ui.input("Left").props.value).toBe(3);
+  expect(ui.whiteInput("Minimum").props.value).toBe(5);
+  ui.reset.props.onClick();ui=render();
+  all(ui.tree,e=>e.props['aria-label']==='Fire')[0].props.onClick();
+  expect(render().input("Left").props.value).toBe(7);
 });
