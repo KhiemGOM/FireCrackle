@@ -1,5 +1,14 @@
 # Mandatory video training catalogue
 
+- Before a new AI fitting/model-comparison experiment, ask the owner to agree on
+  a concrete run plan: task/material, exact catalogue sources and exclusions,
+  real/synthetic data choice, model(s), split/sample counts, compute/time budget
+  and success metric. Wait for agreement; do not silently expand the approved run.
+  Existing approval covers its stated batch, not unrelated experiments. Routine
+  reporting/auditing of a completed approved run does not require another approval.
+- Default to recorded real examples. Do not generate synthetic fire training data
+  or reuse synthetic-fire-trained checkpoints without explicit owner agreement.
+  State generic pretrained initialization separately so it is clear what is used.
 - Before any AI training, fine-tuning, distillation, calibration or model-comparison run,
   read [`docs/TRAINING_DATA_CATALOGUE.md`](docs/TRAINING_DATA_CATALOGUE.md) and refresh
   its inventory with `python scripts/catalogue_training_data.py --write`.

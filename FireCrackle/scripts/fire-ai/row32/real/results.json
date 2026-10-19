@@ -1,0 +1,759 @@
+{
+  "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "splits": {
+    "train": {
+      "crops": 3006,
+      "videos": [
+        "new_normal",
+        "ownership",
+        "survival1"
+      ],
+      "frames": 915,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    "calibration": {
+      "crops": 157,
+      "videos": [
+        "later"
+      ],
+      "frames": 53,
+      "phases": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        14,
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        24,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31
+      ]
+    },
+    "test": {
+      "crops": 617,
+      "videos": [
+        "quad1"
+      ],
+      "frames": 179,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    }
+  },
+  "baseline": {
+    "test": {
+      "n": 617,
+      "correct": 363,
+      "accuracy": 0.5883306320907618
+    },
+    "groups": {
+      "block": {
+        "n": 425,
+        "correct": 222,
+        "accuracy": 0.5223529411764706
+      },
+      "entity": {
+        "n": 192,
+        "correct": 141,
+        "accuracy": 0.734375
+      }
+    },
+    "source_hashes": {
+      "quadMatch.cjs": "a3230adba5fbdceb38e1823dbb709b477a90da7e23e832cc9d2fdeff1fe2def0",
+      "quadMask.cjs": "8163fef8d4bb9925e1c4dee49cee2ca3a9a5b1ffed63fae449dee21f405d02d1",
+      "fireColourMask.cjs": "611185224370f305509c93234b72eb9eacca1f51bc9f29d23dc009e64dd260a5"
+    }
+  },
+  "models": {
+    "resnet18": {
+      "config": {
+        "architecture": "resnet18",
+        "epochs": 12,
+        "steps": 32,
+        "batch": 64,
+        "microbatch": 32,
+        "seed": 219,
+        "device": "cuda",
+        "parameters": 11242080,
+        "training": "real recorded RGB only",
+        "initialization": "generic ImageNet; no fire-trained checkpoint",
+        "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+        "splits": {
+          "train": {
+            "crops": 3006,
+            "videos": [
+              "new_normal",
+              "ownership",
+              "survival1"
+            ],
+            "frames": 915,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          "calibration": {
+            "crops": 157,
+            "videos": [
+              "later"
+            ],
+            "frames": 53,
+            "phases": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              14,
+              15,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              24,
+              25,
+              26,
+              27,
+              28,
+              30,
+              31
+            ]
+          },
+          "test": {
+            "crops": 617,
+            "videos": [
+              "quad1"
+            ],
+            "frames": 179,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          }
+        }
+      },
+      "chosen_epoch": 8,
+      "calibration": {
+        "n": 157,
+        "correct": 69,
+        "accuracy": 0.4394904375076294,
+        "top3": 81,
+        "loss": 2.233922004699707,
+        "macro_recall": 0.44851556420326233
+      },
+      "test": {
+        "n": 617,
+        "correct": 288,
+        "accuracy": 0.46677470207214355,
+        "top3": 390,
+        "loss": 2.085937738418579,
+        "macro_recall": 0.44767940044403076
+      },
+      "groups": {
+        "block": {
+          "n": 425,
+          "correct": 209,
+          "accuracy": 0.49176469445228577,
+          "top3": 287,
+          "loss": 1.9513660669326782,
+          "macro_recall": 0.5076887011528015
+        },
+        "entity": {
+          "n": 192,
+          "correct": 79,
+          "accuracy": 0.4114583432674408,
+          "top3": 103,
+          "loss": 2.383817434310913,
+          "macro_recall": 0.41873499751091003
+        }
+      },
+      "historical_99": {
+        "n": 99,
+        "correct": 35,
+        "accuracy": 0.35353535413742065,
+        "top3": 47,
+        "loss": 2.5668234825134277,
+        "macro_recall": 0.414590060710907,
+        "deterministic_correct": 59
+      },
+      "seconds": 32.27830080000058,
+      "confidence_gate": {
+        "threshold": 0.71,
+        "accepted": 106,
+        "correct": 102,
+        "wrong": 4,
+        "abstained": 511
+      },
+      "timing": {
+        "cpu": {
+          "median_ms": 35.29874999912863,
+          "p95_ms": 38.110174998837465,
+          "cpu_threads": 4
+        },
+        "cuda": {
+          "median_ms": 6.061050002244883,
+          "p95_ms": 10.12331500096479,
+          "cpu_threads": 4
+        }
+      }
+    },
+    "resnet101": {
+      "config": {
+        "architecture": "resnet101",
+        "epochs": 12,
+        "steps": 32,
+        "batch": 64,
+        "microbatch": 32,
+        "seed": 219,
+        "device": "cuda",
+        "parameters": 42762336,
+        "training": "real recorded RGB only",
+        "initialization": "generic ImageNet; no fire-trained checkpoint",
+        "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+        "splits": {
+          "train": {
+            "crops": 3006,
+            "videos": [
+              "new_normal",
+              "ownership",
+              "survival1"
+            ],
+            "frames": 915,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          "calibration": {
+            "crops": 157,
+            "videos": [
+              "later"
+            ],
+            "frames": 53,
+            "phases": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              14,
+              15,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              24,
+              25,
+              26,
+              27,
+              28,
+              30,
+              31
+            ]
+          },
+          "test": {
+            "crops": 617,
+            "videos": [
+              "quad1"
+            ],
+            "frames": 179,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          }
+        }
+      },
+      "chosen_epoch": 11,
+      "calibration": {
+        "n": 157,
+        "correct": 90,
+        "accuracy": 0.5732483863830566,
+        "top3": 113,
+        "loss": 1.7612264156341553,
+        "macro_recall": 0.6064106225967407
+      },
+      "test": {
+        "n": 617,
+        "correct": 393,
+        "accuracy": 0.6369529962539673,
+        "top3": 483,
+        "loss": 1.3982514142990112,
+        "macro_recall": 0.6307775378227234
+      },
+      "groups": {
+        "block": {
+          "n": 425,
+          "correct": 288,
+          "accuracy": 0.677647054195404,
+          "top3": 352,
+          "loss": 1.2230074405670166,
+          "macro_recall": 0.7410845160484314
+        },
+        "entity": {
+          "n": 192,
+          "correct": 105,
+          "accuracy": 0.546875,
+          "top3": 131,
+          "loss": 1.7861617803573608,
+          "macro_recall": 0.5152686238288879
+        }
+      },
+      "historical_99": {
+        "n": 99,
+        "correct": 42,
+        "accuracy": 0.42424243688583374,
+        "top3": 60,
+        "loss": 2.126857042312622,
+        "macro_recall": 0.4704401195049286,
+        "deterministic_correct": 59
+      },
+      "seconds": 158.0733177000002,
+      "confidence_gate": {
+        "threshold": 0.8300000000000001,
+        "accepted": 167,
+        "correct": 165,
+        "wrong": 2,
+        "abstained": 450
+      },
+      "timing": {
+        "cpu": {
+          "median_ms": 164.87565000170434,
+          "p95_ms": 176.07022999927722,
+          "cpu_threads": 4
+        },
+        "cuda": {
+          "median_ms": 17.92984999883629,
+          "p95_ms": 25.589974999093098,
+          "cpu_threads": 4
+        }
+      }
+    },
+    "vit_b16": {
+      "config": {
+        "architecture": "vit_b16",
+        "epochs": 12,
+        "steps": 32,
+        "batch": 64,
+        "microbatch": 32,
+        "seed": 219,
+        "device": "cuda",
+        "parameters": 85685024,
+        "training": "real recorded RGB only",
+        "initialization": "generic ImageNet; no fire-trained checkpoint",
+        "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+        "splits": {
+          "train": {
+            "crops": 3006,
+            "videos": [
+              "new_normal",
+              "ownership",
+              "survival1"
+            ],
+            "frames": 915,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          },
+          "calibration": {
+            "crops": 157,
+            "videos": [
+              "later"
+            ],
+            "frames": 53,
+            "phases": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              14,
+              15,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              24,
+              25,
+              26,
+              27,
+              28,
+              30,
+              31
+            ]
+          },
+          "test": {
+            "crops": 617,
+            "videos": [
+              "quad1"
+            ],
+            "frames": 179,
+            "phases": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ]
+          }
+        }
+      },
+      "chosen_epoch": 12,
+      "calibration": {
+        "n": 157,
+        "correct": 62,
+        "accuracy": 0.3949044644832611,
+        "top3": 81,
+        "loss": 2.5122432708740234,
+        "macro_recall": 0.39246031641960144
+      },
+      "test": {
+        "n": 617,
+        "correct": 212,
+        "accuracy": 0.34359806776046753,
+        "top3": 306,
+        "loss": 2.5277767181396484,
+        "macro_recall": 0.3322625756263733
+      },
+      "groups": {
+        "block": {
+          "n": 425,
+          "correct": 141,
+          "accuracy": 0.33176469802856445,
+          "top3": 205,
+          "loss": 2.5918471813201904,
+          "macro_recall": 0.35867756605148315
+        },
+        "entity": {
+          "n": 192,
+          "correct": 71,
+          "accuracy": 0.3697916567325592,
+          "top3": 101,
+          "loss": 2.3859543800354004,
+          "macro_recall": 0.3749849796295166
+        }
+      },
+      "historical_99": {
+        "n": 99,
+        "correct": 28,
+        "accuracy": 0.28282827138900757,
+        "top3": 42,
+        "loss": 2.8507936000823975,
+        "macro_recall": 0.30762770771980286,
+        "deterministic_correct": 59
+      },
+      "seconds": 55.05749830000059,
+      "confidence_gate": {
+        "threshold": 0.78,
+        "accepted": 92,
+        "correct": 91,
+        "wrong": 1,
+        "abstained": 525
+      },
+      "timing": {
+        "cpu": {
+          "median_ms": 35.66100000170991,
+          "p95_ms": 39.78172499810171,
+          "cpu_threads": 4
+        },
+        "cuda": {
+          "median_ms": 6.849999999758438,
+          "p95_ms": 13.48656499994831,
+          "cpu_threads": 4
+        }
+      }
+    }
+  }
+}

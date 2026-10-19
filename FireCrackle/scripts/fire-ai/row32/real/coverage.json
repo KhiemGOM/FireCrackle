@@ -1,0 +1,793 @@
+{
+  "task": "normal_fire_32_animation_phase",
+  "catalogue": "docs/TRAINING_DATA_CATALOGUE.md",
+  "inventory_sha256": "864f22f00ba450ffc9835ed56601f90788e45b0c19cd27a33022c8f9fac680b7",
+  "catalogue_commit": "2b9a4a431a25b9eed8220268ff7dba109e5201fe",
+  "catalogue_uncommitted_at_preparation": true,
+  "sources": [
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-15 14-15-51.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No per-plane quad corners in the joined historical schema; boxes cannot rectify true manual quads.",
+      "video_sha256": "0378ce9394439c52af9d6aad10cc51f0146769bac3f5075e467857c0c596ef67",
+      "labels_sha256": "e58468fe3449760f166cf800b23aba18ca1c37fca4d3a030dd1cfdd44b7e5324",
+      "provenance": {
+        "name": "early",
+        "video": "2026-10-15 14-15-51.mkv",
+        "joined": ".board/pov-independent-20261018/early.joined.jsonl",
+        "split": "inventory_only",
+        "counts": {
+          "joined_frames": 9400,
+          "synced_frames": 9400,
+          "fire_frames": 5988,
+          "quads": 0,
+          "boxed_parts": 58080,
+          "pre_readability_candidates": 0
+        },
+        "sampled_phase_counts": {},
+        "joined_sha256": "e58468fe3449760f166cf800b23aba18ca1c37fca4d3a030dd1cfdd44b7e5324",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-15 14-48-36.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No per-plane quad corners in the joined historical schema; boxes cannot rectify true manual quads.",
+      "video_sha256": "d4c3a83a4eff2642ea551f54f4d206124bb030cae2c9ce42d8a62adf79fb35ba",
+      "labels_sha256": "062d69d4b2a4a774fc37517f936fc17402e18ad3e6372a769f55c6d272e92640",
+      "provenance": {
+        "name": "clip1",
+        "video": "2026-10-15 14-48-36.mkv",
+        "joined": "fire-detection/data/joined/clip1.jsonl",
+        "split": "inventory_only",
+        "counts": {
+          "joined_frames": 32626,
+          "synced_frames": 32626,
+          "fire_frames": 20388,
+          "quads": 0,
+          "boxed_parts": 343830,
+          "pre_readability_candidates": 0
+        },
+        "sampled_phase_counts": {},
+        "joined_sha256": "062d69d4b2a4a774fc37517f936fc17402e18ad3e6372a769f55c6d272e92640",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-15 18-18-16.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No per-plane quad corners in the joined historical schema; boxes cannot rectify true manual quads.",
+      "video_sha256": "91e6fa9db3202e005b351b1f2db28b81a6050ad0f4435bc613049fe25045845d",
+      "labels_sha256": "12806d99dd66b4a293b9e0e7379446bce0ad955613a472410245a985ea993af3",
+      "provenance": {
+        "name": "clip2",
+        "video": "2026-10-15 18-18-16.mkv",
+        "joined": "fire-detection/data/joined/clip2.jsonl",
+        "split": "inventory_only",
+        "counts": {
+          "joined_frames": 19553,
+          "synced_frames": 19553,
+          "fire_frames": 11721,
+          "quads": 0,
+          "boxed_parts": 86583,
+          "pre_readability_candidates": 0
+        },
+        "sampled_phase_counts": {},
+        "joined_sha256": "12806d99dd66b4a293b9e0e7379446bce0ad955613a472410245a985ea993af3",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-15 23-48-59.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No qualified aligned renderer quad truth registered for this short pilot; app/prediction labels are not renderer truth.",
+      "video_sha256": "0a51a91b3c15a1b4467e3116e25deb738b2d6ab95eae8e246ec9e12968bbf15b",
+      "labels_sha256": null,
+      "provenance": null
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-15 23-50-25.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No qualified aligned renderer quad truth registered for this short pilot; app/prediction labels are not renderer truth.",
+      "video_sha256": "7fa6069f907d2322611d77716191f01ad632f2986262a0c7d3ad392d256243b2",
+      "labels_sha256": null,
+      "provenance": null
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-16 00-40-22.mkv",
+      "role": "test",
+      "material": "normal_fire",
+      "samples_used": 617,
+      "frames_used": 179,
+      "reason": "Whole-recording split, native real RGB, geometry-only eligibility; normal material only.",
+      "video_sha256": "72177ee33a2966baf50d0c84f559f2a3f6b641d459f2775adb2d7f6081079ae4",
+      "labels_sha256": "c3a39b59346ae4030e45099ebabd1bfc9d2b4e8a722341e5ca881ae8999147a0",
+      "provenance": {
+        "name": "quad1",
+        "video": "2026-10-16 00-40-22.mkv",
+        "joined": "fire-detection/data/joined/quad1.jsonl",
+        "split": "test",
+        "counts": {
+          "joined_frames": 7094,
+          "synced_frames": 7094,
+          "fire_frames": 4640,
+          "quads": 69938,
+          "boxed_parts": 25283,
+          "pre_readability_candidates": 901
+        },
+        "sampled_phase_counts": {
+          "0": 10,
+          "1": 29,
+          "2": 59,
+          "3": 14,
+          "4": 15,
+          "5": 45,
+          "6": 32,
+          "7": 18,
+          "8": 18,
+          "9": 30,
+          "10": 28,
+          "11": 33,
+          "12": 37,
+          "13": 34,
+          "14": 21,
+          "15": 25,
+          "16": 54,
+          "17": 31,
+          "18": 6,
+          "19": 57,
+          "20": 43,
+          "21": 16,
+          "22": 23,
+          "23": 78,
+          "24": 39,
+          "25": 9,
+          "26": 45,
+          "27": 35,
+          "28": 20,
+          "29": 10,
+          "30": 56,
+          "31": 25
+        },
+        "joined_sha256": "c3a39b59346ae4030e45099ebabd1bfc9d2b4e8a722341e5ca881ae8999147a0",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-16 01-41-58.mkv",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No qualified aligned renderer quad truth registered for this short pilot; app/prediction labels are not renderer truth.",
+      "video_sha256": "60166ac70e266231faedc3ee6e3418de56e481fcf44b6b9b51336c74446577ea",
+      "labels_sha256": null,
+      "provenance": null
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-16 01-42-43.mp4",
+      "role": "excluded",
+      "material": "normal_fire",
+      "samples_used": 0,
+      "frames_used": 0,
+      "reason": "No qualified aligned renderer quad truth registered for this short pilot; app/prediction labels are not renderer truth.",
+      "video_sha256": "55cf7b0ed5188071af0e1b9aa3bf4805a3bac161f4e1388015b535b0e2002f1a",
+      "labels_sha256": null,
+      "provenance": null
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-16 18-23-42.mkv",
+      "role": "train",
+      "material": "normal_fire",
+      "samples_used": 2818,
+      "frames_used": 847,
+      "reason": "Whole-recording split, native real RGB, geometry-only eligibility; normal material only.",
+      "video_sha256": "69159829c28019affc47e35b923bca34ad9841ce96600a8dbe7511e6e545f90a",
+      "labels_sha256": "801c753dcfde61b09778eef3d8cfa55e340a7a967d6bf6090c6d5d6ce9184c9c",
+      "provenance": {
+        "name": "survival1",
+        "video": "2026-10-16 18-23-42.mkv",
+        "joined": "fire-detection/data/joined/survival1.jsonl",
+        "split": "train",
+        "counts": {
+          "joined_frames": 82686,
+          "synced_frames": 82686,
+          "fire_frames": 37834,
+          "quads": 1048187,
+          "boxed_parts": 325564,
+          "pre_readability_candidates": 4731
+        },
+        "sampled_phase_counts": {
+          "0": 156,
+          "1": 176,
+          "2": 184,
+          "3": 186,
+          "4": 156,
+          "5": 200,
+          "6": 278,
+          "7": 185,
+          "8": 118,
+          "9": 220,
+          "10": 210,
+          "11": 148,
+          "12": 122,
+          "13": 184,
+          "14": 191,
+          "15": 133,
+          "16": 109,
+          "17": 206,
+          "18": 188,
+          "19": 176,
+          "20": 169,
+          "21": 195,
+          "22": 223,
+          "23": 191,
+          "24": 193,
+          "25": 144,
+          "26": 212,
+          "27": 183,
+          "28": 175,
+          "29": 132,
+          "30": 267,
+          "31": 153
+        },
+        "joined_sha256": "801c753dcfde61b09778eef3d8cfa55e340a7a967d6bf6090c6d5d6ce9184c9c",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-17 17-04-31.mkv",
+      "role": "calibration",
+      "material": "normal_fire",
+      "samples_used": 157,
+      "frames_used": 53,
+      "reason": "Whole-recording split, native real RGB, geometry-only eligibility; normal material only.",
+      "video_sha256": "6d1f2f9c44bced3c3e68cacf4f45f5c639ba969f3cf8d5e8e11d7c36d6f4aaa7",
+      "labels_sha256": "b673c6542626c8eb860379be55b762da895fe68eac46440620ffed8e15eff6d2",
+      "provenance": {
+        "name": "later",
+        "video": "2026-10-17 17-04-31.mkv",
+        "joined": ".board/pov-independent-20261018/later.joined.jsonl",
+        "split": "calibration",
+        "counts": {
+          "joined_frames": 3263,
+          "synced_frames": 3263,
+          "fire_frames": 3057,
+          "quads": 27994,
+          "boxed_parts": 9601,
+          "pre_readability_candidates": 240
+        },
+        "sampled_phase_counts": {
+          "0": 10,
+          "1": 6,
+          "3": 10,
+          "4": 20,
+          "5": 6,
+          "6": 10,
+          "7": 7,
+          "8": 12,
+          "9": 4,
+          "10": 3,
+          "11": 10,
+          "12": 11,
+          "14": 4,
+          "15": 15,
+          "16": 2,
+          "17": 7,
+          "18": 5,
+          "19": 14,
+          "20": 7,
+          "21": 10,
+          "22": 8,
+          "24": 15,
+          "25": 6,
+          "26": 3,
+          "27": 10,
+          "28": 11,
+          "30": 9,
+          "31": 13
+        },
+        "joined_sha256": "b673c6542626c8eb860379be55b762da895fe68eac46440620ffed8e15eff6d2",
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-17 18-28-42.mkv",
+      "role": "train",
+      "material": "normal_fire",
+      "samples_used": 69,
+      "frames_used": 13,
+      "reason": "Whole-recording split, native real RGB, geometry-only eligibility; normal material only.",
+      "video_sha256": "eaecd20a949d370b9deac65dfda62802f12d438659bd135466d6df6d6f54a1b2",
+      "labels_sha256": null,
+      "provenance": {
+        "name": "ownership",
+        "video": "2026-10-17 18-28-42.mkv",
+        "split": "train",
+        "available_crops": 178,
+        "status": "partial_ownership_sidecars",
+        "reason": "Real RGB; recorder warnings retained; geometry screening still required"
+      }
+    },
+    {
+      "recording": "fire-detection\\data\\video\\2026-10-19 16-49-48.mkv",
+      "role": "train",
+      "material": "normal_fire",
+      "samples_used": 119,
+      "frames_used": 55,
+      "reason": "Whole-recording split, native real RGB, geometry-only eligibility; normal material only.",
+      "video_sha256": "1c678af07852ffa490c012f4ba4caca5a3eef31780baf5e43dc5ac41f0338641",
+      "labels_sha256": "f044875d40fe9954b9e498ad4725b5a510d463f1d8f9991cf7defc645ab7d23f",
+      "provenance": {
+        "name": "new_normal",
+        "video": "2026-10-19 16-49-48.mkv",
+        "joined": ".board/soul-quad/joined.jsonl",
+        "split": "train",
+        "counts": {
+          "joined_frames": 9870,
+          "synced_frames": 9870,
+          "fire_frames": 4296,
+          "quads": 55038,
+          "boxed_parts": 18229,
+          "pre_readability_candidates": 174
+        },
+        "sampled_phase_counts": {
+          "0": 6,
+          "1": 5,
+          "2": 2,
+          "3": 8,
+          "4": 3,
+          "5": 7,
+          "6": 2,
+          "7": 15,
+          "8": 2,
+          "9": 5,
+          "10": 12,
+          "11": 5,
+          "12": 4,
+          "13": 3,
+          "14": 11,
+          "15": 4,
+          "16": 2,
+          "17": 7,
+          "18": 3,
+          "19": 3,
+          "20": 5,
+          "21": 4,
+          "22": 1,
+          "23": 5,
+          "24": 5,
+          "25": 11,
+          "26": 5,
+          "27": 3,
+          "28": 5,
+          "29": 13,
+          "30": 2,
+          "31": 8
+        },
+        "joined_sha256": "f044875d40fe9954b9e498ad4725b5a510d463f1d8f9991cf7defc645ab7d23f",
+        "width": 1920,
+        "height": 1080
+      }
+    }
+  ],
+  "ownership": [
+    {
+      "path": "fire-detection/mod/run/firelabel/ownership-aa9c6e80-3dab-4b58-bc3a-7011cbd8626b",
+      "role": "excluded",
+      "samples_used": 0,
+      "reason": "Pending local ownership audit, outside the frozen audited ebe training pool. aa9 lacks known-fire evidence metadata; e6 has451 rejected samples and8 unvalidated. Neither is proven to contain zero usable phase crops.",
+      "metadata": {
+        "path": "fire-detection/mod/run/firelabel/ownership-aa9c6e80-3dab-4b58-bc3a-7011cbd8626b",
+        "json_frames": 26,
+        "rgb_images": 26,
+        "id_images": 26,
+        "schema": {
+          "schema": "str",
+          "status": "str",
+          "ground_truth": "bool",
+          "frame_id": "int",
+          "client_tick": "int",
+          "width": "int",
+          "height": "int",
+          "capture_stage": "str",
+          "origin": "str",
+          "id_encoding": "str",
+          "rgb": "str",
+          "ids": "str",
+          "rgb_sha256": "str",
+          "ids_sha256": "str",
+          "draw_calls": "int",
+          "issues": {
+            "type": "array",
+            "example_length": 0,
+            "item": "not observed"
+          },
+          "quads": {
+            "type": "array",
+            "example_length": 2148,
+            "item": {
+              "id": "int",
+              "draw": "int",
+              "quad_in_draw": "int",
+              "sheet": "int",
+              "clip_corners": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 4,
+                  "item": "float"
+                }
+              },
+              "uv": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 2,
+                  "item": "float"
+                }
+              },
+              "row": "int"
+            }
+          }
+        },
+        "first_sidecar": "frame-00001388.json",
+        "statuses": {
+          "experimental_unvalidated": 26
+        },
+        "ground_truth_flags": {
+          "False": 26
+        },
+        "frames_with_issues": 0,
+        "frames_with_known_fire_pixels": 0
+      }
+    },
+    {
+      "path": "fire-detection/mod/run/firelabel/ownership-e6eb5afd-80bf-4f7c-9125-fda8aeea0352",
+      "role": "excluded",
+      "samples_used": 0,
+      "reason": "Pending local ownership audit, outside the frozen audited ebe training pool. aa9 lacks known-fire evidence metadata; e6 has451 rejected samples and8 unvalidated. Neither is proven to contain zero usable phase crops.",
+      "metadata": {
+        "path": "fire-detection/mod/run/firelabel/ownership-e6eb5afd-80bf-4f7c-9125-fda8aeea0352",
+        "json_frames": 459,
+        "rgb_images": 459,
+        "id_images": 459,
+        "schema": {
+          "schema": "str",
+          "status": "str",
+          "ground_truth": "bool",
+          "frame_id": "int",
+          "client_tick": "int",
+          "width": "int",
+          "height": "int",
+          "capture_stage": "str",
+          "origin": "str",
+          "geometry_source": "str",
+          "id_encoding": "str",
+          "rgb": "str",
+          "ids": "str",
+          "rgb_sha256": "str",
+          "ids_sha256": "str",
+          "draw_calls": "int",
+          "known_fire_pixels": "int",
+          "unknown_pixels": "int",
+          "replay_cpu_ms": "float",
+          "readback_cpu_ms": "float",
+          "writer_cpu_ms": "float",
+          "issues": {
+            "type": "array",
+            "example_length": 0,
+            "item": "not observed"
+          },
+          "quads": {
+            "type": "array",
+            "example_length": 888,
+            "item": {
+              "id": "int",
+              "draw": "int",
+              "quad_in_draw": "int",
+              "sheet": "int",
+              "row": "int",
+              "clip_corners": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 4,
+                  "item": "float"
+                }
+              },
+              "uv": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 2,
+                  "item": "float"
+                }
+              }
+            }
+          }
+        },
+        "first_sidecar": "frame-00001589.json",
+        "statuses": {
+          "experimental_unvalidated": 8,
+          "rejected_sample": 451
+        },
+        "ground_truth_flags": {
+          "False": 459
+        },
+        "frames_with_issues": 451,
+        "frames_with_known_fire_pixels": 7
+      }
+    },
+    {
+      "path": "fire-detection/mod/run/firelabel/ownership-ebe022b2-f48a-456d-8c2c-169aedede5f9",
+      "role": "train",
+      "samples_used": 69,
+      "reason": "Previously locally audited mapped planes only; current geometry screen and fresh shared unveil; warnings retained.",
+      "metadata": {
+        "path": "fire-detection/mod/run/firelabel/ownership-ebe022b2-f48a-456d-8c2c-169aedede5f9",
+        "json_frames": 105,
+        "rgb_images": 105,
+        "id_images": 105,
+        "schema": {
+          "schema": "str",
+          "status": "str",
+          "ground_truth": "bool",
+          "frame_id": "int",
+          "client_tick": "int",
+          "width": "int",
+          "height": "int",
+          "capture_stage": "str",
+          "origin": "str",
+          "geometry_source": "str",
+          "id_encoding": "str",
+          "rgb": "str",
+          "ids": "str",
+          "rgb_sha256": "str",
+          "ids_sha256": "str",
+          "draw_calls": "int",
+          "known_fire_pixels": "int",
+          "unknown_pixels": "int",
+          "replay_cpu_ms": "float",
+          "readback_cpu_ms": "float",
+          "writer_cpu_ms": "float",
+          "issues": {
+            "type": "array",
+            "example_length": 0,
+            "item": "not observed"
+          },
+          "quads": {
+            "type": "array",
+            "example_length": 744,
+            "item": {
+              "id": "int",
+              "draw": "int",
+              "quad_in_draw": "int",
+              "sheet": "int",
+              "row": "int",
+              "clip_corners": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 4,
+                  "item": "float"
+                }
+              },
+              "uv": {
+                "type": "array",
+                "example_length": 4,
+                "item": {
+                  "type": "array",
+                  "example_length": 2,
+                  "item": "float"
+                }
+              }
+            }
+          }
+        },
+        "first_sidecar": "frame-00171680.json",
+        "statuses": {
+          "experimental_unvalidated": 6,
+          "rejected_sample": 99
+        },
+        "ground_truth_flags": {
+          "False": 105
+        },
+        "frames_with_issues": 99,
+        "frames_with_known_fire_pixels": 45
+      }
+    }
+  ],
+  "dataset_families": [
+    {
+      "family": "bounding boxes / presence / first-person pools",
+      "role": "excluded",
+      "reason": "Task/input mismatch: no exact world-quad geometry; no pseudo-label substitution."
+    },
+    {
+      "family": "synthetic / codec / backgrounds",
+      "role": "excluded",
+      "reason": "Owner requests actual fire crops only; descendants add no independent recorded phase observations."
+    },
+    {
+      "family": "old row32 / row32-large checkpoints",
+      "role": "excluded",
+      "reason": "Synthetic-fire-trained checkpoints excluded from initialization; generic ImageNet only."
+    },
+    {
+      "family": "old normal quad caches / rough-exact / GUI ownership evaluations",
+      "role": "excluded",
+      "reason": "Overlap with fresh native candidates; never count duplicate cache variants as new recordings."
+    },
+    {
+      "family": "recorded partial ownership",
+      "role": "train",
+      "reason": "Included once via locally audited mapped planes; warnings retained, 69 geometry-qualified crops. Not global oracle."
+    },
+    {
+      "family": "soul-fire pixels",
+      "role": "excluded",
+      "reason": "Deferred separate-colour model; current run uses only normal fires from the newest mixed capture."
+    },
+    {
+      "family": "Jolt / cut edits / app auto-labels",
+      "role": "excluded",
+      "reason": "Clock/prediction/derived evidence is not new renderer sprite supervision."
+    }
+  ],
+  "split": {
+    "train": {
+      "crops": 3006,
+      "videos": [
+        "new_normal",
+        "ownership",
+        "survival1"
+      ],
+      "frames": 915,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    "calibration": {
+      "crops": 157,
+      "videos": [
+        "later"
+      ],
+      "frames": 53,
+      "phases": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        14,
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        24,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31
+      ]
+    },
+    "test": {
+      "crops": 617,
+      "videos": [
+        "quad1"
+      ],
+      "frames": 179,
+      "phases": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    }
+  },
+  "preprocessing": {
+    "veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "veil_abi.rs": "94ef9e901fb243fbd77e1199544b7e4ae151c05abb72a51a7eccab206a975b74",
+    "portal.rs": "0f43a1929cfe453164df94221cd7ec7895f38148fc69c4252af61f88dd9519c0"
+  },
+  "dataset_sha256": "8a972f4d7a8f9c1dc4fbb7ce42fd7a8f81579c1d2f1e2b6abb9f49f5470f7009",
+  "sampling": "stride11 unique rendered frame; at most8 candidates/frame sorted by minimum edge; >=95% recorded visibility; fully onscreen; >=3 native px/texel; <=2.5 directional stretch; no colour/template filter on fresh joins; ownership subset was historically locally audited"
+}
