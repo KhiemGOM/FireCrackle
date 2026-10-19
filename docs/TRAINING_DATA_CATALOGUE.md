@@ -2,7 +2,7 @@
 
 This is the canonical, growing register for FireCrackle/fire-detection video research. Every AI training, fine-tuning, distillation, calibration and model-comparison run must read it and account for **all available relevant sources**, rather than silently choosing a convenient old subset. The policy is also required by the root `AGENTS.md`.
 
-Initial audit: 19 October 2026. With the new evening soul-fire recording, the 13 original files total 4,244.358 seconds (70.7 minutes), including unqualified pilots; this is not 70.7 minutes of independently labelled fire.
+Initial audit: 19 October 2026. With the evening soul-fire and evaluation recordings, the 14 original files total 4,467.508 seconds (74.5 minutes), including unqualified pilots; this is not 74.5 minutes of independently labelled fire.
 
 Local recordings, annotations, frame images, game assets, tensors and model weights remain ignored/private. This document and the accompanying inventory contain paths, counts and schemas, not copied training examples. Paths are relative to the repository root unless explicitly stated otherwise.
 
@@ -64,10 +64,10 @@ The generated original-video table below gives measured duration, resolution and
 | V10 / `later` | `2026-10-17 17-04-31.mkv` | `.board/pov-independent-20261018/later.joined.jsonl`; capture `labels-20261017-170335.jsonl`. Separate POV validation recording, familiar to other preprocessing studies. |
 | V11 / `new_recording`, recorded ownership | `2026-10-17 18-28-42.mkv` | `.board/ownership-review/sync.jsonl` maps video `n` to renderer `f`/tick (no label object); `.board/occlusion-recorded/manifest.json` points to renderer ownership session `ownership-ebe022b2-f48a-456d-8c2c-169aedede5f9`. Partial locally audited ownership supervision; not a globally correct oracle mask. |
 | V12 / real soul-fire | `2026-10-19 16-49-48.mkv` | `.board/soul-quad/joined.jsonl`, `.board/soul-quad/recording-labels.jsonl`, and `.board/soul-quad/real/manifest.json`; normal and soul labels coexist in the new capture schema. Declared tune/validation bounds and material-specific truth must be preserved. Do not treat normal `fires` as soul truth or invent a soul first-person overlay. |
-
 | V13 / `new_soul12` | `2026-10-19 22-59-52.mkv` | 740.684 s, 1080p60. `.board/soul-12m/joined.jsonl` joins all 44,439 video frames to the complete-line snapshot `.board/soul-12m/recording-labels.jsonl` from `labels-20261019-225832.jsonl`. Zero undecodable/unmatched/tick-mismatch frames; 9,834 repeated renderer IDs must stay grouped. Geometry-only audit retains 2,350 soul-block quads from 841 frames and 1,405 ordinary-fire quads from 437 frames. No train/calibration/test assignment or model scoring yet. |
+| V14 / `soul_holdout` | `2026-10-19 23-27-30.mkv` | 223.150 s, 1080p60. `.board/soul-holdout/joined.jsonl` and frozen `recording-labels.jsonl` pair all 13,389 frames; zero undecodable/unmatched/tick-mismatch frames, 3,717 repeated renderer IDs. Reserved evaluation/test recording: no training, threshold selection or calibration. Same Minecraft session/world and source log as V13, with no renderer-frame overlap (V13 4,406–43,556; V14 120,490–130,850). Separate recording is not an independent game session. |
 
-V12 and V13 also contain ordinary fire: do not exclude whole recordings from normal-fire training just because they were recorded for soul fire. Register eligible normal-fire quads separately. Material admission must inspect per-frame/per-target labels.
+V12, V13 and V14 also contain ordinary fire: do not exclude whole recordings just because they were recorded for soul fire. Register eligible normal-fire quads separately, respecting V14's evaluation-only role. Material admission must inspect per-frame/per-target labels.
 
 `data/joined/` in this register means `fire-detection/data/joined/`. Verify raw-log pairings through strip alignment; file modification time is not evidence. The generated inventory lists all additional orphan/empty capture logs so they cannot be overlooked, but an orphan is not automatically a labelled recording.
 
@@ -141,6 +141,7 @@ No-fire archives under `.board/no-fire-*`, image-presence and related roots cont
 | `.board/pov-*` | POV/GUI/veil ablations, additional joined labels, sampled predictions and frozen reports | `fire-detection/bench/pov_*.py`; `.board/pov-independent-20261018` holds the early/later joined truth. Predictions are not training truth. |
 | `.board/soul-quad/real` | New real soul known-quad cases and tune/validation split | `FireCrackle/scripts/prepare-soul-quad-eval.py`; keep material/physical/normalized rows separate, and documented time bounds. |
 | `.board/soul-12m` | V13 complete-label snapshot, strip join and geometry-only eligible pool; not assigned to any split | `FireCrackle/scripts/soul-recording-audit/{prepare.py,audit.mjs,results.json}`. Stride 11, unique rendered frames, visibility >=0.95, fully on-screen, minimum 3 video pixels per texture pixel, maximum anisotropy 2.5, at most 8 quads/material/frame. Soul: 2,350 quads / 841 frames, all 32 phases (57–91 each); normal: 1,405 / 437 (777 block, 628 entity). One correlated recording, not independent scenes. Raw capture may keep growing; use the frozen snapshot and recorded SHA-256 hashes. Agree recording/session holdouts and purge before fitting; older familiar soul footage is a development check, not a fresh blind test. |
+| `.board/soul-holdout` | V14 evaluation-only geometry pool and complete-line snapshot; no model scores yet | Same audit scripts, `--out .board/soul-holdout --video "fire-detection/data/video/2026-10-19 23-27-30.mkv"`; node audit accepts output directory, report filename and split description. Aggregate `holdout-results.json`; private frozen `split.json` records selected-pool hash and V13 renderer separation. Identical stride/visibility/readability/cap rules: 1,983 soul quads / 394 frames, all 32 phases (39–91 each); 678 normal quads / 233 frames (603 block, 75 entity). Soul occurs in 9,966/13,389 video frames. Keep all V14 examples out of training/calibration; scene/session correlation with V13 remains. |
 | `.board/jolt-*`, `.board/survival-*` | Clock reports, cut edits, complete-label app demonstrations | Timing/analysis evidence. Derived cut videos inherit their original split; GUI clock is not a sprite label. |
 
 All concrete manifest/NPZ paths, counts and schemas—including variants not singled out in this table—are listed in the generated appendix. Do not assume a family root with only reports contains additional trainable tensors.
@@ -176,12 +177,14 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/data/video/2026-10-17 18-28-42.mkv` | 533.350000 | 1920 x 1080 | 60/1 |
 | `fire-detection/data/video/2026-10-19 16-49-48.mkv` | 164.550000 | 1920 x 1080 | 60/1 |
 | `fire-detection/data/video/2026-10-19 22-59-52.mkv` | 740.684000 | 1920 x 1080 | 60/1 |
+| `fire-detection/data/video/2026-10-19 23-27-30.mkv` | 223.150000 | 1920 x 1080 | 60/1 |
 
-### Raw capture logs (36)
+### Raw capture logs (37)
 
 | Local path | Contents / observed schema |
 |---|---|
 | `.board/soul-12m/recording-labels.jsonl` | 53400 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
+| `.board/soul-holdout/recording-labels.jsonl` | 134292 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
 | `.board/soul-quad/recording-labels.jsonl` | 88320 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
 | `fire-detection/data/joined/quad1.raw-labels.jsonl` | 19576 records; f, f0, f1, fire, fires, h, tick, w |
 | `fire-detection/data/joined/survival1.raw-labels.jsonl` | 98243 records; f, f0, f1, fire, fires, h, tick, w |
@@ -216,15 +219,16 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/mod/run/firelabel/labels-20261017-170621.jsonl` | 0 records;  |
 | `fire-detection/mod/run/firelabel/labels-20261019-162844.jsonl` | 109791 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
 | `fire-detection/mod/run/firelabel/labels-20261019-165838.jsonl` | 0 records;  |
-| `fire-detection/mod/run/firelabel/labels-20261019-225832.jsonl` | 101794 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
+| `fire-detection/mod/run/firelabel/labels-20261019-225832.jsonl` | 146609 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
 
-### Synchronized frame labels (8)
+### Synchronized frame labels (9)
 
 | Local path | Contents / observed schema |
 |---|---|
 | `.board/pov-independent-20261018/early.joined.jsonl` | 9400 records; f, label, n, tick, tick_ok |
 | `.board/pov-independent-20261018/later.joined.jsonl` | 3263 records; f, label, n, tick, tick_ok |
 | `.board/soul-12m/joined.jsonl` | 44439 records; f, label, n, tick, tick_ok |
+| `.board/soul-holdout/joined.jsonl` | 13389 records; f, label, n, tick, tick_ok |
 | `.board/soul-quad/joined.jsonl` | 9870 records; f, label, n, tick, tick_ok |
 | `fire-detection/data/joined/clip1.jsonl` | 32626 records; f, label, n, tick, tick_ok |
 | `fire-detection/data/joined/clip2.jsonl` | 19553 records; f, label, n, tick, tick_ok |
@@ -245,7 +249,7 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/mod/run/firelabel/ownership-e6eb5afd-80bf-4f7c-9125-fda8aeea0352` | 459 JSON sidecars; 459 RGB / 459 ID PNGs; 451 frames with issues; 7 with known fire pixels; schema in inventory |
 | `fire-detection/mod/run/firelabel/ownership-ebe022b2-f48a-456d-8c2c-169aedede5f9` | 105 JSON sidecars; 105 RGB / 105 ID PNGs; 99 frames with issues; 45 with known fire pixels; schema in inventory |
 
-### Dataset manifests and frozen/reviewed pools (172)
+### Dataset manifests and frozen/reviewed pools (174)
 
 | Local path | Contents / observed schema |
 |---|---|
@@ -417,6 +421,8 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `.board/row32/selected.json` | {"records_count":456,"records_splits":{"tune":242,"validation":214}}; fields: id, frame, quad, expected, source, visibility, veil, split, kind, phase, baselinePhase, dir, width, height, manifest_sha256 |
 | `.board/soul-12m/candidates.json` | {"candidates_count":51798,"candidates_splits":{"unspecified":51798}}; fields: media, counts, per_minute, video, video_sha256, snapshot, joined_sha256, selection, candidates |
 | `.board/soul-12m/selected.json` | {"samples_count":3755,"samples_splits":{"unspecified":3755}}; fields: id, material, frame, render_frame, quad, width, height, phase, source, visibility, veil, sheet, mirrored, readability |
+| `.board/soul-holdout/candidates.json` | {"candidates_count":23632,"candidates_splits":{"unspecified":23632}}; fields: media, counts, per_minute, video, video_sha256, snapshot, joined_sha256, selection, candidates |
+| `.board/soul-holdout/selected.json` | {"samples_count":2661,"samples_splits":{"unspecified":2661}}; fields: id, material, frame, render_frame, quad, width, height, phase, source, visibility, veil, sheet, mirrored, readability |
 | `.board/soul-quad/real/manifest.json` | {"samples_count":2905,"samples_splits":{"tune":2103,"validation":802}}; fields: id, frame, rendered_frame, split, quad, expected, physical_row, visibility, veil, source, unveiled |
 | `FireCrackle/src-tauri/target/actual-quad1/manifest.json` | {"samples_count":1128,"samples_splits":{"tune":818,"validation":310}}; fields: id, frame, quad, expected, source, visibility, veil, split |
 | `FireCrackle/src-tauri/target/quad-eval-clip1/manifest.json` | {"native_size_count":2,"samples_count":1167,"samples_splits":{"unspecified":1167}}; fields: file, frame, width, height, box, expected, source, visibility, veil, min_pixels |

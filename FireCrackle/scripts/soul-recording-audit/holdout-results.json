@@ -1,0 +1,286 @@
+{
+  "media": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "width": 1920,
+        "height": 1080,
+        "avg_frame_rate": "60/1"
+      }
+    ],
+    "format": {
+      "duration": "223.150000"
+    }
+  },
+  "counts": {
+    "video_frames": 13389,
+    "matched_video_frames": 13389,
+    "sampled_unique_frames": 1216,
+    "repeated_video_renderer_frames": 3717,
+    "duplicate_renderer_samples": 2,
+    "video_frames_with_soul": 9966,
+    "soul_sources": 7151,
+    "soul_quads_before_gate": 40107,
+    "video_frames_with_normal": 8713,
+    "normal_sources": 2962,
+    "normal_quads_before_gate": 13826,
+    "normal_low_visibility": 10325,
+    "normal_backface_or_small": 29,
+    "soul_low_visibility": 19805,
+    "soul_backface_or_small": 130,
+    "soul_missing": 6,
+    "soul_extreme_projection": 2,
+    "normal_missing": 4
+  },
+  "per_minute": {
+    "0": {
+      "sampled_frames": 326,
+      "soul_frames": 175
+    },
+    "1": {
+      "sampled_frames": 327,
+      "soul_frames": 227
+    },
+    "2": {
+      "sampled_frames": 327,
+      "soul_frames": 317
+    },
+    "3": {
+      "sampled_frames": 236,
+      "soul_frames": 189
+    }
+  },
+  "video": "fire-detection\\data\\video\\2026-10-19 23-27-30.mkv",
+  "video_sha256": "56fb5799a475fd9b75a636fc301c279f7b7523d1358f0ea87d47a93b2262bc72",
+  "snapshot": {
+    "source": "fire-detection/mod/run/firelabel/labels-20261019-225832.jsonl",
+    "bytes": 279728700,
+    "sha256": "3ebeb2cc2d9869b5c8ba647f3f4a4eaec03ac35049c85291d9859fafa4b33c97",
+    "snapshot": "complete lines only; original capture remains live"
+  },
+  "joined_sha256": "eb61007ad7c043f1620a063bd0f70840ebeb0d40a5ae1a11390515a1df6473d8",
+  "selection": "same geometry-only gate as normal-fire corpus;stride11unique rendered frames,visibility>=.95; no fitting/scoring/split",
+  "geometry": {
+    "minPixelsPerTexel": 3,
+    "maxAnisotropy": 2.5,
+    "gridSteps": 32,
+    "requireFullyOnscreen": true
+  },
+  "rejected": {
+    "soul_anisotropic": 756,
+    "soul_small_or_squashed": 15837,
+    "normal_small_or_squashed": 2363,
+    "soul_clipped": 768,
+    "normal_anisotropic": 191,
+    "normal_clipped": 229
+  },
+  "all_eligible": {
+    "soul": {
+      "quads": 2803,
+      "frames": 394,
+      "phases": [
+        113,
+        76,
+        80,
+        75,
+        51,
+        147,
+        57,
+        104,
+        68,
+        79,
+        111,
+        109,
+        47,
+        73,
+        83,
+        103,
+        42,
+        95,
+        100,
+        84,
+        87,
+        101,
+        99,
+        80,
+        112,
+        65,
+        83,
+        103,
+        101,
+        73,
+        88,
+        114
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 42,
+      "max_phase_count": 147,
+      "per_minute": {
+        "0": 184,
+        "1": 1069,
+        "2": 692,
+        "3": 858
+      },
+      "groups": {
+        "block": 2803
+      }
+    },
+    "normal": {
+      "quads": 685,
+      "frames": 233,
+      "phases": [
+        18,
+        16,
+        23,
+        10,
+        34,
+        19,
+        26,
+        11,
+        23,
+        32,
+        14,
+        16,
+        20,
+        28,
+        17,
+        26,
+        14,
+        37,
+        23,
+        28,
+        22,
+        18,
+        32,
+        15,
+        26,
+        23,
+        12,
+        26,
+        19,
+        22,
+        13,
+        22
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 10,
+      "max_phase_count": 37,
+      "per_minute": {
+        "0": 78,
+        "1": 185,
+        "2": 345,
+        "3": 77
+      },
+      "groups": {
+        "block": 610,
+        "entity": 75
+      }
+    }
+  },
+  "capped8_per_frame": {
+    "soul": {
+      "quads": 1983,
+      "frames": 394,
+      "phases": [
+        79,
+        55,
+        62,
+        51,
+        48,
+        90,
+        50,
+        88,
+        39,
+        53,
+        91,
+        78,
+        42,
+        52,
+        75,
+        58,
+        40,
+        65,
+        75,
+        50,
+        53,
+        77,
+        63,
+        51,
+        72,
+        60,
+        40,
+        77,
+        69,
+        59,
+        54,
+        67
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 39,
+      "max_phase_count": 91,
+      "per_minute": {
+        "0": 184,
+        "1": 672,
+        "2": 621,
+        "3": 506
+      },
+      "groups": {
+        "block": 1983
+      }
+    },
+    "normal": {
+      "quads": 678,
+      "frames": 233,
+      "phases": [
+        18,
+        16,
+        23,
+        10,
+        34,
+        19,
+        26,
+        11,
+        23,
+        32,
+        14,
+        16,
+        20,
+        24,
+        17,
+        26,
+        14,
+        34,
+        23,
+        28,
+        22,
+        18,
+        32,
+        15,
+        26,
+        23,
+        12,
+        26,
+        19,
+        22,
+        13,
+        22
+      ],
+      "phase_coverage": 32,
+      "min_phase_count": 10,
+      "max_phase_count": 34,
+      "per_minute": {
+        "0": 78,
+        "1": 185,
+        "2": 338,
+        "3": 77
+      },
+      "groups": {
+        "block": 603,
+        "entity": 75
+      }
+    }
+  },
+  "split": "Evaluation/test only; owner-requested separate recording. No training, calibration, threshold selection or model scoring.",
+  "correlation": "One recording, repeated nearby quads; selected counts are not independent scenes."
+}
