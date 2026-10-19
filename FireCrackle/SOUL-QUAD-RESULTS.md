@@ -202,3 +202,117 @@ Production matcher SHA256:
 `510a675c7b665722d319d5fc9411e7f738e1a23df6a90acc6496db9e62014d7c`.
 Existing boundary research SHA256:
 `e09b2e82ba9b751ed7da8f771c48cf5ff393d036b4aaad88cfc8ded6884ff8de`.
+
+## Readable-only follow-up: why cyan is insufficient
+
+The follow-up keeps the same declared readable geometry rule, yielding178 tuning
+and115 validation quads. The validation segment is now reused diagnostic data;
+the methods below are not a new independent validation claim. Tuning experiments
+were completed before their respective validation runs. Production is unchanged.
+
+Exact colour is highly shared between soul frames: among opaque texel occurrences
+in the64 unmirrored sheet/row images,91.0% use an RGB colour present in at least8
+images. The median texel colour occurs in44 images;361 distinct RGB colours occur
+overall. All128 sheet/row/mirror appearances are nevertheless distinct. Shared
+colour helps find possible fire but cannot uniquely identify an animation row;
+the spatial arrangement still matters. This fact alone does not explain all errors.
+
+Readable tuning diagnostics, using truth only after scoring:
+
+- The target has a median147 opaque texels. Candidate-independent cyan evidence
+  covers a median79.5% of its expected opaque probe weight, but the correct
+  candidate's shared brightness mode has only23.5 supporting texels.
+- A median29.4% of weighted cyan probes occur where that target sprite is
+  transparent. Other fire planes, particles, background and sampling effects can
+  contribute there. It is not an oracle measurement of another face's ownership.
+- The baseline gets the correct row in74 cases but the full appearance in23;
+  51 correct-row cases choose the wrong sheet or mirror.
+- Existing capture visibility tests world/entity/GUI occlusion, but do not supply
+  dense fire-over-fire ownership. A large front-facing recorded quad is therefore
+  not necessarily a clean, visibly recoverable texture plane. Treat its results
+  as this recorded-quad benchmark, not measured accuracy on human-certified
+  isolated visible planes.
+
+Tested32 scoring hypotheses (including narrow/loose controls) plus full bounded
+per-appearance fitting. None beats the loose control's23 exact tuning cases.
+Ties retain the existing baseline. The14/115 normalization result below is only
+one additional validation success; it is not a demonstrated reliable improvement.
+
+| Method | Exact tuning /178 | Exact validation /115 | Correct validation row |
+|---|---:|---:|---:|
+| Loose control |23|13|45|
+| Fixed template-opacity normalization |23|14|47|
+| Binary cyan support |0|0|6|
+| Cyan / template opaque area |7|4|21|
+| Cyan-alpha IoU |2|4|12|
+| Whiteness, template-normalized |14|4|32|
+| Chroma, template-normalized |13|5|30|
+| Separate brightness per2x2 regions |21|13|50|
+| Separate brightness per4x4 regions |14|7|43|
+| Smooth brightness-gradient bank |23|12|43|
+| Loose colour, gain window .25 stops |19|8|39|
+| Loose colour, gain window .5 stops |11|5|31|
+| Loose colour, gain window1 stop |10|3|26|
+| Shared affine RGB consensus, normalized |18|11|40|
+| Existing localized edge-grid fitting |19|12|44|
+| Edge-supported samples only |17|11|41|
+| Keep stronger original/edge fit |21|13|45|
+| Same-row top2 appearance aggregation |19|11|41|
+| Same-row four-appearance aggregation |15|8|35|
+| Loose + affine rank fusion |23|13|47|
+| Loose + local-lighting rank fusion |23|13|46|
+| Loose + smooth-lighting rank fusion |23|13|45|
+| Full per-appearance bounded optimizer |17|12|50|
+
+The script and CSV retain the remaining controls/fusions too, including regressions.
+`soul-pattern-results.csv` has9,669 per-method cases across both splits:293 quads
+times33 variants. These are repeated measurements, not9,669 independent quads.
+
+Shape scores use a candidate-independent union of the original palette mask and
+a broad cyan condition (on original RGB: min(G,B)-R >=20, max(G,B)>=40 and
+min(G,B)>=.6*max(G,B)). Pure support and fixed template-area normalizers are
+positive-only; IoU includes observed-area normalization and is explicitly a
+research departure from production monotonic evidence. No new colour rule is
+added to the production detector. Whiteness/chroma compare brightness-independent
+channel ratios. Local brightness uses independent fixed histogram banks per
+region. Smooth lighting searches25 fixed slopes in log-gain space. Affine RGB
+consensus searches9 fixed gains and two16-code-value residual quantizations with
+per-channel offsets bounded by64. These are scoring hypotheses, not another
+unveil or a claim of physically accurate Minecraft inverse rendering.
+
+Rank fusions combine loose weight2 and one alternate weight1 with reciprocal
+rank denominator8+rank. Row aggregation groups known model appearances by their
+shared row; it has no access to the recorded target. Its top3 can include several
+appearances of one row, so it is not a count of three distinct phase hypotheses.
+No new score has a calibrated automatic-acceptance gate.
+
+Fitting reuses the actual production128-appearance optimizer, four native probes,
+and120% envelope, with green basis and the same loose colour tolerances. Four CPU
+workers took39.95 seconds for tuning and34.55 for validation, wall time. The top
+objective never decreases, yet identity accuracy falls. All5,860 returned candidate
+corner points stay within the declared bounds. Validation gives2 correct and22
+wrong old-gate passes. Extra geometric freedom is not fixing this benchmark.
+
+A limited score/margin/support threshold sweep found no zero-error tuning gate
+that accepts from at least two distinct frames. This is only a finite-grid
+diagnostic, not proof that reliable acceptance is impossible. It was not promoted.
+
+Checks:230 narrow/loose validation predictions reproduce the prior benchmark's
+appearance and score within1e-12; all experiment scores are finite and bounded;
+the fitting objective/bounds audit passes. Original native sampling and shared
+unveil are reused. Recorded texture/frame data, image diagnostics and detailed
+predictions remain ignored under `.board/soul-quad/`. Source/pixel hypotheses and
+all results are retained rather than replacing the baseline with a post-hoc win.
+
+```text
+node FireCrackle/scripts/soul-pattern-eval.mjs .board/soul-quad/real tune
+node FireCrackle/scripts/soul-pattern-eval.mjs .board/soul-quad/real validation
+node FireCrackle/scripts/soul-quad-refine.mjs .board/soul-quad/real tune 4
+node FireCrackle/scripts/soul-quad-refine.mjs .board/soul-quad/real validation 4
+```
+
+The runtime modules are prepared by the earlier `soul-quad-eval.mjs` commands.
+Pattern scoring verifies their production source hashes before running. The
+next useful hypothesis is separating visible-plane evidence from other cyan
+content. These experiments establish neither a working ownership mask nor a
+complete causal explanation of every mismatch.
