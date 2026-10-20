@@ -11,14 +11,14 @@ const view={current:10,frame_count:100,fps:60} as View;
 function render(){hooks.cursor=0;hooks.effects=[];return MiscToolsTab({backend,view,videoKey:'video.mp4',onOpenFrame:onOpen});}
 beforeEach(()=>{hooks.values=[];hooks.effects=[];onOpen.mockClear();});
 afterEach(()=>vi.unstubAllGlobals());
-it('compares real immediate frames from the active video and allows an inclusive interaction interval',()=>{
- let root=render();expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(9);
- expect(find(root,n=>n.props.title==='During')[0].props.frame).toBe(10);
+it('manual comparison uses exactly both entered endpoints and their midpoint',()=>{
+ let root=render();expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(10);
+ expect(find(root,n=>n.props.title==='Midpoint')[0].props.frame).toBe(10);
  find(root,n=>n.props['aria-label']==='Last comparison frame')[0].props.onChange({target:{valueAsNumber:19}});root=render();
- expect(find(root,n=>n.props.title==='During')[0].props.frame).toBe(14);
- expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(20);
+ expect(find(root,n=>n.props.title==='Midpoint')[0].props.frame).toBe(14);
+ expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(19);
  find(root,n=>n.type==='button'&&n.props.children==='Use current frame')[0].props.onClick();root=render();
- expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(11);
+ expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(10);
 });
 it('clearly identifies the unconnected detector and offers manual review without fake scan results',()=>{
  let root=render();find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props.onClick();root=render();
@@ -33,12 +33,12 @@ it('loads the actual frame decoder output, opens its exact frame and revokes its
  const createObjectURL=vi.fn(()=> 'blob:review'),revokeObjectURL=vi.fn();vi.stubGlobal('URL',{createObjectURL,revokeObjectURL});
  let child=(side.type as Function)(side.props);const cleanup=hooks.effects[0]();await Promise.resolve();await Promise.resolve();
  hooks.cursor=0;child=(side.type as Function)(side.props);
- expect(backend.frame).toHaveBeenCalledWith(9);expect(find(child,n=>n.type==='img')[0].props.src).toBe('blob:review');
- find(child,n=>n.type==='button')[0].props.onClick();expect(onOpen).toHaveBeenCalledWith(9);
+ expect(backend.frame).toHaveBeenCalledWith(10);expect(find(child,n=>n.type==='img')[0].props.src).toBe('blob:review');
+ find(child,n=>n.type==='button')[0].props.onClick();expect(onOpen).toHaveBeenCalledWith(10);
  cleanup();expect(revokeObjectURL).toHaveBeenCalledWith('blob:review');
 });
 
-it('offers blink and pixel difference only when both neighbour images are ready',async()=>{
+it('offers blink and pixel difference only when both endpoint images are ready',async()=>{
  const root=render(),side=find(root,n=>n.props.title==='After')[0];
  hooks.cursor=0;hooks.values=[];hooks.effects=[];
  vi.stubGlobal('URL',{createObjectURL:vi.fn(()=> 'blob:review'),revokeObjectURL:vi.fn()});
@@ -52,8 +52,8 @@ it('offers blink and pixel difference only when both neighbour images are ready'
  expect(find(child,n=>n.props.before==='blob:review'&&n.props.after==='blob:review')).toHaveLength(1);
  cleanups.forEach(cleanup=>cleanup?.());
 });
-it('cannot export a made-up neighbour at a video boundary',()=>{
+it('includes real video boundary frames in manual comparison',()=>{
  const boundary={...view,current:0};hooks.cursor=0;
  const root=MiscToolsTab({backend,view:boundary,onOpenFrame:onOpen});
- expect(find(root,n=>n.props.title?.includes?.('annotated WebP'))[0].props.disabled).toBe(true);
+ expect(find(root,n=>n.props.title?.includes?.('annotated WebP'))[0].props.disabled).toBe(false);
 });

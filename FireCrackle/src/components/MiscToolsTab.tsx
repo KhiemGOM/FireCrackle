@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import type {Backend,View} from '../lib/api';
-import {readReviewInterval,saveReviewInterval,reviewFrames,reviewInterval,type ReviewInterval} from '../lib/miscTools';
+import {readReviewInterval,saveReviewInterval,comparisonFrames,reviewInterval,type ReviewInterval} from '../lib/miscTools';
 import {FRAME_BLINK_MS,exportFrameProof,frameDifference} from '../lib/frameComparison';
 import type {ProofAction} from '../lib/comparisonProof';
 import {formatTimecode} from '../lib/timecode';
@@ -73,7 +73,7 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame}:{backend:Backen
  const [interval,setInterval]=useState<ReviewInterval>(()=>readReviewInterval(videoKey,view.current,view.frame_count));
  const [proofBusy,setProofBusy]=useState(false),[proofFeedback,setProofFeedback]=useState<string>(),[proofError,setProofError]=useState('');
  const exporting=useRef(false);
- const range=reviewInterval(interval.first,interval.last,view.frame_count),frames=reviewFrames(range,view.frame_count),fps=view.fps||1;
+ const range=reviewInterval(interval.first,interval.last,view.frame_count),frames=comparisonFrames(range,view.frame_count),fps=view.fps||1;
  const name=videoKey?.split(/[\\/]/).pop();
  useEffect(()=>saveReviewInterval(videoKey,range,view.frame_count),[videoKey,range.first,range.last,view.frame_count]);
  useEffect(()=>{setProofFeedback(undefined);setProofError('');},[range.first,range.last]);
@@ -99,21 +99,21 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame}:{backend:Backen
   </section>:<section className="misc-panel" aria-label="Frame comparison">
    <div className="misc-compare-toolbar">
     <div className="misc-compare-controls" data-owns-keys="true">
-     <label>First frame <input aria-label="First comparison frame" type="number" min={0} max={view.frame_count-1} value={range.first} disabled={proofBusy} onChange={e=>edit('first',e.target.valueAsNumber)}/></label>
-     <label>Last frame <input aria-label="Last comparison frame" type="number" min={range.first} max={view.frame_count-1} value={range.last} disabled={proofBusy} onChange={e=>edit('last',e.target.valueAsNumber)}/></label>
+     <label>Before frame <input aria-label="First comparison frame" type="number" min={0} max={view.frame_count-1} value={range.first} disabled={proofBusy} onChange={e=>edit('first',e.target.valueAsNumber)}/></label>
+     <label>After frame <input aria-label="Last comparison frame" type="number" min={range.first} max={view.frame_count-1} value={range.last} disabled={proofBusy} onChange={e=>edit('last',e.target.valueAsNumber)}/></label>
      <button disabled={proofBusy} onClick={()=>setInterval({first:view.current,last:view.current})}>Use current frame</button>
     </div>
     <ComparisonProofButton disabled={frames.before===null||frames.after===null} busy={proofBusy} feedback={proofFeedback} onExport={action=>void exportProof(action)} title="Copy an annotated WebP that switches directly between Before and After. Choose a format or use its save icon."/>
    </div>
-   <p className="dim">Compare the original frames around your interval. Use Difference or Blink on the After panel to inspect a change.</p>
+   <p className="dim">Both endpoints are included: Before and After show exactly the frame numbers you enter. Use Difference or Blink to inspect the change.</p>
    {proofError&&<p className="misc-proof-error" role="alert">Comparison proof: {proofError}</p>}
    {proofFeedback&&<span className="misc-proof-feedback" role="status">{proofFeedback}</span>}
    <div className="misc-frame-grid">
     <ReviewFrame backend={backend} frame={frames.before} title="Before" fps={fps} onOpen={onOpenFrame}/>
-    <ReviewFrame backend={backend} frame={frames.during} title="During" fps={fps} onOpen={onOpenFrame}/>
+    <ReviewFrame backend={backend} frame={frames.during} title="Midpoint" fps={fps} onOpen={onOpenFrame}/>
     <ReviewFrame backend={backend} frame={frames.after} compareFrame={frames.before} title="After" fps={fps} onOpen={onOpenFrame}/>
    </div>
-   <div className="misc-proof-note"><strong>Share the jump</strong><span>Comparison proof copies a Before ↔ After animation. PNG / JPEG show both frames side by side. Each includes the video, interval, frame numbers and timecodes.</span></div>
+   <div className="misc-proof-note"><strong>Share the jump</strong><span>Comparison proof copies a Before ↔ After animation. PNG / JPEG show both frames side by side. Each includes the video, inclusive range, frame numbers and timecodes.</span></div>
   </section>}
  </main>;
 }
