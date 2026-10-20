@@ -629,7 +629,7 @@ pub(crate) fn scan_with_workers_resuming(
         pipe,
         frame_bytes,
         (project.frames.len() - start) as u32,
-        workers.clamp(1, 4),
+        workers.clamp(1, 12),
         cancel,
         |n, rgb| match completed.get(start + n as usize).copied().flatten() {
             Some(row) => Ok((row >= 0).then_some(row as u8)),

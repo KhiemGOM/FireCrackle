@@ -181,7 +181,7 @@ pub fn scan_workers(frame_bytes: usize) -> usize {
         .unwrap_or(2)
         .saturating_sub(2)
         .max(1);
-    cpu.min(4).min(
+    cpu.min(12).min(
         (256usize * 1024 * 1024 / frame_bytes.max(1))
             .saturating_sub(2)
             .max(1),

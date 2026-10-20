@@ -111,7 +111,7 @@ pub(crate) fn scan_resuming(
         tools,
         cancel,
         slot,
-        2,
+        fire_core::video::scan_workers(project.meta.width * project.meta.height * 3),
         completed,
         |rgb| {
             let clear = policy::candidate_prepared(

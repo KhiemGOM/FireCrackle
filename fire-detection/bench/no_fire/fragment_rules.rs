@@ -48,15 +48,29 @@ fn dilate(m: &[u8], w: usize, h: usize, r: usize) -> Vec<u8> {
             }
         }
     }
-    for x in 0..w {
-        let mut count: u32 = (0..(r + 1).min(h)).map(|y| horiz[y * w + x] as u32).sum();
-        for y in 0..h {
-            out[y * w + x] = (count > 0) as u8;
-            if y >= r {
-                count -= horiz[(y - r) * w + x] as u32;
+    // Same vertical sliding window, visiting contiguous rows instead of
+    // striding an entire 1080p image once per column.
+    let mut counts = vec![0u32; w];
+    for row in horiz[..(r + 1).min(h) * w].chunks_exact(w) {
+        for (count, &value) in counts.iter_mut().zip(row) {
+            *count += value as u32;
+        }
+    }
+    for y in 0..h {
+        for (pixel, &count) in out[y * w..(y + 1) * w].iter_mut().zip(&counts) {
+            *pixel = (count > 0) as u8;
+        }
+        if y >= r {
+            for (count, &value) in counts.iter_mut().zip(&horiz[(y - r) * w..(y - r + 1) * w]) {
+                *count -= value as u32;
             }
-            if y + r + 1 < h {
-                count += horiz[(y + r + 1) * w + x] as u32;
+        }
+        if y + r + 1 < h {
+            for (count, &value) in counts
+                .iter_mut()
+                .zip(&horiz[(y + r + 1) * w..(y + r + 2) * w])
+            {
+                *count += value as u32;
             }
         }
     }
@@ -103,6 +117,37 @@ fn largest_capped(m: &[u8], w: usize, h: usize, r: usize, limit: usize) -> usize
         best = best.max(area);
     }
     best
+}
+
+#[cfg(test)]
+mod dilation_parity {
+    use super::dilate;
+    #[test]
+    fn contiguous_pass_is_exact_square_dilation_at_edges_and_small_images() {
+        for (w, h) in [(1usize, 1usize), (3, 7), (64, 48)] {
+            let m: Vec<u8> = (0..w * h)
+                .map(|n| u8::from((n * 7919 + n * n * 17) % 101 < 7))
+                .collect();
+            for radius in [0, 1, 4, 9] {
+                let expected: Vec<u8> = (0..w * h)
+                    .map(|n| {
+                        let (x, y) = (n % w, n / w);
+                        u8::from(
+                            (y.saturating_sub(radius)..=(y + radius).min(h - 1)).any(|yy| {
+                                (x.saturating_sub(radius)..=(x + radius).min(w - 1))
+                                    .any(|xx| m[yy * w + xx] != 0)
+                            }),
+                        )
+                    })
+                    .collect();
+                assert_eq!(
+                    dilate(&m, w, h, radius),
+                    expected,
+                    "{w}x{h}, radius {radius}"
+                );
+            }
+        }
+    }
 }
 fn evidence(m: &[u8], w: usize, h: usize) -> String {
     format!(

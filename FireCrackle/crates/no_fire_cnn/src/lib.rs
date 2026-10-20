@@ -38,8 +38,8 @@ fn coefficients(input: usize, output: usize) -> Vec<(usize, Vec<i64>)> {
 }
 pub fn resize(rgb: &[u8], width: usize, rect: (usize, usize, usize, usize)) -> Vec<u8> {
     let (left, top, w, h) = rect;
-    let xs = coefficients(w, 224);
-    let ys = coefficients(h, 224);
+    let xs = cached_coefficients(w);
+    let ys = cached_coefficients(h);
     let mut temp = vec![0u8; 224 * h * 3];
     for y in 0..h {
         for (x, (first, weights)) in xs.iter().enumerate() {
@@ -63,6 +63,21 @@ pub fn resize(rgb: &[u8], width: usize, rect: (usize, usize, usize, usize)) -> V
         }
     }
     out
+}
+// Geometry-only cache for the frozen full-frame and 640px views. No pixel,
+// model result or decision is carried between frames.
+fn cached_coefficients(input: usize) -> std::borrow::Cow<'static, [(usize, Vec<i64>)]> {
+    use std::sync::OnceLock;
+    static FULL_X: OnceLock<Vec<(usize, Vec<i64>)>> = OnceLock::new();
+    static FULL_Y: OnceLock<Vec<(usize, Vec<i64>)>> = OnceLock::new();
+    static TILE: OnceLock<Vec<(usize, Vec<i64>)>> = OnceLock::new();
+    let cache = match input {
+        1920 => &FULL_X,
+        1068 => &FULL_Y,
+        640 => &TILE,
+        _ => return std::borrow::Cow::Owned(coefficients(input, 224)),
+    };
+    std::borrow::Cow::Borrowed(cache.get_or_init(|| coefficients(input, 224)))
 }
 pub fn views(rgb: &[u8]) -> Result<Vec<Vec<u8>>, String> {
     if rgb.len() != 1920 * 1080 * 3 {

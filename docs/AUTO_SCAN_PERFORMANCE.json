@@ -1,0 +1,159 @@
+{
+  "date": "2026-10-21",
+  "purpose": "Frozen-model engineering profiling and exact-output speedup, not model fitting, accuracy evaluation or recalibration",
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "cohort": {
+    "rgb_cases": 32,
+    "sources": {
+      "catalogue V02 clip1": 12,
+      "catalogue V03 clip2": 20
+    },
+    "sampling": "12 time-spread seeked real RGB samples per source plus8 historical cleared clip2 predictions; cached RGB held identical before/after. Historical clears are predictions, not ground truth. No synthetic fire or training.",
+    "no_fire_clears": 7,
+    "pov_labels": 3,
+    "external_stream": "Owner recovered-video.mkv,1440p60 AV1,600contiguous frames beginning20s; no reference truth, before/after label parity only"
+  },
+  "stage_timings": {
+    "veil_ms": {
+      "before_mean_ms": 5.47316875,
+      "after_mean_ms": 5.761365625
+    },
+    "fragment_ms": {
+      "before_mean_ms": 10.8542,
+      "after_mean_ms": 7.49813125
+    },
+    "gui_ms": {
+      "before_mean_ms": 88.471834375,
+      "after_mean_ms": 90.692428125
+    },
+    "pov_ms": {
+      "before_mean_ms": 82.393175,
+      "after_mean_ms": 87.5844875
+    },
+    "policy_ms": {
+      "before_mean_ms": 62.302353124999996,
+      "after_mean_ms": 59.441956250000004
+    },
+    "infer_ms": {
+      "before_mean_ms": 19.5559375,
+      "after_mean_ms": 19.154546875
+    }
+  },
+  "worker_pipeline": {
+    "pov": {
+      "before_workers": 4,
+      "after_workers": 12,
+      "before_fps": 42.098306924438134,
+      "after_fps": 83.5857271242103,
+      "same_32_decisions": true
+    },
+    "no_fire": {
+      "before_workers": 2,
+      "after_workers": 12,
+      "before_fps": 27.907023124757604,
+      "after_fps": 53.64911455621336,
+      "same_32_decisions": true
+    }
+  },
+  "real_stream": [
+    {
+      "accepted": 0,
+      "fps": 28.782092794992625,
+      "frames": 600,
+      "parity": true,
+      "seconds": 20.8462951,
+      "video": "D:\\Coding\\Minecraft\\FireCracking\\misc\\dream\\recovered-video.mkv",
+      "workers": 4
+    },
+    {
+      "accepted": 0,
+      "fps": 45.133250732463765,
+      "frames": 600,
+      "parity": true,
+      "seconds": 13.2939682,
+      "video": "D:\\Coding\\Minecraft\\FireCracking\\misc\\dream\\recovered-video.mkv",
+      "workers": 12
+    }
+  ],
+  "parity": {
+    "rgb_cases": 32,
+    "all_selected_decisions_equal": true,
+    "stream_frames": 600,
+    "stream_decisions_equal": true,
+    "resize": "Existing frozen Pillow reference hashes for all9views passed",
+    "fragments": "Independent naive square dilation on small/boundary fixtures exactly equal; existing capped-component tests passed"
+  },
+  "changes": [
+    "Adaptive maximum12workers, still leaves2logical CPUs and bounds recycledRGBpool to~256MiB; small CPUs/large frames reduce count",
+    "POV worker dispatch no longer silently clamps at4; no-fire uses same adaptive budget instead of2",
+    "Vertical fragment dilation traverses contiguous rows; same radius/area/count semantics",
+    "Immutable exact resize coefficients cached for1920/1068/640 dimensions; same integer coefficients and intermediate rounding"
+  ],
+  "limits": [
+    "GUI fitting remains the largest per-frame CPU stage; no GUI evidence thresholds changed",
+    "GPU accelerates frozen CNN inference, not canonical GUI/rule code",
+    "AV1 decode/RGB conversion remains material on1440p footage",
+    "First no-fire provider selection measured22-30s; existing engine reuse remains, startup not optimized in this patch",
+    "Processing-only sample rates exclude decode/disk; real stream rates include them",
+    "Current no-fire admission remains1920x1080; no1440p model validation claimed"
+  ],
+  "source_sha256": {
+    "fire-detection/core/src/video.rs": "d7ba5f6d9c22f63a29b7e6adb527413461536a94a247f4daaf509ac2a83cbf47",
+    "FireCrackle/src-tauri/src/pov.rs": "04e32be235f593bc24ccc0342e129f2e0decb94e0a1f5824f4e314d18660889f",
+    "FireCrackle/src-tauri/src/no_fire.rs": "348312246c5d19118adbc58196037c9d26854e68ba66674d7fc9892e329b928a",
+    "fire-detection/bench/no_fire/fragment_rules.rs": "29d989afb96ddb8484abc63f57a93256bc65900fd8550b2cb252dc63f61f3f4e",
+    "FireCrackle/crates/no_fire_cnn/src/lib.rs": "a7334c546180baac944d04412c5f4f4966b1b02e7ce5546ae7a321cc78d846c5"
+  },
+  "model_sha256": "1c74f08c7f8680244e20731fbb02eda71f4726b34746660d05b0b0e48a41a097",
+  "rgb_sha256": {
+    "clip1-0": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c",
+    "clip1-2970": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6",
+    "clip1-5940": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c",
+    "clip1-8910": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592",
+    "clip1-11880": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65",
+    "clip1-14850": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50",
+    "clip1-17730": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe",
+    "clip1-20700": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2",
+    "clip1-23670": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e",
+    "clip1-26640": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080",
+    "clip1-29610": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97",
+    "clip1-32580": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c",
+    "clip2-0": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7",
+    "clip2-1800": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba",
+    "clip2-3510": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e",
+    "clip2-5310": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba",
+    "clip2-7110": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2",
+    "clip2-8910": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0",
+    "clip2-10620": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44",
+    "clip2-12420": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69",
+    "clip2-14220": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0",
+    "clip2-16020": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b",
+    "clip2-17730": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70",
+    "clip2-19530": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0",
+    "clip2-clear-127": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77",
+    "clip2-clear-2045": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892",
+    "clip2-clear-4147": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5",
+    "clip2-clear-7658": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a",
+    "clip2-clear-9032": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7",
+    "clip2-clear-11598": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633",
+    "clip2-clear-16329": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3",
+    "clip2-clear-18943": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+  },
+  "local_profiling": {
+    "adapter": ".board/scan-profile/main.rs",
+    "adapter_sha256": "ea053407b2082329d4cf3750d3e579bf060d50ba1eb4821bf719b29aa6884784",
+    "baseline_binary_sha256": "7c8bd81b6676c491d513ce3eda135ceb258c583608f2944c60733bd79b391b87",
+    "commands": [
+      "cargo build --manifest-path .board/scan-profile/Cargo.toml --release --offline",
+      "scan-profile.exe ROOT [parallel]",
+      "scan-profile.exe ROOT stream VIDEO WIDTH HEIGHT COUNT"
+    ]
+  },
+  "baseline_git": "2c3f510c725e8d99962bc1a5978007c5324838a7"
+}
