@@ -38,16 +38,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             gui_interaction::detect(&buffer, width, height, &templates, Options::default())?;
         write!(
             output,
-            "{{\"index\":{index},\"ms\":{:.3},\"reason\":\"{}\",\"type\":",
+            "{{\"index\":{index},\"ms\":{:.3},\"reason\":\"{}\",\"gui_detected\":{},\"type\":",
             start.elapsed().as_secs_f64() * 1000.,
-            result.reason
+            result.reason,
+            result.gui_detected
         )?;
         if let Some(p) = result.matched {
             write!(output,"\"{}\",\"score\":{:.4},\"bounds\":[{:.2},{:.2},{:.2},{:.2}],\"scale\":[{:.3},{:.3}]",p.screen_type,p.score,p.bounds.x,p.bounds.y,p.bounds.width,p.bounds.height,p.scale_x,p.scale_y)?;
         } else {
             write!(output, "null")?;
         }
-        write!(output, ",\"alternatives\":[")?;
+        write!(output, ",\"candidate_types\":[")?;
+        for (i, kind) in result.candidate_types.iter().enumerate() {
+            if i > 0 {
+                write!(output, ",")?;
+            }
+            write!(output, "\"{kind}\"")?;
+        }
+        write!(output, "],\"alternatives\":[")?;
         for (i, p) in result.alternatives.iter().enumerate() {
             if i > 0 {
                 write!(output, ",")?;

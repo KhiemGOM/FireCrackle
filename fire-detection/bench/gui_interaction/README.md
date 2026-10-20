@@ -41,17 +41,23 @@ height, shared player inventory, source preview exclusions) are explicit.
   final tile. It must not be approximated by stretching the source interior.
   The local manifest records the corresponding compiled-class hashes, plus
   texture, font/provider-map, scaling metadata and translation dependencies.
+- **`Detection.gui_detected` is the primary result.** Any known layout passing
+  the evidence gates counts as GUI detected, even if several types fit equally
+  well. `candidate_types` retains those plausible IDs without inventing a winner.
 - `Detection.matched` is an accepted exact known class with input-pixel bounds,
   x/y scale, asset version/variant and source-anchor agreement scores. The asset
   version is **not** an inferred Minecraft version. Score is not a probability.
-- `matched=None` is abstention: `no_known_panel_match` or
-  `ambiguous_known_types`. It never proves that a GUI is closed. Alternatives
+- `matched=None` means exact-type uncertainty: `no_known_panel_match` or
+  `ambiguous_known_types`. The latter still has `gui_detected=true`.
+  A missing GUI match never proves that a GUI is closed. Alternatives
   preserve known class IDs without promoting unknown-looking rectangles.
 - Different asset versions of the same class do not count as semantic ambiguity.
 - `merge_neutral_panel` adds Unknown/neutral panel exclusions to the existing
   GUI mask while preserving existing HUD evidence and its reliability/fit. The
   conservative rectangle is not an opaque ownership mask. It can exclude a
   transparent preview hole; do not call it exact pixel supervision.
+  Type ambiguity does not prevent this merge: the best-supported known panel
+  geometry supplies the neutral exclusion while its possible types are retained.
   Fixed-control matches currently exclude their button patch only, not the
   complete menu/sign editor. Their piece ID is MenuButton; these masks are
   partial, neutral exclusions rather than complete GUI ownership.
@@ -65,8 +71,17 @@ height, shared player inventory, source preview exclusions) are explicit.
 
 ## Development check, not final accuracy
 
+**Primary interaction-GUI detection: 242/261 (92.7%), with 19 actual misses.**
+This includes all recorded `inventory.*` visits (books and sign editors too),
+excludes menus and modded screens, and counts 17 ambiguous-type matches as
+detected. There were **0 false GUI detections in 289 closed-GUI visits**.
+The source-template presence gates are unchanged; exact-type ambiguity is no
+longer incorrectly reported as a GUI-presence failure.
+
 On the two aligned 20 Oct GUI recordings, select one real midpoint per
 contiguous labelled screen visit, including closed and unsupported screens:
+
+The following is the secondary exact-type diagnostic, including menus:
 
 | Clip | All samples | Correct accepted type | Supported-type abstentions | Other/closed abstentions | Median native time |
 |---|---:|---:|---:|---:|---:|
@@ -96,6 +111,14 @@ per-sample predictions, per-recording report, coverage of every catalogue
 original, source hashes, raw preprocessing description and binary/asset/source
 versions. Earlier diagnostic checks remain separate. Source textures/packs,
 videos and label snapshots are ignored, never committed.
+The explicit presence contract was rechecked in
+`.board/gui-interaction-miss-audit/presence-check/`, with the same frame visits
+and source bank; its reports include separate `gui_presence` counters. All 19
+actual misses were extracted and matched to frozen renderer metadata. Fourteen
+occur at GUI scale 1, which OBS reduced to 0.75 video pixels per GUI texel.
+Three are hanging-sign editors; two are filled dispenser/trading screens at
+scale 3. These are verified failure conditions, not yet proof that a particular
+anchor, occluder or resampler caused each miss.
 
 ## Reproduce
 

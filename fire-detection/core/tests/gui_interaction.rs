@@ -75,6 +75,8 @@ fn same_shape_with_different_known_types_abstains_instead_of_guessing() {
     let (second, _) = fixture("smoker");
     let result = detect(&render(&image), 400, 240, &[first, second], opts()).unwrap();
     assert!(result.matched.is_none());
+    assert!(result.gui_detected);
+    assert_eq!(result.candidate_types, vec!["furnace", "smoker"]);
     assert_eq!(result.reason, "ambiguous_known_types");
     assert_eq!(result.alternatives.len(), 2);
 }
@@ -87,6 +89,8 @@ fn old_and_new_source_variants_of_same_type_are_not_semantic_ambiguity() {
     let result = detect(&render(&image), 400, 240, &[first, second], opts()).unwrap();
     assert_eq!(result.matched.unwrap().screen_type, "inventory");
     assert_eq!(result.reason, "known_panel_match");
+    assert!(result.gui_detected);
+    assert_eq!(result.candidate_types, vec!["inventory"]);
 }
 
 #[test]
@@ -224,7 +228,34 @@ fn container_title_changes_do_not_supply_type_evidence() {
     }
     let result = detect(&render(&image), 400, 240, &[first, second], opts()).unwrap();
     assert!(result.matched.is_none());
+    assert!(result.gui_detected);
     assert_eq!(result.reason, "ambiguous_known_types");
+}
+
+#[test]
+fn type_ambiguity_keeps_gui_presence_and_neutral_mask() {
+    let (first, image) = fixture("furnace");
+    let (second, _) = fixture("smoker");
+    let result = detect(&render(&image), 400, 240, &[first, second], opts()).unwrap();
+    assert!(result.gui_detected);
+    assert!(result.matched.is_none());
+    let mut mask = fire_core::gui_mask::GuiMask {
+        width: 400,
+        height: 240,
+        piece: vec![0; 400 * 240],
+        class: vec![0; 400 * 240],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    assert_eq!(result.merge_neutral_panel(&mut mask).unwrap(), 160 * 160);
+    assert!(!mask.reliable);
+    let (template, _) = fixture("furnace");
+    let blank = detect(&vec![31; 400 * 240 * 3], 400, 240, &[template], opts()).unwrap();
+    assert!(!blank.gui_detected);
+    assert!(blank.candidate_types.is_empty());
+    assert_eq!(blank.merge_neutral_panel(&mut mask).unwrap(), 0);
 }
 
 #[test]

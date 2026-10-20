@@ -1,7 +1,8 @@
 //! Source-template interaction screens. Independent of HUD/hotbar fitting.
 //!
 //! Local vanilla textures supply anchors; no recorded frame is used to fit a
-//! model. A missing/ambiguous match is an abstention, never proof of closed GUI.
+//! model. Type ambiguity does not negate GUI presence. A missing match is an
+//! abstention, never proof of closed GUI.
 //! Panel regions are conservative neutral exclusions, not opaque pixel masks.
 
 use std::path::Path;
@@ -59,6 +60,11 @@ pub struct PanelMatch {
 pub struct Detection {
     pub image_width: usize,
     pub image_height: usize,
+    /// Primary result: at least one known GUI layout passed the evidence gates.
+    pub gui_detected: bool,
+    /// Plausible known types within the type margin; ambiguity is retained.
+    pub candidate_types: Vec<String>,
+    /// Exact type only. None can mean type ambiguity even with GUI detected.
     pub matched: Option<PanelMatch>,
     pub alternatives: Vec<PanelMatch>,
     pub reason: &'static str,
@@ -544,10 +550,23 @@ pub fn detect(
     } else {
         "known_panel_match"
     };
+    let mut candidate_types = Vec::new();
+    if let Some(best) = &best {
+        for candidate in &candidates {
+            if (candidate.screen_type == best.screen_type
+                || best.score - candidate.score < opts.min_type_margin)
+                && !candidate_types.contains(&candidate.screen_type)
+            {
+                candidate_types.push(candidate.screen_type.clone());
+            }
+        }
+    }
     candidates.truncate(8);
     Ok(Detection {
         image_width: width,
         image_height: height,
+        gui_detected: best.is_some(),
+        candidate_types,
         matched: if ambiguous { None } else { best },
         alternatives: candidates,
         reason,
@@ -561,7 +580,10 @@ impl Detection {
         &self,
         mask: &mut crate::gui_mask::GuiMask,
     ) -> Result<usize, String> {
-        let Some(hit) = &self.matched else {
+        if !self.gui_detected {
+            return Ok(0);
+        }
+        let Some(hit) = self.matched.as_ref().or_else(|| self.alternatives.first()) else {
             return Ok(0);
         };
         if mask.width != self.image_width

@@ -63,9 +63,14 @@ def main():
         writer.join()
         if detector.wait() or decoder.wait() or errors:raise RuntimeError(errors)
         if len(predictions)!=len(chosen):raise RuntimeError('sample count mismatch')
-        counts=Counter();per_type={}
+        counts=Counter();per_type={};presence=Counter()
         for expected,prediction in zip(chosen,predictions):
             truth=expected['screen_type'];actual=prediction['type']
+            detected=prediction['gui_detected']
+            if truth.startswith('inventory.'):
+                presence['interaction_detected' if detected else 'interaction_missed']+=1
+            elif truth=='closed':
+                presence['closed_false_detection' if detected else 'closed_correct_abstention']+=1
             outcome='abstain'
             if actual is not None:outcome='correct' if actual==truth else 'wrong_type' if truth.startswith('inventory.') else 'false_accept'
             elif truth not in supported:outcome='unsupported_abstain'
@@ -80,7 +85,8 @@ def main():
             for chunk in iter(lambda:source.read(8*1024*1024),b''):video_hash.update(chunk)
         row={'video':filename,'video_sha256':video_hash.hexdigest(),'samples':len(chosen),'selection':'one midpoint per contiguous labelled screen visit, including closed/unsupported',
              'counts':dict(counts),'per_type':{k:dict(v) for k,v in sorted(per_type.items())},'median_ms':statistics.median(timings),
-             'max_ms':max(timings),'joined_sha256':hashlib.sha256((ROOT/joined).read_bytes()).hexdigest()}
+             'max_ms':max(timings),'joined_sha256':hashlib.sha256((ROOT/joined).read_bytes()).hexdigest(),
+             'gui_presence':dict(presence),'gui_presence_scope':'all recorded inventory.* visits; closed negatives separately; menus and modded screens excluded. Type ambiguity still counts as GUI detected.'}
         report.append(row);print(json.dumps(row,indent=2),flush=True)
     (args.output/'predictions.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in all_predictions),encoding='utf-8')
     preprocessing={'image':'1920x1080 raw decoded RGB24; no unveil or image enhancement',
