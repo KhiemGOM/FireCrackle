@@ -57,7 +57,8 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     catch(e){setError(String(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
-  return <section className="misc-panel" aria-label="GUI interactions">
+  return <section className="misc-gui-tool" aria-label="GUI interactions">
+    <div className="misc-panel misc-gui-controls">
     <div className="misc-compare-toolbar">
       <strong>GUI interactions</strong>
       <button disabled={busy||!backend.guiScanStart||status?.state==='done'} onClick={()=>void action(!running)}>
@@ -69,6 +70,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     {status&&<><progress value={status.processed} max={status.total||1}/><span className="dim"> {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames · {status.state==='done'?'Complete':running?'Scanning':status.state==='paused'?'Paused':'Ready'} · {ranges.length} intervals</span></>}
     {(error||status?.error)&&<p role="alert">{error||status?.error}</p>}
     {!backend.guiScanStart&&<p className="dim">Video scanning is available in the desktop app.</p>}
+    </div>
     <div className="misc-gui-ranges">
       {ranges.map(range=><button key={`${range.first}-${range.last}`} onClick={()=>onCompare(range)}>
         <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total}/>

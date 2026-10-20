@@ -31,7 +31,11 @@
 .misc-proof-note strong{color:#bdc8da;}
 .misc-proof-error{color:#ff9a8c;}
 .misc-proof-feedback{color:#79dfb2;display:block;margin-bottom:12px;font-size:12px;}
-.misc-gui-ranges {display:grid;gap:6px;max-height:60vh;overflow:auto;margin-top:12px}
+.misc-tools>header,.misc-tools>.misc-tool-tabs{flex-shrink:0;}
+.misc-gui-tool{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;}
+.misc-gui-controls{flex-shrink:0;}
+.misc-gui-controls p{margin:10px 0;}
+.misc-gui-ranges {display:grid;grid-auto-rows:max-content;align-content:start;gap:6px;flex:1;min-height:0;overflow:auto;}
 .misc-gui-ranges button {display:flex;align-items:center;gap:18px;text-align:left;padding:10px}
 .misc-gui-ranges button>span:last-child {margin-left:auto}
 .misc-gui-thumbnail{position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 128px;width:128px;height:72px;overflow:hidden;border-radius:4px;background:#080a0e;animation-duration:1280ms;}
