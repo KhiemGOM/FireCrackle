@@ -55,6 +55,7 @@ const operationNames: Record<string, string> = {
 /** Preserve the backend contract and callers' own recovery, while reporting even swallowed rejections. */
 export function withErrorReporting<T extends object>(backend: T): T {
   const methods = new Map<PropertyKey, unknown>();
+  const terminalFailures = new Map<PropertyKey, string>();
   return new Proxy(backend, {
     get(target, property, receiver) {
       const value: unknown = Reflect.get(target, property, receiver);
@@ -64,10 +65,17 @@ export function withErrorReporting<T extends object>(backend: T): T {
         try {
           const result: unknown = await value.apply(target, args);
           if (result && typeof result === "object") {
-            const status = result as { state?: string; error?: unknown; save_error?: unknown };
-            if (status.state === "failed" || status.state === "error") reportError(context, status.error || "The operation failed without an explanation.");
+            const status = result as { id?: unknown; state?: string; error?: unknown; save_error?: unknown };
+            if (status.state === "failed" || status.state === "error") {
+              const error = status.error || "The operation failed without an explanation.";
+              const signature = JSON.stringify([status.id, status.state, failureMessage(error)]);
+              if (terminalFailures.get(property) !== signature) {
+                terminalFailures.set(property, signature);
+                reportError(context, error);
+              }
+            } else terminalFailures.delete(property);
             if (status.save_error) reportError("Save project", status.save_error);
-          }
+          } else terminalFailures.delete(property);
           return result;
         } catch (error) { reportError(context, error); throw error; }
       });

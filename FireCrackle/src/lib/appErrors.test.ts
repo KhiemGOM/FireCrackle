@@ -3,6 +3,17 @@ let errors: typeof import("./appErrors");
 beforeEach(async () => { vi.resetModules(); errors = await import("./appErrors"); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe("shared failure reporting", () => {
+  it("reports a failed download once across polls, including after dismissal, but reports a new job", async () => {
+    let status = { id: 7, state: "failed", error: "Missing completed video" };
+    const backend = errors.withErrorReporting({ async linkStatus() { return status; } });
+    for(let i=0;i<47;i++)await backend.linkStatus();
+    expect(errors.getFailures()).toMatchObject([{context:"Video download",count:1}]);
+    errors.dismissFailure(errors.getFailures()[0].id);
+    vi.useFakeTimers();vi.advanceTimersByTime(10_001);
+    await backend.linkStatus();expect(errors.getFailures()).toEqual([]);
+    status = {...status,id:8};await backend.linkStatus();
+    expect(errors.getFailures()).toMatchObject([{count:1}]);
+  });
   it("reports a rejected backend operation even when its caller catches it", async () => {
     const original = { mock: false, pickVideo: vi.fn().mockRejectedValue(new Error("GTK chooser failed")) };
     const backend = errors.withErrorReporting(original);

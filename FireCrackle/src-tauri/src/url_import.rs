@@ -178,6 +178,9 @@ impl Jobs {
         fs::create_dir(&dir).map_err(|e| e.to_string())?;
         let result = (|| {
             let mut command = external_tools::command(yt);
+            // Keep downloader paths short and consistent during .part -> final rename,
+            // including Windows folders with spaces/non-ASCII characters.
+            command.current_dir(&dir);
             command
                 .env("PYTHONIOENCODING", "utf-8")
                 .args(["--encoding", "utf-8"]);
@@ -197,6 +200,10 @@ impl Jobs {
                     "--no-simulate",
                     "--newline",
                     "--no-colors",
+                    "--file-access-retries",
+                    "20",
+                    "--retry-sleep",
+                    "file_access:1",
                     "--no-js-runtimes",
                     "--js-runtimes",
                 ])
@@ -204,7 +211,7 @@ impl Jobs {
             if Path::new(&tools.ffmpeg).is_file() {
                 command.arg("--ffmpeg-location").arg(&tools.ffmpeg);
             }
-            command.args(["--format","bv*+ba/b","--merge-output-format","mkv","--restrict-filenames","--no-mtime","--print","after_move:@DONE@%(filepath)j","--progress","--progress-template","download:Downloading %(progress._percent_str)s - %(progress._speed_str)s - ETA %(progress._eta_str)s","--paths"]).arg(&dir)
+            command.args(["--format","bv*+ba/b","--merge-output-format","mkv","--restrict-filenames","--no-mtime","--print","after_move:@DONE@%(filepath)j","--progress","--progress-template","download:Downloading %(progress._percent_str)s - %(progress._speed_str)s - ETA %(progress._eta_str)s","--paths"]).arg(".")
                 .args(["--output","%(title).120B [%(id)s].%(ext)s","--"]).arg(url).stdout(Stdio::piped()).stderr(Stdio::piped());
             let mut child = command
                 .spawn()
@@ -234,11 +241,13 @@ impl Jobs {
             let mut path = None;
             let mut last = String::new();
             let mut log = std::collections::VecDeque::new();
+            let mut diagnostics = std::collections::VecDeque::new();
             let code = loop {
                 while let Ok(line) = rx.try_recv() {
                     if let Some(p) = line.strip_prefix("@DONE@") {
                         path = serde_json::from_str::<String>(p).ok().map(PathBuf::from);
                     } else {
+                        remember_diagnostic(&mut diagnostics, &line);
                         last = line.chars().take(1000).collect();
                         log.push_back(last.clone());
                         if log.len() > 8 {
@@ -274,6 +283,7 @@ impl Jobs {
                 if let Some(p) = line.strip_prefix("@DONE@") {
                     path = serde_json::from_str::<String>(p).ok().map(PathBuf::from);
                 } else {
+                    remember_diagnostic(&mut diagnostics, &line);
                     last = line.chars().take(1000).collect();
                     log.push_back(last.clone());
                     if log.len() > 8 {
@@ -285,10 +295,18 @@ impl Jobs {
                 return Err(if last.is_empty() {
                     format!("yt-dlp exited with {code}")
                 } else {
-                    log.into_iter().collect::<Vec<_>>().join("\n")
+                    log.into_iter()
+                        .chain(diagnostics)
+                        .collect::<Vec<_>>()
+                        .join("\n")
                 });
             }
             let path = path.ok_or("Downloader did not return a video file")?;
+            let path = if path.is_absolute() {
+                path
+            } else {
+                dir.join(path)
+            };
             let actual = path.canonicalize().map_err(|e| e.to_string())?;
             let owned = dir.canonicalize().map_err(|e| e.to_string())?;
             if !actual.starts_with(&owned) || !actual.is_file() {
@@ -297,21 +315,61 @@ impl Jobs {
             // Projects are keyed by path, so return the spelling the file picker would give.
             Ok(plain_path(actual))
         })();
-        if result.is_err() {
-            // Only remove the directory this job just created inside the chosen folder.
-            if let (Ok(actual), Ok(parent)) = (dir.canonicalize(), folder.canonicalize())
-                && actual.parent() == Some(parent.as_path())
-            {
-                let _ = fs::remove_dir_all(actual);
-            }
-        }
-        result
+        preserve_failed_download(result, &dir)
     }
+}
+
+fn remember_diagnostic(log: &mut std::collections::VecDeque<String>, line: &str) {
+    // Progress can otherwise evict the actual rename/merge error from the tail.
+    // Never retain debug URLs/headers, which can contain signed credentials.
+    if line.starts_with("ERROR:")
+        || line.starts_with("WARNING:")
+        || line.contains("Unable to rename file")
+    {
+        log.push_back(line.chars().take(1000).collect());
+        if log.len() > 12 {
+            log.pop_front();
+        }
+    }
+}
+
+fn preserve_failed_download(
+    result: Result<PathBuf, String>,
+    dir: &Path,
+) -> Result<PathBuf, String> {
+    result.map_err(|error| format!("{error}\nDownload files kept in: {}", dir.display()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_download_keeps_partial_bytes_and_reports_recovery_folder() {
+        let dir = std::env::temp_dir().join(format!(
+            "firecrackle-failed-download-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let partial = dir.join("video.f400.mp4.part");
+        fs::write(&partial, b"already downloaded bytes").unwrap();
+        let error = preserve_failed_download(Err("rename failed".into()), &dir).unwrap_err();
+        assert!(error.contains("rename failed"));
+        assert!(error.contains(&dir.display().to_string()));
+        assert_eq!(fs::read(&partial).unwrap(), b"already downloaded bytes");
+        fs::remove_file(partial).unwrap();
+        fs::remove_dir(dir).unwrap();
+    }
+    #[test]
+    fn rename_diagnostics_survive_progress_without_retaining_debug_urls() {
+        let mut log = std::collections::VecDeque::new();
+        remember_diagnostic(&mut log, "[download] Unable to rename file: access denied");
+        for _ in 0..100 {
+            remember_diagnostic(&mut log, "Downloading 100%");
+        }
+        remember_diagnostic(&mut log, "[debug] signed request URL");
+        assert_eq!(log.len(), 1);
+        assert!(log[0].contains("Unable to rename file"));
+    }
     #[test]
     fn only_web_urls_are_accepted() {
         for u in [
