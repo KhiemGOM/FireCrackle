@@ -8,6 +8,11 @@
   unverified cases; missing evidence is not permission to assume equivalence.
 - Container titles can be renamed. Never infer an exact container type from its
   displayed name; fixed menu/editor controls are a separate source of evidence.
+- For GUI detection, reference/template evidence is allowed, but no GUI region
+  is guaranteed visible: items, counts, dragged stacks, tooltips and the cursor
+  can cover it. Known occlusion is neutral: exclude covered probes from both
+  mismatch counts and normalization denominators. Require enough remaining
+  evidence; do not call a mismatch an occlusion merely to improve a match.
 
 # Mandatory video training catalogue
 

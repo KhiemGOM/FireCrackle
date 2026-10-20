@@ -317,3 +317,123 @@ fn source_pack_places_footer_and_header_independently_of_viewport_height() {
     std::fs::remove_file(&path).unwrap();
     assert!(invalid.is_err());
 }
+
+fn cover(frame: &mut [u8], mask: &mut [u8], x0: usize, y0: usize, x1: usize, y1: usize) {
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let p = y * 400 + x;
+            mask[p] = 255;
+            frame[p * 3..p * 3 + 3].copy_from_slice(&[17, 220, 3]);
+        }
+    }
+}
+
+#[test]
+fn covered_half_is_neutral_in_both_score_and_spatial_quorum() {
+    let (template, image) = fixture("inventory");
+    let mut frame = render(&image);
+    let mut mask = vec![0; 400 * 240];
+    cover(&mut frame, &mut mask, 120, 40, 200, 200);
+    assert!(
+        !detect(&frame, 400, 240, std::slice::from_ref(&template), opts())
+            .unwrap()
+            .gui_detected
+    );
+    let result = detect_with_occlusion(&frame, 400, 240, &[template], opts(), &mask).unwrap();
+    let hit = result.matched.unwrap();
+    assert_eq!(hit.score, 1.);
+    assert_eq!(hit.border_score, 1.);
+    assert_eq!(hit.structure_score, 1.);
+    assert!(hit.visible_probes[0] > 0 && hit.visible_probes[1] > 0);
+}
+
+#[test]
+fn fully_covered_border_is_unavailable_not_required_or_negative() {
+    let (template, image) = fixture("inventory");
+    let mut frame = render(&image);
+    let mut mask = vec![0; 400 * 240];
+    cover(&mut frame, &mut mask, 120, 40, 280, 48);
+    cover(&mut frame, &mut mask, 120, 192, 280, 200);
+    cover(&mut frame, &mut mask, 120, 40, 128, 200);
+    cover(&mut frame, &mut mask, 272, 40, 280, 200);
+    let hit = detect_with_occlusion(&frame, 400, 240, &[template], opts(), &mask)
+        .unwrap()
+        .matched
+        .unwrap();
+    assert_eq!(hit.visible_probes[0], 0);
+    assert_eq!(hit.structure_score, 1.);
+    assert_eq!(hit.score, 1.);
+}
+
+#[test]
+fn no_masked_pixels_preserves_original_result_and_unknown_errors_still_count() {
+    let (template, image) = fixture("inventory");
+    let frame = render(&image);
+    let empty = vec![0; 400 * 240];
+    let original = detect(&frame, 400, 240, std::slice::from_ref(&template), opts()).unwrap();
+    let masked = detect_with_occlusion(
+        &frame,
+        400,
+        240,
+        std::slice::from_ref(&template),
+        opts(),
+        &empty,
+    )
+    .unwrap();
+    assert_eq!(original.candidate_types, masked.candidate_types);
+    assert_eq!(
+        original.matched.as_ref().unwrap().bounds,
+        masked.matched.as_ref().unwrap().bounds
+    );
+    assert_eq!(
+        original.matched.unwrap().score,
+        masked.matched.unwrap().score
+    );
+    let mut broken = frame;
+    let mut mask = empty;
+    cover(&mut broken, &mut mask, 120, 40, 200, 200);
+    // A second corrupt region has no occlusion evidence, so its errors remain.
+    for y in 40..200 {
+        for x in 200..280 {
+            let p = (y * 400 + x) * 3;
+            broken[p..p + 3].fill(0);
+        }
+    }
+    assert!(
+        !detect_with_occlusion(&broken, 400, 240, &[template], opts(), &mask)
+            .unwrap()
+            .gui_detected
+    );
+}
+
+#[test]
+fn entirely_or_almost_hidden_gui_is_uncertain_and_bad_mask_dimensions_fail() {
+    let (template, image) = fixture("inventory");
+    let frame = render(&image);
+    let mut mask = vec![1; 400 * 240];
+    let all = detect_with_occlusion(
+        &frame,
+        400,
+        240,
+        std::slice::from_ref(&template),
+        opts(),
+        &mask,
+    )
+    .unwrap();
+    assert!(!all.gui_detected);
+    assert_eq!(all.reason, "insufficient_visible_gui_evidence");
+    mask[41 * 400 + 123] = 0;
+    assert!(
+        !detect_with_occlusion(
+            &frame,
+            400,
+            240,
+            std::slice::from_ref(&template),
+            opts(),
+            &mask
+        )
+        .unwrap()
+        .gui_detected
+    );
+    assert!(detect_with_occlusion(&frame, 400, 240, &[template], opts(), &[0; 3]).is_err());
+}

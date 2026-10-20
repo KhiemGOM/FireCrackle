@@ -54,6 +54,9 @@ pub struct PanelMatch {
     pub score: f64,
     pub border_score: f64,
     pub structure_score: f64,
+    /// Visible probes contributing to each score; zero means unavailable,
+    /// not a negative vote. Order: border, structure, fixed controls.
+    pub visible_probes: [usize; 3],
 }
 
 #[derive(Clone, Debug)]
@@ -403,12 +406,110 @@ fn score(
     good as f64 / points.len().max(1) as f64
 }
 
+struct VisibleEvidence {
+    value: Option<f64>,
+    probes: usize,
+    groups: [usize; 4],
+}
+
+/// A supplied occlusion mask is evidence from the caller, never inferred from
+/// failed colour comparisons. Masked points do not enter either denominator.
+fn visible_evidence(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    points: &[Probe],
+    rect: Rect,
+    sx: f64,
+    sy: f64,
+    tolerance: u8,
+    floor: f64,
+    occlusion: Option<&[u8]>,
+) -> VisibleEvidence {
+    let Some(mask) = occlusion else {
+        return VisibleEvidence {
+            value: Some(score(
+                rgb, width, height, points, rect, sx, sy, tolerance, floor,
+            )),
+            probes: points.len(),
+            groups: [0; 4],
+        };
+    };
+    let visible: Vec<_> = points
+        .iter()
+        .copied()
+        .filter(|p| {
+            let x = (rect.x + p.x * sx).floor() as isize;
+            let y = (rect.y + p.y * sy + p.viewport_y * height as f64).floor() as isize;
+            // Out-of-frame points remain a rejected geometry, not an invented mask.
+            x < 0
+                || y < 0
+                || x >= width as isize
+                || y >= height as isize
+                || mask[y as usize * width + x as usize] == 0
+        })
+        .collect();
+    // A tiny surviving fragment cannot independently establish a screen.
+    // These are conservative support guards, not fitted accuracy thresholds.
+    if visible.len() < 16 {
+        return VisibleEvidence {
+            value: None,
+            probes: 0,
+            groups: [0; 4],
+        };
+    }
+    let mut groups = [0; 4];
+    for p in &visible {
+        groups[p.group] += 1;
+    }
+    VisibleEvidence {
+        value: Some(score(
+            rgb, width, height, &visible, rect, sx, sy, tolerance, floor,
+        )),
+        probes: visible.len(),
+        groups,
+    }
+}
+
 pub fn detect(
     rgb: &[u8],
     width: usize,
     height: usize,
     templates: &[PanelTemplate],
     opts: Options,
+) -> Result<Detection, String> {
+    detect_impl(rgb, width, height, templates, opts, None)
+}
+
+/// Detect using a caller-supplied video-pixel occlusion mask. Any nonzero mask
+/// pixel is neutral, never a mismatch or positive vote. This does not estimate
+/// occlusion automatically. Too little visible evidence remains an abstention.
+pub fn detect_with_occlusion(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    templates: &[PanelTemplate],
+    opts: Options,
+    occlusion: &[u8],
+) -> Result<Detection, String> {
+    if width.checked_mul(height) != Some(occlusion.len()) {
+        return Err("occlusion dimensions do not match frame".into());
+    }
+    let mask = if occlusion.iter().any(|&p| p != 0) {
+        Some(occlusion)
+    } else {
+        None
+    };
+    detect_impl(rgb, width, height, templates, opts, mask)
+}
+
+fn detect_impl(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    templates: &[PanelTemplate],
+    opts: Options,
+    occlusion: Option<&[u8]>,
 ) -> Result<Detection, String> {
     if width == 0
         || height == 0
@@ -428,6 +529,17 @@ pub fn detect(
         || !(0.0..=1.0).contains(&opts.min_type_margin)
     {
         return Err("invalid GUI detector options".into());
+    }
+    if occlusion.is_some_and(|mask| mask.iter().all(|&p| p != 0)) {
+        return Ok(Detection {
+            image_width: width,
+            image_height: height,
+            gui_detected: false,
+            candidate_types: Vec::new(),
+            matched: None,
+            alternatives: Vec::new(),
+            reason: "insufficient_visible_gui_evidence",
+        });
     }
     let count = ((opts.max_scale - opts.min_scale) / opts.scale_step).floor() as usize;
     let mut candidates = Vec::new();
@@ -464,7 +576,7 @@ pub fn detect(
                             if bounds.x < -1. || bounds.x + pw > width as f64 + 1. {
                                 continue;
                             }
-                            let border_score = score(
+                            let border = visible_evidence(
                                 rgb,
                                 width,
                                 height,
@@ -474,11 +586,12 @@ pub fn detect(
                                 sy,
                                 opts.channel_tolerance,
                                 opts.min_border,
+                                occlusion,
                             );
-                            if border_score < opts.min_border {
+                            if border.value.is_some_and(|value| value < opts.min_border) {
                                 continue;
                             }
-                            let structure_score = score(
+                            let structure = visible_evidence(
                                 rgb,
                                 width,
                                 height,
@@ -488,12 +601,16 @@ pub fn detect(
                                 sy,
                                 opts.channel_tolerance,
                                 opts.min_structure,
+                                occlusion,
                             );
-                            if structure_score < opts.min_structure {
+                            if structure
+                                .value
+                                .is_some_and(|value| value < opts.min_structure)
+                            {
                                 continue;
                             }
-                            if !template.identity.is_empty()
-                                && score(
+                            let identity = if !template.identity.is_empty() {
+                                visible_evidence(
                                     rgb,
                                     width,
                                     height,
@@ -503,11 +620,39 @@ pub fn detect(
                                     sy,
                                     opts.channel_tolerance,
                                     0.90,
-                                ) < 0.90
-                            {
+                                    occlusion,
+                                )
+                            } else {
+                                VisibleEvidence {
+                                    value: None,
+                                    probes: 0,
+                                    groups: [0; 4],
+                                }
+                            };
+                            if identity.value.is_some_and(|value| value < 0.90) {
                                 continue;
                             }
-                            let quality = 0.3 * border_score + 0.7 * structure_score;
+                            if occlusion.is_some() {
+                                let total = border.probes + structure.probes + identity.probes;
+                                let groups = (0..4)
+                                    .filter(|&g| {
+                                        border.groups[g] + structure.groups[g] + identity.groups[g]
+                                            > 0
+                                    })
+                                    .count();
+                                if total < 32 || groups < 2 {
+                                    continue;
+                                }
+                            }
+                            let border_score = border.value.unwrap_or(0.);
+                            let structure_score = structure.value.unwrap_or(0.);
+                            let weight = if border.value.is_some() { 0.3 } else { 0. }
+                                + if structure.value.is_some() { 0.7 } else { 0. };
+                            let quality = if weight > 0. {
+                                (0.3 * border_score + 0.7 * structure_score) / weight
+                            } else {
+                                identity.value.unwrap_or(0.)
+                            };
                             if best.as_ref().is_none_or(|b| quality > b.score) {
                                 best = Some(PanelMatch {
                                     screen_type: template.screen_type.clone(),
@@ -519,6 +664,11 @@ pub fn detect(
                                     score: quality,
                                     border_score,
                                     structure_score,
+                                    visible_probes: [
+                                        border.probes,
+                                        structure.probes,
+                                        identity.probes,
+                                    ],
                                 });
                             }
                         }

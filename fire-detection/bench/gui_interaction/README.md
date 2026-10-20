@@ -52,6 +52,17 @@ height, shared player inventory, source preview exclusions) are explicit.
   A missing GUI match never proves that a GUI is closed. Alternatives
   preserve known class IDs without promoting unknown-looking rectangles.
 - Different asset versions of the same class do not count as semantic ambiguity.
+- `detect_with_occlusion` accepts a separate input-video-pixel mask. Nonzero
+  pixels are neutral: covered source probes are removed from error counts,
+  normalization denominators and regional denominators. Empty stages contribute
+  no negative vote; remaining score weights are normalized. No border/corner
+  is assumed permanently visible. Conservative support guards require at least
+  16 visible probes for a scored stage and 32 total across two source groups;
+  these guards are not calibrated accuracy claims. All-hidden evidence abstains.
+  `PanelMatch.visible_probes` distinguishes unavailable stage scores from zero
+  agreement. The caller supplies occlusion independently; this API does not
+  find occluders or automatically discard mismatching pixels. Existing `detect`
+  retains the original unmasked path and reported real-recording results.
 - `merge_neutral_panel` adds Unknown/neutral panel exclusions to the existing
   GUI mask while preserving existing HUD evidence and its reliability/fit. The
   conservative rectangle is not an opaque ownership mask. It can exclude a
