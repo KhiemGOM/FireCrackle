@@ -136,6 +136,44 @@ fn finds_panel_without_any_hotbar_and_checks_whole_layout() {
 }
 
 #[test]
+fn integer_gui_origin_is_applied_before_fractional_capture_scale() {
+    let (template, image) = fixture("known_inventory");
+    let mut frame = vec![31; 400 * 240 * 3];
+    let scale = 2.25;
+    // Logical viewport ceil(400/2.25) x ceil(240/2.25) =178x107.
+    // AbstractContainerScreen uses integer (viewport-panel)/2 first.
+    let (left, top) = (110.25, 29.25);
+    for y in 0..240 {
+        for x in 0..400 {
+            let xx = (x as f64 + 0.5 - left) / scale;
+            let yy = (y as f64 + 0.5 - top) / scale;
+            if (0.0..80.).contains(&xx) && (0.0..80.).contains(&yy) {
+                let src = (yy.floor() as usize * 80 + xx.floor() as usize) * 4;
+                let dst = (y * 400 + x) * 3;
+                frame[dst..dst + 3].copy_from_slice(&image[src..src + 3]);
+            }
+        }
+    }
+    let result = detect(
+        &frame,
+        400,
+        240,
+        &[template],
+        Options {
+            min_scale: scale,
+            max_scale: scale,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    assert!(result.gui_detected);
+    // Several subpixel poses can rasterize identically; do not claim their
+    // underlying fractional position is identifiable from this fixture.
+    let bounds = result.matched.unwrap().bounds;
+    assert!((bounds.x - left).abs() < 1. && (bounds.y - top).abs() < 1.);
+}
+
+#[test]
 fn same_shape_with_different_known_types_abstains_instead_of_guessing() {
     let (first, image) = fixture("furnace");
     let (second, _) = fixture("smoker");

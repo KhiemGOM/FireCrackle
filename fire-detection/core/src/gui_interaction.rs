@@ -440,6 +440,33 @@ struct VisibleEvidence {
     groups: [usize; 4],
 }
 
+/// Container origins are integer divisions in the logical GUI viewport,
+/// before capture scaling. Centring an already-scaled panel can skip that
+/// raster alignment when the logical viewport was rounded up.
+fn source_origin_offset(viewport: usize, extent: usize, scale: f64, centered: bool) -> f64 {
+    if centered {
+        let logical = (viewport as f64 / scale).ceil();
+        let source_origin = ((logical - extent as f64) / 2.).floor() * scale;
+        let video_origin = (viewport as f64 - extent as f64 * scale) / 2.;
+        (source_origin - video_origin) / scale
+    } else {
+        0.
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::source_origin_offset;
+
+    #[test]
+    fn rounded_logical_viewport_pose_is_not_skipped_or_applied_to_fixed_top() {
+        let offset = source_origin_offset(1920, 276, 2.25, true);
+        assert!((649.5 + offset * 2.25 - 650.25).abs() < 1e-9);
+        assert_eq!(source_origin_offset(1920, 276, 2.25, false), 0.);
+        assert_eq!(source_origin_offset(400, 80, 2., true), 0.);
+    }
+}
+
 /// A supplied occlusion mask is evidence from the caller, never inferred from
 /// failed colour comparisons. Masked points do not enter either denominator.
 fn visible_evidence(
@@ -589,8 +616,31 @@ fn detect_impl(
                 } else {
                     &[0.][..]
                 } {
-                    for ox in [0., -0.5, 0.5] {
-                        for oy in [0., -0.5, 0.5] {
+                    let mut origins = vec![
+                        (0., 0.),
+                        (0., -0.5),
+                        (0., 0.5),
+                        (-0.5, 0.),
+                        (-0.5, -0.5),
+                        (-0.5, 0.5),
+                        (0.5, 0.),
+                        (0.5, -0.5),
+                        (0.5, 0.5),
+                    ];
+                    let ox = source_origin_offset(width, template.width, sx, true);
+                    let oy =
+                        source_origin_offset(height, template.height, sy, template.top_y.is_none());
+                    // Only one extra source-rounded pair, rather than the
+                    // Cartesian product of extra x/y offsets. Preserve the
+                    // original nine poses and bound the extra search cost.
+                    if !origins
+                        .iter()
+                        .any(|&(x, y): &(f64, f64)| (x - ox).abs() < 1e-9 && (y - oy).abs() < 1e-9)
+                    {
+                        origins.push((ox, oy));
+                    }
+                    for (ox, oy) in origins {
+                        {
                             let bounds = Rect {
                                 x: (width as f64 - pw) / 2. + (template.offset_x + shift + ox) * sx,
                                 y: template

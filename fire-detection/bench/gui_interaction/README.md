@@ -82,12 +82,14 @@ height, shared player inventory, source preview exclusions) are explicit.
 
 ## Current tiny-GUI/sign development check
 
-**257/261 interaction-GUI samples detected (98.5%); 0/289 closed-GUI false
-detections.** The bounded subpixel source-colour guard and inherited hanging-sign
-controls recover 15 misses without losing previous detections. The same-session,
-sampled-development limits still apply. See
-[`GUI_SOFT_GUARD_CHECK.md`](../../../docs/GUI_SOFT_GUARD_CHECK.md) for the method,
-remaining cases and reproducible evidence. Regenerate local source packs to
+**258/261 interaction-GUI samples detected (98.9%); 0/289 closed-GUI false
+detections.** The bounded subpixel source-colour guard, inherited hanging-sign
+controls and source-rounded container origin recover 16 misses without losing
+previous detections. The same-session, sampled-development limits still apply.
+See [`GUI_FINAL_MISS_CHECK.md`](../../../docs/GUI_FINAL_MISS_CHECK.md) for the
+final cases and source-origin fix, and
+[`GUI_SOFT_GUARD_CHECK.md`](../../../docs/GUI_SOFT_GUARD_CHECK.md) for the earlier
+edge/sign method. Regenerate local source packs to
 include the new hanging-sign control alternatives.
 
 ## Historical pre-soft-guard development check
