@@ -434,7 +434,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
 
   // zoom (wheel, around the cursor) and pan (left-drag) of the picture
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const [xf, setXf] = useUndoState<ViewXform>(readVideoView(videoKey, stateStorage),undoHistory,'video.xf');
+  const [xf, setXf] = useState<ViewXform>(readVideoView(videoKey, stateStorage));
   useEffect(() => { writeVideoView(videoKey, xf, stateStorage); }, [videoKey, xf]);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const boxOf = (): Box => {
@@ -453,7 +453,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => { const resize=()=>setXf((v) => clampView(v, boxOf()));if(undoHistory)undoHistory.ignore(resize);else resize(); });
+    const ro = new ResizeObserver(() => setXf((v) => clampView(v, boxOf())));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
