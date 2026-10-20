@@ -43,3 +43,12 @@
 .misc-gui-thumbnail-after{animation:gui-thumbnail-blink 1280ms step-end infinite;animation-duration:inherit;}
 @keyframes gui-thumbnail-blink{0%,100%{opacity:0}50%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.misc-gui-thumbnail-after{animation:none;opacity:1}}
+.misc-aim-controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px;}
+.misc-aim-controls label{display:flex;align-items:center;gap:8px;}
+.misc-gui-aim-gallery{grid-template-columns:repeat(auto-fit,minmax(min(100%,640px),1fr));gap:12px;padding:2px;}
+.misc-gui-aim-gallery button{display:block;padding:0;overflow:hidden;border-radius:7px;background:#080a0e;}
+.misc-gui-aim-gallery button:hover{border-color:var(--accent);}
+.misc-gui-aim-gallery button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.misc-gui-aim-gallery .misc-gui-aim-picture{width:100%;height:auto;aspect-ratio:16/9;border-radius:0;}
+.misc-gui-thumbnail[data-display=before] .misc-gui-thumbnail-after{animation:none;opacity:0;}
+.misc-gui-thumbnail[data-display=after] .misc-gui-thumbnail-after{animation:none;opacity:1;}

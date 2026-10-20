@@ -3,10 +3,12 @@ import type {Backend} from '../lib/api';
 import type {GuiRange,GuiScanStatus} from '../lib/guiScan';
 import {formatTimecode} from '../lib/timecode';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
-import {guiThumbnails} from '../lib/guiThumbnailCache';
+import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
+import {guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../lib/guiAimReview';
 
-function GuiBlinkThumbnail({backend,videoKey,first,last,total}:{backend:Backend;videoKey?:string;first:number;last:number;total:number}) {
-  const cache=guiThumbnails(backend,videoKey,total);
+function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
+  const thumbnails=guiThumbnails(backend,videoKey,total);
+  const cache=large?previewFrames(backend,1024):thumbnails;
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
   const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -19,19 +21,24 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total}:{backend:Backend;
     setPictures(null);setFailed(false);
     if(!visible)return;
     const wanted=()=>!cancelled;
-    const before=cache.get(Math.max(0,first-1),wanted).then(image=>{if(!cancelled)setPictures({before:image});return image;});
-    void Promise.all([before,cache.get(Math.min(total-1,last+1),wanted)])
+    const frames=guiReviewFrames({first,last,menu:false},total);
+    const before=cache.get(frames.before,wanted).then(image=>{if(!cancelled)setPictures({before:image});return image;});
+    void Promise.all([before,cache.get(frames.after,wanted)])
       .then(([before,after])=>{if(!cancelled)setPictures({before,after});})
       .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
   },[cache,first,last,total,visible]);
-  return <span ref={container} className="misc-gui-thumbnail" title="Before / after GUI · blinking preview" style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
-    {pictures?<><img src={pictures.before} alt="Before GUI"/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI"/>}</>:<span className="dim">{failed?'No preview':'…'}</span>}
+  return <span ref={container} className={`misc-gui-thumbnail${large?' misc-gui-aim-picture':''}`} data-display={display} style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
+    {pictures?<><img src={pictures.before} alt="Before GUI" draggable={false}/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI" draggable={false}/>}</>:<span className="dim" role={failed?'alert':undefined} aria-label={failed?'Preview unavailable':'Loading preview'}>{failed?'!':''}</span>}
   </span>;
 }
 
 export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange)=>void}) {
   const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(false),[busy,setBusy]=useState(false);
+  const [mode,setMode]=useState<'intervals'|'aim'>('intervals'),[display,setDisplay]=useState<'blink'|'before'|'after'>('blink');
+  const [order,setOrder]=useState<'motion'|'time'>('motion');
+  const [ranking,setRanking]=useState<{key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({key:'',scores:new Map(),processed:0,done:false});
+  const motionScores=useRef<{cache:unknown;scores:Map<string,number|null>}>({cache:null,scores:new Map()});
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
     let stopped=false, timer:ReturnType<typeof setTimeout>;
@@ -48,26 +55,66 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     catch(e){setError(String(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
+  const rangeKey=JSON.stringify([videoKey,status?.total,ranges.map(guiRangeKey)]);
+  useEffect(()=>{
+    if(mode!=='aim'||order!=='motion'||!status?.total)return;
+    const cache=guiThumbnails(backend,videoKey,status.total);
+    if(motionScores.current.cache!==cache)motionScores.current={cache,scores:new Map()};
+    const scores=motionScores.current.scores,total=status.total;
+    let cancelled=false,next=0,processed=0;
+    const publish=(done=false)=>{if(!cancelled)setRanking({key:rangeKey,scores:new Map(scores),processed,done});};
+    publish();
+    const worker=async()=>{
+      while(!cancelled&&next<ranges.length){
+        const range=ranges[next++],key=guiRangeKey(range);
+        if(!scores.has(key)){
+          try{
+            const frames=guiReviewFrames(range,total),wanted=()=>!cancelled;
+            const [before,after]=await Promise.all([cache.get(frames.before,wanted),cache.get(frames.after,wanted)]);
+            if(cancelled)return;
+            const score=await previewPixelChange(before,after);if(cancelled)return;scores.set(key,score);
+          }catch{if(cancelled)return;scores.set(key,null);}
+        }
+        processed++;publish();
+      }
+    };
+    void Promise.all([worker(),worker()]).then(()=>publish(true));
+    return()=>{cancelled=true;};
+  },[backend,videoKey,mode,order,rangeKey]);
+  const sorted=mode==='aim'&&order==='motion'&&ranking.key===rangeKey&&ranking.done?rankGuiRanges(ranges,ranking.scores):ranges;
   return <section className="misc-gui-tool" aria-label="GUI interactions">
     <div className="misc-panel misc-gui-controls">
     <div className="misc-compare-toolbar">
       <strong>GUI interactions</strong>
+      <div className="misc-view-modes" role="group" aria-label="GUI review mode">
+        <button aria-pressed={mode==='intervals'} onClick={()=>setMode('intervals')}>Intervals</button>
+        <button aria-pressed={mode==='aim'} onClick={()=>setMode('aim')}>Aim jumps</button>
+      </div>
       <button disabled={busy||!backend.guiScanStart||status?.state==='done'} onClick={()=>void action(!running)}>
         {running?'Pause scan':status?.processed?'Resume scan':'Scan video'}
       </button>
       <label><input type="checkbox" checked={menus} onChange={e=>setMenus(e.target.checked)}/> Include menus</label>
     </div>
-    <p className="dim">Scan once, then inspect before and after each detected GUI interval. Results are saved with this video.</p>
-    {status&&<><progress value={status.processed} max={status.total||1}/><span className="dim"> {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames · {status.state==='done'?'Complete':running?'Scanning':status.state==='paused'?'Paused':'Ready'} · {ranges.length} intervals</span></>}
+    {mode==='intervals'&&<p className="dim">Scan once, then inspect before and after each detected GUI interval. Results are saved with this video.</p>}
+    {status&&(mode==='intervals'||running)&&<><progress value={status.processed} max={status.total||1}/><span className="dim"> {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames · {status.state==='done'?'Complete':running?'Scanning':status.state==='paused'?'Paused':'Ready'} · {ranges.length} intervals</span></>}
+    {mode==='aim'&&<div className="misc-aim-controls">
+      <div className="misc-view-modes" role="group" aria-label="Gallery image view">
+        {(['blink','before','after'] as const).map(value=><button key={value} aria-pressed={display===value} onClick={()=>setDisplay(value)}>{value==='blink'?'Blink':value==='before'?'Before':'After'}</button>)}
+      </div>
+      <label>Order <select value={order} onChange={e=>setOrder(e.target.value as typeof order)} title="Average RGB change in small before/after previews. Lighting and animation also contribute; this is not an aim detector."><option value="motion">Most movement first</option><option value="time">Video order</option></select></label>
+      <span className="dim">Click an image to inspect{order==='motion'&&ranking.key===rangeKey&&!ranking.done?` · Ranking ${ranking.processed}/${ranges.length}`:''}</span>
+    </div>}
     {(error||status?.error)&&<p role="alert">{error||status?.error}</p>}
     {!backend.guiScanStart&&<p className="dim">Video scanning is available in the desktop app.</p>}
     </div>
-    <div className="misc-gui-ranges">
-      {ranges.map(range=><button key={`${range.first}-${range.last}`} onClick={()=>onCompare(range)}>
-        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total}/>
+    <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
+      {sorted.map(range=><button key={guiRangeKey(range)} aria-label={`Compare frames ${Math.max(0,range.first-1)} and ${Math.min(status!.total-1,range.last+1)}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range)}>
+        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'}/>
+        {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>
         <span>Inspect</span>
+        </>}
       </button>)}
     </div>
     {status?.state==='done'&&!ranges.length&&<p>No supported GUI intervals detected.</p>}
