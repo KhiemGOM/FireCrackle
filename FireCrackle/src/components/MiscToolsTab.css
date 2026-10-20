@@ -33,4 +33,9 @@
 .misc-proof-feedback{color:#79dfb2;display:block;margin-bottom:12px;font-size:12px;}
 .misc-gui-ranges {display:grid;gap:6px;max-height:60vh;overflow:auto;margin-top:12px}
 .misc-gui-ranges button {display:flex;align-items:center;gap:18px;text-align:left;padding:10px}
-.misc-gui-ranges button span:last-child {margin-left:auto}
+.misc-gui-ranges button>span:last-child {margin-left:auto}
+.misc-gui-thumbnail{position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 128px;width:128px;height:72px;overflow:hidden;border-radius:4px;background:#080a0e;animation-duration:1280ms;}
+.misc-gui-thumbnail img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;}
+.misc-gui-thumbnail-after{animation:gui-thumbnail-blink 1280ms step-end infinite;animation-duration:inherit;}
+@keyframes gui-thumbnail-blink{0%,100%{opacity:0}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.misc-gui-thumbnail-after{animation:none;opacity:1}}
