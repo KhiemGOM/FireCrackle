@@ -52,11 +52,14 @@ const operationNames: Record<string, string> = {
   noFireStart: "Start no-fire scan", noFireStatus: "No-fire scan", povStart: "Start first-person scan", povStatus: "First-person scan",
   linkStart: "Start video download", linkStatus: "Video download", guiMask: "Detect GUI mask", guiMaskPixels: "Read GUI mask",
 };
+const rawBackends=new WeakMap<object,object>();
+/** Optional display preparation handles its own failures without interrupting foreground work. */
+export function backgroundBackend<T extends object>(backend:T):T{return (rawBackends.get(backend)??backend) as T;}
 /** Preserve the backend contract and callers' own recovery, while reporting even swallowed rejections. */
 export function withErrorReporting<T extends object>(backend: T): T {
   const methods = new Map<PropertyKey, unknown>();
   const terminalFailures = new Map<PropertyKey, string>();
-  return new Proxy(backend, {
+  const wrapped=new Proxy(backend, {
     get(target, property, receiver) {
       const value: unknown = Reflect.get(target, property, receiver);
       if (typeof value !== "function") return value;
@@ -82,6 +85,8 @@ export function withErrorReporting<T extends object>(backend: T): T {
       return methods.get(property);
     },
   });
+  rawBackends.set(wrapped,backend);
+  return wrapped;
 }
 export function reportVideoFailure(message: string) { reportError("Display video or image", message); }
 export function installGlobalErrorHandlers(target: Window): () => void {

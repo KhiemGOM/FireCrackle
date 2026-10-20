@@ -1,5 +1,6 @@
 import type {Backend} from './api';
 import {loadFrameImage} from './frameComparison';
+import {backgroundBackend} from './appErrors';
 
 /** Small JPEGs survive row unmounts and tab switches. Full-size frames are never retained here. */
 export class GuiThumbnailCache {
@@ -71,9 +72,10 @@ export function previewFrames(backend:Backend,width=512):GuiThumbnailCache{
   width=width<=128?128:width<=512?512:1024;
   let owner=caches.get(backend);if(!owner){owner={sizes:new Map()};caches.set(backend,owner);}
   const found=owner.sizes.get(width);if(found)return found;
+  const native=backgroundBackend(backend);
   const cache=new GuiThumbnailCache(async (frame,targets)=>{
-    if(backend.previewThumbnail){
-      const bytes=await backend.previewThumbnail(frame,width,targets);
+    if(native.previewThumbnail){
+      const bytes=await native.previewThumbnail(frame,width,targets);
       return new Promise<string>((resolve,reject)=>{
         const reader=new FileReader();reader.onload=()=>resolve(reader.result as string);
         reader.onerror=()=>reject(Error('Could not read thumbnail'));reader.readAsDataURL(new Blob([bytes],{type:'image/jpeg'}));

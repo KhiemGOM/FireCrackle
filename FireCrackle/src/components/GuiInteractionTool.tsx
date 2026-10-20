@@ -5,11 +5,11 @@ import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
-import {guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../lib/guiAimReview';
+import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../lib/guiAimReview';
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
-  const thumbnails=guiThumbnails(backend,videoKey,total);
-  const cache=large?previewFrames(backend,512):thumbnails;
+  guiThumbnails(backend,videoKey,total);
+  const cache=previewFrames(backend,512);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
   const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -39,7 +39,6 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   const [mode,setMode]=useState(()=>readPreferences().miscGuiMode),[display,setDisplay]=useState(()=>readPreferences().miscGuiDisplay);
   const [order,setOrder]=useState(()=>readPreferences().miscGuiOrder);
   const [ranking,setRanking]=useState<{key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({key:'',scores:new Map(),processed:0,done:false});
-  const motionScores=useRef<{cache:unknown;scores:Map<string,number|null>}>({cache:null,scores:new Map()});
   useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order}),[menus,mode,display,order]);
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
@@ -66,15 +65,14 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     if(mode!=='aim'||order!=='motion'||!status?.total)return;
     guiThumbnails(backend,videoKey,status.total);
     const cache=previewFrames(backend,512);
-    if(motionScores.current.cache!==cache)motionScores.current={cache,scores:new Map()};
-    const scores=motionScores.current.scores,total=status.total;
+    const scores=guiMotionScores(cache),total=status.total;
     let cancelled=false,next=0,processed=0;
     const publish=(done=false)=>{if(!cancelled)setRanking({key:rangeKey,scores:new Map(scores),processed,done});};
     publish();
     const worker=async()=>{
       while(!cancelled&&next<ranges.length){
         const range=ranges[next++],key=guiRangeKey(range);
-        if(!scores.has(key)){
+        if(scores.get(key)==null){
           try{
             const frames=guiReviewFrames(range,total),wanted=()=>!cancelled;
             const [before,after]=await Promise.all([cache.get(frames.before,wanted,'background'),cache.get(frames.after,wanted,'background')]);

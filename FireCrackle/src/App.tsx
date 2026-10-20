@@ -1,3 +1,4 @@
+import {watchGuiPreviewWarmup} from "./lib/guiPreviewWarmup";
 import {isTypingTarget} from "./lib/post/keys";
 import {LabelUndo} from "./lib/labelUndo";
 import {useUndoState} from "./hooks/useUndoState";
@@ -90,6 +91,10 @@ export default function App() {
   const ws = useWorkspace(backend, !extraSources, undoHistory);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
+  useEffect(()=>{
+    if(!backend||!ws.videoPath||!view||ws.opening||playback.dir!==0)return;
+    return watchGuiPreviewWarmup(backend,ws.videoPath,view.frame_count);
+  },[backend,ws.videoPath,view?.frame_count,ws.opening,playback.dir]);
   const [playSpeed, setPlaySpeed] = useState(1);
   useEffect(() => subscribeFailures(() => { if (getFailures().length) setPlayback(STOPPED); }), []);
   const presented = useRef<number | null>(null);

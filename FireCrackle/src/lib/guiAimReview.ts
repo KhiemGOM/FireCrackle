@@ -1,5 +1,13 @@
 import type {GuiRange} from './guiScan';
 
+const motionScores=new WeakMap<object,Map<string,number|null>>();
+/** Share completed ordering work across tabs; a new video preview cache gets new scores. */
+export function guiMotionScores(cache:object):Map<string,number|null>{
+  let scores=motionScores.get(cache);
+  if(!scores){scores=new Map();motionScores.set(cache,scores);}
+  return scores;
+}
+
 export const guiRangeKey=(range:GuiRange)=>`${range.first}-${range.last}`;
 export function guiReviewFrames(range:GuiRange,total:number){
   return {before:Math.max(0,range.first-1),after:Math.min(total-1,range.last+1)};
