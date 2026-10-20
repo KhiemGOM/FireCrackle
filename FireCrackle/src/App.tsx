@@ -29,7 +29,7 @@ import { useLayout } from "./hooks/useLayout";
 import { usePanelZooms } from "./hooks/usePanelZooms";
 import { useWheel } from "./hooks/useWheel";
 import { useWorkspace, messageOf } from "./hooks/useWorkspace";
-import { FLAGS_LIMITS, SIDE_LIMITS, VIDEO_LIMITS, clampSize, pickerCellSize, upperBound } from "./lib/layout";
+import { SIDE_LIMITS, VIDEO_LIMITS, clampSize, pickerCellSize, upperBound } from "./lib/layout";
 import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback } from "./lib/actions";
 import { framesDue, startClock } from "./lib/playbackClock";
 import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from "./lib/api";
@@ -403,16 +403,7 @@ export default function App() {
               settings={ws.settings}
               onSeek={(frame) => void act({ type: "goTo", frame })}
             />
-            <Splitter
-              direction="row"
-              label="Flag list height"
-              sign={-1}
-              value={layout.flagsHeight}
-              min={FLAGS_LIMITS.min}
-              getMax={() => FLAGS_LIMITS.max}
-              onChange={(v) => setLayout("flagsHeight", v)}
-              onReset={() => resetLayout("flagsHeight")}
-            />
+            <div className="flags-divider" aria-hidden="true" />
             <div className="zoom-box" ref={flagsBoxRef} style={{ zoom: zooms.flags }} onDoubleClick={(e) => e.ctrlKey && resetZoom("flags")}>
               <FlagsPanel flags={ws.flags} fps={view.fps} current={view.current} onSeek={(frame) => void act({ type: "goTo", frame })} />
             </div>
