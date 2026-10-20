@@ -59,12 +59,26 @@ pub async fn copy_comparison_proof(app: tauri::AppHandle, png: Vec<u8>) -> Resul
     .map_err(|e| e.to_string())?
 }
 
+#[cfg(test)]
 fn encode(
     ffmpeg: &OsStr,
     png: &[u8],
     base: Option<&[u8]>,
     format: &str,
 ) -> Result<Vec<u8>, String> {
+    encode_with_transition(ffmpeg, png, base, format, "fade")
+}
+
+fn encode_with_transition(
+    ffmpeg: &OsStr,
+    png: &[u8],
+    base: Option<&[u8]>,
+    format: &str,
+    transition: &str,
+) -> Result<Vec<u8>, String> {
+    if !["fade", "blink"].contains(&transition) {
+        return Err("Unsupported comparison transition.".into());
+    }
     if !["png", "jpeg", "gif", "webp"].contains(&format) {
         return Err("Unsupported comparison format.".into());
     }
@@ -109,7 +123,11 @@ fn encode(
             .arg(after);
         // Compute easing once per frame, not millions of times per frame in all_expr.
         // Normal blend uses its optimized pixel routines; opacity 1 means original A.
-        let blend = animation_filter();
+        let blend = if transition == "blink" {
+            blink_filter()
+        } else {
+            animation_filter()
+        };
         if format == "gif" {
             command.args(["-filter_complex", &format!("{blend},split[a][b];[a]palettegen=stats_mode=full[p];[b][p]paletteuse=dither=sierra2_4a"), "-loop", "0"]);
         } else {
@@ -167,12 +185,20 @@ fn animation_filter() -> String {
     )
 }
 
+/// Direct endpoint switching preserves jumps: no interpolated pictures.
+fn blink_filter() -> String {
+    // Concatenate exact endpoint frames instead of scheduling stateful blend commands.
+    // Each endpoint lasts 16 frames at 25 Hz; repeat the pair once (2.56 seconds).
+    "[0:v]trim=end_frame=16,setpts=PTS-STARTPTS[a];[1:v]trim=end_frame=16,setpts=PTS-STARTPTS[b];[a][b]concat=n=2:v=1:a=0,loop=loop=1:size=32:start=0,trim=end_frame=64,format=rgb24".into()
+}
+
 #[tauri::command]
 pub async fn save_comparison_proof(
     path: String,
     format: String,
     png: Vec<u8>,
     base: Option<Vec<u8>>,
+    transition: Option<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         if !Path::new(&path).is_absolute() {
@@ -182,11 +208,12 @@ pub async fn save_comparison_proof(
             decode(&png)?;
             png
         } else {
-            encode(
+            encode_with_transition(
                 &crate::external_tools::video_tools()?.ffmpeg,
                 &png,
                 base.as_deref(),
                 &format,
+                transition.as_deref().unwrap_or("fade"),
             )?
         };
         // Encode completely before replacing a user-selected destination.
@@ -307,13 +334,15 @@ pub async fn copy_formatted_comparison_proof(
     format: String,
     png: Vec<u8>,
     base: Option<Vec<u8>>,
+    transition: Option<String>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = encode(
+        let bytes = encode_with_transition(
             &crate::external_tools::video_tools()?.ffmpeg,
             &png,
             base.as_deref(),
             &format,
+            transition.as_deref().unwrap_or("fade"),
         )?;
         use sha2::{Digest, Sha256};
         let digest = format!("{:x}", Sha256::digest(&bytes));
@@ -335,6 +364,94 @@ pub async fn copy_formatted_comparison_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blink_switches_only_between_original_endpoints() {
+        let filter = blink_filter();
+        assert!(filter.contains("concat=n=2:v=1:a=0"));
+        assert!(filter.contains("trim=end_frame=16"));
+        assert!(filter.contains("loop=loop=1:size=32:start=0"));
+        assert!(!filter.contains("blend"));
+        let png = include_bytes!("../icons/32x32.png");
+        assert!(
+            encode_with_transition(OsStr::new("unused"), png, Some(png), "gif", "unknown")
+                .unwrap_err()
+                .contains("transition")
+        );
+    }
+
+    #[test]
+    #[ignore = "requires FIRECRACKLE_TEST_FFMPEG; decodes direct-switch proof"]
+    fn blink_encoding_has_no_intermediate_pictures() {
+        let ffmpeg =
+            std::env::var_os("FIRECRACKLE_TEST_FFMPEG").expect("Set FIRECRACKLE_TEST_FFMPEG");
+        let dir = Scratch::new().unwrap();
+        let mut pictures = Vec::new();
+        for color in ["black", "white"] {
+            let path = dir.0.join(format!("{color}.png"));
+            let result = crate::external_tools::command(&ffmpeg)
+                .args([
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    &format!("color={color}:s=32x32"),
+                    "-frames:v",
+                    "1",
+                ])
+                .arg(&path)
+                .output()
+                .unwrap();
+            assert!(
+                result.status.success(),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            pictures.push(std::fs::read(path).unwrap());
+        }
+        for format in ["gif", "webp"] {
+            let bytes =
+                encode_with_transition(&ffmpeg, &pictures[1], Some(&pictures[0]), format, "blink")
+                    .unwrap();
+            if format == "gif" {
+                let output = dir.0.join("blink.gif");
+                std::fs::write(&output, bytes).unwrap();
+                let decoded = crate::external_tools::command(&ffmpeg)
+                    .args(["-nostdin", "-v", "error", "-i"])
+                    .arg(output)
+                    .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+                    .output()
+                    .unwrap();
+                assert!(decoded.status.success());
+                assert_eq!(decoded.stdout.len(), 64 * 32 * 32 * 3);
+                for frame in 0..64 {
+                    let expected = if (frame / 16) % 2 == 0 { 0 } else { 255 };
+                    assert!(
+                        decoded.stdout[frame * 32 * 32 * 3..(frame + 1) * 32 * 32 * 3]
+                            .iter()
+                            .all(|&pixel| pixel == expected),
+                        "unexpected frame {frame}: pixel {} instead of {expected}",
+                        decoded.stdout[frame * 32 * 32 * 3]
+                    );
+                }
+            } else {
+                assert_eq!(&bytes[8..12], b"WEBP");
+                let (mut offset, mut duration) = (12, 0);
+                while offset + 8 <= bytes.len() {
+                    let size = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap())
+                        as usize;
+                    if &bytes[offset..offset + 4] == b"ANMF" {
+                        let data = &bytes[offset + 8..offset + 8 + size];
+                        duration += u32::from_le_bytes([data[12], data[13], data[14], 0]);
+                    }
+                    offset += 8 + size + size % 2;
+                }
+                assert_eq!(duration, 2560);
+            }
+        }
+    }
 
     #[test]
     fn fade_is_scheduled_per_frame_without_a_per_pixel_expression() {

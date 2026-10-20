@@ -10,8 +10,8 @@ export const proofOptions: {format: ProofFormat; text: string}[] = [
   {format: "jpeg", text: "JPEG · still image"},
 ];
 
-export function ComparisonProofButton({disabled, busy, feedback, onExport, label = "Comparison proof"}: {
-  disabled: boolean; busy: boolean; feedback?: string; onExport: (action: ProofAction) => void; label?: string;
+export function ComparisonProofButton({disabled, busy, feedback, onExport, label = "Comparison proof", title = "Copy a lossless animated WebP close-up: the aligned fire overlay fades in and out, ready to paste into Discord"}: {
+  disabled: boolean; busy: boolean; feedback?: string; onExport: (action: ProofAction) => void; label?: string; title?: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
@@ -39,7 +39,7 @@ export function ComparisonProofButton({disabled, busy, feedback, onExport, label
   return <div className="comparison-proof-button" ref={root} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
   }}>
-    <IconButton icon="copy" label={label} data-owns-keys="true" title="Copy a lossless animated WebP close-up: the aligned fire overlay fades in and out, ready to paste into Discord"
+    <IconButton icon="copy" label={label} data-owns-keys="true" title={title}
       disabled={disabled || busy} onClick={() => {setOpen(false); onExport({format: "webp", destination: "copy"});}}>{busy ? "Creating…" : feedback || label}</IconButton>
     <button type="button" className="proof-dropdown-trigger" data-owns-keys="true" ref={trigger} aria-label="Comparison proof formats"
       aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} disabled={disabled || busy}
