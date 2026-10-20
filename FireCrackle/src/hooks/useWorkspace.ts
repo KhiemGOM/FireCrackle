@@ -7,6 +7,7 @@ import {
   type ProjectEntry,
 } from "../lib/projects";
 import { createTrailingThrottle } from "../lib/writeThrottle";
+import { clearGuiThumbnails } from "../lib/guiThumbnailCache";
 
 /** Actions that change labels: after them the timeline lanes and the flag list must be refreshed. */
 const MUTATING = new Set<UiAction["type"]>([
@@ -151,6 +152,7 @@ export function useWorkspace(backend: Backend | null, combinedFire = true): Work
           if (previous.save_error) throw new Error(previous.save_error);
         }
         const v = await openSession(backend, { videoPath: path, frame: frame ?? savedFrame(projectsRef.current, path) });
+        clearGuiThumbnails(backend);
         videoPath.current = path;
         setView(v);
         setError(null);

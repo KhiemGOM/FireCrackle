@@ -2,40 +2,31 @@ import {useEffect,useRef,useState} from 'react';
 import type {Backend} from '../lib/api';
 import type {GuiRange,GuiScanStatus} from '../lib/guiScan';
 import {formatTimecode} from '../lib/timecode';
-import {FRAME_BLINK_MS,loadFrameImage} from '../lib/frameComparison';
+import {FRAME_BLINK_MS} from '../lib/frameComparison';
+import {guiThumbnails} from '../lib/guiThumbnailCache';
 
-// Keep thumbnail seeks serial, so scrolling never floods the video decoder.
-let thumbnailQueue:Promise<void>=Promise.resolve();
 function GuiBlinkThumbnail({backend,videoKey,first,last,total}:{backend:Backend;videoKey?:string;first:number;last:number;total:number}) {
+  const cache=guiThumbnails(backend,videoKey,total);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
-  const [pictures,setPictures]=useState<{before:string;after:string}|null>(null),[failed,setFailed]=useState(false);
+  const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
     const element=container.current;if(!element)return;
     const observer=new IntersectionObserver(entries=>setVisible(entries.some(entry=>entry.isIntersecting)),{root:element.closest('.misc-gui-ranges'),rootMargin:'80px'});
     observer.observe(element);return()=>observer.disconnect();
   },[]);
   useEffect(()=>{
-    let cancelled=false;setPictures(null);setFailed(false);
+    let cancelled=false;
+    setPictures(null);setFailed(false);
     if(!visible)return;
-    const thumbnail=async(frame:number)=>{
-      const bytes=await backend.frame(frame);if(cancelled)return '';
-      const image=await loadFrameImage(bytes);if(cancelled)return '';
-      const canvas=document.createElement('canvas');canvas.width=160;canvas.height=Math.max(1,Math.round(160*image.naturalHeight/image.naturalWidth));
-      const context=canvas.getContext('2d');if(!context)throw Error('Thumbnail unavailable');
-      context.drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.8);
-    };
-    thumbnailQueue=thumbnailQueue.catch(()=>{}).then(async()=>{
-      if(cancelled)return;
-      try {
-        const before=await thumbnail(Math.max(0,first-1));if(cancelled)return;
-        const after=await thumbnail(Math.min(total-1,last+1));
-        if(!cancelled)setPictures({before,after});
-      }catch{if(!cancelled)setFailed(true);}
-    });
+    const wanted=()=>!cancelled;
+    const before=cache.get(Math.max(0,first-1),wanted).then(image=>{if(!cancelled)setPictures({before:image});return image;});
+    void Promise.all([before,cache.get(Math.min(total-1,last+1),wanted)])
+      .then(([before,after])=>{if(!cancelled)setPictures({before,after});})
+      .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
-  },[backend,videoKey,first,last,total,visible]);
+  },[cache,first,last,total,visible]);
   return <span ref={container} className="misc-gui-thumbnail" title="Before / after GUI · blinking preview" style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
-    {pictures?<><img src={pictures.before} alt="Before GUI"/><img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI"/></>:<span className="dim">{failed?'No preview':'…'}</span>}
+    {pictures?<><img src={pictures.before} alt="Before GUI"/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI"/>}</>:<span className="dim">{failed?'No preview':'…'}</span>}
   </span>;
 }
 
