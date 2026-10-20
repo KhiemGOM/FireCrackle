@@ -6,17 +6,16 @@ import type {ProofAction} from '../lib/comparisonProof';
 import {formatTimecode} from '../lib/timecode';
 import {ComparisonProofButton} from './ComparisonProofButton';
 import {GuiInteractionTool} from './GuiInteractionTool';
+import {displayFrame} from '../lib/imagePreview';
 import './MiscToolsTab.css';
 
 function useReviewImage(backend:Backend,frame:number|null){
- const [image,setImage]=useState<{frame:number;url:string}|null>(null),[error,setError]=useState<{frame:number;text:string}|null>(null);
+ const [image,setImage]=useState<{frame:number;url:string;full:boolean}|null>(null),[error,setError]=useState<{frame:number;text:string}|null>(null);
  useEffect(()=>{
   if(frame===null)return;
-  let cancelled=false,url:string|undefined;
-  void backend.frame(frame).then(bytes=>{if(cancelled)return;url=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'}));setImage({frame,url});setError(null);}).catch(e=>{if(!cancelled)setError({frame,text:e instanceof Error?e.message:String(e)});});
-  return()=>{cancelled=true;if(url)URL.revokeObjectURL(url);};
+  return displayFrame(backend,frame,(url,full)=>{setImage({frame,url,full});setError(null);},e=>setError({frame,text:e instanceof Error?e.message:String(e)}));
  },[backend,frame]);
- return {url:image?.frame===frame?image.url:undefined,error:error?.frame===frame?error.text:undefined};
+ return {url:image?.frame===frame?image.url:undefined,full:image?.frame===frame&&image.full,error:error?.frame===frame?error.text:undefined};
 }
 function DifferencePicture({before,after,gain}:{before:string;after:string;gain:number}){
  const canvas=useRef<HTMLCanvasElement>(null),[error,setError]=useState('');
@@ -39,7 +38,7 @@ function DifferencePicture({before,after,gain}:{before:string;after:string;gain:
 function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null}:{backend:Backend;frame:number|null;title:string;fps:number;onOpen:(frame:number)=>void;compareFrame?:number|null}){
  const image=useReviewImage(backend,frame),comparison=useReviewImage(backend,compareFrame);
  const [mode,setMode]=useState<'original'|'diff'|'blink'>('original'),[gain,setGain]=useState(3),[showBefore,setShowBefore]=useState(false);
- const ready=!!image.url&&!!comparison.url,inspect=title==='After';
+ const ready=!!image.url&&!!comparison.url,inspect=title==='After',diffReady=ready&&image.full&&comparison.full;
  useEffect(()=>{
   setShowBefore(false);
   if(mode!=='blink'||!ready)return;
@@ -50,7 +49,7 @@ function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null}:{backend
  return <figure className="misc-review-frame">
   <figcaption><strong>{title}</strong>{frame!==null&&<span>Frame {frame} · {formatTimecode(frame/fps,fps)}</span>}</figcaption>
   <div className="misc-frame-image">
-   {frame===null?<span>No frame on this side of the video.</span>:!image.url?<span role={image.error?'alert':'status'}>{image.error?`Could not load frame: ${image.error}`:'Loading frame…'}</span>:inspect&&mode==='diff'&&ready?<DifferencePicture before={comparison.url!} after={image.url} gain={gain}/>:<>
+   {frame===null?<span>No frame on this side of the video.</span>:!image.url?<span role={image.error?'alert':'status'}>{image.error?`Could not load frame: ${image.error}`:'Loading frame…'}</span>:inspect&&mode==='diff'?diffReady?<DifferencePicture before={comparison.url!} after={image.url} gain={gain}/>:<span>Loading full detail…</span>:<>
     <img src={image.url} alt={`${title}: frame ${frame}`} draggable={false}/>
     {blinking&&<img className={`misc-blink-layer ${displayBefore?'visible':''}`} src={comparison.url} alt={`Before: frame ${compareFrame}`} draggable={false} aria-hidden={!displayBefore}/>}
    </>}

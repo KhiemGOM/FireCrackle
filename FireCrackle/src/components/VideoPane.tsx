@@ -39,6 +39,8 @@ import { GUI_ASSUMPTION, veilScreenEvidence } from "../lib/guiMask";
 import { JumpBox } from "./JumpBox";
 import { DEFAULT_BUFFER_SETTINGS, FrameBuffer, type BufferSettings } from "../lib/frameBuffer";
 import { domBufferIo } from "../lib/frameBufferDom";
+import {previewFrames} from "../lib/guiThumbnailCache";
+import {photoPreview} from "../lib/imagePreview";
 import { shouldShowLate } from "../lib/lateFrame";
 import { correctsNow } from "../lib/correctionGate";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
@@ -68,7 +70,7 @@ function labelClass(label: Label): string {
 
 interface Props {
   firstPersonAllowed?: boolean;
-  stillImage?: { name: string; url: string };
+  stillImage?: { name: string; url: string; file?: Blob };
   storageScope?: string;
   stateStorage?: Pick<Storage, "getItem" | "setItem">;
   atlasEdges?: AtlasEdges | null;
@@ -335,18 +337,41 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     let guiProtected = false;
     if (runPortal) reportPortalStatus(guiReady && portalMode === "auto" ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
     else reportPortalStatus(playing && portalMode !== "off" ? "Applied when playback is paused" : "");
+    // Small cached placeholders first; tools keep waiting for the original frame.
+    let quickReady: Promise<void> | null = null;
+    if (!playing && shownRef.current !== view.current && (stillImage?.file || (!stillImage && backend.previewThumbnail))) {
+      const quick = stillImage?.file ? photoPreview(stillImage.file, 512) : previewFrames(backend).get(view.current, () => mine === token.current);
+      quickReady = quick.then(preview => {
+        if (mine !== token.current) return;
+        const old=urlRef.current,fromBuffer=urlFromBuffer.current;
+        urlRef.current=preview;urlFromBuffer.current=false;shownRef.current=null;
+        setUrl(preview);setShown(null);
+        if(old&&!fromBuffer)URL.revokeObjectURL(old);
+      }).catch(()=>{});
+    }
     if (stillImage && veilMode === "off" && portalMode === "off" && !enhanceOn) {
-      if (urlRef.current && !urlFromBuffer.current) URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null; urlFromBuffer.current = false;
-      shownRef.current = view.current;
-      setUrl(stillImage.url); setShown(view.current); setVeilApplied(false); setEnhanceApplied(false); return;
+      const showOriginal=()=>{
+        if(mine!==token.current)return;
+        if(urlRef.current&&!urlFromBuffer.current)URL.revokeObjectURL(urlRef.current);
+        urlRef.current=null;urlFromBuffer.current=false;shownRef.current=view.current;
+        setUrl(stillImage.url);setShown(view.current);setVeilApplied(false);setEnhanceApplied(false);
+      };
+      if(quickReady)void quickReady.then(() => new Promise<void>(resolve => {
+        const image=new Image();image.onload=()=>resolve();image.onerror=()=>resolve();image.src=stillImage.url;
+      })).then(showOriginal);else showOriginal();
+      return () => { ++token.current; cancel.abort(); };
     }
     if (!stillImage && buffer) {
-      buffer.prefetch(view.current, motionRef.current);
+      if(!quickReady)buffer.prefetch(view.current, motionRef.current);
       if (!correcting) {
         // no picture correction: show the frame buffer's own, already decoded, object URL
         const frame = view.current;
-        buffer.load(frame, cancel.signal).then(() => {
+        const loadFull=()=>{
+          if(cancel.signal.aborted)return Promise.reject(new Error("cancelled"));
+          if(quickReady)buffer.prefetch(frame,motionRef.current);
+          return buffer.load(frame,cancel.signal);
+        };
+        (quickReady?quickReady.then(loadFull):loadFull()).then(() => {
           // the playhead moved on while this frame was on its way: it is still shown when it is newer than the picture
           // on screen and not too far behind (lib/lateFrame.ts), so a slow moment slows the picture, not freezes it
           const late = mine !== token.current;
@@ -366,7 +391,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
     const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
       ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original, fromBuffer: false }; })
-      : (buffer ? buffer.load(view.current, cancel.signal) : backend.frame(view.current).then((bytes) => ({ bytes, fromBuffer: false })))
+      : (quickReady?quickReady.then(() => buffer ? buffer.load(view.current,cancel.signal) : backend.frame(view.current).then(bytes=>({bytes,fromBuffer:false}))): (buffer ? buffer.load(view.current,cancel.signal) : backend.frame(view.current).then(bytes=>({bytes,fromBuffer:false}))))
         .then(({ bytes, fromBuffer }) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }), fromBuffer }));
     source
       .then(async ({ bytes, original }) => {

@@ -14,6 +14,7 @@ import type { AtlasEdges } from "../lib/atlasFilter";
 import { useWheel } from "../hooks/useWheel";
 import { VideoPane, type VideoPreviewHandle } from "./VideoPane";
 import { Picker } from "./Picker";
+import { GalleryThumbnail } from "./GalleryThumbnail";
 import { Splitter } from "./Splitter";
 import { IconButton } from "./Icon";
 import "./ImagesTab.css";
@@ -162,7 +163,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
           <Splitter direction="row" label="Image height" value={videoHeight} min={VIDEO_LIMITS.min} getMax={() => upperBound(area.current?.clientHeight ?? 0, 170, VIDEO_LIMITS.max)} onChange={setVideoHeight} onReset={() => setVideoHeight(520)} />
           <div className="image-gallery" aria-label="Photo gallery">
             {images.map((image, i) => <button key={image.id} ref={image.id === item.id ? selectedThumb : undefined} aria-pressed={image.id === item.id} onClick={() => { setIndex(i); setError(null); }} title={image.name}>
-              <img src={image.url} alt="" loading="lazy" /><span>{i + 1}. {image.name}</span>
+              <GalleryThumbnail image={image}/><span>{i + 1}. {image.name}</span>
             </button>)}
           </div>
         </section>

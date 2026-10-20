@@ -17,6 +17,7 @@ mod gui_scan;
 mod jolt;
 mod no_fire;
 mod pov;
+mod preview_thumbnail;
 mod quad_phase;
 mod scan_cache;
 mod url_import;
@@ -292,6 +293,30 @@ async fn import_labels(state: State<'_, AppState>, path: String) -> Result<View,
     .await
 }
 
+#[tauri::command]
+async fn preview_thumbnail(
+    state: State<'_, AppState>,
+    frame: u32,
+    width: Option<u32>,
+) -> Result<Response, String> {
+    let (project, dir) = run(state.ws.clone(), |w| {
+        Ok((w.automation_project(), w.dir().to_path_buf()))
+    })
+    .await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        preview_thumbnail::get_sized(
+            &project,
+            &dir,
+            frame,
+            width.unwrap_or(128),
+            external_tools::video_tools,
+        )
+        .map(Response::new)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// The JPEG bytes of one frame, sent raw (no JSON). A frame that is not cached decodes for up to a second, so the
 /// workspace is locked only to take a handle on its frame cache: every other command keeps working meanwhile.
 #[tauri::command]
@@ -482,6 +507,7 @@ pub fn run_app() {
             export_labels,
             import_labels,
             frame,
+            preview_thumbnail,
             timeline,
             flags,
             phase_chart,

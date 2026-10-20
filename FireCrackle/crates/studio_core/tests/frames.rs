@@ -310,6 +310,58 @@ fn a_keyframe_at_the_start_of_the_file_needs_no_seek() {
 // ============================================== decoding (needs ffmpeg)
 
 #[test]
+fn exact_small_previews_keep_frame_identity_after_the_gop_prefix() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, idx) = video("preview_identity", 60, GOP);
+    let job = job_for(&idx, 40, 3, 3);
+    let cfg = DecodeConfig {
+        max_width: 32,
+        jpeg_quality: 14,
+        ..DecodeConfig::default()
+    };
+    let result = decode_preview(
+        &Tools::default(),
+        &v,
+        &idx,
+        &job,
+        &cfg,
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(
+        result.iter().map(|f| f.frame).collect::<Vec<_>>(),
+        (37..=43).collect::<Vec<_>>()
+    );
+    for frame in result {
+        assert_eq!(frame_of(&frame.jpeg), frame.frame as i64);
+        assert_eq!(mean_and_size(&frame.jpeg).1 .0, 32);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn exact_small_previews_reject_a_shifted_index() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, mut idx) = video("preview_wrong_index", 60, GOP);
+    idx.frames[40].pts += 1.;
+    let job = job_for(&idx, 40, 0, 0);
+    let result = decode_preview(
+        &Tools::default(),
+        &v,
+        &idx,
+        &job,
+        &DecodeConfig::default(),
+        &AtomicBool::new(false),
+    );
+    assert!(matches!(result, Err(DecodeError::Misaligned { .. })));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_window_decodes_to_the_right_pictures_in_order() {
     if !have_tools() {
         eprintln!("ffmpeg not found, skipping");

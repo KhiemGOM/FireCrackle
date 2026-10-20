@@ -172,6 +172,30 @@ pub fn decode_job(
     cfg: &DecodeConfig,
     cancel: &AtomicBool,
 ) -> Result<Vec<DecodedFrame>, DecodeError> {
+    decode_selected(tools, video, index, job, cfg, cancel, false)
+}
+
+/// Exact previews omit the unwanted keyframe prefix before scaling and JPEG encoding.
+pub fn decode_preview(
+    tools: &Tools,
+    video: &Path,
+    index: &FrameIndex,
+    job: &DecodeJob,
+    cfg: &DecodeConfig,
+    cancel: &AtomicBool,
+) -> Result<Vec<DecodedFrame>, DecodeError> {
+    decode_selected(tools, video, index, job, cfg, cancel, true)
+}
+
+fn decode_selected(
+    tools: &Tools,
+    video: &Path,
+    index: &FrameIndex,
+    job: &DecodeJob,
+    cfg: &DecodeConfig,
+    cancel: &AtomicBool,
+    preview: bool,
+) -> Result<Vec<DecodedFrame>, DecodeError> {
     let n = index.frames.len() as u32;
     let bad = |why: &str| DecodeError::BadJob(why.to_string());
     if job.first > job.last {
@@ -211,13 +235,25 @@ pub fn decode_job(
         }
         None => index.frames[0].pts,
     };
+    let first_output = if preview { job.first } else { job.keyframe };
+    let output_count = job.last - first_output + 1;
+    let filter = if preview {
+        format!(
+            "trim=start_frame={}:end_frame={},scale=w=min({}\\,iw):h=-2,showinfo",
+            job.first - job.keyframe,
+            job.last - job.keyframe + 1,
+            cfg.max_width
+        )
+    } else {
+        format!("scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width)
+    };
     cmd.arg("-i")
         .arg(video)
         .args(crate::import::passthrough_args(&tools.ffmpeg))
         .arg("-frames:v")
-        .arg(job.decode_count.to_string())
+        .arg(output_count.to_string())
         .arg("-vf")
-        .arg(format!("scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width))
+        .arg(filter)
         .args(crate::proc::JPEG_OUTPUT)
         .arg(cfg.jpeg_quality.to_string())
         .arg("-")
@@ -243,24 +279,24 @@ pub fn decode_job(
             tail.into_iter().rev().collect::<Vec<_>>().join(" | ")
         )));
     }
-    if got < job.decode_count {
+    if got < output_count {
         return Err(DecodeError::ShortRead {
-            expected: job.decode_count,
+            expected: output_count,
             got,
         });
     }
 
     // every decoded frame must be the index entry it will be shown as
     let times = parse_showinfo(&stderr);
-    if (times.len() as u32) < job.decode_count {
+    if (times.len() as u32) < output_count {
         return Err(DecodeError::BadStream(format!(
             "ffmpeg reported {} frame times for {} pictures",
             times.len(),
-            job.decode_count
+            output_count
         )));
     }
-    for k in 0..job.decode_count {
-        let frame = job.keyframe + k;
+    for k in 0..output_count {
+        let frame = first_output + k;
         let expected = index.frames[frame as usize].pts;
         let interval = if frame + 1 < n {
             index.frames[frame as usize + 1].pts - expected
@@ -282,7 +318,7 @@ pub fn decode_job(
     Ok((job.first..=job.last)
         .map(|frame| DecodedFrame {
             frame,
-            jpeg: bytes[split.frames[(frame - job.keyframe) as usize].clone()].to_vec(),
+            jpeg: bytes[split.frames[(frame - first_output) as usize].clone()].to_vec(),
         })
         .collect())
 }

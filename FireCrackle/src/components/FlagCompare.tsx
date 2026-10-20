@@ -6,6 +6,7 @@ import { relativePhase, type ChartPoint, type PhaseChart } from "../lib/chart";
 import { compareFrames, describePoint, spriteRowOf } from "../lib/flagCompare";
 import { flagText, priorityHint } from "../lib/flagText";
 import { IconButton } from "./Icon";
+import {displayFrame} from '../lib/imagePreview';
 import "./FlagCompare.css";
 
 interface Props {
@@ -24,20 +25,7 @@ function useFrameUrl(backend: Backend, frame: number | null): string | null {
   useEffect(() => {
     setUrl(null);
     if (frame === null) return;
-    let cancelled = false;
-    let made: string | null = null;
-    backend
-      .frame(frame)
-      .then((bytes) => {
-        if (cancelled) return;
-        made = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
-        setUrl(made);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-      if (made) URL.revokeObjectURL(made);
-    };
+    return displayFrame(backend,frame,setUrl,()=>{});
   }, [backend, frame]);
   return url;
 }

@@ -2,6 +2,17 @@ import {expect,it,vi} from 'vitest';
 import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails} from './guiThumbnailCache';
 import type {Backend} from './api';
 const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
+it('uses the small native JPEG directly without decoding a full-size frame',async()=>{
+  class Reader{result='data:image/jpeg;base64,small';onload:(()=>void)|null=null;readAsDataURL(){this.onload?.();}}
+  vi.stubGlobal('FileReader',Reader);
+  try{
+    const frame=vi.fn(),previewThumbnail=vi.fn(async()=>new ArrayBuffer(4));
+    const backend={frame,previewThumbnail} as unknown as Backend,cache=guiThumbnails(backend,'small',100);
+    expect(await cache.get(7)).toBe('data:image/jpeg;base64,small');
+    expect(await cache.get(7)).toBe('data:image/jpeg;base64,small');
+    expect(frame).not.toHaveBeenCalled();expect(previewThumbnail).toHaveBeenCalledTimes(1);
+  }finally{vi.unstubAllGlobals();}
+});
 it('shares only the current video cache and invalidates same-path reopened videos',()=>{
   const backend={} as Backend,first=guiThumbnails(backend,'a',100);
   expect(guiThumbnails(backend,'a',100)).toBe(first);

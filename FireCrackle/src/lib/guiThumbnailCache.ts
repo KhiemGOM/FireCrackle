@@ -45,17 +45,30 @@ export class GuiThumbnailCache {
   private pump(){while(this.active<this.parallel&&this.queue.length)this.queue.shift()!();}
 }
 
-const caches=new WeakMap<Backend,{video:string;cache:GuiThumbnailCache}>();
-export function clearGuiThumbnails(backend:Backend){caches.get(backend)?.cache.clear();caches.delete(backend);}
+const caches=new WeakMap<Backend,{video?:string;sizes:Map<number,GuiThumbnailCache>}>();
+export function clearGuiThumbnails(backend:Backend){caches.get(backend)?.sizes.forEach(cache=>cache.clear());caches.delete(backend);}
 export function guiThumbnails(backend:Backend,videoKey:string|undefined,total:number):GuiThumbnailCache{
   const video=JSON.stringify([videoKey,total]),existing=caches.get(backend);
-  if(existing?.video===video)return existing.cache;
-  existing?.cache.clear();
+  if(existing?.video!==undefined&&existing.video!==video)clearGuiThumbnails(backend);
+  const cache=previewFrames(backend,128);caches.get(backend)!.video=video;return cache;
+}
+/** Shared display previews; never used as matching, mask, difference or export evidence. */
+export function previewFrames(backend:Backend,width=512):GuiThumbnailCache{
+  width=width<=128?128:width<=512?512:1024;
+  let owner=caches.get(backend);if(!owner){owner={sizes:new Map()};caches.set(backend,owner);}
+  const found=owner.sizes.get(width);if(found)return found;
   const cache=new GuiThumbnailCache(async frame=>{
+    if(backend.previewThumbnail){
+      const bytes=await backend.previewThumbnail(frame,width);
+      return new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();reader.onload=()=>resolve(reader.result as string);
+        reader.onerror=()=>reject(Error('Could not read thumbnail'));reader.readAsDataURL(new Blob([bytes],{type:'image/jpeg'}));
+      });
+    }
     const image=await loadFrameImage(await backend.frame(frame));
-    const canvas=document.createElement('canvas');canvas.width=160;canvas.height=Math.max(1,Math.round(160*image.naturalHeight/image.naturalWidth));
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=Math.max(1,Math.round(width*image.naturalHeight/image.naturalWidth));
     const context=canvas.getContext('2d');if(!context)throw Error('Thumbnail unavailable');
-    context.drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.8);
+    context.drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',0.55);
   });
-  caches.set(backend,{video,cache});return cache;
+  owner.sizes.set(width,cache);return cache;
 }
