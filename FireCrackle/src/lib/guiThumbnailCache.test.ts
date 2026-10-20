@@ -60,3 +60,31 @@ it('retries failed requests and never caches stale work after a video reset',asy
   const old=other.get(1);await tick();other.clear();finish('old');await old;await tick();
   const fresh=other.get(1);await tick();expect(pendingLoad).toHaveBeenCalledTimes(2);finish('fresh');expect(await fresh).toBe('fresh');
 });
+it('loads visible cards ahead of queued ranking work and promotes a shared request',async()=>{
+  const finish:Array<(image:string)=>void>=[],order:number[]=[];
+  const cache=new GuiThumbnailCache(n=>{order.push(n);return new Promise(resolve=>finish.push(resolve));},20,10000,1);
+  const active=cache.get(1,()=>true,'background');
+  const background=cache.get(2,()=>true,'background');
+  const promoted=cache.get(3,()=>true,'background');
+  expect(cache.get(3,()=>true)).toBe(promoted);
+  const visible=cache.get(4);
+  await tick();finish[0]('first');await active;await tick();expect(order).toEqual([1,3]);
+  finish[1]('third');await promoted;await tick();expect(order).toEqual([1,3,4]);
+  finish[2]('fourth');await visible;await tick();expect(order).toEqual([1,3,4,2]);
+  finish[3]('second');await background;
+});
+it('demotes an offscreen card that is still needed by background ranking',async()=>{
+  const finish:Array<(image:string)=>void>=[],order:number[]=[];let showing=true;
+  const cache=new GuiThumbnailCache(n=>{order.push(n);return new Promise(resolve=>finish.push(resolve));},20,10000,1);
+  const active=cache.get(1),offscreen=cache.get(2,()=>showing);cache.get(2,()=>true,'background');
+  const visible=cache.get(3);showing=false;
+  await tick();finish[0]('first');await active;await tick();expect(order).toEqual([1,3]);
+  finish[1]('visible');await visible;await tick();expect(order).toEqual([1,3,2]);
+  finish[2]('ranked');await offscreen;
+});
+it('passes only nearby targets to the loader and reuses their cached images',async()=>{
+  const load=vi.fn(async n=>`jpeg${n}`),cache=new GuiThumbnailCache(load);
+  cache.setTargets([1,20,239,240,300]);
+  await cache.get(20);expect(load).toHaveBeenCalledWith(20,[1,20,239]);
+  await cache.get(20);expect(load).toHaveBeenCalledTimes(1);
+});

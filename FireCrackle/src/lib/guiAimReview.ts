@@ -17,10 +17,10 @@ export async function previewPixelChange(before:string,after:string):Promise<num
   });
   const [a,b]=await Promise.all([load(before),load(after)]);
   if(a.naturalWidth!==b.naturalWidth||a.naturalHeight!==b.naturalHeight)throw Error('Motion previews have different dimensions.');
-  const canvas=document.createElement('canvas');canvas.width=a.naturalWidth;canvas.height=a.naturalHeight;
+  const canvas=document.createElement('canvas');canvas.width=Math.min(128,a.naturalWidth);canvas.height=Math.max(1,Math.round(canvas.width*a.naturalHeight/a.naturalWidth));
   const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw Error('Motion preview unavailable');
-  context.drawImage(a,0,0);const left=context.getImageData(0,0,canvas.width,canvas.height);
-  context.drawImage(b,0,0);const right=context.getImageData(0,0,canvas.width,canvas.height);
+  context.drawImage(a,0,0,canvas.width,canvas.height);const left=context.getImageData(0,0,canvas.width,canvas.height);
+  context.drawImage(b,0,0,canvas.width,canvas.height);const right=context.getImageData(0,0,canvas.width,canvas.height);
   return meanPixelChange(left.data,right.data);
 }
 export function rankGuiRanges(ranges:GuiRange[],scores:ReadonlyMap<string,number|null>):GuiRange[]{

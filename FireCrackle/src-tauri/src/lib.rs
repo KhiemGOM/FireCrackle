@@ -298,19 +298,30 @@ async fn preview_thumbnail(
     state: State<'_, AppState>,
     frame: u32,
     width: Option<u32>,
+    targets: Option<Vec<u32>>,
 ) -> Result<Response, String> {
     let (project, dir) = run(state.ws.clone(), |w| {
         Ok((w.automation_project(), w.dir().to_path_buf()))
     })
     .await?;
     tauri::async_runtime::spawn_blocking(move || {
-        preview_thumbnail::get_sized(
-            &project,
-            &dir,
-            frame,
-            width.unwrap_or(128),
-            external_tools::video_tools,
-        )
+        match targets {
+            Some(targets) => preview_thumbnail::get_with_targets(
+                &project,
+                &dir,
+                frame,
+                width.unwrap_or(128),
+                &targets,
+                external_tools::video_tools,
+            ),
+            None => preview_thumbnail::get_sized(
+                &project,
+                &dir,
+                frame,
+                width.unwrap_or(128),
+                external_tools::video_tools,
+            ),
+        }
         .map(Response::new)
     })
     .await

@@ -1,8 +1,12 @@
 //! Exact-frame list previews, separate from the full-resolution playback/prefetch cache.
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::{
+        Arc, Mutex, OnceLock, Weak,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
 };
 use studio_core::{
     config::DecodeConfig, decode_plan::job_for, frames::decode_preview, import::Tools,
@@ -70,6 +74,51 @@ pub fn get_sized(
     width: u32,
     tools: impl FnOnce() -> Result<Tools, String>,
 ) -> Result<Vec<u8>, String> {
+    get_with_targets(project, dir, frame, width, &[], tools)
+}
+
+// Bound batch latency/memory even when a source has unusually long keyframe intervals.
+fn batch_targets(index: &studio_core::index::FrameIndex, frame: u32, targets: &[u32]) -> Vec<u32> {
+    let key = index.keyframe_at_or_before(frame);
+    let mut wanted: Vec<_> = targets
+        .iter()
+        .copied()
+        .filter(|&n| {
+            (n as usize) < index.frames.len()
+                && n / 240 == frame / 240
+                && index.keyframe_at_or_before(n) == key
+        })
+        .collect();
+    wanted.push(frame);
+    wanted.sort_unstable();
+    wanted.dedup();
+    wanted
+}
+fn batch_lock(path: &Path, window: u32) -> Arc<Mutex<()>> {
+    type Locks = HashMap<(PathBuf, u32), Weak<Mutex<()>>>;
+    static LOCKS: OnceLock<Mutex<Locks>> = OnceLock::new();
+    let mut locks = LOCKS
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    let key = (path.parent().unwrap_or(path).to_path_buf(), window);
+    if let Some(lock) = locks.get(&key).and_then(Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(Mutex::new(()));
+    locks.insert(key, Arc::downgrade(&lock));
+    lock
+}
+
+pub fn get_with_targets(
+    project: &Project,
+    dir: &Path,
+    frame: u32,
+    width: u32,
+    targets: &[u32],
+    tools: impl FnOnce() -> Result<Tools, String>,
+) -> Result<Vec<u8>, String> {
     let width = match width {
         0..=128 => 128,
         129..=512 => 512,
@@ -83,12 +132,22 @@ pub fn get_sized(
         return Ok(bytes);
     }
     let index = project.frame_index();
+    let lock = (!targets.is_empty()).then(|| batch_lock(&path, frame / 240));
+    let _guard = lock
+        .as_ref()
+        .map(|lock| lock.lock().unwrap_or_else(|e| e.into_inner()));
+    // A concurrent request may already have decoded this same window.
+    if let Some(bytes) = read(&path) {
+        return Ok(bytes);
+    }
+    let mut wanted = batch_targets(&index, frame, targets);
+    wanted.retain(|&n| n == frame || read(&cache_path(project, dir, n, width)).is_none());
     let mut config = profile();
     config.max_width = width;
     config.jpeg_quality = if width <= 128 { 14 } else { 10 };
-    let job = job_for(&index, frame, frame, &config);
+    let job = job_for(&index, wanted[0], *wanted.last().unwrap(), &config);
     // Reuse the shipped timestamp-verified decoder. No playback lookahead or background fill.
-    let mut decoded = decode_preview(
+    let decoded = decode_preview(
         &tools()?,
         Path::new(&project.video_path),
         &index,
@@ -97,10 +156,22 @@ pub fn get_sized(
         &AtomicBool::new(false),
     )
     .map_err(|e| format!("Thumbnail decode failed: {e:?}"))?;
-    let jpeg = decoded
-        .pop()
-        .ok_or("Thumbnail decoder returned no image")?
-        .jpeg;
+    let mut requested = None;
+    for decoded in decoded {
+        if wanted.binary_search(&decoded.frame).is_ok() {
+            persist(
+                &cache_path(project, dir, decoded.frame, width),
+                &decoded.jpeg,
+            );
+        }
+        if decoded.frame == frame {
+            requested = Some(decoded.jpeg);
+        }
+    }
+    requested.ok_or("Thumbnail decoder returned no image".into())
+}
+
+fn persist(path: &Path, jpeg: &[u8]) {
     // Disk caching is best effort, including on read-only project folders.
     if let Some(parent) = path.parent() {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -110,19 +181,80 @@ pub fn get_sized(
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
-            if std::fs::write(&temporary, &jpeg).is_ok() {
-                let _ = std::fs::rename(&temporary, &path);
+            if std::fs::write(&temporary, jpeg).is_ok() {
+                let _ = std::fs::rename(&temporary, path);
             }
             let _ = std::fs::remove_file(temporary);
         }
     }
-    Ok(jpeg)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use studio_core::frames::decode_job;
+    use studio_core::{decode_plan::job_for, frames::decode_job};
+    #[test]
+    fn batches_only_valid_targets_in_the_same_bounded_keyframe_window() {
+        let mut fixture = crate::scan_cache::tests::fixture(800);
+        for entry in &mut fixture.project.frames {
+            entry.key = false;
+        }
+        fixture.project.frames[0].key = true;
+        fixture.project.frames[500].key = true;
+        let index = fixture.project.frame_index();
+        assert_eq!(
+            batch_targets(&index, 490, &[1, 480, 490, 499, 500, 510, 720, 900]),
+            vec![480, 490, 499]
+        );
+        assert_eq!(
+            batch_targets(&index, 510, &[490, 500, 510, 600, 720, 900]),
+            vec![500, 510, 600]
+        );
+    }
+    #[test]
+    #[ignore = "Requires GUI_THUMB_PROJECT, GUI_THUMB_CACHE, GUI_THUMB_FFMPEG and GUI_THUMB_FFPROBE"]
+    fn real_batch_reuses_one_decode_and_matches_single_frame_bytes() {
+        use std::sync::atomic::AtomicUsize;
+        let project =
+            Project::load(Path::new(&std::env::var("GUI_THUMB_PROJECT").unwrap())).unwrap();
+        let dir = PathBuf::from(std::env::var("GUI_THUMB_CACHE").unwrap());
+        let tools = Tools {
+            ffmpeg: std::env::var_os("GUI_THUMB_FFMPEG").unwrap(),
+            ffprobe: std::env::var_os("GUI_THUMB_FFPROBE").unwrap(),
+        };
+        let targets = [584, 616, 644, 679];
+        let calls = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let a = scope.spawn(|| {
+                get_with_targets(&project, &dir.join("batch"), 584, 512, &targets, || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(tools.clone())
+                })
+                .unwrap()
+            });
+            let b = scope.spawn(|| {
+                get_with_targets(&project, &dir.join("batch"), 616, 512, &targets, || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(tools.clone())
+                })
+                .unwrap()
+            });
+            assert!(!a.join().unwrap().is_empty());
+            assert!(!b.join().unwrap().is_empty());
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        for frame in targets {
+            let cached = get_sized(&project, &dir.join("batch"), frame, 512, || {
+                panic!("batch target must be cached")
+            })
+            .unwrap();
+            let single = get_sized(&project, &dir.join("single"), frame, 512, || {
+                Ok(tools.clone())
+            })
+            .unwrap();
+            assert_eq!(cached, single, "exact frame {frame}");
+        }
+    }
     #[test]
     fn rejects_invalid_frame_before_reading_or_decoding() {
         let fixture = crate::scan_cache::tests::fixture(3);

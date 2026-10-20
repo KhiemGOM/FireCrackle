@@ -93,7 +93,7 @@ export interface Backend {
   act(action: UiAction): Promise<View>;
   frame(frame: number): Promise<ArrayBuffer>;
   /** Exact frame, small low-quality JPEG for list previews only. */
-  previewThumbnail?(frame: number, width?: number): Promise<ArrayBuffer>;
+  previewThumbnail?(frame: number, width?: number, targets?: readonly number[]): Promise<ArrayBuffer>;
   timeline(start: number, end: number, buckets: number): Promise<Bucket[]>;
   flags(): Promise<Flag[]>;
   /** The phase series (at most `maxPoints` points), runs and flags for the Phase tab. */
@@ -199,7 +199,7 @@ export async function createBackend(): Promise<Backend> {
     view: () => invoke<View>("view"),
     act: (action) => invoke<View>("act", { action }),
     frame: (frame) => invoke<ArrayBuffer>("frame", { frame }),
-    previewThumbnail: (frame, width=128) => invoke<ArrayBuffer>("preview_thumbnail", { frame, width }),
+    previewThumbnail: (frame, width=128, targets) => invoke<ArrayBuffer>("preview_thumbnail", { frame, width, targets }),
     timeline: (start, end, buckets) => invoke<Bucket[]>("timeline", { start, end, buckets }),
     flags: () => invoke<Flag[]>("flags"),
     phaseChart: (maxPoints,source) => invoke<PhaseChart>("phase_chart", { maxPoints,source }),

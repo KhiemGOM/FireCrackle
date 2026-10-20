@@ -9,7 +9,7 @@ import {guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../l
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
   const thumbnails=guiThumbnails(backend,videoKey,total);
-  const cache=large?previewFrames(backend,1024):thumbnails;
+  const cache=large?previewFrames(backend,512):thumbnails;
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
   const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -58,9 +58,14 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
   const rangeKey=JSON.stringify([videoKey,status?.total,ranges.map(guiRangeKey)]);
+  if(status?.total){
+    guiThumbnails(backend,videoKey,status.total);
+    previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiReviewFrames(range,status.total);return [frames.before,frames.after];}));
+  }
   useEffect(()=>{
     if(mode!=='aim'||order!=='motion'||!status?.total)return;
-    const cache=guiThumbnails(backend,videoKey,status.total);
+    guiThumbnails(backend,videoKey,status.total);
+    const cache=previewFrames(backend,512);
     if(motionScores.current.cache!==cache)motionScores.current={cache,scores:new Map()};
     const scores=motionScores.current.scores,total=status.total;
     let cancelled=false,next=0,processed=0;
@@ -72,7 +77,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
         if(!scores.has(key)){
           try{
             const frames=guiReviewFrames(range,total),wanted=()=>!cancelled;
-            const [before,after]=await Promise.all([cache.get(frames.before,wanted),cache.get(frames.after,wanted)]);
+            const [before,after]=await Promise.all([cache.get(frames.before,wanted,'background'),cache.get(frames.after,wanted,'background')]);
             if(cancelled)return;
             const score=await previewPixelChange(before,after);if(cancelled)return;scores.set(key,score);
           }catch{if(cancelled)return;scores.set(key,null);}
