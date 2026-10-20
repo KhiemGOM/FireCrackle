@@ -22,6 +22,7 @@ pub struct PanelTemplate {
     pub viewport_y: f64,
     border: Vec<Probe>,
     structure: Vec<Probe>,
+    presence_structure: Vec<Probe>,
     identity: Vec<Probe>,
 }
 
@@ -57,6 +58,8 @@ pub struct PanelMatch {
     pub score: f64,
     pub border_score: f64,
     pub structure_score: f64,
+    /// Whole-panel evidence establishes GUI presence, not an exact type.
+    pub presence_only: bool,
     /// Visible probes contributing to each score; zero means unavailable,
     /// not a negative vote. Order: border, structure, fixed controls.
     pub visible_probes: [usize; 3],
@@ -124,6 +127,7 @@ impl PanelTemplate {
         };
         let mut border = Vec::new();
         let mut structure = Vec::new();
+        let mut presence_structure = Vec::new();
         let coloured = screen_type.ends_with("book_edit_screen")
             || screen_type.ends_with("book_sign_screen")
             || screen_type.ends_with("book_view_screen")
@@ -166,10 +170,8 @@ impl PanelTemplate {
                     if (x + 3 * y) % 7 == 0 {
                         border.push(probe);
                     }
-                } else if x >= 5
-                    && x < width - 5
-                    && y >= 16
-                    && y < if !coloured
+                } else if x >= 5 && x < width - 5 && y >= 16 && y < height - 5 {
+                    let type_limit = if !coloured
                         && width >= 150
                         && height >= 120
                         && !screen_type.ends_with("horse_inventory_screen")
@@ -178,8 +180,7 @@ impl PanelTemplate {
                         height.saturating_sub(86).max(32)
                     } else {
                         height - 5
-                    }
-                {
+                    };
                     // The lower player inventory/hotbar is shared by many
                     // unrelated containers. Identify the upper work area,
                     // instead of rewarding hundreds of identical lower slots.
@@ -194,7 +195,10 @@ impl PanelTemplate {
                         .any(|p| p[3] == 255 && (0..3).any(|k| p[k].abs_diff(c[k]) >= 24))
                         && (x + y) % 3 == 0
                     {
-                        structure.push(probe);
+                        presence_structure.push(probe);
+                        if y < type_limit {
+                            structure.push(probe);
+                        }
                     }
                 }
             }
@@ -209,6 +213,15 @@ impl PanelTemplate {
         }
         let border = thin(border, 96);
         let structure = thin(structure, 192);
+        let presence_structure = if screen_type.starts_with("inventory.")
+            && !coloured
+            && width >= 150
+            && height >= 120
+        {
+            thin(presence_structure, 192)
+        } else {
+            Vec::new()
+        };
         if border.len() < 16 || structure.len() < 16 {
             return Err("panel has insufficient static anchors".into());
         }
@@ -224,6 +237,7 @@ impl PanelTemplate {
             viewport_y: 0.,
             border,
             structure,
+            presence_structure,
             identity: Vec::new(),
         })
     }
@@ -669,7 +683,7 @@ fn detect_impl(
                             if border.value.is_some_and(|value| value < opts.min_border) {
                                 continue;
                             }
-                            let structure = visible_evidence(
+                            let mut structure = visible_evidence(
                                 rgb,
                                 width,
                                 height,
@@ -681,11 +695,35 @@ fn detect_impl(
                                 opts.min_structure,
                                 occlusion,
                             );
-                            if structure
+                            let presence_only = structure
                                 .value
-                                .is_some_and(|value| value < opts.min_structure)
-                            {
-                                continue;
+                                .is_some_and(|value| value < opts.min_structure);
+                            if presence_only {
+                                if template.presence_structure.is_empty()
+                                    || !template.identity.is_empty()
+                                {
+                                    continue;
+                                }
+                                // Shared player slots are useful GUI-presence
+                                // evidence, but cannot establish a unique type.
+                                structure = visible_evidence(
+                                    rgb,
+                                    width,
+                                    height,
+                                    &template.presence_structure,
+                                    bounds,
+                                    sx,
+                                    sy,
+                                    opts.channel_tolerance,
+                                    opts.min_structure,
+                                    occlusion,
+                                );
+                                if structure
+                                    .value
+                                    .is_none_or(|value| value < opts.min_structure)
+                                {
+                                    continue;
+                                }
                             }
                             let identity = if !template.identity.is_empty() {
                                 visible_evidence(
@@ -731,7 +769,10 @@ fn detect_impl(
                             } else {
                                 identity.value.unwrap_or(0.)
                             };
-                            if best.as_ref().is_none_or(|b| quality > b.score) {
+                            if best.as_ref().is_none_or(|b| {
+                                (b.presence_only && !presence_only)
+                                    || (b.presence_only == presence_only && quality > b.score)
+                            }) {
                                 best = Some(PanelMatch {
                                     screen_type: template.screen_type.clone(),
                                     version: template.version.clone(),
@@ -742,6 +783,7 @@ fn detect_impl(
                                     score: quality,
                                     border_score,
                                     structure_score,
+                                    presence_only,
                                     visible_probes: [
                                         border.probes,
                                         structure.probes,
@@ -758,14 +800,18 @@ fn detect_impl(
             candidates.push(hit);
         }
     }
-    candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
+    candidates.sort_by(|a, b| {
+        a.presence_only
+            .cmp(&b.presence_only)
+            .then(b.score.total_cmp(&a.score))
+    });
     // Different source-version/visual variants of the SAME known screen are
     // not competing semantic types. Never choose a class solely by iteration.
     let best = candidates.first().cloned();
     let runner = best.as_ref().and_then(|best| {
         candidates
             .iter()
-            .find(|p| p.screen_type != best.screen_type)
+            .find(|p| p.screen_type != best.screen_type && p.presence_only == best.presence_only)
     });
     let ambiguous = best
         .as_ref()
@@ -773,6 +819,8 @@ fn detect_impl(
         .is_some_and(|(a, b)| a.score - b.score < opts.min_type_margin);
     let reason = if best.is_none() {
         "no_known_panel_match"
+    } else if best.as_ref().is_some_and(|b| b.presence_only) {
+        "known_panel_presence"
     } else if ambiguous {
         "ambiguous_known_types"
     } else {
@@ -783,6 +831,7 @@ fn detect_impl(
         for candidate in &candidates {
             if (candidate.screen_type == best.screen_type
                 || best.score - candidate.score < opts.min_type_margin)
+                && candidate.presence_only == best.presence_only
                 && !candidate_types.contains(&candidate.screen_type)
             {
                 candidate_types.push(candidate.screen_type.clone());
@@ -795,7 +844,11 @@ fn detect_impl(
         image_height: height,
         gui_detected: best.is_some(),
         candidate_types,
-        matched: if ambiguous { None } else { best },
+        matched: if ambiguous || best.as_ref().is_some_and(|b| b.presence_only) {
+            None
+        } else {
+            best
+        },
         alternatives: candidates,
         reason,
     })

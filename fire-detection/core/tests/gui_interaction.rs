@@ -52,6 +52,71 @@ fn opts() -> Options {
 }
 
 #[test]
+fn shared_player_slots_can_establish_presence_without_claiming_exact_type() {
+    let (w, h) = (176, 166);
+    let mut image = vec![0; w * h * 4];
+    for y in 0..h {
+        for x in 0..w {
+            let border = x < 3 || y < 3 || x >= w - 3 || y >= h - 3;
+            let edge = (7..169).contains(&x)
+                && y >= 17
+                && y < 155
+                && ((x - 7) % 18 == 0 || (y - 17) % 18 == 0);
+            let c = if border {
+                240
+            } else if edge {
+                60
+            } else {
+                180
+            };
+            image[(y * w + x) * 4..(y * w + x) * 4 + 4].copy_from_slice(&[c, c, c, 255]);
+        }
+    }
+    let template = PanelTemplate::from_rgba(
+        "inventory.dispenser_screen".into(),
+        "fixture".into(),
+        "test".into(),
+        w,
+        h,
+        false,
+        &image,
+    )
+    .unwrap();
+    let mut frame = vec![31; 400 * 400 * 3];
+    for y in 0..h * 2 {
+        for x in 0..w * 2 {
+            let src = ((y / 2) * w + x / 2) * 4;
+            let dst = ((34 + y) * 400 + 24 + x) * 3;
+            frame[dst..dst + 3].copy_from_slice(&image[src..src + 3]);
+        }
+    }
+    for y in 18..55 {
+        for x in 62..113 {
+            // Item-like sparse foreground, not an inferred neutral mask.
+            if (x + y) % 3 != 0 {
+                continue;
+            }
+            for dy in 0..2 {
+                for dx in 0..2 {
+                    let dst = ((34 + y * 2 + dy) * 400 + 24 + x * 2 + dx) * 3;
+                    frame[dst..dst + 3].copy_from_slice(&[30, 100, 220]);
+                }
+            }
+        }
+    }
+    let result = detect(&frame, 400, 400, &[template.clone()], opts()).unwrap();
+    assert!(result.gui_detected);
+    assert_eq!(result.reason, "known_panel_presence");
+    assert!(result.matched.is_none());
+    assert!(result.alternatives[0].presence_only);
+    assert!(
+        !detect(&vec![180; 400 * 400 * 3], 400, 400, &[template], opts())
+            .unwrap()
+            .gui_detected
+    );
+}
+
+#[test]
 fn subpixel_source_edges_survive_resampling_without_accepting_flat_or_wrong_layout() {
     let (template, image) = fixture("known_inventory");
     let (width, height) = (200, 140);

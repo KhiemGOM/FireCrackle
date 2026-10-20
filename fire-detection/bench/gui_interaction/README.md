@@ -82,11 +82,15 @@ height, shared player inventory, source preview exclusions) are explicit.
 
 ## Current tiny-GUI/sign development check
 
-**258/261 interaction-GUI samples detected (98.9%); 0/289 closed-GUI false
+**260/261 interaction-GUI samples detected (99.6%); 0/289 closed-GUI false
 detections.** The bounded subpixel source-colour guard, inherited hanging-sign
-controls and source-rounded container origin recover 16 misses without losing
-previous detections. The same-session, sampled-development limits still apply.
-See [`GUI_FINAL_MISS_CHECK.md`](../../../docs/GUI_FINAL_MISS_CHECK.md) for the
+controls, source-rounded container origin and whole-panel presence evidence
+recover 18 misses without losing previous detections. Shared-slot evidence
+returns GUI presence without claiming an exact type. The same-session,
+sampled-development limits still apply. See
+[`GUI_DISTRIBUTED_PRESENCE_CHECK.md`](../../../docs/GUI_DISTRIBUTED_PRESENCE_CHECK.md)
+for the latest presence check,
+[`GUI_FINAL_MISS_CHECK.md`](../../../docs/GUI_FINAL_MISS_CHECK.md) for the
 final cases and source-origin fix, and
 [`GUI_SOFT_GUARD_CHECK.md`](../../../docs/GUI_SOFT_GUARD_CHECK.md) for the earlier
 edge/sign method. Regenerate local source packs to
