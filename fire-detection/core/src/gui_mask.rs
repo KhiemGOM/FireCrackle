@@ -53,6 +53,9 @@ pub struct GuiTextures {
     pub font: Option<Texture>,
     /// Optional local recipe-book sheet; used only by opt-in screen masks.
     pub recipe_book: Option<Texture>,
+    /// Shared, source-versioned interaction/menu evidence. Optional for legacy
+    /// research reproducibility; production callers install the same bank.
+    pub interactions: Option<Arc<crate::gui_interaction::InteractionDetector>>,
 }
 
 impl GuiTextures {
@@ -82,6 +85,7 @@ impl GuiTextures {
             bars: None,
             font: None,
             recipe_book: None,
+            interactions: None,
         })
     }
 
@@ -955,7 +959,8 @@ pub struct GuiMask {
     /// `PixelClass` per pixel.
     pub class: Vec<u8>,
     pub fit: Option<GuiFit>,
-    /// False when no vanilla hotbar was confirmed: then nothing is labelled.
+    /// Whether the vanilla HUD/hotbar fit was confirmed. Independent source
+    /// panels may still supply neutral regions when this is false.
     pub reliable: bool,
     pub hits: Vec<PieceHit>,
     pub notes: Vec<String>,
@@ -1256,6 +1261,9 @@ impl GuiDetector {
     /// Optional prewarm: all cached data is geometry/template-only.
     pub fn prepare(&self, width: usize, height: usize) {
         let _ = self.plan(width, height);
+        if let Some(detector) = &self.textures.interactions {
+            let _ = detector.prepare(width, height);
+        }
     }
     pub fn detect(&self, frame: &[u8], width: usize, height: usize) -> Result<GuiMask, String> {
         if width == 0
@@ -1265,7 +1273,7 @@ impl GuiDetector {
             return Err("invalid GUI frame dimensions".into());
         }
         let plan = self.plan(width, height);
-        detect_prepared(
+        let mut mask = detect_prepared(
             frame,
             width,
             height,
@@ -1275,7 +1283,23 @@ impl GuiDetector {
             Some(&plan),
             Some(&self.shapes),
             None,
-        )
+        )?;
+        self.merge_interactions(frame, width, height, &mut mask)?;
+        Ok(mask)
+    }
+    fn merge_interactions(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+        mask: &mut GuiMask,
+    ) -> Result<(), String> {
+        if let Some(detector) = &self.textures.interactions {
+            detector
+                .detect(frame, width, height)?
+                .merge_neutral_panel(mask)?;
+        }
+        Ok(())
     }
     pub fn detect_timed(
         &self,
@@ -1292,7 +1316,7 @@ impl GuiDetector {
         let plan = self.plan(width, height);
         let begin = std::time::Instant::now();
         let mut times = GuiTimings::default();
-        let mask = detect_prepared(
+        let mut mask = detect_prepared(
             frame,
             width,
             height,
@@ -1306,6 +1330,7 @@ impl GuiDetector {
         if !mask.reliable {
             times.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
         }
+        self.merge_interactions(frame, width, height, &mut mask)?;
         Ok((mask, times))
     }
 }

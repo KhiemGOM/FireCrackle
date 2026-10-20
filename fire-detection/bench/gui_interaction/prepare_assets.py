@@ -50,7 +50,7 @@ PANELS = [
 ]
 
 
-def prepare(client, version, output):
+def prepare(client, version, output, families=None):
     rows=[]
     with zipfile.ZipFile(client) as jar:
         def texture(name):
@@ -67,6 +67,8 @@ def prepare(client, version, output):
             rows.append({'file':filename,'screen_type':kind,'version':version,'variant':variant,'width':width,'height':height,'source_sha256':source_hash,
                          'layout':layout,'identity_anchors':len(identity)})
         for kind,name,w,h,shift in PANELS:
+            if families is not None and kind not in families:
+                continue
             try: image,source_hash=texture(name)
             except KeyError: continue
             canvas=image.crop((0,0,w,h))
@@ -75,6 +77,8 @@ def prepare(client, version, output):
                 box=(25,7,80,75) if kind=='inventory' else (6,16,79,72)
                 ImageDraw.Draw(canvas).rectangle(box,fill=(0,0,0,0))
             save(kind,name,canvas,shift,source_hash)
+        if families is not None:
+            return rows
         image,source_hash=texture('generic_54')
         for n in range(1,7):
             canvas=Image.new('RGBA',(176,114+18*n))
@@ -190,19 +194,44 @@ def prepare(client, version, output):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--client-1165',type=Path)
+    parser.add_argument('--client-12111',type=Path)
+    parser.add_argument('--bundle',type=Path)
+    parser.add_argument('--variant-client',action='append',default=[],metavar='VERSION=JAR',
+                        help='Audited intermediate artwork variants; shared geometry, no separate detector')
     args=parser.parse_args(); args.output.mkdir(parents=True,exist_ok=True)
     cache=Path.home()/'.gradle/caches/fabric-loom'
     rows=[]
+    clients={'1.16.5':args.client_1165 or cache/'1.16.5/minecraft-client.jar',
+             '1.21.11':args.client_12111 or cache/'1.21.11/minecraft-client.jar'}
     for version in ['1.16.5','1.21.11']:
-        rows+=prepare(cache/version/'minecraft-client.jar',version,args.output)
+        rows+=prepare(clients[version],version,args.output)
+    # Notice-board source audit: stable base panels need no release-specific
+    # copies. Only these artwork generations add evidence not in the endpoints.
+    variants={'1.17':{'brewing_stand'},
+              '1.18':{'anvil','grindstone','enchantment'}}
+    for item in args.variant_client:
+        version,client=item.split('=',1)
+        if version not in variants:
+            raise ValueError('Unaudited GUI compatibility profile: '+version)
+        rows+=prepare(Path(client),version,args.output,variants[version])
     stale={p.name for p in args.output.glob('*.guit')}-{r['file'] for r in rows}
     if stale:
         raise RuntimeError('Stale GUI packs in output; use a fresh directory: '+', '.join(sorted(stale)))
-    with zipfile.ZipFile(cache/'1.21.11/minecraft-client.jar') as jar:
+    with zipfile.ZipFile(clients['1.21.11']) as jar:
         evidence={name:{'official_obfuscated_class':obf,'sha256':hashlib.sha256(jar.read(obf+'.class')).hexdigest()}
                   for name,obf in SOURCE_RULE_CLASSES.items()}
     (args.output/'manifest.json').write_text(json.dumps({'producer':'prepare_assets.py','not_training_data':True,
-        'source_rule_version':'1.21.11','source_rule_classes':evidence,'templates':rows},indent=2),encoding='utf-8')
+        'source_rule_version':'1.21.11','source_rule_classes':evidence,
+        'compatibility_scope':'Audited ordinary vanilla base-panel artwork 1.16.5–1.21.11; not exhaustive rendered-state or accuracy coverage',
+        'intermediate_artwork':variants and {k:sorted(v) for k,v in variants.items()},
+        'templates':rows},indent=2),encoding='utf-8')
+    if args.bundle:
+        args.bundle.parent.mkdir(parents=True,exist_ok=True)
+        with args.bundle.open('wb') as stream:
+            for row in sorted(rows,key=lambda row:row['file']):
+                data=(args.output/row['file']).read_bytes()
+                stream.write(len(data).to_bytes(4,'little'));stream.write(data)
     print(f'{len(rows)} source templates, {len(set(r["screen_type"] for r in rows))} known screen classes')
 
 if __name__=='__main__': main()

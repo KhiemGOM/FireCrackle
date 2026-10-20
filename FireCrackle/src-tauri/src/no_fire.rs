@@ -76,12 +76,14 @@ fn textures() -> Result<GuiTextures, String> {
             .to_vec()
         };
     }
-    GuiTextures::from_rgba(
-        asset!("widgets.rgba"),
-        asset!("icons.rgba"),
-        asset!("inventory.rgba"),
-    )?
-    .with_extras(Some(asset!("bars.rgba")), Some(asset!("ascii.rgba")))
+    studio_core::gui::with_interactions(
+        GuiTextures::from_rgba(
+            asset!("widgets.rgba"),
+            asset!("icons.rgba"),
+            asset!("inventory.rgba"),
+        )?
+        .with_extras(Some(asset!("bars.rgba")), Some(asset!("ascii.rgba")))?,
+    )
 }
 
 pub(crate) fn scan_resuming(

@@ -28,6 +28,8 @@ fn pipeline_version() -> &'static str {
             "../../crates/studio_core/src/gui.rs", "../../crates/studio_core/src/import.rs", "../../crates/studio_core/src/proc.rs",
             "../../../fire-detection/core/src/veil.rs", "../../../fire-detection/core/src/portal.rs",
             "../../../fire-detection/core/src/gui_mask.rs", "../../../fire-detection/core/src/gui_screens.rs",
+            "../../../fire-detection/core/src/gui_interaction.rs", "../../../fire-detection/core/src/gui_interaction_fast.rs",
+            "../../../fire-detection/core/src/gui_tooltip.rs", "../../../fire-detection/data/assets/gui/interaction.bundle",
             "../../../fire-detection/core/src/pov.rs", "../../../fire-detection/core/src/overlay.rs",
             "../../../fire-detection/core/src/video.rs", "../../../fire-detection/core/src/lib.rs", "../../../fire-detection/bench/no_fire/fragment_rules.rs", "../../../fire-detection/bench/no_fire/retention_rules.rs",
             "../../../fire-detection/data/assets/fire_1.rgba", "../../../fire-detection/data/assets/gui/widgets.rgba",

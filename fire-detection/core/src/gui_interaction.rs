@@ -7,6 +7,10 @@
 
 use std::path::Path;
 
+#[path = "gui_interaction_fast.rs"]
+mod fast;
+pub use fast::InteractionDetector;
+
 #[derive(Clone, Debug)]
 pub struct PanelTemplate {
     pub screen_type: String,
@@ -275,6 +279,10 @@ impl PanelTemplate {
     /// A top_y of -1 at viewport_y=0 retains the centred legacy geometry.
     pub fn load(path: &Path) -> Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         let mut cursor = 0;
         let mut line = || -> Result<String, String> {
             let end = bytes[cursor..]
@@ -399,6 +407,7 @@ pub fn load_templates(folder: &Path) -> Result<Vec<PanelTemplate>, String> {
     paths.iter().map(|p| PanelTemplate::load(p)).collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn score(
     rgb: &[u8],
     width: usize,
@@ -469,6 +478,7 @@ fn source_origin_offset(viewport: usize, extent: usize, scale: f64, centered: bo
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod origin_tests {
     use super::source_origin_offset;
 
@@ -483,6 +493,7 @@ mod origin_tests {
 
 /// A supplied occlusion mask is evidence from the caller, never inferred from
 /// failed colour comparisons. Masked points do not enter either denominator.
+#[allow(clippy::too_many_arguments)]
 fn visible_evidence(
     rgb: &[u8],
     width: usize,
@@ -885,11 +896,12 @@ impl Detection {
             .min(mask.height as f64)
             .max(0.) as usize;
         let mut count = 0;
-        let piece = if hit.variant.starts_with("fixed_controls") {
+        let piece_id = if hit.variant.starts_with("fixed_controls") {
             crate::gui_mask::PieceId::MenuButton
         } else {
             crate::gui_mask::PieceId::InventoryPanel
-        } as u8;
+        };
+        let piece = piece_id as u8;
         for y in y0..y1 {
             for x in x0..x1 {
                 let p = y * mask.width + x;
@@ -900,6 +912,20 @@ impl Detection {
                 }
             }
         }
+        mask.hits.push(crate::gui_mask::PieceHit {
+            piece: piece_id,
+            index: 0,
+            x: x0 as i32,
+            y: y0 as i32,
+            w: x1.saturating_sub(x0) as u32,
+            h: y1.saturating_sub(y0) as u32,
+            score: hit.score,
+            text: None,
+        });
+        mask.notes.push(format!(
+            "Known GUI layout ({} source); panel region is neutral, not pixel ownership",
+            hit.version
+        ));
         Ok(count)
     }
 }

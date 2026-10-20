@@ -287,6 +287,7 @@ fn the_reply_serialises_for_the_ui() {
         width: 2,
         height: 1,
         reliable: true,
+        mask_available: true,
         scale: Some(3.0),
         scaled_width: Some(427),
         scaled_height: Some(240),

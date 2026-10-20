@@ -20,12 +20,14 @@ it('manual comparison uses exactly both entered endpoints and their midpoint',()
  find(root,n=>n.type==='button'&&n.props.children==='Use current frame')[0].props.onClick();root=render();
  expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(10);
 });
-it('clearly identifies the unconnected detector and offers manual review without fake scan results',()=>{
+it('opens exact detected GUI endpoints in the shared comparison view',()=>{
  let root=render();find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props.onClick();root=render();
- expect(find(root,n=>n.props.role==='status')[0].props.children).toContain('not connected');
- expect(find(root,n=>n.type==='button'&&n.props.children==='Scan')).toHaveLength(0);
- find(root,n=>n.type==='button'&&n.props.children==='Compare frames manually')[0].props.onClick();root=render();
- expect(find(root,n=>n.props['aria-label']==='First comparison frame')).toHaveLength(1);
+ const tool=find(root,n=>typeof n.props.onCompare==='function')[0];
+ expect(tool.props.backend).toBe(backend);
+ tool.props.onCompare({first:20,last:39,menu:false});root=render();
+ expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(19);
+ expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(40);
+ expect(find(root,n=>n.props.title==='Midpoint')[0].props.frame).toBe(29);
 });
 it('loads the actual frame decoder output, opens its exact frame and revokes its temporary image',async()=>{
  const root=render(),side=find(root,n=>n.props.title==='Before')[0];

@@ -107,14 +107,14 @@ fn eager_material(material: Material) {
         })();
         match upgrade {
             Ok(candidate) if candidate.provider.starts_with("GPU") => {
-                if let Ok(mut guard) = engine(material).lock() {
-                    if let Ok(loaded) = guard.as_mut() {
-                        loaded.engine = candidate;
-                        eprintln!(
-                            "Quad AI {material:?} switched to {}",
-                            loaded.engine.provider
-                        );
-                    }
+                if let Ok(mut guard) = engine(material).lock()
+                    && let Ok(loaded) = guard.as_mut()
+                {
+                    loaded.engine = candidate;
+                    eprintln!(
+                        "Quad AI {material:?} switched to {}",
+                        loaded.engine.provider
+                    );
                 }
             }
             Err(error) => eprintln!("Quad AI retained CPU: {error}"),

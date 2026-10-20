@@ -58,6 +58,16 @@ pub fn candidate_prepared(
     if !gui.reliable {
         return Ok(false);
     }
+    // A neutral screen rectangle hides unknown world evidence. It cannot
+    // authorize a confident no-fire label, even with a reliable hotbar fit.
+    if gui.hits.iter().any(|hit| {
+        matches!(
+            hit.piece,
+            fire_core::gui_mask::PieceId::InventoryPanel | fire_core::gui_mask::PieceId::MenuButton
+        )
+    }) {
+        return Ok(false);
+    }
     let world: Vec<u8> = gui
         .class
         .iter()

@@ -59,8 +59,7 @@ fn shared_player_slots_can_establish_presence_without_claiming_exact_type() {
         for x in 0..w {
             let border = x < 3 || y < 3 || x >= w - 3 || y >= h - 3;
             let edge = (7..169).contains(&x)
-                && y >= 17
-                && y < 155
+                && (17..155).contains(&y)
                 && ((x - 7) % 18 == 0 || (y - 17) % 18 == 0);
             let c = if border {
                 240
@@ -104,7 +103,7 @@ fn shared_player_slots_can_establish_presence_without_claiming_exact_type() {
             }
         }
     }
-    let result = detect(&frame, 400, 400, &[template.clone()], opts()).unwrap();
+    let result = detect(&frame, 400, 400, std::slice::from_ref(&template), opts()).unwrap();
     assert!(result.gui_detected);
     assert_eq!(result.reason, "known_panel_presence");
     assert!(result.matched.is_none());
@@ -153,16 +152,22 @@ fn subpixel_source_edges_survive_resampling_without_accepting_flat_or_wrong_layo
         ..Options::default()
     };
     assert!(
-        detect(&frame, width, height, &[template.clone()], options)
-            .unwrap()
-            .gui_detected
+        detect(
+            &frame,
+            width,
+            height,
+            std::slice::from_ref(&template),
+            options
+        )
+        .unwrap()
+        .gui_detected
     );
     assert!(
         !detect(
             &vec![180; width * height * 3],
             width,
             height,
-            &[template.clone()],
+            std::slice::from_ref(&template),
             options
         )
         .unwrap()

@@ -31,3 +31,6 @@
 .misc-proof-note strong{color:#bdc8da;}
 .misc-proof-error{color:#ff9a8c;}
 .misc-proof-feedback{color:#79dfb2;display:block;margin-bottom:12px;font-size:12px;}
+.misc-gui-ranges {display:grid;gap:6px;max-height:60vh;overflow:auto;margin-top:12px}
+.misc-gui-ranges button {display:flex;align-items:center;gap:18px;text-align:left;padding:10px}
+.misc-gui-ranges button span:last-child {margin-left:auto}

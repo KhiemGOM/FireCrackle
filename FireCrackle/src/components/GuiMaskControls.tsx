@@ -31,7 +31,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
     (async () => {
       try {
         const r = await backend.guiMask!(frame);
-        const raw = r.reliable ? new Uint8Array(await backend.guiMaskPixels!(frame)) : null;
+        const raw = (r.mask_available ?? r.reliable) ? new Uint8Array(await backend.guiMaskPixels!(frame)) : null;
         if (mine !== token.current) return;
         setReply(r);
         setMaskFrame(frame);
@@ -51,7 +51,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
 export function GuiMaskPanel({ state, frame }: { state: GuiMaskState; frame: number }) {
   const { supported, reply, maskFrame, busy, error } = state;
   if (!supported) return <span className="hud-hint">The GUI mask is available in the desktop app.</span>;
-  const status = error ? `GUI mask failed: ${error}` : busy || maskFrame !== frame || !reply ? "Finding the HUD…" : maskStatus(reply);
+  const status = error ? `GUI mask failed: ${error}` : busy || maskFrame !== frame || !reply ? "Finding the GUI…" : maskStatus(reply);
   return <span className="gui-mask-status" role="status" title={GUI_ASSUMPTION}>
     <span>{status}</span>
     <span className="hud-hint">red opaque · blue translucent · yellow unknown</span>

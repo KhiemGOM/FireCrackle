@@ -6,6 +6,7 @@ import type { PhaseChart } from "./chart";
 import type { Label } from "./grid";
 import type { ThumbStatus } from "./thumbs";
 import type { GuiAnswer, GuiMaskReply } from "./guiMask";
+import type { GuiScanStatus } from "./guiScan";
 
 export interface PickState {
   sheet: number;
@@ -120,6 +121,9 @@ export interface Backend {
   /** The GUI mask of a frame; refused unless the answer is "yes". Pixels come raw, one byte each. */
   guiMask?(frame: number): Promise<GuiMaskReply>;
   guiMaskPixels?(frame: number): Promise<ArrayBuffer>;
+  guiScanStart?(): Promise<GuiScanStatus>;
+  guiScanStatus?(): Promise<GuiScanStatus>;
+  guiScanCancel?(): Promise<void>;
 }
 
 export interface LinkStatus { id:number; state:"running"|"done"|"cancelled"|"failed"; message:string; path:string|null; error:string|null; }
@@ -167,6 +171,9 @@ export async function createBackend(): Promise<Backend> {
     guiAnswerSet: (answer) => invoke<void>("gui_answer_set", { answer }),
     guiMask: (frame) => invoke<GuiMaskReply>("gui_mask", { frame }),
     guiMaskPixels: (frame) => invoke<ArrayBuffer>("gui_mask_pixels", { frame }),
+    guiScanStart: () => invoke<GuiScanStatus>("gui_scan_start"),
+    guiScanStatus: () => invoke<GuiScanStatus>("gui_scan_status"),
+    guiScanCancel: () => invoke<void>("gui_scan_cancel"),
     async transferLabels(kind) {
       const filters = [{ name: "FireCrackle labels", extensions: ["json"] }];
       const path = kind === "export"

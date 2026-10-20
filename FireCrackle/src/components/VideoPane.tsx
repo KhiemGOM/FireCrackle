@@ -35,7 +35,7 @@ import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
 import { GuiMaskOverlay, GuiMaskPanel, useGuiMask } from "./GuiMaskControls";
-import { veilScreenEvidence } from "../lib/guiMask";
+import { GUI_ASSUMPTION, veilScreenEvidence } from "../lib/guiMask";
 import { JumpBox } from "./JumpBox";
 import { DEFAULT_BUFFER_SETTINGS, FrameBuffer, type BufferSettings } from "../lib/frameBuffer";
 import { domBufferIo } from "../lib/frameBufferDom";
@@ -531,7 +531,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
           setAnimationOpen(!animationOpen);
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
-        {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, no HUD-changing packs or mods, and uncropped footage. Shows GUI pixels only when the HUD fit is reliable." aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
+        {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title={GUI_ASSUMPTION} aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto preserves detected GUI pixels; Always undo processes every pixel. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Auto protects GUI pixels when a mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}

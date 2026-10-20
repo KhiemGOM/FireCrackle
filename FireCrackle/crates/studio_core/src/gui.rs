@@ -1,6 +1,7 @@
 //! The app side of the shared GUI mask (`fire_core::gui_mask`, plan in `PLAN-GUI-MASK.md` 3.2).
 //!
-//! Vanilla 1.16.5 GUI compatibility is a stated assumption, not a user-confirmation gate.
+//! HUD fitting retains its 1.16.5 reference. Independent interaction panels use
+//! the shared versioned source bank, without a user-confirmation gate.
 //! Legacy `<video>.firecrackle/gui.json` answers remain readable without controlling masking.
 
 use fire_core::gui_mask::{GuiDetector, GuiOptions, GuiTextures, PieceId};
@@ -72,6 +73,8 @@ pub struct GuiMaskReply {
     pub width: usize,
     pub height: usize,
     pub reliable: bool,
+    /// A panel can be masked independently of a reliable HUD fit.
+    pub mask_available: bool,
     /// Video pixels per GUI pixel.
     pub scale: Option<f64>,
     pub scaled_width: Option<u32>,
@@ -105,12 +108,37 @@ static RECIPE: &[u8] = include_bytes!(concat!(
     "/../../../fire-detection/data/assets/gui/recipe_book.rgba"
 ));
 
+/// One immutable source bank for previews, AI preprocessing and Misc scans.
+/// Cache geometry only; never carry a previous frame's GUI decision forward.
+pub fn interaction_detector(
+) -> Result<std::sync::Arc<fire_core::gui_interaction::InteractionDetector>, String> {
+    static DETECTOR: std::sync::OnceLock<
+        Result<std::sync::Arc<fire_core::gui_interaction::InteractionDetector>, String>,
+    > = std::sync::OnceLock::new();
+    DETECTOR
+        .get_or_init(|| {
+            fire_core::gui_interaction::InteractionDetector::from_bundle(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../fire-detection/data/assets/gui/interaction.bundle"
+            )))
+            .map(|detector| std::sync::Arc::new(detector.serial()))
+        })
+        .clone()
+}
+
+pub fn with_interactions(mut textures: GuiTextures) -> Result<GuiTextures, String> {
+    textures.interactions = Some(interaction_detector()?);
+    Ok(textures)
+}
+
 /// Exact vanilla sheets used by the validated first-person pipeline. The
 /// recipe sheet is generated locally by the frontend build prerequisite.
 pub fn pov_textures() -> Result<GuiTextures, String> {
-    GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
-        .with_extras(Some(BARS.to_vec()), Some(FONT.to_vec()))?
-        .with_recipe_book(Some(RECIPE.to_vec()))
+    with_interactions(
+        GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
+            .with_extras(Some(BARS.to_vec()), Some(FONT.to_vec()))?
+            .with_recipe_book(Some(RECIPE.to_vec()))?,
+    )
 }
 
 /// Runs the shared mask with the vanilla textures built into the binary.
@@ -120,8 +148,10 @@ pub struct GuiAnalyzer {
 
 impl GuiAnalyzer {
     pub fn new() -> Result<GuiAnalyzer, String> {
-        let tex = GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
-            .with_extras(None, Some(FONT.to_vec()))?;
+        let tex = with_interactions(
+            GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
+                .with_extras(None, Some(FONT.to_vec()))?,
+        )?;
         Ok(GuiAnalyzer {
             detector: GuiDetector::new(tex, GuiOptions::default())?,
         })
@@ -185,6 +215,7 @@ impl GuiAnalyzer {
             width: w,
             height: h,
             reliable: m.reliable,
+            mask_available: m.reliable || m.class.iter().any(|&c| c != 0),
             scale: m.fit.map(|f| f.scale),
             scaled_width: m.fit.map(|f| f.scaled_width),
             scaled_height: m.fit.map(|f| f.scaled_height),

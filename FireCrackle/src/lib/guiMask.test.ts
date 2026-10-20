@@ -14,12 +14,13 @@ describe("the GUI compatibility assumption", () => {
       expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 0 }] }))).toBeUndefined();
     }
     expect(veilScreenEvidence(reply())).toBeUndefined(); // ordinary HUD
+    expect(veilScreenEvidence(reply({reliable:false,mask_available:true,pieces:[{piece:'InventoryPanel',count:1}]}))).toEqual({width:4,height:1});
     expect(veilScreenEvidence(null)).toBeUndefined();
   });
-  it("states the reference GUI and reliable-fit requirement without asking a question", () => {
-    expect(GUI_ASSUMPTION).toContain("Assumes");
+  it("distinguishes the HUD reference from independently detected versioned panels", () => {
     expect(GUI_ASSUMPTION).toContain("1.16.5");
-    expect(GUI_ASSUMPTION).toContain("reliable");
+    expect(GUI_ASSUMPTION).toContain("1.21.11");
+    expect(GUI_ASSUMPTION).toContain("neutral");
     expect(GUI_ASSUMPTION).not.toContain("?");
   });
 });

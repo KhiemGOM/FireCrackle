@@ -3,12 +3,13 @@
 
 export type GuiAnswer = "yes" | "no" | "not_sure";
 
-export const GUI_ASSUMPTION = "Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, with no HUD-changing resource packs or mods and no cropped video. A mask is used only when the HUD fit is reliable.";
+export const GUI_ASSUMPTION = "Vanilla GUI textures only. HUD fitting uses 1.16.5; known interaction panels include audited artwork variants through 1.21.11. Panel masks are neutral regions and do not require a visible hotbar.";
 
 export interface GuiMaskReply {
   width: number;
   height: number;
   reliable: boolean;
+  mask_available?: boolean;
   /** Video pixels per GUI pixel. */
   scale: number | null;
   scaled_width: number | null;
@@ -19,7 +20,7 @@ export interface GuiMaskReply {
 
 /** A texture-confirmed open screen, not merely the always-visible HUD. */
 export function veilScreenEvidence(reply: GuiMaskReply | null): { width: number; height: number } | undefined {
-  if (!reply?.reliable || !(reply.width > 0) || !(reply.height > 0)) return undefined;
+  if (!reply || !(reply.mask_available ?? reply.reliable) || !(reply.width > 0) || !(reply.height > 0)) return undefined;
   const screen = reply.pieces?.some(p => p.count > 0 && (p.piece === "InventoryPanel" || p.piece === "MenuButton"));
   return screen ? { width: reply.width, height: reply.height } : undefined;
 }
@@ -69,6 +70,7 @@ const NAMES: Record<string, string> = {
 
 /** One line for the panel: the scale and the pieces found, or why nothing was found. */
 export function maskStatus(r: GuiMaskReply): string {
+  if (!r.reliable && r.mask_available) return "GUI panel found · neutral mask · HUD not fitted";
   if (!r.reliable || r.scale === null) {
     return r.notes[0] ?? "No vanilla HUD was found on this frame, so nothing is masked.";
   }

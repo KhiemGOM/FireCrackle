@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maximumBytes = 5 * 1024 * 1024;
-const wrapper = 'fire-detection/mod/gradle/wrapper/gradle-wrapper.jar';
+const wrappers = new Set(['fire-detection/mod/gradle/wrapper/gradle-wrapper.jar', 'fire-detection/mod-gui/gradle/wrapper/gradle-wrapper.jar']);
 const secrets = [
   /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
   /\bgithub_pat_[A-Za-z0-9_]{60,}\b/,
@@ -21,7 +21,7 @@ export function inspectTrackedFile(path, bytes, content = '') {
   if (/(?:^|\/)\.env(?:\..+)?$/.test(p) && !p.endsWith('.env.example')) problems.push('local environment file');
   if (/\.firecrackle(?:\/|$)/.test(p) || p.startsWith('fire-detection/data/joined/')) problems.push('private/generated video data');
   if (/\.(?:mp4|mkv|mov|avi|webm|exe|dll|zip|rar|7z|appimage|deb|rpm|tgz|tar\.gz|pem|key|class|tiny|mapping)$/i.test(p)) problems.push('binary, credential or upstream mapping artifact');
-  if (/\.jar$/i.test(p) && p !== wrapper) problems.push('JAR other than the Gradle wrapper');
+  if (/\.jar$/i.test(p) && !wrappers.has(p)) problems.push('JAR other than the Gradle wrapper');
   if (/(?:^|\/)(?:net\/minecraft|net\/fabricmc\/yarn)(?:\/|$)/.test(p)) problems.push('upstream Minecraft/Yarn source tree');
   if (/^\s*package\s+net\.(?:minecraft|fabricmc\.yarn)\b/m.test(content)) problems.push('upstream Minecraft/Yarn Java package');
   if (bytes > maximumBytes) problems.push('file exceeds 5 MiB source/fixture budget');

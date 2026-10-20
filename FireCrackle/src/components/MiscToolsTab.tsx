@@ -5,6 +5,7 @@ import {FRAME_BLINK_MS,exportFrameProof,frameDifference} from '../lib/frameCompa
 import type {ProofAction} from '../lib/comparisonProof';
 import {formatTimecode} from '../lib/timecode';
 import {ComparisonProofButton} from './ComparisonProofButton';
+import {GuiInteractionTool} from './GuiInteractionTool';
 import './MiscToolsTab.css';
 
 function useReviewImage(backend:Backend,frame:number|null){
@@ -92,11 +93,7 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame}:{backend:Backen
    <button role="tab" aria-selected={tool==='compare'} onClick={()=>setTool('compare')}>Frame comparison</button>
    <button role="tab" aria-selected={tool==='gui'} onClick={()=>setTool('gui')}>GUI interactions</button>
   </div>
-  {tool==='gui'?<section className="misc-panel" aria-label="GUI interactions">
-   <h3>GUI interactions</h3><p>Review the frame before a GUI opens, a frame while it is open, and the frame after it closes to look for camera changes.</p>
-   <p className="dim" role="status">The GUI interaction detector is being developed separately. Automatic scanning is not connected here yet.</p>
-   <button onClick={()=>setTool('compare')}>Compare frames manually</button>
-  </section>:<section className="misc-panel" aria-label="Frame comparison">
+  {tool==='gui'?<GuiInteractionTool backend={backend} videoKey={videoKey} fps={fps} onCompare={range=>{setInterval({first:Math.max(0,range.first-1),last:Math.min(view.frame_count-1,range.last+1)});setTool('compare');}}/>:<section className="misc-panel" aria-label="Frame comparison">
    <div className="misc-compare-toolbar">
     <div className="misc-compare-controls" data-owns-keys="true">
      <label>Before frame <input aria-label="First comparison frame" type="number" min={0} max={view.frame_count-1} value={range.first} disabled={proofBusy} onChange={e=>edit('first',e.target.valueAsNumber)}/></label>

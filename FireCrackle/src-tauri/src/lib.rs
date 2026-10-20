@@ -13,6 +13,7 @@ mod comparison_proof;
 mod compression;
 mod external_tools;
 mod gui;
+mod gui_scan;
 mod jolt;
 mod no_fire;
 mod pov;
@@ -47,6 +48,40 @@ struct AppState {
     pov: pov::Jobs,
     no_fire: pov::Jobs,
     links: url_import::Jobs,
+    gui_scan: gui_scan::Jobs,
+}
+
+#[tauri::command]
+fn gui_scan_start(state: State<'_, AppState>) -> Result<gui_scan::Status, String> {
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let project = guard
+        .as_ref()
+        .ok_or("No video is open")?
+        .automation_project();
+    drop(guard);
+    state
+        .gui_scan
+        .start(project, external_tools::video_tools()?)
+}
+#[tauri::command]
+fn gui_scan_status(state: State<'_, AppState>) -> Result<gui_scan::Status, String> {
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let project = guard
+        .as_ref()
+        .ok_or("No video is open")?
+        .automation_project();
+    drop(guard);
+    state.gui_scan.status(&project)
+}
+#[tauri::command]
+fn gui_scan_cancel(state: State<'_, AppState>) -> Result<(), String> {
+    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
+    let project = guard
+        .as_ref()
+        .ok_or("No video is open")?
+        .automation_project();
+    drop(guard);
+    state.gui_scan.cancel(&project)
 }
 
 #[tauri::command]
@@ -461,6 +496,9 @@ pub fn run_app() {
             gui::gui_answer_set,
             gui::gui_mask,
             gui::gui_mask_pixels,
+            gui_scan_start,
+            gui_scan_status,
+            gui_scan_cancel,
             settings_describe,
             settings_set
         ])
@@ -470,6 +508,7 @@ pub fn run_app() {
             use tauri::Manager;
             if let tauri::RunEvent::Exit = event {
                 app.state::<AppState>().links.shutdown();
+                app.state::<AppState>().gui_scan.shutdown();
             }
         });
 }

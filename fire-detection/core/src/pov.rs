@@ -132,7 +132,14 @@ impl PovMatcher {
             return Ok(result(Some(possible[0].row), false));
         }
         let mut gui = self.gui.detect(frame, self.width, self.height)?;
-        if !gui.reliable {
+        if !gui.reliable
+            && !gui.hits.iter().any(|hit| {
+                matches!(
+                    hit.piece,
+                    crate::gui_mask::PieceId::InventoryPanel | crate::gui_mask::PieceId::MenuButton
+                )
+            })
+        {
             return Ok(result(Self::selected(&branches), true));
         }
         add_screen_masks(

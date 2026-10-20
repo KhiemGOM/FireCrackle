@@ -64,8 +64,16 @@ it("runs under the stated GUI assumption without asking or saving confirmation",
   expect(backend.guiMaskPixels).toHaveBeenCalledWith(5);
   expect(text(tree)).toContain("GUI scale 4.50");
   expect(text(tree)).toContain("10 Health");
-  expect(tree.props.title).toContain("Assumes");
   expect(tree.props.title).toContain("1.16.5");
+  expect(tree.props.title).toContain("1.21.11");
+});
+
+it("loads an independent neutral panel mask without claiming a reliable HUD", async () => {
+  (backend.guiMask as any).mockResolvedValue({...REPLY,reliable:false,mask_available:true,scale:null,pieces:[{piece:'InventoryPanel',count:1}]});
+  const tree=await settle();
+  expect(backend.guiMaskPixels).toHaveBeenCalledWith(5);
+  expect(maskState.pixels).toBeDefined();
+  expect(text(tree)).toContain('neutral mask');
 });
 
 it("legacy negative answers no longer gate the mask or get overwritten", async () => {

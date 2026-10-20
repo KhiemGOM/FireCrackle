@@ -13,6 +13,7 @@ test('rejects game/mapping artifacts while allowing the actual Gradle wrapper an
   }
   assert.equal(inspectTrackedFile('custom/Client.java', 10, 'package net.minecraft.client;').length, 1);
   assert.deepEqual(inspectTrackedFile('fire-detection/mod/gradle/wrapper/gradle-wrapper.jar', 50000), []);
+  assert.deepEqual(inspectTrackedFile('fire-detection/mod-gui/gradle/wrapper/gradle-wrapper.jar', 50000), []);
   assert.deepEqual(inspectTrackedFile('fire-detection/mod/src/main/java/org/firecracking/FireLabel.java', 1000, 'package org.firecracking;'), []);
 });
 test('reports credential types without echoing their values', () => {
