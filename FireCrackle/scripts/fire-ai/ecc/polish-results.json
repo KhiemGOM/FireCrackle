@@ -1,0 +1,112 @@
+{
+  "after_current_fit": {
+    "plan": {
+      "task": "ECC final polish only; fixed known sprite, seed from current fitted quad",
+      "cases": 128,
+      "inputs": "Same64V06normal+64V14soul; same real shared-unveil caches; no training",
+      "case_sha256": "8589724a6d2c9f316c68a770a3b2d88738a1cc0093d2c947833106cedbb40384",
+      "selected_sha256": "c750742328fa326baea9ea29135c4d3c1813aee4c97a73e1dfc1287f6c4b5454",
+      "cap": "Half smallest projected texel; globally shorten proposed corner step",
+      "acceptance": "Fixed common opaque/production-fire pixel support>=1024canvaspixels; grayscale correlation gain>.005; same identity/finite bounded geometry; no colour-score gate",
+      "variants": "Previous standard and bounded homography; no phase search or CNN; no tuned thresholds"
+    },
+    "summary": {
+      "normal": {
+        "n": 64,
+        "before_mean_px": 8.71047694873273,
+        "before_median_px": 6.132758094523448,
+        "ecc": {
+          "accepted": 6,
+          "improved": 6,
+          "worsened": 0,
+          "mean_error_px": 8.615163398793229,
+          "median_ms": 24.891750006645452
+        },
+        "bounded_ecc": {
+          "accepted": 32,
+          "improved": 13,
+          "worsened": 10,
+          "mean_error_px": 8.698486069930741,
+          "median_ms": 40.77080000570277
+        }
+      },
+      "soul": {
+        "n": 64,
+        "before_mean_px": 10.954145673965355,
+        "before_median_px": 8.784248067315804,
+        "ecc": {
+          "accepted": 1,
+          "improved": 1,
+          "worsened": 0,
+          "mean_error_px": 10.943669170684664,
+          "median_ms": 7.708499993896112
+        },
+        "bounded_ecc": {
+          "accepted": 20,
+          "improved": 7,
+          "worsened": 11,
+          "mean_error_px": 11.056210210017046,
+          "median_ms": 13.13780000054976
+        }
+      }
+    }
+  },
+  "already_exact_control": {
+    "plan": {
+      "task": "ECC final polish only; fixed known sprite",
+      "starting_quad": "Exact renderer reference control",
+      "cases": 128,
+      "inputs": "Same64V06normal+64V14soul; same real shared-unveil caches; no training",
+      "case_sha256": "8589724a6d2c9f316c68a770a3b2d88738a1cc0093d2c947833106cedbb40384",
+      "selected_sha256": "c750742328fa326baea9ea29135c4d3c1813aee4c97a73e1dfc1287f6c4b5454",
+      "cap": "Half smallest projected texel; globally shorten proposed corner step",
+      "acceptance": "Fixed common opaque/production-fire pixel support>=1024canvaspixels; grayscale correlation gain>.005; same identity/finite bounded geometry; no colour-score gate",
+      "variants": "Previous standard and bounded homography; no phase search or CNN; no tuned thresholds"
+    },
+    "summary": {
+      "normal": {
+        "n": 64,
+        "before_mean_px": 0.0,
+        "before_median_px": 0.0,
+        "ecc": {
+          "accepted": 0,
+          "improved": 0,
+          "worsened": 0,
+          "mean_error_px": 0.0,
+          "median_ms": 8.88064999890048
+        },
+        "bounded_ecc": {
+          "accepted": 29,
+          "improved": 0,
+          "worsened": 29,
+          "mean_error_px": 0.9816240549000326,
+          "median_ms": 25.95034999831114
+        }
+      },
+      "soul": {
+        "n": 64,
+        "before_mean_px": 0.0,
+        "before_median_px": 0.0,
+        "ecc": {
+          "accepted": 0,
+          "improved": 0,
+          "worsened": 0,
+          "mean_error_px": 0.0,
+          "median_ms": 5.8345500001451
+        },
+        "bounded_ecc": {
+          "accepted": 19,
+          "improved": 0,
+          "worsened": 19,
+          "mean_error_px": 0.7194564267704371,
+          "median_ms": 11.573050003789831
+        }
+      }
+    }
+  },
+  "source_hashes": {
+    "polish.py": "ab538e64c3574d168177874861f98050a42bed89398e1168814c9ddfa0c37465",
+    "polish.mjs": "786f2801b1c54f1dc340720c10d1519c7f70e2bfaf3d66c12d052c6f5173befb",
+    "align.py": "2b187c4e7bb3e2e1600fa645d2c571018ea3821d0bfb439a07dfc7166c4770a3"
+  }
+}
