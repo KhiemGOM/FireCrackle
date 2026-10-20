@@ -159,6 +159,7 @@ export function createMockBackend(): Backend {
       typed_pending: typed,
       suggestion: suggestion(),
       labelled_count: labels.size,
+      undo_depth: undoStack.length,
       flag_count: currentFlags().length,
       warnings: ["Mock backend: a synthetic video, nothing is saved."],
       save_error: null,

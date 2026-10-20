@@ -455,6 +455,7 @@ pub struct View {
     pub typed_pending: Option<u8>,
     pub suggestion: Option<Suggestion>,
     pub labelled_count: usize,
+    pub undo_depth: usize,
     pub flag_count: usize,
     /// Things worth telling the user: import warnings, a repaired log, unreadable settings.
     pub warnings: Vec<String>,
@@ -771,6 +772,7 @@ impl Workspace {
             typed_pending: self.session.typed_pending(),
             suggestion: self.session.suggestion(),
             labelled_count: self.session.store().labelled_count(),
+            undo_depth: self.session.store().undo_depth(),
             flag_count,
             warnings: self.warnings.clone(),
             save_error: self.save_error.clone(),

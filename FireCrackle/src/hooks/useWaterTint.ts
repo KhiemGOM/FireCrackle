@@ -1,7 +1,9 @@
 import {useEffect,useState} from 'react';
 import {getWaterTint,renderWaterAtlases,setWaterTint,subscribeWaterTint,type WaterSpriteSheets} from '../lib/waterTint';
+import type {LabelUndo} from '../lib/labelUndo';
 
-export function useWaterTint(enabled=true){
+export function useWaterTint(enabled=true,history?:LabelUndo){
+ history?.bind('picker.waterTint',setWaterTint);
  const [color,setColor]=useState(getWaterTint());
  const [render,setRender]=useState<{color:string;sheets:WaterSpriteSheets}|null>(null);
  const [error,setError]=useState(false);
@@ -11,5 +13,5 @@ export function useWaterTint(enabled=true){
   void renderWaterAtlases(color).then(sheets=>{if(!cancelled)setRender({color,sheets});}).catch(()=>{if(!cancelled)setError(true);});
   return()=>{cancelled=true;};
  },[color,enabled]);
- return {color,setColor:setWaterTint,sheets:render?.color===color?render.sheets:null,error};
+ return {color,setColor:(next:string)=>{history?.changed('picker.waterTint',getWaterTint(),next);setWaterTint(next);},sheets:render?.color===color?render.sheets:null,error};
 }

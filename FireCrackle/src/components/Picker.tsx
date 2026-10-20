@@ -1,3 +1,5 @@
+import {useUndoState} from "../hooks/useUndoState";
+import type {LabelUndo} from "../lib/labelUndo";
 import {useWaterTint} from "../hooks/useWaterTint";
 import {renderWaterAtlases,type WaterAtlas} from "../lib/waterTint";
 import {WaterTintControl} from "./WaterTintControl";
@@ -14,6 +16,7 @@ import { Icon, IconButton } from "./Icon";
 import "./Picker.css";
 
 interface Props {
+  undoHistory?: LabelUndo;
   extraSources?: boolean;
   onFirstPersonAllowedChange?: (allowed: boolean) => void;
   onAlternative?: (sprite:PreviewSprite,ctrl:boolean)=>void;
@@ -33,8 +36,8 @@ interface Props {
 }
 
 /** The 32 sprite rows, divided into equal blocks to fit the panel. */
-export function Picker({ onFirstPersonAllowedChange, view, cell, onCell, candidate = null, preview = null, filter, onFilterChange, onNoFire, onEdgesChange, previewOnly = false, onAlternative, onAbsenceChange, extraSources = false }: Props) {
-  const [selectedAtlasKind,setAtlasKind]=useState<"fire"|"soul_fire"|"lava_still"|"lava_flow"|"water_still"|"water_flow">("fire");
+export function Picker({ undoHistory, onFirstPersonAllowedChange, view, cell, onCell, candidate = null, preview = null, filter, onFilterChange, onNoFire, onEdgesChange, previewOnly = false, onAlternative, onAbsenceChange, extraSources = false }: Props) {
+  const [selectedAtlasKind,setAtlasKind]=useUndoState<"fire"|"soul_fire"|"lava_still"|"lava_flow"|"water_still"|"water_flow">("fire",undoHistory,'picker.selectedAtlasKind');
   const atlasKind = extraSources || selectedAtlasKind === "soul_fire" ? selectedAtlasKind : "fire";
   const atlasIds: [AnimationAtlas|null,AnimationAtlas|null] = atlasKind==='soul_fire'?['soul_fire_0','soul_fire_1']:atlasKind.startsWith('lava')?['lava_still','lava_flow']:atlasKind.startsWith('water')?['water_still','water_flow']:[null,null];
   const fluid=atlasKind.startsWith('water')||atlasKind.startsWith('lava');
@@ -45,14 +48,14 @@ export function Picker({ onFirstPersonAllowedChange, view, cell, onCell, candida
   const absence:Label=!extraSources||atlasKind==='fire'?'no_fire':{no_texture:{atlas:atlasKind==='soul_fire'?'soul_fire_0':atlasKind as AnimationAtlas}};
   const absenceName=atlasKind.startsWith('water')?'No water':atlasKind.startsWith('lava')?'No lava':atlasKind==='soul_fire'&&extraSources?'No soul fire':'No fire';
   const absent=(label:Label|null)=>JSON.stringify(label)===JSON.stringify(absence);
-  const [familyFilters,setFamilyFilters]=useState<Partial<Record<typeof atlasKind,EdgeFilter>>>({});
+  const [familyFilters,setFamilyFilters]=useUndoState<Partial<Record<typeof atlasKind,EdgeFilter>>>({},undoHistory,'picker.familyFilters');
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [localLeft, setLocalLeft] = useState<number | null>(null);
-  const [localRight, setLocalRight] = useState<number | null>(null);
-  const [localExcluded, setLocalExcluded] = useState<number[]>([]);
-  const [localWhiteMin, setLocalWhiteMin] = useState<number | null>(null);
-  const [localWhiteMax, setLocalWhiteMax] = useState<number | null>(null);
+  const [localLeft, setLocalLeft] = useUndoState<number | null>(null,undoHistory,'picker.localLeft');
+  const [localRight, setLocalRight] = useUndoState<number | null>(null,undoHistory,'picker.localRight');
+  const [localExcluded, setLocalExcluded] = useUndoState<number[]>([],undoHistory,'picker.localExcluded');
+  const [localWhiteMin, setLocalWhiteMin] = useUndoState<number | null>(null,undoHistory,'picker.localWhiteMin');
+  const [localWhiteMax, setLocalWhiteMax] = useUndoState<number | null>(null,undoHistory,'picker.localWhiteMax');
   const fireFilter=filter??{left:localLeft,right:localRight,excluded:localExcluded,bottomWhiteMin:localWhiteMin,bottomWhiteMax:localWhiteMax};
   const activeFilter=atlasKind==='fire'?fireFilter:familyFilters[atlasKind]??{left:null,right:null};
   const {left,right}=activeFilter,excluded=activeFilter.excluded??[],bottomWhiteMin=activeFilter.bottomWhiteMin??null,bottomWhiteMax=activeFilter.bottomWhiteMax??null;
@@ -68,7 +71,7 @@ export function Picker({ onFirstPersonAllowedChange, view, cell, onCell, candida
   const [edgeError, setEdgeError] = useState(false);
   useEffect(()=>{onAbsenceChange?.(absence);},[atlasKind,onAbsenceChange]);
   useEffect(() => { onFirstPersonAllowedChange?.(atlasKind === "fire"); }, [atlasKind, onFirstPersonAllowedChange]);
-  const water=useWaterTint(atlasKind.startsWith("water"));
+  const water=useWaterTint(atlasKind.startsWith("water"),undoHistory);
   useEffect(() => { onEdgesChange?.(atlasKind==='fire'?edges:null); }, [edges, onEdgesChange,atlasKind]);
   useEffect(() => {
     let cancelled = false;setEdges(null);setEdgeError(false);

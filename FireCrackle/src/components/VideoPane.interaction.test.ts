@@ -16,6 +16,8 @@ vi.mock("../hooks/useWheel", () => ({ useWheel: () => {} }));
 vi.mock("../lib/quadRefine",async original=>({...await original<typeof import("../lib/quadRefine")>(),refineFireQuads:vi.fn()}));
 import {refineFireQuads} from "../lib/quadRefine";
 import { VideoPane } from "./VideoPane";
+import {LabelUndo} from '../lib/labelUndo';
+import {FireQuadMask} from './FireQuadMask';
 import * as proofs from "../lib/comparisonProof";
 import { ANIMATION_ATLASES } from "../lib/animationAtlases";
 import { AnimationControls } from "./AnimationControls";
@@ -62,6 +64,26 @@ function pointer(x: number, y: number, button = 0) {
   return { clientX: x, clientY: y, button, pointerId: 7, preventDefault: vi.fn(), currentTarget: { setPointerCapture: vi.fn() } };
 }
 beforeEach(() => { hooks.states = []; hooks.refs = []; vi.stubGlobal("document", {querySelector: () => null}); });
+
+it('restores an entire quad drag and persists the restored mask through the shared history',async()=>{
+  let stored=JSON.stringify({...DEFAULT_MASK_STATE,manualEnabled:true});
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>key===MASK_STATE_KEY?stored:null,setItem:(key:string,value:string)=>{if(key===MASK_STATE_KEY)stored=value;}});
+  const undoHistory=new LabelUndo();
+  await tree({undoHistory});hooks.states[0]='blob:frame';hooks.states[1]=0;
+  const all=(node:Element):Element[]=>[node,...[node.props.children].flat(Infinity).filter(n=>n&&typeof n==='object'&&'props'in n).flatMap(all)];
+  let root=await tree({undoHistory});
+  // Mark the loaded image size through its actual load handler.
+  all(root).find(n=>n.type==='img')!.props.onLoad({currentTarget:{naturalWidth:1920,naturalHeight:1080,getAttribute:()=>null}});
+  root=await tree({undoHistory});const mask=all(root).find(n=>n.type===FireQuadMask)!;
+  const before=mask.props.quad;
+  undoHistory.beginGesture();
+  mask.props.onQuad([[.1,.1],[.8,.1],[.8,.8],[.1,.8]]);await Promise.resolve();
+  mask.props.onQuad([[.2,.2],[.7,.2],[.7,.7],[.2,.7]]);
+  undoHistory.endGesture();await Promise.resolve();expect(undoHistory.size).toBe(1);
+  await undoHistory.undo();root=await tree({undoHistory});
+  expect(all(root).find(n=>n.type===FireQuadMask)!.props.quad).toEqual(before);
+  hooks.effects[0]();expect(JSON.parse(stored).manualQuad).toEqual(before);
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 it("refines the selected mask through the compact button using original frame bytes",async()=>{

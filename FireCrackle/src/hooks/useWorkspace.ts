@@ -1,3 +1,4 @@
+import type {LabelUndo} from "../lib/labelUndo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiAction } from "../lib/actions";
 import type { Backend, Flag, SettingInfo, View } from "../lib/api";
@@ -74,8 +75,17 @@ export interface WorkspaceState {
   clearError: () => void;
 }
 
-export function useWorkspace(backend: Backend | null, combinedFire = true): WorkspaceState {
-  const [view, setView] = useState<View | null>(null);
+export function useWorkspace(backend: Backend | null, combinedFire = true, undoHistory?:LabelUndo): WorkspaceState {
+  const [view, publishView] = useState<View | null>(null);
+  function setView(next:View,order?:number){
+    undoHistory?.observeLabels(next.undo_depth,async()=>{
+      if(!backend||busy.current)throw Error("Wait for the current action before Undo.");
+      busy.current=true;
+      try{const restored=await backend.act({type:"undo"});setView(restored);setVersion(v=>v+1);remember(restored);}
+      finally{busy.current=false;}
+    },order);
+    publishView(next);
+  }
   const [flags, setFlags] = useState<Flag[]>([]);
   const [settings, setSettings] = useState<SettingInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +164,7 @@ export function useWorkspace(backend: Backend | null, combinedFire = true): Work
         const v = await openSession(backend, { videoPath: path, frame: frame ?? savedFrame(projectsRef.current, path) });
         clearGuiThumbnails(backend);
         videoPath.current = path;
+        undoHistory?.clear(v.undo_depth);
         setView(v);
         setError(null);
         remember(v);
@@ -195,8 +206,9 @@ export function useWorkspace(backend: Backend | null, combinedFire = true): Work
       if (!backend || busy.current) return;
       busy.current = true;
       try {
+        const order=undoHistory?.checkpoint();
         const v = await backend.act(a);
-        setView(v);
+        setView(v,order);
         remember(v);
         if (MUTATING.has(a.type)) setVersion((x) => x + 1);
       } catch (e) {

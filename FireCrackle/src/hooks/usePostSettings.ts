@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {useUndoState} from './useUndoState';
+import type {LabelUndo} from '../lib/labelUndo';
 import { POST_TOGGLE_KEY, isTypingTarget, postKeyAction } from "../lib/post/keys";
 import { addUserPreset, readUserPresets, removeUserPreset, writeUserPresets } from "../lib/post/userPresets";
 import type { Preset } from "../lib/post/presets";
@@ -14,13 +16,13 @@ export const SLIDER_DELAY_MS = 80;
  * shows (always current); `picture` is what the frame is drawn with (delayed a moment while a slider moves).
  * Only useState, useRef, useEffect and useCallback, like the other hooks the App test replaces.
  */
-export function usePostSettings() {
-  const [settings, setSettings] = useState<PostSettings>(() => readPostSettings());
+export function usePostSettings(history?:LabelUndo) {
+  const [settings, setSettings] = useUndoState<PostSettings>(() => readPostSettings(),history,'post.settings');
   const [applied, setApplied] = useState<PostSettings>(settings);
   const [selected, setSelected] = useState<RowId>("veil");
   const [portalStatus, setPortalStatus] = useState("");
   const [portalFit, setPortalFit] = useState<{ phase: number; opacity: number } | null>(null);
-  const [userPresets, setUserPresets] = useState<Preset[]>(() => readUserPresets());
+  const [userPresets, setUserPresets] = useUndoState<Preset[]>(() => readUserPresets(),history,'post.presets');
   const [presetName, setPresetName] = useState("");
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -28,6 +30,7 @@ export function usePostSettings() {
   appliedRef.current = applied;
 
   useEffect(() => { writePostSettings(settings); }, [settings]);
+  useEffect(() => {writeUserPresets(userPresets);},[userPresets]);
 
   useEffect(() => {
     if (appliedRef.current === settings) return;

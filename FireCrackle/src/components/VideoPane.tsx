@@ -1,3 +1,5 @@
+import {useUndoState} from "../hooks/useUndoState";
+import type {LabelUndo} from "../lib/labelUndo";
 import {ANIMATION_ATLASES,soulFire,type AnimationAtlas} from "../lib/animationAtlases";
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from "react";
 import { useWheel } from "../hooks/useWheel";
@@ -69,6 +71,7 @@ function labelClass(label: Label): string {
 }
 
 interface Props {
+  undoHistory?: LabelUndo;
   firstPersonAllowed?: boolean;
   stillImage?: { name: string; url: string; file?: Blob };
   storageScope?: string;
@@ -103,7 +106,7 @@ interface Props {
 }
 
 /** The current frame, with its number, time and label over it. */
-export function VideoPane({ firstPersonAllowed = true, backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
+export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
@@ -128,23 +131,23 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   const restored = useRef<MaskState | null>(null);
   if (!restored.current) restored.current = readMaskState(toolStorage);
   const saved = restored.current;
-  const [hudRequested, setHudEnabled] = useState(saved.hudEnabled);
+  const [hudRequested, setHudEnabled] = useUndoState(saved.hudEnabled,undoHistory,'video.hudRequested');
   const hudEnabled = firstPersonAllowed && hudRequested;
-  const [hudRow, setHudRow] = useState(saved.hudRow);
-  const [hudFov, setHudFov] = useState(saved.hudFov);
-  const [manualEnabled, setManualEnabled] = useState(saved.manualEnabled);
-  const [manualQuad, setManualQuad] = useState<ManualQuad>(saved.manualQuad);
-  const [manualSheet, setManualSheet] = useState<0 | 1>(saved.manualSheet);
-  const [manualRow, setManualRow] = useState(saved.manualRow);
-  const [manualAtlas,setManualAtlas]=useState<AnimationAtlas|undefined>(saved.manualAtlas);
+  const [hudRow, setHudRow] = useUndoState(saved.hudRow,undoHistory,'video.hudRow');
+  const [hudFov, setHudFov] = useUndoState(saved.hudFov,undoHistory,'video.hudFov');
+  const [manualEnabled, setManualEnabled] = useUndoState(saved.manualEnabled,undoHistory,'video.manualEnabled');
+  const [manualQuad, setManualQuad] = useUndoState<ManualQuad>(saved.manualQuad,undoHistory,'video.manualQuad');
+  const [manualSheet, setManualSheet] = useUndoState<0 | 1>(saved.manualSheet,undoHistory,'video.manualSheet');
+  const [manualRow, setManualRow] = useUndoState(saved.manualRow,undoHistory,'video.manualRow');
+  const [manualAtlas,setManualAtlas]=useUndoState<AnimationAtlas|undefined>(saved.manualAtlas,undoHistory,'video.manualAtlas');
   const manualRows=manualAtlas?ANIMATION_ATLASES[manualAtlas].rows:32;
-  const [manualMirrored, setManualMirrored] = useState(saved.manualMirrored);
-  const [manualOpacity, setManualOpacity] = useState(saved.manualOpacity);
-  const [pixelGrid, setPixelGrid] = useState(saved.pixelGrid);
-  const [compressionEnabled, setCompressionEnabled] = useState(saved.compressionEnabled);
-  const [compressionHeight, setCompressionHeight] = useState(saved.compressionHeight);
-  const [compressionQuality, setCompressionQuality] = useState(saved.compressionQuality);
-  const [hudOpacity, setHudOpacity] = useState(saved.hudOpacity);
+  const [manualMirrored, setManualMirrored] = useUndoState(saved.manualMirrored,undoHistory,'video.manualMirrored');
+  const [manualOpacity, setManualOpacity] = useUndoState(saved.manualOpacity,undoHistory,'video.manualOpacity');
+  const [pixelGrid, setPixelGrid] = useUndoState(saved.pixelGrid,undoHistory,'video.pixelGrid');
+  const [compressionEnabled, setCompressionEnabled] = useUndoState(saved.compressionEnabled,undoHistory,'video.compressionEnabled');
+  const [compressionHeight, setCompressionHeight] = useUndoState(saved.compressionHeight,undoHistory,'video.compressionHeight');
+  const [compressionQuality, setCompressionQuality] = useUndoState(saved.compressionQuality,undoHistory,'video.compressionQuality');
+  const [hudOpacity, setHudOpacity] = useUndoState(saved.hudOpacity,undoHistory,'video.hudOpacity');
   useEffect(() => {
     writeMaskState({ hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualAtlas, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality }, toolStorage);
   }, [hudEnabled, hudRow, hudFov, hudOpacity, manualEnabled, manualQuad, manualSheet, manualAtlas, manualRow, manualMirrored, manualOpacity, pixelGrid, compressionEnabled, compressionHeight, compressionQuality]);
@@ -172,20 +175,20 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   const delivery = imageSize.width > 0 ? compressionGeometry(imageSize.width,imageSize.height,compressionHeight,manualQuad) : null;
   const restoredRuler = useRef<RulerState | null>(null);
   if (!restoredRuler.current) restoredRuler.current = readRuler(toolStorage);
-  const [ruler, setRuler] = useState(restoredRuler.current);
+  const [ruler, setRuler] = useUndoState(restoredRuler.current,undoHistory,'video.ruler');
   const unitPixels = rulerUnit(ruler.points, imageSize.width, imageSize.height);
   useEffect(() => { writeRuler(ruler, toolStorage); }, [ruler]);
   const resizeRulerUnit = (pixels: number) => setRuler(current => ({ ...current, points: scaleRulerUnit(current.points, pixels, imageSize.width, imageSize.height) }));
   const [rulerSelected, setRulerSelected] = useState(false);
-  const [matchingEnabled, setMatchingEnabled] = useState(saved.manualEnabled && readPreferences(toolStorage).matchOpen);
+  const [matchingEnabled, setMatchingEnabled] = useUndoState(saved.manualEnabled && readPreferences(toolStorage).matchOpen,undoHistory,'video.matchingEnabled');
   useEffect(() => { writePreferences({ matchOpen: matchingEnabled }, toolStorage); }, [matchingEnabled]);
-  const [animationOpen, setAnimationOpen] = useState(saved.manualEnabled && readPreferences(toolStorage).animationOpen);
+  const [animationOpen, setAnimationOpen] = useUndoState(saved.manualEnabled && readPreferences(toolStorage).animationOpen,undoHistory,'video.animationOpen');
   const [animationStop, setAnimationStop] = useState(0);
   useEffect(() => { writePreferences({ animationOpen }, toolStorage); }, [animationOpen]);
-  const [ownVeilMode, setVeilMode] = useState<VeilMode>(() => readPreferences(toolStorage).veilMode);
+  const [ownVeilMode, setVeilMode] = useUndoState<VeilMode>(() => readPreferences(toolStorage).veilMode,undoHistory,'video.ownVeilMode');
   useEffect(() => { writePreferences({ veilMode: ownVeilMode }, toolStorage); }, [ownVeilMode]);
   const [veilApplied, setVeilApplied] = useState(false);
-  const [ownPortalMode, setPortalMode] = useState<PortalMode>(() => readPreferences(toolStorage).portalMode);
+  const [ownPortalMode, setPortalMode] = useUndoState<PortalMode>(() => readPreferences(toolStorage).portalMode,undoHistory,'video.ownPortalMode');
   useEffect(() => { writePreferences({ portalMode: ownPortalMode }, toolStorage); }, [ownPortalMode]);
   const [portalStatus, setPortalStatus] = useState("");
   // with post-processing settings the Enhance panel decides; without them the two selects below do
@@ -198,7 +201,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   const [enhanceApplied, setEnhanceApplied] = useState(false);
   const reportPortalStatus = (status: string) => { setPortalStatus(status); onPortalStatus?.(status); };
   // GUI mask: videos only (photos have no project to keep the vanilla answer in)
-  const [guiMaskOn, setGuiMaskOn] = useState(false);
+  const [guiMaskOn, setGuiMaskOn] = useUndoState(false,undoHistory,'video.guiMaskOn');
   const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode === "auto" || veilMode === "auto") && !stillImage);
   const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
   const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
@@ -234,7 +237,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     finally{source?.dispose?.();if(refineAbort.current===controller)setRefineBusy(null);}
   }
   function toggleRuler() { setRuler(current => ({ ...current, enabled: !current.enabled })); }
-  useEffect(() => { if (!firstPersonAllowed) setHudEnabled(false); }, [firstPersonAllowed]);
+  useEffect(() => { if (!firstPersonAllowed) { if(undoHistory)undoHistory.ignore(()=>setHudEnabled(false));else setHudEnabled(false); } }, [firstPersonAllowed]);
   function toggleFirstPerson() {
     if (!firstPersonAllowed) return;
     setAnimationOpen(false);
@@ -317,7 +320,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     if (previousFrame.current === view.current) return;
     previousFrame.current = view.current;
     const next = framePreview(view);
-    if (next) selectPreview(next);
+    if (next) { if(undoHistory)undoHistory.ignore(()=>selectPreview(next));else selectPreview(next); }
   }, [view.current, view.suggestion, view.label, manualEnabled, hudEnabled]);
 
   // (declared here, after the first effects: VideoPane.interaction.test picks those by position)
@@ -431,7 +434,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
 
   // zoom (wheel, around the cursor) and pan (left-drag) of the picture
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const [xf, setXf] = useState<ViewXform>(readVideoView(videoKey, stateStorage));
+  const [xf, setXf] = useUndoState<ViewXform>(readVideoView(videoKey, stateStorage),undoHistory,'video.xf');
   useEffect(() => { writeVideoView(videoKey, xf, stateStorage); }, [videoKey, xf]);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const boxOf = (): Box => {
@@ -450,7 +453,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setXf((v) => clampView(v, boxOf())));
+    const ro = new ResizeObserver(() => { const resize=()=>setXf((v) => clampView(v, boxOf()));if(undoHistory)undoHistory.ignore(resize);else resize(); });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -611,7 +614,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
-          onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualAtlas(sprite.atlas); setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
+          onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { const preview=()=>{setManualAtlas(sprite.atlas);setManualSheet(sprite.sheet);setManualRow(sprite.row);setManualMirrored(sprite.mirrored);};if(undoHistory)undoHistory.ignore(preview);else preview(); }} />
       </div>}
       {matchingEnabled && (!manualAtlas||soulFire(manualAtlas)) && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
         {url ? <QuadMatchControls material={manualAtlas&&soulFire(manualAtlas)?"soul":"normal"} frameUrl={url} sourceFrame={sourceForMatch} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current||playing} runToken={findToken} pick={matchPick} onPreview={candidate=> {

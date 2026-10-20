@@ -420,6 +420,25 @@ it("keeps the selected playback speed through Play and Space pause/resume", () =
   } finally {vi.useRealTimers();}
 });
 
+it('shares toolbar Undo and Ctrl+Z across tools and labels, including slider focus',async()=>{
+  let ui=render();const history=ui.video.props.undoHistory;let quad=1;
+  history.bind('quad',(value:number)=>{quad=value;});
+  history.changed('quad',1,2);quad=2;await Promise.resolve();
+  history.observeLabels(1,()=>fixture.act({type:'undo'}));await Promise.resolve();
+  history.changed('quad',2,3);quad=3;await Promise.resolve();
+  find(ui.tree,e=>e.props.label==='Undo')!.props.onClick();await Promise.resolve();await Promise.resolve();
+  expect(quad).toBe(2);expect(fixture.act).not.toHaveBeenCalled();
+  const press=(type:string)=>{
+    const event=Object.assign(new Event('keydown',{cancelable:true}),{key:'z',ctrlKey:true,metaKey:false,altKey:false,shiftKey:false,repeat:false});
+    Object.defineProperty(event,'target',{value:{tagName:'INPUT',type}});window.dispatchEvent(event);return event;
+  };
+  expect(press('text').defaultPrevented).toBe(false);expect(history.size).toBe(2);
+  expect(press('range').defaultPrevented).toBe(true);await Promise.resolve();await Promise.resolve();
+  expect(fixture.act).toHaveBeenCalledExactlyOnceWith({type:'undo'});
+  ui=render();find(ui.tree,e=>e.props.label==='Undo')!.props.onClick();await Promise.resolve();await Promise.resolve();
+  expect(quad).toBe(1);expect(history.size).toBe(0);
+});
+
 it("hands the saved presets and their handlers to the Enhance panel", () => {
   const userPresets = [{ id: "user-1", name: "Night", stages: { tone: { gamma: 1.4 } } }];
   fixture.post = postFixture(DEFAULT_POST, { userPresets, presetName: "Cav" });

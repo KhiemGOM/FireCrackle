@@ -333,6 +333,11 @@ impl LabelStore {
         self.frame_count
     }
 
+    /// Number of actual reversible label changes (navigation and no-op writes add none).
+    pub fn undo_depth(&self) -> usize {
+        self.undo.len()
+    }
+
     /// Portable snapshot: animation indices and prediction provenance are preserved.
     pub fn export_json(&self, fingerprint: &str) -> String {
         let archive = LabelArchive {

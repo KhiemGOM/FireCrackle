@@ -33,6 +33,8 @@ export interface View {
   typed_pending: number | null;
   suggestion: Suggestion | null;
   labelled_count: number;
+  /** Actual native undo entries; absent only on older backends. */
+  undo_depth?: number;
   flag_count: number;
   warnings: string[];
   save_error: string | null;

@@ -1,3 +1,6 @@
+import {isTypingTarget} from "./lib/post/keys";
+import {LabelUndo} from "./lib/labelUndo";
+import {useUndoState} from "./hooks/useUndoState";
 import {ANIMATION_ATLASES} from "./lib/animationAtlases";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { version as appVersion } from "../package.json";
@@ -80,7 +83,11 @@ export default function App() {
   }, []);
 
   const [extraSources, setExtraSources] = useState(readExtraSources);
-  const ws = useWorkspace(backend, !extraSources);
+  const undoRef=useRef<LabelUndo|null>(null);
+  if(!undoRef.current)undoRef.current=new LabelUndo();
+  const undoHistory=undoRef.current;
+  useEffect(()=>undoHistory.attach(window),[undoHistory]);
+  const ws = useWorkspace(backend, !extraSources, undoHistory);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
   const [playSpeed, setPlaySpeed] = useState(1);
@@ -95,22 +102,28 @@ export default function App() {
   const [showCredits, setShowCredits] = useState(false);
   const updates = useUpdates(backend);
   const [showUpdates, setShowUpdates] = useState(false);
-  const post = usePostSettings();
+  const post = usePostSettings(undoHistory);
   const [side, setSide] = useState<"label" | "enhance">("label");
   const [showAutomation,setShowAutomation]=useState(false);
   const [path, setPath] = useState("");
   const [showLink, setShowLink] = useState(false);
   const [home, setHome] = useState(false);
   const [tab, setTab] = useState<"label" | "phase" | "misc" | "images">(readPreferences().tab);
+  undoHistory.enabled=tab==="label"&&!home;
+  const undo = useCallback(()=>{
+    if(ws.busy.current)return;
+    setPlayback(STOPPED);
+    void undoHistory.undo(()=>act({type:"undo"})).catch(error=>reportError("Undo Label edit",error));
+  },[undoHistory,act,ws.busy]);
   const { layout, set: setLayout, reset: resetLayout } = useLayout();
   const workareaRef = useRef<HTMLElement | null>(null);
   const { zooms, wheel: zoomWheel, reset: resetZoom } = usePanelZooms();
   const pickerBoxRef = useRef<HTMLDivElement | null>(null);
   const activeAbsence = useRef<import("./lib/grid").Label>("no_fire");
   const videoPreviewRef = useRef<VideoPreviewHandle | null>(null);
-  const [draft, setDraft] = useState<CandidateDraft | null>(null);
+  const [draft, setDraft] = useUndoState<CandidateDraft | null>(null,undoHistory,'app.draft');
   const [previewSprite, setPreviewSprite] = useState<PreviewSprite | null>(null);
-  const [atlasFilter, setAtlasFilter] = useState<EdgeFilter>(readPreferences().atlasFilter);
+  const [atlasFilter, setAtlasFilter] = useUndoState<EdgeFilter>(readPreferences().atlasFilter,undoHistory,'app.atlasFilter');
   const [firstPersonAllowed, setFirstPersonAllowed] = useState(true);
   const [atlasEdges, setAtlasEdges] = useState<AtlasEdges | null>(null);
   const [pickerError, setPickerError] = useState<string | null>(null);
@@ -134,11 +147,11 @@ export default function App() {
     setPlayback(STOPPED);
     void act(action);
   }, [view, draft, act, ws.busy]);
-  useEffect(() => { setDraft(null); }, [view?.current]);
+  useEffect(() => { undoHistory.ignore(()=>setDraft(null)); }, [view?.current]);
   useEffect(() => {
     if(draft && draft.frame===view?.current){
       const sprite=labelSprite(draft.label);
-      if(sprite)videoPreviewRef.current?.selectSprite(sprite);
+      if(sprite)undoHistory.ignore(()=>videoPreviewRef.current?.selectSprite(sprite));
     }
   }, [draft?.frame, draft?.label, view?.current]);
   const flagsBoxRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +196,9 @@ export default function App() {
       if (e.defaultPrevented || e.isComposing) return;
       // A video tool key (Q H M U, or the 1-3 that follow M) belongs to the video pane: do not read it as a row digit.
       const t = e.target as HTMLElement | null;
+      if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==="z"&&!isTypingTarget(t)){
+        e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)undo();return;
+      }
       if (wouldConsumeToolKey({ key: e.key, type: "down", ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
         targetEditable: blocksVideoToolKeys(t) })) return;
       // Reserve navigation/confirmation before focused inputs and buttons handle them (not in a field that owns its keys).
@@ -227,13 +243,14 @@ export default function App() {
         stageSprite(a.type==='toggleSheet'?spriteWithSheet(sprite,(1-sprite.sheet) as 0|1):{...sprite,mirrored:!sprite.mirrored});
         return;
       }
+      if(a.type==="undo"){undo();return;}
       const ui = toUiAction(a);
       if (ui) void act(ui);
       else if (a.type === "playPause" || a.type === "shuttle") setPlayback((p) => nextPlayback(p, a, maxSpeed, playSpeed));
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [view, home, tab, act, maxSpeed, playSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
+  }, [view, home, tab, act, undo, maxSpeed, playSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
 
   // playback is a Label-tab thing: it must not keep stepping behind the chart
   useEffect(() => {
@@ -268,7 +285,7 @@ export default function App() {
   // Finish interpreting a single digit without saving or advancing the frame.
   useEffect(() => {
     if (!draft?.digits || draft.digits.length !== 1) return;
-    const id = setTimeout(() => setDraft(previous => previous === draft ? { ...previous, digits: undefined } : previous), typeTimeout);
+    const id = setTimeout(() => undoHistory.ignore(()=>setDraft(previous => previous === draft ? { ...previous, digits: undefined } : previous)), typeTimeout);
     return () => clearTimeout(id);
   }, [draft, typeTimeout]);
 
@@ -323,7 +340,7 @@ export default function App() {
               <IconButton icon="export" label="Export labels" disabled={!backend.transferLabels || ws.opening || ws.transferring} onClick={() => { setPlayback(STOPPED); void ws.transferLabels("export"); }} title="Export labels to a JSON file" />
               <IconButton icon="import" label="Import labels" disabled={!backend.transferLabels || ws.opening || ws.transferring} onClick={() => { setPlayback(STOPPED); void ws.transferLabels("import"); }} title="Import labels · replaces matching frames · Undo restores the import" />
               <span className="toolbar-divider" />
-              <IconButton icon="undo" label="Undo" onClick={() => void act({ type: "undo" })} title="Undo · Ctrl+Z" />
+              <IconButton icon="undo" label="Undo" onClick={undo} title="Undo last Label edit · Ctrl+Z" />
               <PlaybackButton playback={playback} speed={playSpeed} maxSpeed={maxSpeed}
                 onToggle={() => setPlayback((p) => nextPlayback(p, { type: "playPause" }, maxSpeed, playSpeed))}
                 onSpeed={speed => { setPlaySpeed(speed); setPlayback(p => ({ ...p, speed })); }}
@@ -383,7 +400,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane firstPersonAllowed={firstPersonAllowed} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
+            <VideoPane undoHistory={undoHistory} firstPersonAllowed={firstPersonAllowed} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
             <Splitter
               direction="row"
               label="Video height"
@@ -449,7 +466,7 @@ export default function App() {
               <div className="candidate-help">Click selects · Ctrl+click previews only · Confirm saves</div>
             </div>
             <div className="picker-box" ref={pickerBoxRef} onDoubleClick={(e) => e.ctrlKey && resetZoom("picker")}>
-              <Picker extraSources={extraSources}
+              <Picker undoHistory={undoHistory} extraSources={extraSources}
                 onAlternative={(sprite,ctrl)=>{setPlayback(STOPPED);if(!ctrl)stageSprite(sprite);videoPreviewRef.current?.selectSprite(sprite);}}
                 onFirstPersonAllowedChange={setFirstPersonAllowed} onEdgesChange={setAtlasEdges}
                 onAbsenceChange={label => { activeAbsence.current=label; }}
