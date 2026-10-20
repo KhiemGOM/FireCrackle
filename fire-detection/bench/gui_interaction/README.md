@@ -88,6 +88,9 @@ inventory, recall is 6,573/6,613 (99.40%). Creative inventory accounts for 472 o
 misses. See [`GUI_ALL_FRAMES_CHECK.md`](../../../docs/GUI_ALL_FRAMES_CHECK.md)
 for full scope, per-type errors, contiguous misses and provenance. These are
 same-session development recordings; neighbouring frames are correlated.
+All 512 misses are catalogued by rejection gate in
+[`GUI_MISSED_FRAME_CATALOGUE.md`](../../../docs/GUI_MISSED_FRAME_CATALOGUE.md),
+with the full private per-frame/run catalogue and reviewed images linked there.
 
 ## Segment-midpoint development check
 
