@@ -14,8 +14,14 @@ pub struct PanelTemplate {
     pub width: usize,
     pub height: usize,
     pub recipe_shift: bool,
+    /// Logical offset from horizontal centre; optional logical vertical offset.
+    /// Vertical offsets may be relative to a viewport fraction (e.g. footer).
+    pub offset_x: f64,
+    pub top_y: Option<f64>,
+    pub viewport_y: f64,
     border: Vec<Probe>,
     structure: Vec<Probe>,
+    identity: Vec<Probe>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -24,6 +30,7 @@ struct Probe {
     y: f64,
     rgb: [u8; 3],
     group: usize,
+    viewport_y: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -105,6 +112,11 @@ impl PanelTemplate {
         };
         let mut border = Vec::new();
         let mut structure = Vec::new();
+        let coloured = screen_type.ends_with("book_edit_screen")
+            || screen_type.ends_with("book_sign_screen")
+            || screen_type.ends_with("book_view_screen")
+            || screen_type.ends_with("lectern_screen")
+            || screen_type.ends_with("hanging_sign_edit_screen");
         for y in 1..height - 1 {
             for x in 1..width - 1 {
                 let c = pixel(x, y);
@@ -113,7 +125,7 @@ impl PanelTemplate {
                 }
                 // Coloured icon/model/item interiors are variable. Opaque grey
                 // bevel transitions and separators are reusable static anchors.
-                if c[..3].iter().max().unwrap() - c[..3].iter().min().unwrap() > 8 {
+                if !coloured && c[..3].iter().max().unwrap() - c[..3].iter().min().unwrap() > 8 {
                     continue;
                 }
                 let group = (usize::from(x >= width / 2)) + 2 * usize::from(y >= height / 2);
@@ -122,6 +134,7 @@ impl PanelTemplate {
                     y: y as f64 + 0.5,
                     rgb: [c[0], c[1], c[2]],
                     group,
+                    viewport_y: 0.,
                 };
                 if x < 4 || x >= width - 4 || y < 4 || y >= height - 4 {
                     if (x + 3 * y) % 7 == 0 {
@@ -130,7 +143,8 @@ impl PanelTemplate {
                 } else if x >= 5
                     && x < width - 5
                     && y >= 16
-                    && y < if width >= 150
+                    && y < if !coloured
+                        && width >= 150
                         && height >= 120
                         && !screen_type.ends_with("horse_inventory_screen")
                         && !screen_type.ends_with("merchant_screen")
@@ -151,7 +165,7 @@ impl PanelTemplate {
                     ];
                     if neighbors
                         .iter()
-                        .any(|p| p[3] == 255 && p[0].abs_diff(c[0]) >= 24)
+                        .any(|p| p[3] == 255 && (0..3).any(|k| p[k].abs_diff(c[k]) >= 24))
                         && (x + y) % 3 == 0
                     {
                         structure.push(probe);
@@ -179,13 +193,45 @@ impl PanelTemplate {
             width,
             height,
             recipe_shift,
+            offset_x: 0.,
+            top_y: None,
+            viewport_y: 0.,
             border,
             structure,
+            identity: Vec::new(),
         })
     }
 
+    /// Additional source-rendered identity anchors, e.g. fixed book controls.
+    /// Renameable container titles must never be used as type evidence.
+    /// Coordinates may extend outside the panel (book controls below the paper).
+    pub fn require_identity(&mut self, pixels: &[(f64, f64, [u8; 3])]) -> Result<(), String> {
+        if pixels.len() < 16
+            || pixels.len() > 4096
+            || pixels.iter().any(|(x, y, _)| {
+                !x.is_finite() || !y.is_finite() || x.abs() > 1024. || y.abs() > 1024.
+            })
+        {
+            return Err("invalid GUI identity anchors".into());
+        }
+        self.identity = pixels
+            .iter()
+            .map(|&(x, y, rgb)| Probe {
+                x,
+                y,
+                rgb,
+                group: 0,
+                viewport_y: 0.,
+            })
+            .collect();
+        Ok(())
+    }
+
     /// GUI source packs are generated locally from the installed client jar.
-    /// Header: GUIT1, type, version, variant, width height recipe_shift; then RGBA.
+    /// GUIT1: type, version, variant, width height recipe_shift; then RGBA.
+    /// GUIT2 adds a layout line: offset_x top_y identity_count [viewport_y],
+    /// followed by identity_count lines: x y r g b [viewport_y], then RGBA.
+    /// A top_y of -1 at viewport_y=0 retains the centred legacy geometry.
     pub fn load(path: &Path) -> Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let mut cursor = 0;
@@ -201,7 +247,8 @@ impl PanelTemplate {
             cursor = end + 1;
             Ok(value)
         };
-        if line()? != "GUIT1" {
+        let format = line()?;
+        if format != "GUIT1" && format != "GUIT2" {
             return Err("unsupported GUI template format".into());
         }
         let kind = line()?;
@@ -215,7 +262,62 @@ impl PanelTemplate {
         if shape.len() != 3 {
             return Err("bad template shape".into());
         }
-        Self::from_rgba(
+        let mut identity = Vec::new();
+        let mut layout = [0., -1.];
+        let mut viewport_y = 0.;
+        let mut identity_viewports = Vec::new();
+        if format == "GUIT2" {
+            let metadata = line()?;
+            let fields: Vec<_> = metadata.split_whitespace().collect();
+            if fields.len() != 3 && fields.len() != 4 {
+                return Err("bad GUI layout header".into());
+            }
+            layout[0] = fields[0].parse::<f64>().map_err(|_| "bad GUI offset")?;
+            layout[1] = fields[1].parse::<f64>().map_err(|_| "bad GUI top")?;
+            if !layout.iter().all(|v| v.is_finite() && v.abs() <= 1024.) {
+                return Err("invalid GUI layout".into());
+            }
+            let count = fields[2]
+                .parse::<usize>()
+                .map_err(|_| "bad identity count")?;
+            if fields.len() == 4 {
+                viewport_y = fields[3]
+                    .parse::<f64>()
+                    .map_err(|_| "bad viewport fraction")?;
+                if !viewport_y.is_finite() || !(0.0..=1.0).contains(&viewport_y) {
+                    return Err("invalid viewport fraction".into());
+                }
+            }
+            if count > 4096 {
+                return Err("too many identity anchors".into());
+            }
+            for _ in 0..count {
+                let row = line()?;
+                let p: Vec<_> = row.split_whitespace().collect();
+                if p.len() != 5 && p.len() != 6 {
+                    return Err("bad identity anchor".into());
+                }
+                identity.push((
+                    p[0].parse().map_err(|_| "bad anchor x")?,
+                    p[1].parse().map_err(|_| "bad anchor y")?,
+                    [
+                        p[2].parse().map_err(|_| "bad anchor red")?,
+                        p[3].parse().map_err(|_| "bad anchor green")?,
+                        p[4].parse().map_err(|_| "bad anchor blue")?,
+                    ],
+                ));
+                let fraction = if p.len() == 6 {
+                    p[5].parse::<f64>().map_err(|_| "bad anchor viewport")?
+                } else {
+                    0.
+                };
+                if !fraction.is_finite() || !(-1.0..=1.0).contains(&fraction) {
+                    return Err("invalid anchor viewport".into());
+                }
+                identity_viewports.push(fraction);
+            }
+        }
+        let mut template = Self::from_rgba(
             kind,
             version,
             variant,
@@ -223,7 +325,22 @@ impl PanelTemplate {
             shape[1],
             shape[2] != 0,
             &bytes[cursor..],
-        )
+        )?;
+        template.offset_x = layout[0];
+        template.top_y = if layout[1] == -1. && viewport_y == 0. {
+            None
+        } else {
+            Some(layout[1])
+        };
+        template.viewport_y = viewport_y;
+        if !identity.is_empty() {
+            template.require_identity(&identity)?;
+            for (probe, fraction) in template.identity.iter_mut().zip(identity_viewports) {
+                probe.viewport_y = fraction;
+                probe.group = usize::from(fraction != 0.);
+            }
+        }
+        Ok(template)
     }
 }
 
@@ -257,7 +374,7 @@ fn score(
     let mut groups = [[0usize; 2]; 4];
     for (i, p) in points.iter().enumerate() {
         let x = (rect.x + p.x * sx).floor() as isize;
-        let y = (rect.y + p.y * sy).floor() as isize;
+        let y = (rect.y + p.y * sy + p.viewport_y * height as f64).floor() as isize;
         if x < 0 || y < 0 || x >= width as isize || y >= height as isize {
             return 0.;
         }
@@ -329,8 +446,12 @@ pub fn detect(
                     for ox in [0., -0.5, 0.5] {
                         for oy in [0., -0.5, 0.5] {
                             let bounds = Rect {
-                                x: (width as f64 - pw) / 2. + shift * sx + ox * sx,
-                                y: (height as f64 - ph) / 2. + oy * sy,
+                                x: (width as f64 - pw) / 2. + (template.offset_x + shift + ox) * sx,
+                                y: template
+                                    .top_y
+                                    .map_or((height as f64 - ph) / 2., |top| top * sy)
+                                    + template.viewport_y * height as f64
+                                    + oy * sy,
                                 width: pw,
                                 height: ph,
                             };
@@ -363,6 +484,21 @@ pub fn detect(
                                 opts.min_structure,
                             );
                             if structure_score < opts.min_structure {
+                                continue;
+                            }
+                            if !template.identity.is_empty()
+                                && score(
+                                    rgb,
+                                    width,
+                                    height,
+                                    &template.identity,
+                                    bounds,
+                                    sx,
+                                    sy,
+                                    opts.channel_tolerance,
+                                    0.90,
+                                ) < 0.90
+                            {
                                 continue;
                             }
                             let quality = 0.3 * border_score + 0.7 * structure_score;
@@ -446,12 +582,17 @@ impl Detection {
             .min(mask.height as f64)
             .max(0.) as usize;
         let mut count = 0;
+        let piece = if hit.variant.starts_with("fixed_controls") {
+            crate::gui_mask::PieceId::MenuButton
+        } else {
+            crate::gui_mask::PieceId::InventoryPanel
+        } as u8;
         for y in y0..y1 {
             for x in x0..x1 {
                 let p = y * mask.width + x;
                 if mask.class[p] == 0 {
                     mask.class[p] = 3; // Unknown / neutral, never opaque ownership.
-                    mask.piece[p] = crate::gui_mask::PieceId::InventoryPanel as u8;
+                    mask.piece[p] = piece;
                     count += 1;
                 }
             }

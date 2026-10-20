@@ -1,3 +1,14 @@
+# Minecraft source evidence
+
+- Verify Minecraft mechanics, GUI layouts, rendering and animation rules against
+  the actual game code and assets for the relevant version before implementing
+  them. Do not guess constants or behaviour from screenshots or memory.
+- Record the source classes/methods and version (with hashes in generated
+  research manifests where applicable). Clearly distinguish verified rules from
+  unverified cases; missing evidence is not permission to assume equivalence.
+- Container titles can be renamed. Never infer an exact container type from its
+  displayed name; fixed menu/editor controls are a separate source of evidence.
+
 # Mandatory video training catalogue
 
 - Before a new AI fitting/model-comparison experiment, ask the owner to agree on
