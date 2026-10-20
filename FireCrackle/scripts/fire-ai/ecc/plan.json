@@ -1,0 +1,37 @@
+{
+  "sources": [
+    {
+      "material": "normal",
+      "manifest": ".board/row32-128/manifest.json",
+      "sha256": "a684f5b626ae5180dc782bde3c42917cb5763e88589a7188ec2b233fc4595bbb",
+      "eligible": 617,
+      "unique_frames": 179,
+      "selected": 64
+    },
+    {
+      "material": "soul",
+      "manifest": ".board/soul-phase128/manifest.json",
+      "sha256": "91fd9dc338609aaed6a758c8472a0deb91f958467bbb0d48775b3aa1cc465f01",
+      "eligible": 1983,
+      "unique_frames": 394,
+      "selected": 64
+    }
+  ],
+  "selection": "64 per material; unique decoded and renderer frames; SHA256(id) ordering; no outcome selection",
+  "geometry": "Recorded quad and deterministic +/-4% per-corner UV jitter; real video pixels unchanged; not synthetic fire",
+  "selected_sprite": "Renderer-labelled phase, sheet and mirror held fixed for every fitter; classification uses no truth",
+  "methods": [
+    "fixed quad",
+    "current production bounded Nelder-Mead",
+    "masked ECC homography, 60 iterations, epsilon1e-5, blur3,128px canvas",
+    "projected bounded ECC:30 single updates; same120% corner envelope; best encountered correlation"
+  ],
+  "metrics": [
+    "distinct-phase top3 on rough outlines",
+    "known-sprite corner error before/after",
+    "wall inference ms including failures"
+  ],
+  "model_training": false,
+  "preprocessing": "Existing frozen native RGB caches from shared Rust unveil; no new inverse",
+  "truth_join_sha256": "c3a39b59346ae4030e45099ebabd1bfc9d2b4e8a722341e5ca881ae8999147a0"
+}

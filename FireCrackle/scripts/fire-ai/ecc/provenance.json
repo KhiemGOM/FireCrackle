@@ -1,0 +1,276 @@
+{
+  "catalogue": "docs/TRAINING_DATA_CATALOGUE.md",
+  "sources": [
+    {
+      "path": "fire-detection/data/video/2026-10-15 14-15-51.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-15 14-48-36.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-15 18-18-16.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-15 23-48-59.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-15 23-50-25.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-16 00-40-22.mkv",
+      "role": "evaluation",
+      "reason": "Fixed 64-case material cohort from existing held-out cache"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-16 01-41-58.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-16 01-42-43.mp4",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-16 18-23-42.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-17 17-04-31.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-17 18-28-42.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-19 16-49-48.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-19 22-59-52.mkv",
+      "role": "excluded",
+      "reason": "Explicit small deterministic alignment pilot; no training, calibration or all-data claim"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-19 23-27-30.mkv",
+      "role": "evaluation",
+      "reason": "Fixed 64-case material cohort from existing held-out cache"
+    }
+  ],
+  "plan": {
+    "sources": [
+      {
+        "material": "normal",
+        "manifest": ".board/row32-128/manifest.json",
+        "sha256": "a684f5b626ae5180dc782bde3c42917cb5763e88589a7188ec2b233fc4595bbb",
+        "eligible": 617,
+        "unique_frames": 179,
+        "selected": 64
+      },
+      {
+        "material": "soul",
+        "manifest": ".board/soul-phase128/manifest.json",
+        "sha256": "91fd9dc338609aaed6a758c8472a0deb91f958467bbb0d48775b3aa1cc465f01",
+        "eligible": 1983,
+        "unique_frames": 394,
+        "selected": 64
+      }
+    ],
+    "selection": "64 per material; unique decoded and renderer frames; SHA256(id) ordering; no outcome selection",
+    "geometry": "Recorded quad and deterministic +/-4% per-corner UV jitter; real video pixels unchanged; not synthetic fire",
+    "selected_sprite": "Renderer-labelled phase, sheet and mirror held fixed for every fitter; classification uses no truth",
+    "methods": [
+      "fixed quad",
+      "current production bounded Nelder-Mead",
+      "masked ECC homography, 60 iterations, epsilon1e-5, blur3,128px canvas",
+      "projected bounded ECC:30 single updates; same120% corner envelope; best encountered correlation"
+    ],
+    "metrics": [
+      "distinct-phase top3 on rough outlines",
+      "known-sprite corner error before/after",
+      "wall inference ms including failures"
+    ],
+    "model_training": false,
+    "preprocessing": "Existing frozen native RGB caches from shared Rust unveil; no new inverse",
+    "truth_join_sha256": "c3a39b59346ae4030e45099ebabd1bfc9d2b4e8a722341e5ca881ae8999147a0"
+  },
+  "versions": {
+    "python": "3.12.14",
+    "opencv": "4.13.0",
+    "numpy": "2.5.2"
+  },
+  "private_input_hashes": {
+    ".board/ecc-align/normal-0.rgba": "daa876cbd6e9476652e0364b4f34fc015b330e16eef982a2c6f976e11fc2bd4a",
+    ".board/ecc-align/normal-1.rgba": "6f27a841574bccb468cdf94ff8023b46ef87998c1d079118340b71ddfa716fc5",
+    ".board/ecc-align/soul-0.rgba": "21cab9b290e3c2f6605c6db4c4fa67ceccdc9f456d4c6f07316ef23d06c30613",
+    ".board/ecc-align/soul-1.rgba": "5fffc4dba3d523fb972039a86979fe0d7b936346a15185ad2ad49df75001f6a4",
+    ".board/row32-real/quad1/1001.rgb": "30ffe07a3856871adaed391e415a825e79ff8c1f005afa3dfafe38c771efd42d",
+    ".board/row32-real/quad1/1122.rgb": "dbbdd43684e35ce5d9b2f1a85bd3e4807d63a5f44529535806ce124093331fe1",
+    ".board/row32-real/quad1/1188.rgb": "fbbc46573241aaf291a3a87b7d9731d2657237dcf3ed0aeb9a1bd6f3622a8998",
+    ".board/row32-real/quad1/1276.rgb": "1b87496afdc73e0fb53ecc60fcaa3c794d062ba68b48dd03e201ea6d6559cd4e",
+    ".board/row32-real/quad1/1309.rgb": "904c8cc9dbfcf5685f63094f9a8146c1db3df6364da9c58e6dd769c02d188724",
+    ".board/row32-real/quad1/1859.rgb": "61817e1b14fab30fcf0ff5ba7bad915a79c89c2986c7406a52d8eb7f066ad365",
+    ".board/row32-real/quad1/1881.rgb": "b432b22c112ce671a9c885a90951a719bb87b56e455854da9cdd85ea031b5c6a",
+    ".board/row32-real/quad1/1892.rgb": "ba1c0a025945471e0064970a6a614ced82b660dac9d174b64ff5454df6ef7afb",
+    ".board/row32-real/quad1/1936.rgb": "9a1d491864f5946cd6910e748b49751e07437b249f7a150a3f669d2da080afc5",
+    ".board/row32-real/quad1/1947.rgb": "46412c34c140a6c45ced4bbcfbf56280995ebff7e8048333bf243b02f6670b4b",
+    ".board/row32-real/quad1/1969.rgb": "40d9f864cdd6b34752167147a6179eb84736b11e19d37a7102b2317817ac8f39",
+    ".board/row32-real/quad1/1980.rgb": "c7d8d31107ca682489fcd2bba760984cfa196b305d95582504b0ebbaaed168fa",
+    ".board/row32-real/quad1/1991.rgb": "76df8232ae98ab460ef1e9c0937a91f2a7bebf11de841c3ac32754e6b0285764",
+    ".board/row32-real/quad1/2277.rgb": "67e3a0899da44b53cbcd0b687e51bc0ba0b7804c3543cf695c8dfadf4857b5d5",
+    ".board/row32-real/quad1/2937.rgb": "f9dc451d944eadcbf888f40919854659472c741a5b30933a1e25effe419d1f36",
+    ".board/row32-real/quad1/2981.rgb": "ae3268dc8bb9b20fdf1d5f5db459dbe3a21bd8a47a7fca8e0ef7d3f0e16c0ba2",
+    ".board/row32-real/quad1/3025.rgb": "b2d23dd2fb06eaebced3824ab2c63a1d08866592d376df4ecc250139c16d5673",
+    ".board/row32-real/quad1/3047.rgb": "482c570de60855e2612bd72107999f029d073b1c207570ad38d614a786f33297",
+    ".board/row32-real/quad1/3058.rgb": "3ed863bf04baf07a58939be6355c8bff0a5a03be0d9b8a1171ea9ab6d9142efe",
+    ".board/row32-real/quad1/3113.rgb": "0d4f5d5d2897f6ec3e42ad9e9879a06696d381a0bf7f2b4e49743bf60f5393fa",
+    ".board/row32-real/quad1/3124.rgb": "be8f1bbbefb700eb82ac76c638c02568bd1d2468cd90a48a3c053791a729b004",
+    ".board/row32-real/quad1/3146.rgb": "8a4ad6fbb666cec9fda1994adbc26ef73ed42b37f7dfb481845092f4d68466d6",
+    ".board/row32-real/quad1/3201.rgb": "f42464c947ef543f63ca9ab3dad8aa98ff9cf9540df1f4742f6de4d9a4dc8a81",
+    ".board/row32-real/quad1/3245.rgb": "dc24bf2a923fe63300fe952e76bda8aef3530157b6c922871e77e3402510fb86",
+    ".board/row32-real/quad1/3267.rgb": "e63ea7eb8fbb0273424232170c0e43b73f7e98f2fac6323479221cb665dfbc5d",
+    ".board/row32-real/quad1/3289.rgb": "f6437c988e49fc84824f93934ca7806c5745c39da420e42e5b34b797a6977c15",
+    ".board/row32-real/quad1/3311.rgb": "61e5992d636efe415f30b6ff36e0b48649f44332d45989dc8a8ab29ad5251255",
+    ".board/row32-real/quad1/3322.rgb": "4938082a7f8e47faeb64af3a6abfeb9fb512d5d689c1bc577361ab265c884a53",
+    ".board/row32-real/quad1/3344.rgb": "54cb3689c6bfb57ce77e8589251894fa5699abbc25bc9aa030dee93318f2cca1",
+    ".board/row32-real/quad1/3366.rgb": "70b481e82ea59201ae6b2d9bc6ed138cd25cabfaa960f4c081a2e635caf100db",
+    ".board/row32-real/quad1/3388.rgb": "0a2a593cbe5302a88f4ae1c149dc0e5cff2a4c2313178250d83addc6667b3d4e",
+    ".board/row32-real/quad1/3410.rgb": "b8415995c51dbd96ee50eabb6241812c01ff7cc75e4047516669fcf6329fee72",
+    ".board/row32-real/quad1/484.rgb": "d6c82054b7a7c81e6284b95e51cfb2ab9f31d016f4c7b2f17784351572bdb918",
+    ".board/row32-real/quad1/495.rgb": "2313507a8f775db07ea774b116ac478a57a24daa835ac6be806d0255bffe52c3",
+    ".board/row32-real/quad1/5159.rgb": "5aca87ed9084bab6e179258a48dfab7e7a830231dfee2c2029d2d4e30b640516",
+    ".board/row32-real/quad1/5170.rgb": "38f3364599b8e92f5e2a380d3fb04b2d9cec8c6e21d85bb20c4a6de915b47b9a",
+    ".board/row32-real/quad1/5291.rgb": "3dc54ec15fd7b556ec7bf94b4e565a0565f3ef3548b267722b5ad97e2c71d0c4",
+    ".board/row32-real/quad1/5302.rgb": "d11b93908f4160d82b52edda1a36c6160d17311f012223afd4e740d1803a67fe",
+    ".board/row32-real/quad1/550.rgb": "3341bad981faaea980e2aa648f50e37e7d2ece48ff668d71fd5e18b9db3dbf03",
+    ".board/row32-real/quad1/572.rgb": "f7dc737342dcf554752ad4a2cfc9295491b280aca63f2e616eb161811f2f8fd0",
+    ".board/row32-real/quad1/5819.rgb": "99e56a0200dd51ce88121175f422150a4afe2a6e55097fbf48f0ec9b2f4b691f",
+    ".board/row32-real/quad1/583.rgb": "b87e6241558ee7f398c6822bde8f230b85537a284226ae943f41d79cbbaba662",
+    ".board/row32-real/quad1/5907.rgb": "fa1d4824c1c0af2b18269d4ea6efa86b508fb9de1dfc6e8e66d6f416891d2596",
+    ".board/row32-real/quad1/5951.rgb": "04d88db73a38c41d4eb7460a2a54d60f7bba8ddc7f00d78d17e461854c40ec7c",
+    ".board/row32-real/quad1/5973.rgb": "526553f836bf91847e0866f2edc0da422366463954655761935c412e43a0265b",
+    ".board/row32-real/quad1/6281.rgb": "f520d91e4dae743976153fe864ddad49a244427abe23330bab8e800f997da6ed",
+    ".board/row32-real/quad1/6369.rgb": "55dff90d38e20ab120dee50a0d9e9378fa7e7a4e5cdea740f637ddddd48a4122",
+    ".board/row32-real/quad1/6391.rgb": "a4ba207dbdaa141ee46892298a5e534ad81faf01a639c96522916d1fe727692f",
+    ".board/row32-real/quad1/6402.rgb": "6e2cecc5f2da7db17619b6b6cb82de3e985c0cd501d26a1a95037c9aaf59b54d",
+    ".board/row32-real/quad1/6468.rgb": "9b16e7ebbe94e3906570882f511d1575186a73b3eb65d6f002d565d9441e22dd",
+    ".board/row32-real/quad1/6512.rgb": "d7c11c0d3c8c1f11f2ce9c2fa7391c3f2625c97b761e9aedef6e69b6cafd8152",
+    ".board/row32-real/quad1/6534.rgb": "16505d6483d0e73bbe0c76507a257ac90ad671e8b034bb873428f9c1e6a3bbff",
+    ".board/row32-real/quad1/6556.rgb": "4a2f8c2426bd58553a6ec7ebc1ed830173a5985d05898dcbdf83d2e5bfa4fc6d",
+    ".board/row32-real/quad1/6600.rgb": "52c44f9fd4a71011e9005ee0c7639d9332588157965a303011bf4bbabc0b06ff",
+    ".board/row32-real/quad1/6611.rgb": "d508fb182c019ebf9b93b461aae9bd434cdce0cd37d68a0e6d09f0f7a15dea21",
+    ".board/row32-real/quad1/6864.rgb": "5061eec731bb17c65da8391d22acccf854ae4aaf99ce7b74e1568f061d1495af",
+    ".board/row32-real/quad1/6875.rgb": "2d28f3066f187f107c7dec6cec3735ddf4de782f851027a26c24accb33130782",
+    ".board/row32-real/quad1/6941.rgb": "fb8228960904c3f787e2b992ee8427f418b2c4e1870a97e66d9b680b018af3ad",
+    ".board/row32-real/quad1/7007.rgb": "30939aae1def77ffcaa940d06c8d3036bf8fce1f3db513c5d53c0a1bc666097f",
+    ".board/row32-real/quad1/792.rgb": "009147aef48c0cb59ce48ec76729c2d5a28bf5e4827c9758193cf5f45f709409",
+    ".board/row32-real/quad1/803.rgb": "e4b1d7e26d63373495cde69e7e8729088cb8e7857591e1a8d51cf1737199b427",
+    ".board/row32-real/quad1/913.rgb": "eecfee6df11c1f407ac93be1d60acc46ba09406b0b31714d718863f73a2f67e1",
+    ".board/row32-real/quad1/935.rgb": "13148378064e0cbaf877cdc787ee14c8a7dfc0987be2e3c0cd454202bd937e62",
+    ".board/row32-real/quad1/946.rgb": "5bc0e6f0bab4e4885c468484bf1f4e899261c7de9499902402c0a29294927dc4",
+    ".board/soul-phase128/soul_holdout/10318.rgb": "7ce278e471adcb22fbad7a6247c972bb7569612b1dae00f4a90f78295c27e444",
+    ".board/soul-phase128/soul_holdout/10329.rgb": "2765f6ce25afd76db1775937c6b7c253f765d16158d73329ce60de1e0e5d2c5f",
+    ".board/soul-phase128/soul_holdout/10362.rgb": "2049291a38f25653638c0221e053b3718694dbcf570fcc944a8b0a444eccef79",
+    ".board/soul-phase128/soul_holdout/10384.rgb": "45fec62275e46b0b61d80a9b85d047e9d3d05131df6653f3753cb80248a9bcf4",
+    ".board/soul-phase128/soul_holdout/10395.rgb": "07364cb60d65797f27bf2d5db33e288f101cde20d48e38005aa2d48ba204bcd7",
+    ".board/soul-phase128/soul_holdout/10505.rgb": "e3fcde28cad6185340a6fa5ebea49736350c8e9d44f50880ec5ffbbce3ba423b",
+    ".board/soul-phase128/soul_holdout/10516.rgb": "56975235efa488435a3d34822a5427e282f75ffc4438477bca2ce0851b0690a1",
+    ".board/soul-phase128/soul_holdout/10582.rgb": "db56ce47ceb831e55f924fb41a34d3b8bf6959d7fbb8a29fb1990011b6f0c014",
+    ".board/soul-phase128/soul_holdout/10604.rgb": "006cde3bd60546a1f52c14b29119645ac819ccf5d2da0ffe9d723d04dac674fc",
+    ".board/soul-phase128/soul_holdout/10857.rgb": "6a39ecf22ab631b771d6bee2570c4ec36dcdd66de9c1812b7ca3d3542bb4b728",
+    ".board/soul-phase128/soul_holdout/10890.rgb": "a710acdd420ff3ea8b2998ec892b2614be8344eefb7283eb2dfb7c993f7fe3eb",
+    ".board/soul-phase128/soul_holdout/11077.rgb": "539c933ffc677519df5ff38495a390340a725d78107658e4654965e26d702ed4",
+    ".board/soul-phase128/soul_holdout/11341.rgb": "e80322d7a6a9e1acf4904ee2dca411a98f67b400d6527d90844427d0c9fe1f58",
+    ".board/soul-phase128/soul_holdout/11374.rgb": "dcc00c3ab6dc11cf6ab7739857ecf9f7f2326fa5764d19a9082edf3587fb9e5f",
+    ".board/soul-phase128/soul_holdout/11396.rgb": "5bb83899faa91d572be85fc92eab2481ea7ef4c17a448dc797a2203985cc3c23",
+    ".board/soul-phase128/soul_holdout/11440.rgb": "b5302fa5f37616b44836758f68eb641d9ea1679c48f2cced5d144707a092cd1a",
+    ".board/soul-phase128/soul_holdout/11627.rgb": "4cf8890303fe2104b96304f249b0d29517599b074d1330d36bcc225a70563c44",
+    ".board/soul-phase128/soul_holdout/11704.rgb": "0c9a25b0a0bb8ac56da682975d7df8ff5611cb6603f12189bc3ae519c158975d",
+    ".board/soul-phase128/soul_holdout/11803.rgb": "91086d6e5db87b70798987ba1756f5c58aeaecbf121b7cc23d99f3b0a9bbea2c",
+    ".board/soul-phase128/soul_holdout/12254.rgb": "29de1842bea9f9fe602beed94bfce551048d4798307ed2a7a0983cba7c4ed490",
+    ".board/soul-phase128/soul_holdout/12265.rgb": "e4a7743649d8f959ad2af0f0b6f217d333b96ab3cf04d8338c47ac7f50f06377",
+    ".board/soul-phase128/soul_holdout/2057.rgb": "7e0829bcec8ac4893c2db96d445d3a08797fecf1fd757737aa4a9632d9c62b7c",
+    ".board/soul-phase128/soul_holdout/2266.rgb": "a8cb7fb98575dfca5533e949500bf1dd17ce60946b7cbb5b5b81eeb4babf0064",
+    ".board/soul-phase128/soul_holdout/2453.rgb": "9255ba11471ee6a71cda826ef7040fc1f399f10e8434c2b0803313dd99f85a83",
+    ".board/soul-phase128/soul_holdout/2541.rgb": "c941eafaf06662da91c173181f6c530a7aa0454b584007ff4ed6e258dd9cf953",
+    ".board/soul-phase128/soul_holdout/2948.rgb": "3eb6a0970adb62af640347fa92665a4c0727a2ed43596964fe81948e9af43829",
+    ".board/soul-phase128/soul_holdout/3564.rgb": "ec4f8b7b87bbaf8abaf77a89e689948476b1e986ca1be90aa2c0ceb7bcecc50e",
+    ".board/soul-phase128/soul_holdout/3993.rgb": "95cc0b1e76a8d90fb09ef118a143aa3ca34821688b4dd255270679f87b9611d4",
+    ".board/soul-phase128/soul_holdout/4279.rgb": "5fd33b8e416f4220937597036b5c55cb5765a8343e669b2b35a767bf30da2a19",
+    ".board/soul-phase128/soul_holdout/4873.rgb": "2a5eb5caf2b581f869247622cfe9b020f97d6f442b5e47c716c566a5622aed29",
+    ".board/soul-phase128/soul_holdout/5038.rgb": "d73cfb845598593d2efb3cefd3f11fce1a18b257746a9acf675b07d02ce2039f",
+    ".board/soul-phase128/soul_holdout/5225.rgb": "0f565cd052b746d3100be4379fbc62f40bbf05572f1a45fa80d9fcaa332c1acc",
+    ".board/soul-phase128/soul_holdout/5247.rgb": "3988ca1d605996415207a97be91f0388ac23f54285681553a79e34e1348855c1",
+    ".board/soul-phase128/soul_holdout/5324.rgb": "ca2ab202bbf98be979b4ea030119a3b251d695d617fbe4eaa587e99416a53afb",
+    ".board/soul-phase128/soul_holdout/539.rgb": "2e158c7fd8d208e107e56b406e9db1b762a7171757de6a90a8682541fc78b48c",
+    ".board/soul-phase128/soul_holdout/5533.rgb": "6468e6077b89e1e4d3465ee3d0ad75bea913264911c46072a6dbf373780e3ed8",
+    ".board/soul-phase128/soul_holdout/5577.rgb": "6f3bffb6c01c166d3885d318263883ceae13bf6fdcb0a12783a4a5fbd8cf3069",
+    ".board/soul-phase128/soul_holdout/6160.rgb": "bcc4f2476ef8461544340c24e145b5ab714e051ed2f2cb3369e7ed86f5ed2f50",
+    ".board/soul-phase128/soul_holdout/6380.rgb": "d2403371c5d47a2d8488e9b0609f9eff573aaf83a4eaf0c68b3524811cf04bee",
+    ".board/soul-phase128/soul_holdout/6446.rgb": "80cfda92ccb09b271c6473280f257371161952a791aa0df73f137cea5fbeea49",
+    ".board/soul-phase128/soul_holdout/6457.rgb": "c49369581d32eb780c1e48a60910af1288e3f9d7e67e61182838ee8eb1423e12",
+    ".board/soul-phase128/soul_holdout/6468.rgb": "cc489c58e46e5bc3f2969e2cf4a4cb582b423bd1bd355dc162e79f9fe1b856cf",
+    ".board/soul-phase128/soul_holdout/6512.rgb": "659596f33039bddecc665e5d08dc7bc7bd6045bb78eb81ed6f9e2ebd2f37d83c",
+    ".board/soul-phase128/soul_holdout/6534.rgb": "911f0cce1b3206096c5226277968c858b0976a76ff04b682a36555096e3593a1",
+    ".board/soul-phase128/soul_holdout/6589.rgb": "0cfe38cb577166ee0d0bfb8024a98d95db1878b75d148c876003a510fc1a6dfb",
+    ".board/soul-phase128/soul_holdout/6677.rgb": "d7769c7a461c0ddc1b3c0a1368d3153b714fcf49687139ac1228cda692e053da",
+    ".board/soul-phase128/soul_holdout/6765.rgb": "015c1445852c90e7aa9c60629c2d146244f83a6c668be058d448f1f6efeee3b0",
+    ".board/soul-phase128/soul_holdout/8184.rgb": "db182611e419efdfd4dcc1740063ecfad20878caf5f27a2fafd56411f7bd5519",
+    ".board/soul-phase128/soul_holdout/8217.rgb": "e5342531bb0252452ee2db1be33cd0e3719a7fc8b1e7d8f2921e930c3f698e38",
+    ".board/soul-phase128/soul_holdout/8283.rgb": "f7adae7829f9c01eb21260b318e3ed35b54f228257ca77285db51b09835dc6a2",
+    ".board/soul-phase128/soul_holdout/8426.rgb": "1081e57d7a80638835df236ca1e72fcaaacdabf22cb95561bdc72c8b075ed05c",
+    ".board/soul-phase128/soul_holdout/8448.rgb": "202d84a0c8887a75069c5356626bf07e041291afbba0ba068c93a2563fa1f72c",
+    ".board/soul-phase128/soul_holdout/8459.rgb": "df55101fec55603b3045e5eef290d9af3b0f1cec9fd9117d76bd85cce9aec47d",
+    ".board/soul-phase128/soul_holdout/8503.rgb": "1164fa2ec84fb310e363bf1cbaad15d83aba1910f46eab2156362114d86db734",
+    ".board/soul-phase128/soul_holdout/8580.rgb": "f1b27677e983907c8f81b2f057c77f79f3af0bfeab682815ef5b625e5b9f4b43",
+    ".board/soul-phase128/soul_holdout/8602.rgb": "fe232d547d5be79bcf67a8d67097565477870e04e187a3ecd1b6026a2899effa",
+    ".board/soul-phase128/soul_holdout/8624.rgb": "a2e753de9c156ab79a6bdaf20f4704aff781ae31e83bcf94924eed75e500dd2e",
+    ".board/soul-phase128/soul_holdout/8646.rgb": "d0f5fa43762df2d105a9ba9429b58df661c4e317d1c3385711df06f68aa97e63",
+    ".board/soul-phase128/soul_holdout/8745.rgb": "176b52df513d375dc94c3c8c7eaf33e8b8d8921bfe0b11ca55cd6ad74798f679",
+    ".board/soul-phase128/soul_holdout/8767.rgb": "b2388184f7419749d768a13d916debd878c23594690e55477e5664bed9ba78c3",
+    ".board/soul-phase128/soul_holdout/9306.rgb": "06e77aee590ce002ea6e78c07af8ae9da18526fe155fc83bfbbaa7b3f8b03d7b",
+    ".board/soul-phase128/soul_holdout/9339.rgb": "1f492886035ef96a2fd1cd534449b8d25a6bd25e365b2c12652e0046124787d5",
+    ".board/soul-phase128/soul_holdout/9680.rgb": "a3ac95f1d3f825340cd32ce57bec2c5f801d8f20e4c9c8956dc0deab8c4d2694",
+    ".board/soul-phase128/soul_holdout/9691.rgb": "d2fee71550c25ce90fc2699811422044a654d819d173f1581957ac53deec0c62"
+  },
+  "source_hashes": {
+    "quadMatch": "d70b534b1a312554b4f2eead783167e00fdf9c8b211ebfc2f8a590c87d2504df",
+    "quadMask": "d1a5822b726c9c87978cc29d5bde7b97843e9b614409e0af2d54b1fc3fbb81fa",
+    "quadOptimizer": "88eca09b568e621baac3f713e5a4ba9df8c163fc2f87b96fac7b9f9dc13d3be5",
+    "fireColourMask": "63ac21f27931f3c3cd35f53413bb0ffb64bdb54a17c3b589692d723dc2cf3e58",
+    "atlasFilter": "5bd9f4196a1b59c3003fe03001049039c8b235e1dafc882d9f17e3c82970fe94",
+    "animationAtlases": "97d5f8aafc147ad955026c8adfe1b92a3749d1ea431c4bac5ff65796a30daaad"
+  },
+  "case_manifest_sha256": "8589724a6d2c9f316c68a770a3b2d88738a1cc0093d2c947833106cedbb40384",
+  "checks": {
+    "frozen_scorer_max_error": 0,
+    "unique_renderer_frames": {
+      "normal": 64,
+      "soul": 64
+    }
+  },
+  "experiment_source_hashes": {
+    "align.py": "2b187c4e7bb3e2e1600fa645d2c571018ea3821d0bfb439a07dfc7166c4770a3",
+    "compare.mjs": "9019b0257c073997601a861ff909469464faba92f1124c71ea4cc327e1cbdc4b",
+    "prepare.py": "3f41f7165d77ed6f8110c1ce7bd89092b06407aef8ddabb6e83b7f661adead82",
+    "provenance.py": "06a972683d571e747d8da05aa3a326398110f72e22bd7748bde5d409fa5cc210",
+    "recheck.py": "eb4298a1508d75a5647bbc1c370c43c74e0b01e273a24efe5cf7db049adf0fd3",
+    "report.py": "97a82b96ebe6f6f38335048e81019a4f529964979e6226ab12381ab6254791b8",
+    "timing.py": "2906cb19982a344793b3d96d9334d55c89616d271fafb47c6e5f45996d87ea66"
+  }
+}

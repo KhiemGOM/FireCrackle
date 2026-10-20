@@ -1,0 +1,114 @@
+[
+  {
+    "id": "quad1-3124-1-1",
+    "material": "normal",
+    "current_ms": 16.12299999999999,
+    "ecc_ms": 45.2757000020938,
+    "bounded_ecc_ms": 33.455299999332055
+  },
+  {
+    "id": "quad1-2937-1-1",
+    "material": "normal",
+    "current_ms": 16.65980000000002,
+    "ecc_ms": 5.562199992709793,
+    "bounded_ecc_ms": 26.52130000933539
+  },
+  {
+    "id": "quad1-583-0-0",
+    "material": "normal",
+    "current_ms": 16.98660000000001,
+    "ecc_ms": 7.518300000810996,
+    "bounded_ecc_ms": 27.270799997495487
+  },
+  {
+    "id": "quad1-3146-1-1",
+    "material": "normal",
+    "current_ms": 15.256500000000017,
+    "ecc_ms": 3.187499998603016,
+    "bounded_ecc_ms": 26.7664999992121
+  },
+  {
+    "id": "quad1-1276-0-0",
+    "material": "normal",
+    "current_ms": 22.243999999999915,
+    "ecc_ms": 6.282500005909242,
+    "bounded_ecc_ms": 14.916499989340082
+  },
+  {
+    "id": "quad1-1991-2-1",
+    "material": "normal",
+    "current_ms": 16.682500000000005,
+    "ecc_ms": 46.829800005070865,
+    "bounded_ecc_ms": 26.585499988868833
+  },
+  {
+    "id": "quad1-3025-1-1",
+    "material": "normal",
+    "current_ms": 16.929199999999923,
+    "ecc_ms": 17.292600008659065,
+    "bounded_ecc_ms": 16.085900002508424
+  },
+  {
+    "id": "quad1-2981-1-1",
+    "material": "normal",
+    "current_ms": 16.843400000000088,
+    "ecc_ms": 6.297399988397956,
+    "bounded_ecc_ms": 10.660500003723428
+  },
+  {
+    "id": "soul_holdout-soul-8767-1-2",
+    "material": "soul",
+    "current_ms": 25.13630000000012,
+    "ecc_ms": 4.285700008040294,
+    "bounded_ecc_ms": 4.0982000064104795
+  },
+  {
+    "id": "soul_holdout-soul-11077-0-0",
+    "material": "soul",
+    "current_ms": 23.872699999999895,
+    "ecc_ms": 7.407600001897663,
+    "bounded_ecc_ms": 1.7924999992828816
+  },
+  {
+    "id": "soul_holdout-soul-10857-36-1",
+    "material": "soul",
+    "current_ms": 28.023400000000038,
+    "ecc_ms": 45.612500005518086,
+    "bounded_ecc_ms": 26.498999999603257
+  },
+  {
+    "id": "soul_holdout-soul-2948-0-0",
+    "material": "soul",
+    "current_ms": 34.56420000000071,
+    "ecc_ms": 10.95280000299681,
+    "bounded_ecc_ms": 27.356799997505732
+  },
+  {
+    "id": "soul_holdout-soul-2541-0-1",
+    "material": "soul",
+    "current_ms": 23.128500000000713,
+    "ecc_ms": 5.478999999468215,
+    "bounded_ecc_ms": 25.819699993007816
+  },
+  {
+    "id": "soul_holdout-soul-6589-0-2",
+    "material": "soul",
+    "current_ms": 23.447300000001633,
+    "ecc_ms": 2.440500000375323,
+    "bounded_ecc_ms": 1.8844000005628914
+  },
+  {
+    "id": "soul_holdout-soul-6765-0-2",
+    "material": "soul",
+    "current_ms": 27.694100000000617,
+    "ecc_ms": 1.6570000007050112,
+    "bounded_ecc_ms": 0.9270000009564683
+  },
+  {
+    "id": "soul_holdout-soul-12265-13-0",
+    "material": "soul",
+    "current_ms": 19.348500000000058,
+    "ecc_ms": 3.916599991498515,
+    "bounded_ecc_ms": 19.270899996627122
+  }
+]

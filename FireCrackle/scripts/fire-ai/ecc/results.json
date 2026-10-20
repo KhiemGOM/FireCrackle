@@ -1,0 +1,150 @@
+{
+  "normal": {
+    "n": 64,
+    "rough_top3": 30,
+    "current_top3": 36,
+    "current_search_median_ms": 1148.0769500000006,
+    "ecc": {
+      "top3": 29,
+      "rescued": 3,
+      "lost": 10,
+      "median_ms": 4834.028300000024,
+      "rejected_fits": 8099,
+      "attempted_fits": 8192
+    },
+    "bounded_ecc": {
+      "top3": 29,
+      "rescued": 7,
+      "lost": 14,
+      "median_ms": 6403.852899998599,
+      "rejected_fits": 1474,
+      "attempted_fits": 8192
+    },
+    "selected_sprite_geometry": {
+      "rough": {
+        "input_mean_px": 4.542727689408732,
+        "input_median_px": 4.206682175156542,
+        "current": {
+          "mean_px": 8.71047694873273,
+          "median_px": 6.132758094523448,
+          "improved_quarter_px": 13,
+          "worsened_quarter_px": 46,
+          "unchanged_quarter_px": 5
+        },
+        "ecc": {
+          "mean_px": 4.334807896123433,
+          "median_px": 4.145186725790481,
+          "improved_quarter_px": 6,
+          "worsened_quarter_px": 0,
+          "unchanged_quarter_px": 58
+        },
+        "bounded_ecc": {
+          "mean_px": 14.461979356211094,
+          "median_px": 5.912399767080416,
+          "improved_quarter_px": 6,
+          "worsened_quarter_px": 25,
+          "unchanged_quarter_px": 33
+        }
+      },
+      "exact": {
+        "input_mean_px": 0.0,
+        "input_median_px": 0.0,
+        "current": {
+          "mean_px": 7.5854637660098385,
+          "median_px": 5.404644496769331,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 64,
+          "unchanged_quarter_px": 0
+        },
+        "ecc": {
+          "mean_px": 0.030634837721552156,
+          "median_px": 0.0,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 3,
+          "unchanged_quarter_px": 61
+        },
+        "bounded_ecc": {
+          "mean_px": 6.886846722715654,
+          "median_px": 0.0,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 23,
+          "unchanged_quarter_px": 41
+        }
+      }
+    }
+  },
+  "soul": {
+    "n": 64,
+    "rough_top3": 35,
+    "current_top3": 39,
+    "current_search_median_ms": 1105.8383500000054,
+    "ecc": {
+      "top3": 35,
+      "rescued": 5,
+      "lost": 9,
+      "median_ms": 2459.803800002279,
+      "rejected_fits": 8013,
+      "attempted_fits": 8192
+    },
+    "bounded_ecc": {
+      "top3": 31,
+      "rescued": 4,
+      "lost": 12,
+      "median_ms": 3533.2882000086756,
+      "rejected_fits": 3172,
+      "attempted_fits": 8192
+    },
+    "selected_sprite_geometry": {
+      "rough": {
+        "input_mean_px": 5.733826495526978,
+        "input_median_px": 5.676564503664659,
+        "current": {
+          "mean_px": 10.954145673965355,
+          "median_px": 8.784248067315804,
+          "improved_quarter_px": 6,
+          "worsened_quarter_px": 54,
+          "unchanged_quarter_px": 4
+        },
+        "ecc": {
+          "mean_px": 5.712948874739315,
+          "median_px": 5.676564503664659,
+          "improved_quarter_px": 1,
+          "worsened_quarter_px": 0,
+          "unchanged_quarter_px": 63
+        },
+        "bounded_ecc": {
+          "mean_px": 11.965358184986481,
+          "median_px": 6.977869918472123,
+          "improved_quarter_px": 1,
+          "worsened_quarter_px": 15,
+          "unchanged_quarter_px": 48
+        }
+      },
+      "exact": {
+        "input_mean_px": 0.0,
+        "input_median_px": 0.0,
+        "current": {
+          "mean_px": 10.377235410289025,
+          "median_px": 8.549123572878132,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 64,
+          "unchanged_quarter_px": 0
+        },
+        "ecc": {
+          "mean_px": 0.015782884261191735,
+          "median_px": 0.0,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 1,
+          "unchanged_quarter_px": 63
+        },
+        "bounded_ecc": {
+          "mean_px": 11.465675840058765,
+          "median_px": 0.0,
+          "improved_quarter_px": 0,
+          "worsened_quarter_px": 18,
+          "unchanged_quarter_px": 46
+        }
+      }
+    }
+  }
+}
