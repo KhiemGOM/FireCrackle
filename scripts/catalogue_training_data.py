@@ -133,6 +133,9 @@ def inspect_manifest(path):
 def scan(probe: Path | None = None):
     result = {"version": 1, "scope": "Project-local research roots; no unrelated personal video library", "videos": [], "raw_labels": [], "joined": [], "sync_maps": [], "ownership": [], "manifests": [], "arrays": [], "npy": [], "csv": [], "project_files": [], "other_jsonl": [], "errors": []}
     roots = [ROOT / "fire-detection/data", ROOT / "fire-detection/mod/run/firelabel", ROOT / ".board", ROOT / "FireCrackle/src-tauri/target"]
+    gui_labels = ROOT / "fire-detection/mod-gui/run/guilabel"
+    if gui_labels.exists():
+        roots.append(gui_labels)
     for base in roots:
         if not base.exists():
             result["errors"].append({"path": relative(base), "error": "missing root"})
@@ -180,6 +183,8 @@ def scan(probe: Path | None = None):
                             rec["array"] = npy_header(f)
                         result["npy"].append(rec)
                     elif ext == ".jsonl":
+                        if p.parent == gui_labels:
+                            rec["role"] = "gui_renderer_screen_state_and_geometry_not_pixel_mask"
                         raw = filename.startswith("labels-") or filename.endswith("raw-labels.jsonl")
                         joined = p.parent == ROOT / "fire-detection/data/joined" and not raw or filename.endswith(".joined.jsonl")
                         preview = inspect_jsonl(p)
