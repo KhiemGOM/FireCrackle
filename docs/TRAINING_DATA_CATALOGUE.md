@@ -137,7 +137,20 @@ Recorded GUI cohort (20 Oct 2026, **one shared recording session**, not three in
 | `2026-10-20 14-09-57.mkv` | 418.687 s; 25,121 / 25,121 video frames CRC-decoded and matched to game labels; 80 repeated renderer IDs, zero backward IDs/unstable frames. Private join `.board/gui-recording-audit/aligned-frames.jsonl`. |
 | `2026-10-20 14-22-45.mkv` | 37.750 s; 2,264 / 2,264 frames decoded/matched; 132 repeated renderer IDs, zero backward IDs/unstable frames. Adds beacon, merchant, book edit/sign and lectern. Private join `.board/gui-supplement-audit/aligned-frames.jsonl`. |
 
-All use session `4fe60149-61c3-4d96-85ff-c7dca1e0b884`; frozen label snapshots and source hashes accompany private audits. Sodium's custom video-settings screen is unknown/modded, **not closed GUI** and not a vanilla known-positive type. Nautilus inventory and standalone signed-book viewing remain unrecorded. No detector accuracy follows from successful strip alignment. The two aligned clips are development inputs; a future independent-session final test is still required. Raw renderer counts and video-frame counts differ: deduplicate repeated renderer IDs before reporting independent targets.
+All use session `4fe60149-61c3-4d96-85ff-c7dca1e0b884`; frozen label snapshots and source hashes accompany private audits. Sodium's custom video-settings screen is unknown/modded, **not closed GUI** and not a vanilla known-positive type. Nautilus inventory and standalone signed-book viewing were unrecorded in this development cohort. No detector accuracy follows from successful strip alignment. The two aligned clips are development inputs; the separate fresh-session evaluation is documented below. Raw renderer counts and video-frame counts differ: deduplicate repeated renderer IDs before reporting independent targets.
+
+Fresh independent GUI test: `fire-detection/data/video/2026-10-20 22-10-14.mkv`,
+paired with `fire-detection/mod-gui/run/guilabel/c436746c-3d22-4fbd-b5bd-11bf0a7582c8.jsonl`.
+The renderer log has a complete footer and zero dropped records. All 6,905 video
+frames CRC-decode and match the log; 94 repeat renderer IDs, zero backward IDs
+and zero unstable states. The 115.084-second clip contains 3,723 interaction-GUI
+frames, 3,001 closed frames and 181 menu/chat/debug frames outside the primary
+metric. Private join: `.board/gui-independent-test/aligned-frames.jsonl`. Preserve
+this new session as test-only for the previously frozen GUI candidate (tooltip
+mask, 80% border / 70% interior, regional checks off); no threshold selection on it.
+Frozen candidate: 3,723/3,723 GUI frames detected, 0/3,001 closed false detections;
+original baseline: 3,646/3,723, also zero false detections. No test tuning.
+See [GUI_INDEPENDENT_TEST.md](GUI_INDEPENDENT_TEST.md) for scope and runtime limits.
 
 ## Reusable dataset families and producers
 
@@ -145,6 +158,7 @@ All use session `4fe60149-61c3-4d96-85ff-c7dca1e0b884`; frozen label snapshots a
 |---|---|---|
 | `.board/gui-interaction-detector/{assets*,check-*,final-check}` | Local vanilla source-template packs and deterministic GUI functional-check predictions, not learned models or independent truth | `fire-detection/bench/gui_interaction/`; development inputs are the two aligned Oct 20 GUI clips in S8. Assets are not recorded training examples; predictions are not ground truth. Preserve the source/video/preprocessing hashes and whole-session grouping. |
 | `.board/gui-calibration/run-v1` | Approved deterministic threshold/tooltip calibration on all 27,385 frames of the same two S8 recordings; not an independent test or AI training pool | `fire-detection/bench/gui_interaction/calibrate.py` and `calibrate.rs`; manifest stores the approved source coverage, exclusions, hashes and 147-setting index map. Prediction JSONL rows store video/index, renderer ID, copied aligned truth, `plain`/`masked` decision bitstrings, tooltip rectangles, timing and masked-default parity. Decisions and proposed masks are predictions, not GUI/mask ground truth. Renderer repetitions share total weight one for selection; a new recording session remains held out until the winner is frozen. See [GUI_CALIBRATION_RESULTS.md](GUI_CALIBRATION_RESULTS.md). |
+| `.board/gui-independent-test` | Frozen independent GUI-session evaluation; no threshold selection or AI fitting | Native frame predictions contain baseline/candidate booleans and timing, renderer ID and copied aligned truth. Manifest records video/label/source hashes and coverage; alignment rows contain video frame, renderer frame, screen type, stability and optional layout ID. Proposed tooltip count and decisions are predictions, not pixel-mask truth. New session remains test-only; see [GUI_INDEPENDENT_TEST.md](GUI_INDEPENDENT_TEST.md). |
 | `.board/fire-ai/{quad1,survival,survival-train,survival-train-dense,baseline-reviewed,survival-curated}` | Real rectified/known-quad cases, dense survival training, reviewed selections and tensors | `FireCrackle/scripts/fire-ai/prepare_real.py`, `prepare_survival_train.py`, `apply_review.py`; preserve review/split manifests. These overlap. |
 | `.board/fire-ai/{backgrounds,backgrounds-reviewed,negative,large-bg,pilot,codec}` | Video-derived backgrounds, negative crops, synthetic/codec variants | `prepare_backgrounds.py`, synthetic render/train scripts, `codec_test.py`; background source recording still defines leakage group. |
 | `.board/row32-real` | New real-only normal-fire pipeline accounts for eight mapped recording identities, including the new mixed-material recording and explicitly ineligible box-only sources | `FireCrackle/scripts/fire-ai/row32/real/`; inspect `inventory.json`, `candidates.json`, `selected.json` and per-source frame caches. An active pipeline can change after this snapshot. |
@@ -204,11 +218,13 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/data/video/2026-10-20 14-07-58.mkv` | 111.684000 | 1920 x 1080 | 60/1 |
 | `fire-detection/data/video/2026-10-20 14-09-57.mkv` | 418.687000 | 1920 x 1080 | 60/1 |
 | `fire-detection/data/video/2026-10-20 14-22-45.mkv` | 37.750000 | 1920 x 1080 | 60/1 |
+| `fire-detection/data/video/2026-10-20 22-10-14.mkv` | 115.084000 | 1920 x 1080 | 60/1 |
 
-### Raw capture logs (40)
+### Raw capture logs (41)
 
 | Local path | Contents / observed schema |
 |---|---|
+| `.board/gui-independent-test/labels-snapshot.jsonl` | 12776 records; category, changed, elapsed_ns, excluded_social, frame, framebuffer_height, framebuffer_width, geometry_only, gui_scale, known_screen, mask_ground_truth, minecraft_version, mouse_x, mouse_y, overlay_intermediary, paused, record, scaled_height, scaled_width, schema_version, screen_class, screen_instance_id, screen_intermediary, screen_open, screen_type, screen_visible, session_id, sodium_loaded, stable_render_state, strip, title, transition_id, utc, world_present |
 | `.board/gui-recording-audit/labels-snapshot.jsonl` | 92684 records; category, changed, elapsed_ns, excluded_social, frame, framebuffer_height, framebuffer_width, geometry_only, gui_scale, known_screen, mask_ground_truth, minecraft_version, mouse_x, mouse_y, overlay_intermediary, paused, record, scaled_height, scaled_width, schema_version, screen_class, screen_instance_id, screen_intermediary, screen_open, screen_type, screen_visible, session_id, sodium_loaded, stable_render_state, strip, title, transition_id, utc, world_present |
 | `.board/gui-supplement-audit/labels-snapshot.jsonl` | 100732 records; category, changed, elapsed_ns, excluded_social, frame, framebuffer_height, framebuffer_width, geometry_only, gui_scale, known_screen, mask_ground_truth, minecraft_version, mouse_x, mouse_y, overlay_intermediary, paused, record, scaled_height, scaled_width, schema_version, screen_class, screen_instance_id, screen_intermediary, screen_open, screen_type, screen_visible, session_id, sodium_loaded, stable_render_state, strip, title, transition_id, utc, world_present |
 | `.board/soul-12m/recording-labels.jsonl` | 53400 records; f, f0, f1, fire, fires, h, s0, s1, soul, soul_fires, tick, w |
@@ -278,7 +294,7 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/mod/run/firelabel/ownership-e6eb5afd-80bf-4f7c-9125-fda8aeea0352` | 459 JSON sidecars; 459 RGB / 459 ID PNGs; 451 frames with issues; 7 with known fire pixels; schema in inventory |
 | `fire-detection/mod/run/firelabel/ownership-ebe022b2-f48a-456d-8c2c-169aedede5f9` | 105 JSON sidecars; 105 RGB / 105 ID PNGs; 99 frames with issues; 45 with known fire pixels; schema in inventory |
 
-### Dataset manifests and frozen/reviewed pools (188)
+### Dataset manifests and frozen/reviewed pools (189)
 
 | Local path | Contents / observed schema |
 |---|---|
@@ -309,6 +325,7 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `.board/fire-ai/survival/review.json` | {"plausible_isolated_count":4}; fields: method, plausible_isolated, others, game_mode, note |
 | `.board/fire-size-gallery/cases.json` | {"records_count":57,"records_splits":{"unspecified":57}}; fields: source, frame, box, width, height, box_area, box_percent, shorter_side, label_w, label_h, source_kind, visibility_fraction, id, target_area, rank, opaque_estimate, image, visual_review |
 | `.board/gui-calibration/run-v1/manifest.json` | {"configs_count":147,"configs_splits":{"unspecified":147}}; fields: approved_plan, configs, source_hashes, note |
+| `.board/gui-independent-test/manifest.json` | {"coverage_count":18,"coverage_splits":{"unspecified":18}}; fields: task, owner_request, video, video_sha256, label_snapshot_sha256, aligned_sha256, session, preprocessing, frozen_candidate_sha256, candidate, baseline, source_hashes, budget, scope, coverage, not_training_data |
 | `.board/gui-interaction-detector/assets-v2/manifest.json` | {"templates_count":56,"templates_splits":{"unspecified":56}}; fields: producer, not_training_data, templates |
 | `.board/gui-interaction-detector/assets-v3/manifest.json` | {"templates_count":60,"templates_splits":{"unspecified":60}}; fields: producer, not_training_data, templates |
 | `.board/gui-interaction-detector/assets-v4/manifest.json` | {"templates_count":72,"templates_splits":{"unspecified":72}}; fields: producer, not_training_data, templates |
@@ -668,7 +685,7 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `fire-detection/data/video/2026-10-15 23-50-25.mkv.firecrackle/project.json` | sampled schema only records; fingerprint, frames, index, meta, version, video_path, video_size, warnings |
 | `fire-detection/data/video/2026-10-15 23-50-25.mkv.firecrackle/thumbs/meta.json` | sampled schema only records; fingerprint, frames, quality, stride, width |
 
-### Other frame records and predictions (not automatically truth) (80)
+### Other frame records and predictions (not automatically truth) (83)
 
 | Local path | Contents / observed schema |
 |---|---|
@@ -680,6 +697,8 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `.board/gui-distributed-presence-check/check/predictions.jsonl` | sampled schema only records; alternatives, bounds, candidate_types, gui_detected, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
 | `.board/gui-final-miss-check/check-v11/predictions.jsonl` | sampled schema only records; alternatives, bounds, candidate_types, gui_detected, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
 | `.board/gui-final-miss-check/check-v12/predictions.jsonl` | sampled schema only records; alternatives, bounds, candidate_types, gui_detected, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
+| `.board/gui-independent-test/aligned-frames.jsonl` | sampled schema only records; layout_id, renderer_frame, screen_type, screen_visible, stable_render_state, video_frame |
+| `.board/gui-independent-test/predictions.jsonl` | sampled schema only records; baseline, baseline_ms, candidate, candidate_ms, index, renderer_frame, stable_render_state, tooltip_rectangles, truth, video |
 | `.board/gui-interaction-detector/check-native/predictions.jsonl` | sampled schema only records; alternatives, bounds, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
 | `.board/gui-interaction-detector/check-structure/predictions.jsonl` | sampled schema only records; alternatives, bounds, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
 | `.board/gui-interaction-detector/check-v1/predictions.jsonl` | sampled schema only records; alternatives, bounds, index, ms, outcome, reason, renderer_frame, scale, score, truth, type, video, video_frame |
@@ -752,6 +771,7 @@ Generated by the inventory command. Counts are physical local files, not indepen
 | `.board/survival-desktop/Survival complete analysis.mkv.firecrackle/labels.jsonl` | sampled schema only records; frame, label, version |
 | `fire-detection/data/video/2026-10-15 18-18-16.mkv.firecrackle/labels.jsonl` | sampled schema only records; frame, label, predicted, version |
 | `fire-detection/mod-gui/run/guilabel/4fe60149-61c3-4d96-85ff-c7dca1e0b884.jsonl` | sampled schema only records; category, changed, elapsed_ns, excluded_social, frame, framebuffer_height, framebuffer_width, geometry_only, gui_scale, known_screen, mask_ground_truth, minecraft_version, mouse_x, mouse_y, overlay_intermediary, paused, record, scaled_height, scaled_width, schema_version, screen_class, screen_instance_id, screen_intermediary, screen_open, screen_type, screen_visible, session_id, sodium_loaded, stable_render_state, strip, title, transition_id, utc, world_present |
+| `fire-detection/mod-gui/run/guilabel/c436746c-3d22-4fbd-b5bd-11bf0a7582c8.jsonl` | sampled schema only records; category, changed, elapsed_ns, excluded_social, frame, framebuffer_height, framebuffer_width, geometry_only, gui_scale, known_screen, mask_ground_truth, minecraft_version, mouse_x, mouse_y, overlay_intermediary, paused, record, scaled_height, scaled_width, schema_version, screen_class, screen_instance_id, screen_intermediary, screen_open, screen_type, screen_visible, session_id, sodium_loaded, stable_render_state, strip, title, transition_id, utc, world_present |
 
 ### Standalone NPY arrays (grouped by directory and schema)
 
