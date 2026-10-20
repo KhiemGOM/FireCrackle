@@ -339,7 +339,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     else reportPortalStatus(playing && portalMode !== "off" ? "Applied when playback is paused" : "");
     // Small cached placeholders first; tools keep waiting for the original frame.
     let quickReady: Promise<void> | null = null;
-    if (!playing && shownRef.current !== view.current && (stillImage?.file || (!stillImage && backend.previewThumbnail))) {
+    if (!playing && shownRef.current !== view.current && (stillImage?.file || (!stillImage && backend.previewThumbnail && !buffer?.has(view.current)))) {
       const quick = stillImage?.file ? photoPreview(stillImage.file, 512) : previewFrames(backend).get(view.current, () => mine === token.current);
       quickReady = quick.then(preview => {
         if (mine !== token.current) return;
