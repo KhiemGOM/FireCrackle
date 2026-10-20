@@ -1,0 +1,2036 @@
+{
+  "date": "2026-10-21",
+  "profiled_detector_revision": "832f9ec",
+  "purpose": "Function/wait/allocation profiling of unchanged optimized production detector functions. No model fitting or accuracy experiment.",
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "cohort": {
+    "unique_real_rgb_frames": 32,
+    "repeats_per_sampled_tool": 64,
+    "processed_frames_per_sampled_tool": 2048,
+    "sources": {
+      "catalogue V02 clip1": 12,
+      "catalogue V03 clip2": 20
+    },
+    "original_manifest_sha256": "d721507e04387163bc2fb3bc997c98a0d8e6c822e638e7c68b6d7666b2f2096f",
+    "input_manifest_sha256": "45134749ab016c0f15d18c3eeff2a59101de506a0a80972197ab53bf6eb0fa7f",
+    "inputs": [
+      {
+        "id": "clip1-0",
+        "sha256": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c"
+      },
+      {
+        "id": "clip1-2970",
+        "sha256": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6"
+      },
+      {
+        "id": "clip1-5940",
+        "sha256": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c"
+      },
+      {
+        "id": "clip1-8910",
+        "sha256": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592"
+      },
+      {
+        "id": "clip1-11880",
+        "sha256": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65"
+      },
+      {
+        "id": "clip1-14850",
+        "sha256": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50"
+      },
+      {
+        "id": "clip1-17730",
+        "sha256": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe"
+      },
+      {
+        "id": "clip1-20700",
+        "sha256": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2"
+      },
+      {
+        "id": "clip1-23670",
+        "sha256": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e"
+      },
+      {
+        "id": "clip1-26640",
+        "sha256": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080"
+      },
+      {
+        "id": "clip1-29610",
+        "sha256": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97"
+      },
+      {
+        "id": "clip1-32580",
+        "sha256": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c"
+      },
+      {
+        "id": "clip2-0",
+        "sha256": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7"
+      },
+      {
+        "id": "clip2-1800",
+        "sha256": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba"
+      },
+      {
+        "id": "clip2-3510",
+        "sha256": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e"
+      },
+      {
+        "id": "clip2-5310",
+        "sha256": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba"
+      },
+      {
+        "id": "clip2-7110",
+        "sha256": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2"
+      },
+      {
+        "id": "clip2-8910",
+        "sha256": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0"
+      },
+      {
+        "id": "clip2-10620",
+        "sha256": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44"
+      },
+      {
+        "id": "clip2-12420",
+        "sha256": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69"
+      },
+      {
+        "id": "clip2-14220",
+        "sha256": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0"
+      },
+      {
+        "id": "clip2-16020",
+        "sha256": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b"
+      },
+      {
+        "id": "clip2-17730",
+        "sha256": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70"
+      },
+      {
+        "id": "clip2-19530",
+        "sha256": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0"
+      },
+      {
+        "id": "clip2-clear-127",
+        "sha256": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77"
+      },
+      {
+        "id": "clip2-clear-2045",
+        "sha256": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892"
+      },
+      {
+        "id": "clip2-clear-4147",
+        "sha256": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5"
+      },
+      {
+        "id": "clip2-clear-7658",
+        "sha256": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a"
+      },
+      {
+        "id": "clip2-clear-9032",
+        "sha256": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7"
+      },
+      {
+        "id": "clip2-clear-11598",
+        "sha256": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633"
+      },
+      {
+        "id": "clip2-clear-16329",
+        "sha256": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3"
+      },
+      {
+        "id": "clip2-clear-18943",
+        "sha256": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+      }
+    ]
+  },
+  "method": {
+    "system_profiler_attempt": "WPR CPU failed OS privilege with0xc5585011; no system policy changed",
+    "fallback": "External process-local StackWalk64 sample, per-thread suspend/resume, matching optimized PDB and LLVM source/inline resolution",
+    "busy_share_definition": "Non-wait stack snapshots; not exact CPU cycles. Runnable descheduled stacks may be sampled.",
+    "target": "Real parallel_frames_indexed queue and production PovMatcher/candidate_prepared/Engine; cached RGB producer excludes video decoding",
+    "build": "opt-level3,LTO,codegen-units1,debug2,stripfalse",
+    "startup_excluded": true,
+    "native_build_contention": "Another agent built the native application during some collection/control runs; owner apps/scans remained active. Throughput/overhead not controlled.",
+    "wait_sums": "Aggregate across multiple scanner workers; can exceed wall time",
+    "allocation_counter": "Separate global Rust allocator wrapper, alloc/alloc_zeroed/realloc requests plus requested size; excludes native ONNX/DirectML/FFmpeg allocation"
+  },
+  "sampled_runs": {
+    "pov": {
+      "accepted": 192,
+      "counting": false,
+      "fps": 88.15262469963542,
+      "frames": 2048,
+      "infer_calls": 0,
+      "infer_lock_wait_seconds_sum": 0.0,
+      "infer_run_seconds_sum": 0.0,
+      "rust_alloc_bytes_requested": 0,
+      "rust_alloc_calls": 0,
+      "rust_frees": 0,
+      "seconds": 23.2324336,
+      "tool": "pov",
+      "workers": 12
+    },
+    "nofire": {
+      "accepted": 448,
+      "counting": false,
+      "fps": 64.77790756800515,
+      "frames": 2048,
+      "infer_calls": 1472,
+      "infer_lock_wait_seconds_sum": 243.140923,
+      "infer_run_seconds_sum": 31.4280717,
+      "rust_alloc_bytes_requested": 0,
+      "rust_alloc_calls": 0,
+      "rust_frees": 0,
+      "seconds": 31.6157171,
+      "tool": "no_fire",
+      "workers": 12
+    }
+  },
+  "unsampled_controls": {
+    "pov": {
+      "accepted": 192,
+      "counting": false,
+      "fps": 80.15966992126668,
+      "frames": 2048,
+      "infer_calls": 0,
+      "infer_lock_wait_seconds_sum": 0.0,
+      "infer_run_seconds_sum": 0.0,
+      "rust_alloc_bytes_requested": 0,
+      "rust_alloc_calls": 0,
+      "rust_frees": 0,
+      "seconds": 25.5490074,
+      "tool": "pov",
+      "workers": 12
+    },
+    "nofire": {
+      "accepted": 448,
+      "counting": false,
+      "fps": 69.54240847343823,
+      "frames": 2048,
+      "infer_calls": 1472,
+      "infer_lock_wait_seconds_sum": 231.5397318,
+      "infer_run_seconds_sum": 29.2852419,
+      "rust_alloc_bytes_requested": 0,
+      "rust_alloc_calls": 0,
+      "rust_frees": 0,
+      "seconds": 29.4496559,
+      "tool": "no_fire",
+      "workers": 12
+    }
+  },
+  "function_profiles": {
+    "pov": {
+      "label": "queue-pov12",
+      "total_wall_stack_samples": 9645,
+      "active_stack_samples": 7251,
+      "wait_stack_samples": 2394,
+      "wait_types": {
+        "ZwWaitForAlertByThreadId": 1170,
+        "NtWaitForWorkViaWorkerFactory": 1224
+      },
+      "worker_wait_samples": {
+        "all": 1170
+      },
+      "inclusive_counts": [
+        [
+          "core::panic::unwind_safe::impl$25::call_once",
+          7251
+        ],
+        [
+          "std::panicking::catch_unwind::do_call",
+          7251
+        ],
+        [
+          "std::panicking::catch_unwind",
+          7251
+        ],
+        [
+          "std::panic::catch_unwind",
+          7251
+        ],
+        [
+          "BaseThreadInitThunk",
+          7251
+        ],
+        [
+          "RtlUserThreadStart",
+          7251
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1::closure$0",
+          7250
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1",
+          7250
+        ],
+        [
+          "alloc::boxed::impl$10::drop",
+          7250
+        ],
+        [
+          "alloc::boxed::impl$31::call_once",
+          7250
+        ],
+        [
+          "std::sys::thread::windows::impl$0::new::thread_start",
+          7250
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed::closure$0::closure$2",
+          7200
+        ],
+        [
+          "std::sys::backtrace::__rust_begin_short_backtrace<fire_core::video::parallel_frames_indexed::closure$0::closure_env$2<scan_profile::deep::run::Repeated,enum2$<core::option::Option<u8> >,scan_profile::deep::run::closure_env$2,scan_profile::deep::run::closure_env$3>,tuple$<> >",
+          7200
+        ],
+        [
+          "core::ops::function::FnOnce::call_once<std::thread::lifecycle::spawn_unchecked::closure_env$1<fire_core::video::parallel_frames_indexed::closure$0::closure_env$2<scan_profile::deep::run::Repeated,enum2$<core::option::Option<u8> >,scan_profile::deep::run::closure_env$2,scan_profile::deep::run::closure_env$3>,tuple$<> >,tuple$<> >",
+          7200
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame",
+          7197
+        ],
+        [
+          "core::cmp::impls::impl$9::eq",
+          7197
+        ],
+        [
+          "scan_profile::deep::run::closure$2",
+          7197
+        ],
+        [
+          "core::result::impl$27::branch",
+          6537
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::detect",
+          5641
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          3690
+        ],
+        [
+          "fire_core::gui_mask::score",
+          2537
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::merge_interactions",
+          1951
+        ],
+        [
+          "fire_core::gui_interaction::fast::InteractionDetector::detect",
+          1950
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::try_fold",
+          1894
+        ],
+        [
+          "alloc::sync::impl$34::deref",
+          1835
+        ],
+        [
+          "fire_core::gui_interaction::fast::impl$2::detect::closure$2",
+          1835
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map::check::closure$0",
+          1835
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold::enumerate::closure$0",
+          1835
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold",
+          1835
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map",
+          1835
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          1833
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          1822
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$7",
+          1017
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find",
+          830
+        ],
+        [
+          "core::iter::range::impl$14::spec_try_fold",
+          817
+        ],
+        [
+          "core::iter::range::impl$15::try_fold",
+          815
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$18",
+          775
+        ],
+        [
+          "alloc::vec::impl$14::index",
+          730
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          591
+        ],
+        [
+          "fire_core::veil::judge",
+          516
+        ],
+        [
+          "fire_core::veil::detect_pixels",
+          516
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          494
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row",
+          464
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::reduce",
+          425
+        ],
+        [
+          "core::slice::index::impl$0::index",
+          423
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled",
+          389
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::inspect_scores",
+          389
+        ],
+        [
+          "core::slice::index::impl$2::index",
+          386
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$2",
+          379
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          378
+        ]
+      ],
+      "nearest_application_frame_counts": [
+        [
+          "fire_core::gui_mask::score",
+          1955
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          1438
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row",
+          404
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0",
+          346
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame",
+          335
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          325
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled",
+          273
+        ],
+        [
+          "fire_core::veil::judge",
+          215
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          181
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          171
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          157
+        ],
+        [
+          "fire_core::veil::judge::closure$0",
+          133
+        ],
+        [
+          "fire_core::veil::gui_colour::closure$0::closure$0",
+          116
+        ],
+        [
+          "fire_core::overlay::impl$0::match_sampled::closure$4",
+          95
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          83
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          82
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled<true,true,true>",
+          82
+        ],
+        [
+          "fire_core::gui_mask::label",
+          63
+        ],
+        [
+          "fire_core::gui_mask::piece_template",
+          53
+        ],
+        [
+          "fire_core::gui_mask::screens::add_screen_masks",
+          52
+        ],
+        [
+          "fire_core::video::read_frame",
+          50
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          44
+        ],
+        [
+          "fire_core::gui_mask::screens::confirmed",
+          42
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::sample_colours",
+          42
+        ],
+        [
+          "fire_core::gui_mask::screens::confirmed::closure$0",
+          40
+        ],
+        [
+          "fire_core::veil::gui_colour",
+          39
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$2",
+          31
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          28
+        ],
+        [
+          "fire_core::gui_mask::paint",
+          25
+        ],
+        [
+          "fire_core::gui_mask::impl$78::clone",
+          24
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$18",
+          24
+        ],
+        [
+          "fire_core::gui_mask::luma",
+          21
+        ],
+        [
+          "fire_core::gui_mask::impl$6::row::closure$0",
+          20
+        ],
+        [
+          "fire_core::gui_mask::impl$6::row::closure$0::closure$0",
+          19
+        ],
+        [
+          "fire_core::veil::restore_channel",
+          18
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          18
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          15
+        ],
+        [
+          "fire_core::gui_mask::impl$77::hash",
+          14
+        ],
+        [
+          "fire_core::gui_mask::screens::panel_confirmation",
+          14
+        ],
+        [
+          "fire_core::gui_mask::impl$106::hash",
+          11
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          11
+        ],
+        [
+          "fire_core::gui_mask::impl$108::eq",
+          11
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$24",
+          10
+        ],
+        [
+          "fire_core::overlay::is_warm",
+          9
+        ],
+        [
+          "fire_core::gui_mask::Texture::texel",
+          8
+        ],
+        [
+          "fire_core::veil::gui_colour::closure$0",
+          8
+        ],
+        [
+          "fire_core::gui_mask::gui_class",
+          8
+        ],
+        [
+          "fire_core::overlay::impl$0::match_sampled::closure$0",
+          7
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$3",
+          7
+        ],
+        [
+          "fire_core::gui_mask::parse_centred::closure$0",
+          7
+        ]
+      ],
+      "application_line_counts": [
+        [
+          "fire_core::gui_interaction::fast::evidence:335",
+          520
+        ],
+        [
+          "fire_core::gui_mask::score:1429",
+          404
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row:1021",
+          404
+        ],
+        [
+          "fire_core::gui_mask::score:1452",
+          368
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0:321",
+          346
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:339",
+          333
+        ],
+        [
+          "fire_core::gui_mask::score:1432",
+          323
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:327",
+          267
+        ],
+        [
+          "fire_core::gui_mask::score:1454",
+          230
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1085",
+          189
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at:1018",
+          171
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled:763",
+          135
+        ],
+        [
+          "fire_core::veil::judge::closure$0:150",
+          133
+        ],
+        [
+          "fire_core::gui_mask::score:1431",
+          118
+        ],
+        [
+          "fire_core::veil::gui_colour::closure$0::closure$0:94",
+          116
+        ],
+        [
+          "fire_core::gui_mask::score:1448",
+          112
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:353",
+          105
+        ],
+        [
+          "fire_core::gui_mask::score:1455",
+          103
+        ],
+        [
+          "fire_core::veil::judge:143",
+          101
+        ],
+        [
+          "fire_core::overlay::impl$0::match_sampled::closure$4:748",
+          95
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame:156",
+          93
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame:154",
+          89
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2759",
+          85
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3310",
+          84
+        ],
+        [
+          "fire_core::gui_mask::score:1457",
+          79
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame:157",
+          77
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled:759",
+          73
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:325",
+          66
+        ],
+        [
+          "fire_core::gui_mask::score:1453",
+          62
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:347",
+          52
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1088",
+          51
+        ],
+        [
+          "fire_core::video::read_frame:260",
+          50
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1086",
+          50
+        ],
+        [
+          "fire_core::veil::judge:150",
+          50
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:2744",
+          45
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1:2764",
+          44
+        ],
+        [
+          "fire_core::gui_mask::score:1446",
+          42
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0:12",
+          41
+        ],
+        [
+          "fire_core::gui_mask::score:1444",
+          40
+        ],
+        [
+          "fire_core::gui_mask::screens::confirmed::closure$0:24",
+          40
+        ],
+        [
+          "fire_core::veil::gui_colour:95",
+          39
+        ],
+        [
+          "fire_core::veil::judge:145",
+          37
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:2745",
+          37
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame:203",
+          32
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$2:326",
+          31
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:338",
+          29
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3314",
+          29
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled<true,true,true>:764",
+          28
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1084",
+          26
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame:158",
+          26
+        ]
+      ],
+      "leaf_counts": [
+        [
+          "fire_core::gui_mask::score",
+          1902
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          875
+        ],
+        [
+          "core::slice::index::impl$2::index",
+          373
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0",
+          346
+        ],
+        [
+          "core::iter::range::impl$14::spec_try_fold",
+          312
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          303
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          171
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          143
+        ],
+        [
+          "fire_core::veil::judge::closure$0",
+          133
+        ],
+        [
+          "core::cmp::impls::impl$58::lt",
+          128
+        ],
+        [
+          "enum2$<core::option::Option<alloc::vec::Vec<f64,alloc::alloc::Global> > >::as_ref",
+          115
+        ],
+        [
+          "core::ptr::non_null::impl$16::eq",
+          99
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled",
+          99
+        ],
+        [
+          "alloc::vec::Vec<u8,alloc::alloc::Global>::push_mut",
+          93
+        ],
+        [
+          "fire_core::veil::judge",
+          89
+        ],
+        [
+          "core::num::impl$2::wrapping_abs",
+          85
+        ],
+        [
+          "core::num::impl$7::count_ones",
+          77
+        ],
+        [
+          "fire_core::pov::PovMatcher::match_frame",
+          77
+        ],
+        [
+          "core::num::impl$11::unchecked_add",
+          73
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          63
+        ],
+        [
+          "alloc::raw_vec::RawVecInner<alloc::alloc::Global>::non_null",
+          63
+        ],
+        [
+          "fire_core::overlay::SilhouetteMatcher::match_sampled<true,true,true>",
+          61
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          60
+        ],
+        [
+          "core::ptr::write",
+          60
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          60
+        ],
+        [
+          "RtlAllocateHeap",
+          59
+        ],
+        [
+          "_NLG_Return2",
+          59
+        ],
+        [
+          "alloc::vec::Vec<f64,alloc::alloc::Global>::as_slice",
+          51
+        ],
+        [
+          "core::ptr::mut_ptr::impl$0::add",
+          50
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          44
+        ]
+      ],
+      "threads": {
+        "19308": {
+          "samples": 612,
+          "cpu_ticks": 625000,
+          "active": 1
+        },
+        "52828": {
+          "samples": 612,
+          "cpu_ticks": 156250
+        },
+        "54796": {
+          "samples": 612,
+          "cpu_ticks": 156250
+        },
+        "21576": {
+          "samples": 601,
+          "cpu_ticks": 217656250,
+          "active": 601
+        },
+        "26664": {
+          "samples": 601,
+          "cpu_ticks": 215781250,
+          "active": 599
+        },
+        "32164": {
+          "samples": 601,
+          "cpu_ticks": 219843750,
+          "active": 601
+        },
+        "32508": {
+          "samples": 601,
+          "cpu_ticks": 217656250,
+          "active": 600
+        },
+        "33832": {
+          "samples": 597,
+          "cpu_ticks": 21718750,
+          "active": 50
+        },
+        "43852": {
+          "samples": 601,
+          "cpu_ticks": 216718750,
+          "active": 601
+        },
+        "47600": {
+          "samples": 601,
+          "cpu_ticks": 217656250,
+          "active": 601
+        },
+        "53192": {
+          "samples": 601,
+          "cpu_ticks": 216718750,
+          "active": 601
+        },
+        "55700": {
+          "samples": 601,
+          "cpu_ticks": 216406250,
+          "active": 601
+        },
+        "60184": {
+          "samples": 601,
+          "cpu_ticks": 217187500,
+          "active": 600
+        },
+        "62168": {
+          "samples": 601,
+          "cpu_ticks": 216406250,
+          "active": 599
+        },
+        "64372": {
+          "samples": 601,
+          "cpu_ticks": 217187500,
+          "active": 599
+        },
+        "69636": {
+          "samples": 601,
+          "cpu_ticks": 218593750,
+          "active": 597
+        }
+      }
+    },
+    "nofire": {
+      "label": "queue-nofire12",
+      "total_wall_stack_samples": 30282,
+      "active_stack_samples": 3899,
+      "wait_stack_samples": 26383,
+      "wait_types": {
+        "NtWaitForWorkViaWorkerFactory": 4676,
+        "ZwWaitForAlertByThreadId": 14963,
+        "ZwWaitForMultipleObjects": 3362,
+        "NtWaitForSingleObject": 3382
+      },
+      "worker_wait_samples": {
+        "all": 10216,
+        "infer": 332
+      },
+      "inclusive_counts": [
+        [
+          "BaseThreadInitThunk",
+          3899
+        ],
+        [
+          "RtlUserThreadStart",
+          3899
+        ],
+        [
+          "core::panic::unwind_safe::impl$25::call_once",
+          3895
+        ],
+        [
+          "std::panicking::catch_unwind::do_call",
+          3895
+        ],
+        [
+          "std::panicking::catch_unwind",
+          3895
+        ],
+        [
+          "std::panic::catch_unwind",
+          3895
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1::closure$0",
+          3894
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1",
+          3894
+        ],
+        [
+          "alloc::boxed::impl$10::drop",
+          3894
+        ],
+        [
+          "alloc::boxed::impl$31::call_once",
+          3894
+        ],
+        [
+          "std::sys::thread::windows::impl$0::new::thread_start",
+          3894
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed::closure$0::closure$2",
+          3860
+        ],
+        [
+          "std::sys::backtrace::__rust_begin_short_backtrace<fire_core::video::parallel_frames_indexed::closure$0::closure_env$2<scan_profile::deep::run::Repeated,enum2$<core::option::Option<u8> >,scan_profile::deep::run::closure_env$2,scan_profile::deep::run::closure_env$3>,tuple$<> >",
+          3860
+        ],
+        [
+          "core::ops::function::FnOnce::call_once<std::thread::lifecycle::spawn_unchecked::closure_env$1<fire_core::video::parallel_frames_indexed::closure$0::closure_env$2<scan_profile::deep::run::Repeated,enum2$<core::option::Option<u8> >,scan_profile::deep::run::closure_env$2,scan_profile::deep::run::closure_env$3>,tuple$<> >,tuple$<> >",
+          3860
+        ],
+        [
+          "scan_profile::deep::run::closure$2",
+          3859
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared",
+          3853
+        ],
+        [
+          "core::result::impl$27::branch",
+          2572
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::detect",
+          1694
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          1149
+        ],
+        [
+          "alloc::vec::impl$9::deref",
+          858
+        ],
+        [
+          "fire_core::gui_mask::score",
+          832
+        ],
+        [
+          "fire_core::veil::impl$0::default",
+          744
+        ],
+        [
+          "no_fire_cnn::engine::Engine::clear_frame",
+          658
+        ],
+        [
+          "scan_profile::deep::run::closure$2::closure$0",
+          658
+        ],
+        [
+          "no_fire_cnn::resize",
+          594
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          570
+        ],
+        [
+          "fire_core::gui_interaction::fast::InteractionDetector::detect",
+          545
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::merge_interactions",
+          545
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::try_fold",
+          512
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          510
+        ],
+        [
+          "alloc::sync::impl$34::deref",
+          510
+        ],
+        [
+          "fire_core::gui_interaction::fast::impl$2::detect::closure$2",
+          510
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map::check::closure$0",
+          510
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold::enumerate::closure$0",
+          510
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold",
+          510
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map",
+          510
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          504
+        ],
+        [
+          "fire_core::veil::judge",
+          473
+        ],
+        [
+          "fire_core::veil::detect_pixels",
+          473
+        ],
+        [
+          "alloc::raw_vec::RawVecInner<alloc::alloc::Global>::non_null",
+          414
+        ],
+        [
+          "alloc::raw_vec::RawVecInner<alloc::alloc::Global>::ptr",
+          414
+        ],
+        [
+          "alloc::raw_vec::RawVec<u8,alloc::alloc::Global>::ptr",
+          349
+        ],
+        [
+          "alloc::vec::Vec<u8,alloc::alloc::Global>::as_ptr",
+          349
+        ],
+        [
+          "alloc::vec::Vec<u8,alloc::alloc::Global>::as_slice",
+          349
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::fold::enumerate::closure$0",
+          340
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$7",
+          337
+        ],
+        [
+          "no_fire_cnn::policy::fragments::reaches",
+          312
+        ],
+        [
+          "no_fire_cnn::policy::fragments::mask",
+          310
+        ],
+        [
+          "no_fire_cnn::policy::fragments::largest_capped",
+          302
+        ],
+        [
+          "no_fire_cnn::policy::fragments::orange",
+          289
+        ]
+      ],
+      "nearest_application_frame_counts": [
+        [
+          "fire_core::gui_mask::score",
+          618
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          382
+        ],
+        [
+          "no_fire_cnn::resize",
+          351
+        ],
+        [
+          "no_fire_cnn::policy::fragments::orange",
+          289
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate",
+          249
+        ],
+        [
+          "no_fire_cnn::resize::closure$0",
+          196
+        ],
+        [
+          "fire_core::veil::judge",
+          190
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row",
+          154
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared",
+          138
+        ],
+        [
+          "fire_core::veil::gui_colour::closure$0::closure$0",
+          116
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0",
+          113
+        ],
+        [
+          "fire_core::veil::portal::guard",
+          111
+        ],
+        [
+          "fire_core::veil::judge::closure$0",
+          107
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          86
+        ],
+        [
+          "fire_core::veil::restore_channel",
+          82
+        ],
+        [
+          "no_fire_cnn::engine::Engine::infer_view",
+          62
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          62
+        ],
+        [
+          "fire_core::veil::gui_colour",
+          55
+        ],
+        [
+          "no_fire_cnn::policy::fragments::largest_capped",
+          53
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          53
+        ],
+        [
+          "no_fire_cnn::resize::closure$1",
+          47
+        ],
+        [
+          "fire_core::video::read_frame",
+          34
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          33
+        ],
+        [
+          "no_fire_cnn::policy::material",
+          33
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          29
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          25
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          22
+        ],
+        [
+          "no_fire_cnn::policy::fragments::mask",
+          21
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared::closure$1",
+          19
+        ],
+        [
+          "fire_core::veil::unveil_in_place",
+          13
+        ],
+        [
+          "fire_core::gui_mask::label",
+          12
+        ],
+        [
+          "no_fire_cnn::policy::fragments::reaches",
+          10
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          10
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$18",
+          9
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$2",
+          9
+        ],
+        [
+          "fire_core::gui_mask::composite",
+          7
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          7
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed::closure$0::closure$2",
+          7
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar",
+          7
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          6
+        ],
+        [
+          "no_fire_cnn::policy::retention::components",
+          6
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$24",
+          5
+        ],
+        [
+          "fire_core::gui_mask::piece_template",
+          4
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          4
+        ],
+        [
+          "fire_core::gui_mask::impl$78::clone",
+          4
+        ],
+        [
+          "fire_core::veil::unveil_rgb",
+          4
+        ],
+        [
+          "fire_core::gui_mask::luma",
+          4
+        ],
+        [
+          "fire_core::gui_mask::impl$106::hash",
+          4
+        ],
+        [
+          "fire_core::gui_mask::impl$6::row::closure$0::closure$0",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$16",
+          3
+        ]
+      ],
+      "application_line_counts": [
+        [
+          "no_fire_cnn::resize:47",
+          213
+        ],
+        [
+          "no_fire_cnn::resize::closure$0:48",
+          196
+        ],
+        [
+          "no_fire_cnn::policy::fragments::orange:9",
+          160
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row:1021",
+          154
+        ],
+        [
+          "fire_core::gui_mask::score:1429",
+          139
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:335",
+          138
+        ],
+        [
+          "no_fire_cnn::policy::fragments::orange:10",
+          129
+        ],
+        [
+          "fire_core::veil::gui_colour::closure$0::closure$0:94",
+          116
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0:321",
+          113
+        ],
+        [
+          "fire_core::gui_mask::score:1432",
+          109
+        ],
+        [
+          "fire_core::veil::judge::closure$0:150",
+          107
+        ],
+        [
+          "fire_core::gui_mask::score:1452",
+          104
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:339",
+          92
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared:49",
+          82
+        ],
+        [
+          "fire_core::veil::restore_channel:89",
+          82
+        ],
+        [
+          "no_fire_cnn::resize:50",
+          77
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:327",
+          63
+        ],
+        [
+          "no_fire_cnn::engine::Engine::infer_view:220",
+          62
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at:1018",
+          62
+        ],
+        [
+          "fire_core::veil::judge:143",
+          61
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate:42",
+          61
+        ],
+        [
+          "fire_core::gui_mask::score:1454",
+          55
+        ],
+        [
+          "fire_core::veil::gui_colour:95",
+          54
+        ],
+        [
+          "fire_core::gui_mask::score:1455",
+          54
+        ],
+        [
+          "fire_core::veil::portal::guard:56",
+          51
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate:41",
+          50
+        ],
+        [
+          "fire_core::veil::judge:145",
+          48
+        ],
+        [
+          "fire_core::veil::judge:150",
+          48
+        ],
+        [
+          "no_fire_cnn::resize::closure$1:59",
+          47
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1085",
+          42
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate:47",
+          39
+        ],
+        [
+          "fire_core::gui_mask::score:1431",
+          39
+        ],
+        [
+          "fire_core::video::read_frame:260",
+          34
+        ],
+        [
+          "fire_core::gui_mask::score:1453",
+          32
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate:61",
+          31
+        ],
+        [
+          "no_fire_cnn::resize:58",
+          30
+        ],
+        [
+          "no_fire_cnn::policy::fragments::largest_capped:91",
+          30
+        ],
+        [
+          "fire_core::gui_mask::score:1448",
+          29
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared:93",
+          29
+        ],
+        [
+          "fire_core::veil::judge:144",
+          28
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2759",
+          27
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:353",
+          27
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:325",
+          23
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate:44",
+          23
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1:2764",
+          22
+        ],
+        [
+          "no_fire_cnn::policy::fragments::mask:15",
+          21
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:2744",
+          21
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared:77",
+          20
+        ],
+        [
+          "fire_core::gui_mask::score:1457",
+          19
+        ],
+        [
+          "no_fire_cnn::policy::candidate_prepared::closure$1:75",
+          19
+        ]
+      ],
+      "leaf_counts": [
+        [
+          "fire_core::gui_mask::score",
+          601
+        ],
+        [
+          "no_fire_cnn::policy::fragments::orange",
+          289
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          226
+        ],
+        [
+          "no_fire_cnn::resize::closure$0",
+          196
+        ],
+        [
+          "no_fire_cnn::policy::fragments::dilate",
+          195
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          126
+        ],
+        [
+          "_NLG_Return2",
+          122
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$0",
+          113
+        ],
+        [
+          "fire_core::veil::judge::closure$0",
+          107
+        ],
+        [
+          "fire_core::veil::portal::guard",
+          104
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::fold::enumerate::closure$0",
+          97
+        ],
+        [
+          "core::iter::range::impl$14::spec_try_fold",
+          93
+        ],
+        [
+          "fire_core::veil::judge",
+          87
+        ],
+        [
+          "core::slice::index::impl$2::index",
+          81
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          78
+        ],
+        [
+          "core::num::impl$2::wrapping_abs",
+          71
+        ],
+        [
+          "NtFreeVirtualMemory",
+          62
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          62
+        ],
+        [
+          "core::cmp::Ord::clamp",
+          54
+        ],
+        [
+          "core::num::impl$2::wrapping_sub",
+          45
+        ],
+        [
+          "enum2$<core::option::Option<alloc::vec::Vec<f64,alloc::alloc::Global> > >::as_ref",
+          44
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          42
+        ],
+        [
+          "core::iter::range::impl$5::spec_next",
+          42
+        ],
+        [
+          "core::cmp::impls::impl$58::lt",
+          42
+        ],
+        [
+          "round",
+          40
+        ],
+        [
+          "alloc::raw_vec::RawVecInner<alloc::alloc::Global>::non_null",
+          36
+        ],
+        [
+          "no_fire_cnn::resize",
+          34
+        ],
+        [
+          "no_fire_cnn::resize::closure$1",
+          33
+        ],
+        [
+          "core::num::impl$11::unchecked_add",
+          31
+        ],
+        [
+          "enum2$<core::option::Option<core::ops::range::Range<usize> > >::as_mut",
+          30
+        ]
+      ],
+      "threads": {
+        "12140": {
+          "samples": 1019,
+          "cpu_ticks": 312500
+        },
+        "17508": {
+          "samples": 1013,
+          "cpu_ticks": 103593750,
+          "active": 346
+        },
+        "19916": {
+          "samples": 1005,
+          "cpu_ticks": 102656250,
+          "active": 333
+        },
+        "22080": {
+          "samples": 1007,
+          "cpu_ticks": 94218750,
+          "active": 304
+        },
+        "25108": {
+          "samples": 1016,
+          "cpu_ticks": 156250
+        },
+        "25664": {
+          "samples": 1016,
+          "cpu_ticks": 625000
+        },
+        "26388": {
+          "samples": 1018,
+          "cpu_ticks": 156250
+        },
+        "29908": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "30112": {
+          "samples": 1011,
+          "cpu_ticks": 93906250,
+          "active": 298
+        },
+        "30124": {
+          "samples": 1007,
+          "cpu_ticks": 96875000,
+          "active": 284
+        },
+        "31628": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "31668": {
+          "samples": 1015,
+          "cpu_ticks": 102968750,
+          "active": 351
+        },
+        "33556": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "35148": {
+          "samples": 1008,
+          "cpu_ticks": 100937500,
+          "active": 312
+        },
+        "41868": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "44304": {
+          "samples": 1002,
+          "cpu_ticks": 17187500,
+          "active": 34
+        },
+        "45676": {
+          "samples": 1005,
+          "cpu_ticks": 95312500,
+          "active": 312
+        },
+        "52108": {
+          "samples": 1004,
+          "cpu_ticks": 100000000,
+          "active": 319
+        },
+        "53644": {
+          "samples": 1015,
+          "cpu_ticks": 312500
+        },
+        "56736": {
+          "samples": 1018,
+          "cpu_ticks": 0
+        },
+        "58760": {
+          "samples": 1019,
+          "cpu_ticks": 1406250,
+          "active": 5
+        },
+        "59124": {
+          "samples": 1006,
+          "cpu_ticks": 103906250,
+          "active": 351
+        },
+        "60584": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "61340": {
+          "samples": 1006,
+          "cpu_ticks": 101562500,
+          "active": 329
+        },
+        "64324": {
+          "samples": 1018,
+          "cpu_ticks": 312500
+        },
+        "64924": {
+          "samples": 315,
+          "cpu_ticks": 156250
+        },
+        "66284": {
+          "samples": 1007,
+          "cpu_ticks": 96562500,
+          "active": 321
+        },
+        "68152": {
+          "samples": 1015,
+          "cpu_ticks": 0
+        },
+        "71048": {
+          "samples": 1016,
+          "cpu_ticks": 0
+        },
+        "22912": {
+          "samples": 704,
+          "cpu_ticks": 156250
+        },
+        "64540": {
+          "samples": 704,
+          "cpu_ticks": 0
+        },
+        "40540": {
+          "samples": 213,
+          "cpu_ticks": 156250
+        }
+      }
+    }
+  },
+  "model_section_stack_partition": {
+    "model_mutex_samples": 7895,
+    "inside_clear_frame": 990,
+    "resize_inside_clear_frame": 594,
+    "infer_inside_clear_frame": 396,
+    "wait_inside_clear_frame": 332
+  },
+  "allocation_runs": {
+    "pov": {
+      "accepted": 96,
+      "counting": true,
+      "fps": 87.0584783361438,
+      "frames": 1024,
+      "infer_calls": 0,
+      "infer_lock_wait_seconds_sum": 0.0,
+      "infer_run_seconds_sum": 0.0,
+      "rust_alloc_bytes_requested": 20558950902,
+      "rust_alloc_calls": 34771644,
+      "rust_frees": 29306853,
+      "seconds": 11.7622088,
+      "tool": "pov",
+      "workers": 12,
+      "requests_per_frame": 33956.68359375,
+      "requested_bytes_per_frame": 20077100.490234375
+    },
+    "nofire": {
+      "accepted": 336,
+      "counting": true,
+      "fps": 69.7041711411662,
+      "frames": 1536,
+      "infer_calls": 1104,
+      "infer_lock_wait_seconds_sum": 164.3705234,
+      "infer_run_seconds_sum": 21.8718814,
+      "rust_alloc_bytes_requested": 30571592646,
+      "rust_alloc_calls": 13354223,
+      "rust_frees": 12562501,
+      "seconds": 22.035984,
+      "tool": "no_fire",
+      "workers": 12,
+      "requests_per_frame": 8694.155598958334,
+      "requested_bytes_per_frame": 19903380.62890625
+    }
+  },
+  "parity": {
+    "pov": {
+      "unique_cases": 32,
+      "accepted_per_repeat": 3,
+      "matching_runs": [
+        "allocation-pov12.rows.json",
+        "control-pov12.rows.json",
+        "queue-pov12.rows.json"
+      ]
+    },
+    "nofire": {
+      "unique_cases": 32,
+      "accepted_per_repeat": 7,
+      "matching_runs": [
+        "allocation-nofire12.rows.json",
+        "control-nofire12.rows.json",
+        "queue-nofire12.rows.json"
+      ]
+    }
+  },
+  "source_sha256": {
+    "fire-detection/core/src/video.rs": "d7ba5f6d9c22f63a29b7e6adb527413461536a94a247f4daaf509ac2a83cbf47",
+    "FireCrackle/src-tauri/src/pov.rs": "04e32be235f593bc24ccc0342e129f2e0decb94e0a1f5824f4e314d18660889f",
+    "FireCrackle/src-tauri/src/no_fire.rs": "348312246c5d19118adbc58196037c9d26854e68ba66674d7fc9892e329b928a",
+    "fire-detection/bench/no_fire/fragment_rules.rs": "29d989afb96ddb8484abc63f57a93256bc65900fd8550b2cb252dc63f61f3f4e",
+    "FireCrackle/crates/no_fire_cnn/src/lib.rs": "a7334c546180baac944d04412c5f4f4966b1b02e7ce5546ae7a321cc78d846c5"
+  },
+  "local_artifact_sha256": {
+    ".board\\scan-profile\\queue-pov12.stacks.tsv": "1273c96b19c80b9e03ab3f50791797ad71ddea0861d6d3005660f274697d68c0",
+    ".board\\scan-profile\\queue-nofire12.stacks.tsv": "b051acd2a13b0775f5b9793fadc1e280c8ed81d974c7a5fd55d5dfe4fec145d9",
+    ".board\\scan-profile\\queue-pov12.folded": "8e51d8eca6da46483291851227fd2f9b7121b4b103287709899bf7aa09de40f6",
+    ".board\\scan-profile\\queue-nofire12.folded": "cd2a719afae300a253d20b2c8cca260fc12143cf9a130701e0f62e2d10b28132",
+    ".board\\scan-profile\\queue-pov12.flame.svg": "8d734e0065863a8810a3c12f2f059d510c4f8504a6be4f7961e90e04df03aafb",
+    ".board\\scan-profile\\queue-nofire12.flame.svg": "27232513709dfdaa4730fbb235e5f7f893a6225d98513ce377eef38f86824d84",
+    ".board\\scan-profile\\queue-pov12.sampler.log": "69b276dbd28bde7edb0475b1a46eb71cf2e29b104fb2abd6059bd0c574b0b1c9",
+    ".board\\scan-profile\\queue-nofire12.sampler.log": "b684f0bc42e98f023b6894535ecfbfb518bd74c3695b0c1b31e6a3894f50de44",
+    ".board\\scan-profile\\queue-symbols\\scan-profile.exe": "fa0d351866e369e63ddab2ca9aa6d8974856ccb30452738ec00803a67b4dbd36",
+    ".board\\scan-profile\\queue-symbols\\scan_profile.pdb": "da5002b663b4e6b4f3f3a5ccb1c8f6c8336d398b58ecf7082006a7972ddf24d1",
+    ".board\\scan-profile\\queue-symbols\\deep.rs": "985b37cbd4a227baa8c6ad9d6fb028f4788108cc11299b4832dd32aba5e5f25a",
+    ".board\\scan-profile\\queue-symbols\\main.rs": "4046c4bd56bf13faa6441643d516b3fb72ba71f07022b6c53c5e2741ba75c096",
+    ".board\\scan-profile\\queue-symbols\\Cargo.toml": "a1e409515270df0091b4de9972fde8cd84dac3d94dd489d3dd25bcb0db5816da",
+    ".board\\scan-profile\\queue-symbols\\stack_sampler.cpp": "727ed640a41db4df8585685ca81525834b879ed82515942227e8551bdea925c6",
+    ".board\\scan-profile\\queue-symbols\\analyze_stacks.py": "28465159d0e33e7be1947d9ddf84d1c75c0088e7ab090dc850587bf45ef8c2d2",
+    ".board\\scan-profile\\run_deep.py": "cf069bc8fad0ddf4653a754bca240be616afffa906c8c53b638e340da842af04",
+    ".board\\scan-profile\\frames.json": "45134749ab016c0f15d18c3eeff2a59101de506a0a80972197ab53bf6eb0fa7f"
+  },
+  "limits": [
+    "32 unique frames repeated, not new accuracy evaluation",
+    "Profiling-only adapters are local ignored scratch; no production detector changes in this pass",
+    "Native driver symbols may resolve only to exports; use them only to classify waits, not exact internal functions",
+    "No FFmpeg function trace, frontend trace, GPU kernel timeline or hardware saturation claim",
+    "Allocation/reallocation requested byte totals are not retained RAM",
+    "No numerical profiler overhead claim: background load varied and POV control slower than sampled run"
+  ]
+}
