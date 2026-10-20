@@ -1,0 +1,31 @@
+plugins { id 'fabric-loom' version '1.14.10' }
+version = project.mod_version
+group = 'org.firecracking'
+base { archivesName = 'gui-label' }
+repositories { mavenCentral() }
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+loom {
+    runs {
+        client {
+            property 'guilabel.autoStart', 'true'
+            vmArg '-Xmx4G'
+        }
+    }
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
+test { useJUnitPlatform() }

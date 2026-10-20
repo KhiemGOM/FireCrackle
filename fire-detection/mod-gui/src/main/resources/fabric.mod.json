@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "guilabel",
+  "version": "${version}",
+  "name": "GUI Label Recorder",
+  "description": "GUI-only frame labels and alignment strip for vanilla screen detection research. No fire processing or GPU readback.",
+  "authors": ["FireCracking"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {"client": ["org.firecracking.guilabel.GuiLabelClient"]},
+  "mixins": ["guilabel.mixins.json"],
+  "depends": {"fabricloader": ">=0.18.4", "minecraft": "1.21.11", "java": ">=21"}
+}

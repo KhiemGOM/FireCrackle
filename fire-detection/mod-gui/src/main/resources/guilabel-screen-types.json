@@ -1,0 +1,830 @@
+[
+  {
+    "id": "accessibility_onboarding_screen",
+    "class": "net.minecraft.client.gui.screens.AccessibilityOnboardingScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_8032"
+  },
+  {
+    "id": "achievement.stats_screen",
+    "class": "net.minecraft.client.gui.screens.achievement.StatsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_447"
+  },
+  {
+    "id": "add_realm_popup_screen",
+    "class": "com.mojang.realmsclient.gui.screens.AddRealmPopupScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_8656"
+  },
+  {
+    "id": "advancements.advancements_screen",
+    "class": "net.minecraft.client.gui.screens.advancements.AdvancementsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_457"
+  },
+  {
+    "id": "alert_screen",
+    "class": "net.minecraft.client.gui.screens.AlertScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_403"
+  },
+  {
+    "id": "backup_confirm_screen",
+    "class": "net.minecraft.client.gui.screens.BackupConfirmScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_405"
+  },
+  {
+    "id": "chat_screen",
+    "class": "net.minecraft.client.gui.screens.ChatScreen",
+    "category": "chat",
+    "intermediary": "net.minecraft.class_408"
+  },
+  {
+    "id": "com.mojang.realmsclient.realms_main_screen",
+    "class": "com.mojang.realmsclient.RealmsMainScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4325"
+  },
+  {
+    "id": "configuration.realms_backup_info_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsBackupInfoScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4379"
+  },
+  {
+    "id": "configuration.realms_backup_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsBackupScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4381"
+  },
+  {
+    "id": "configuration.realms_configure_world_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsConfigureWorldScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4388"
+  },
+  {
+    "id": "configuration.realms_invite_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsInviteScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4395"
+  },
+  {
+    "id": "configuration.realms_preferred_region_selection_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsPreferredRegionSelectionScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_11316"
+  },
+  {
+    "id": "configuration.realms_slot_options_screen",
+    "class": "com.mojang.realmsclient.gui.screens.configuration.RealmsSlotOptionsScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4423"
+  },
+  {
+    "id": "confirm_link_screen",
+    "class": "net.minecraft.client.gui.screens.ConfirmLinkScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_407"
+  },
+  {
+    "id": "confirm_screen",
+    "class": "net.minecraft.client.gui.screens.ConfirmScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_410"
+  },
+  {
+    "id": "connect_screen",
+    "class": "net.minecraft.client.gui.screens.ConnectScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_412"
+  },
+  {
+    "id": "create_buffet_world_screen",
+    "class": "net.minecraft.client.gui.screens.CreateBuffetWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_415"
+  },
+  {
+    "id": "create_flat_world_screen",
+    "class": "net.minecraft.client.gui.screens.CreateFlatWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_413"
+  },
+  {
+    "id": "credits_and_attribution_screen",
+    "class": "net.minecraft.client.gui.screens.CreditsAndAttributionScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_8219"
+  },
+  {
+    "id": "datapack_load_failure_screen",
+    "class": "net.minecraft.client.gui.screens.DatapackLoadFailureScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_5346"
+  },
+  {
+    "id": "death_screen",
+    "class": "net.minecraft.client.gui.screens.DeathScreen",
+    "category": "system",
+    "intermediary": "net.minecraft.class_418"
+  },
+  {
+    "id": "death_screen.title_confirm_screen",
+    "class": "net.minecraft.client.gui.screens.DeathScreen$TitleConfirmScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_418$class_8183"
+  },
+  {
+    "id": "debug.debug_options_screen",
+    "class": "net.minecraft.client.gui.screens.debug.DebugOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_11644"
+  },
+  {
+    "id": "debug.game_mode_switcher_screen",
+    "class": "net.minecraft.client.gui.screens.debug.GameModeSwitcherScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_5289"
+  },
+  {
+    "id": "demo_intro_screen",
+    "class": "net.minecraft.client.gui.screens.DemoIntroScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_417"
+  },
+  {
+    "id": "dialog.dialog_list_dialog_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.DialogListDialogScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11472"
+  },
+  {
+    "id": "dialog.dialog_screen.warning_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.DialogScreen$WarningScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11473$class_11514"
+  },
+  {
+    "id": "dialog.multi_button_dialog_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.MultiButtonDialogScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11478"
+  },
+  {
+    "id": "dialog.server_links_dialog_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.ServerLinksDialogScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11479"
+  },
+  {
+    "id": "dialog.simple_dialog_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.SimpleDialogScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11480"
+  },
+  {
+    "id": "dialog.waiting_for_response_screen",
+    "class": "net.minecraft.client.gui.screens.dialog.WaitingForResponseScreen",
+    "category": "server_dialog",
+    "intermediary": "net.minecraft.class_11530"
+  },
+  {
+    "id": "direct_join_server_screen",
+    "class": "net.minecraft.client.gui.screens.DirectJoinServerScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_420"
+  },
+  {
+    "id": "disconnected_screen",
+    "class": "net.minecraft.client.gui.screens.DisconnectedScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_419"
+  },
+  {
+    "id": "error_screen",
+    "class": "net.minecraft.client.gui.screens.ErrorScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_421"
+  },
+  {
+    "id": "generic_message_screen",
+    "class": "net.minecraft.client.gui.screens.GenericMessageScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_424"
+  },
+  {
+    "id": "generic_waiting_screen",
+    "class": "net.minecraft.client.gui.screens.GenericWaitingScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_7534"
+  },
+  {
+    "id": "in_bed_chat_screen",
+    "class": "net.minecraft.client.gui.screens.InBedChatScreen",
+    "category": "chat",
+    "intermediary": "net.minecraft.class_423"
+  },
+  {
+    "id": "inventory.anvil_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.AnvilScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_471"
+  },
+  {
+    "id": "inventory.beacon_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BeaconScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_466"
+  },
+  {
+    "id": "inventory.blast_furnace_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BlastFurnaceScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3871"
+  },
+  {
+    "id": "inventory.book_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BookEditScreen",
+    "category": "item",
+    "intermediary": "net.minecraft.class_473"
+  },
+  {
+    "id": "inventory.book_sign_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BookSignScreen",
+    "category": "item",
+    "intermediary": "net.minecraft.class_11385"
+  },
+  {
+    "id": "inventory.book_view_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BookViewScreen",
+    "category": "item",
+    "intermediary": "net.minecraft.class_3872"
+  },
+  {
+    "id": "inventory.brewing_stand_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.BrewingStandScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_472"
+  },
+  {
+    "id": "inventory.cartography_table_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.CartographyTableScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3934"
+  },
+  {
+    "id": "inventory.command_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.CommandBlockEditScreen",
+    "category": "operator_block",
+    "intermediary": "net.minecraft.class_477"
+  },
+  {
+    "id": "inventory.container_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.ContainerScreen",
+    "category": "block_entity",
+    "intermediary": "net.minecraft.class_476"
+  },
+  {
+    "id": "inventory.crafter_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.CrafterScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_8898"
+  },
+  {
+    "id": "inventory.crafting_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.CraftingScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_479"
+  },
+  {
+    "id": "inventory.creative_mode_inventory_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen",
+    "category": "inventory",
+    "intermediary": "net.minecraft.class_481"
+  },
+  {
+    "id": "inventory.dispenser_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.DispenserScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_480"
+  },
+  {
+    "id": "inventory.enchantment_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.EnchantmentScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_486"
+  },
+  {
+    "id": "inventory.furnace_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.FurnaceScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3873"
+  },
+  {
+    "id": "inventory.grindstone_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.GrindstoneScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3802"
+  },
+  {
+    "id": "inventory.hanging_sign_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.HangingSignEditScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_7744"
+  },
+  {
+    "id": "inventory.hopper_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.HopperScreen",
+    "category": "block_entity",
+    "intermediary": "net.minecraft.class_488"
+  },
+  {
+    "id": "inventory.horse_inventory_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.HorseInventoryScreen",
+    "category": "entity",
+    "intermediary": "net.minecraft.class_491"
+  },
+  {
+    "id": "inventory.inventory_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.InventoryScreen",
+    "category": "inventory",
+    "intermediary": "net.minecraft.class_490"
+  },
+  {
+    "id": "inventory.jigsaw_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.JigsawBlockEditScreen",
+    "category": "operator_block",
+    "intermediary": "net.minecraft.class_3742"
+  },
+  {
+    "id": "inventory.lectern_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.LecternScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3935"
+  },
+  {
+    "id": "inventory.loom_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.LoomScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_494"
+  },
+  {
+    "id": "inventory.merchant_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.MerchantScreen",
+    "category": "entity",
+    "intermediary": "net.minecraft.class_492"
+  },
+  {
+    "id": "inventory.minecart_command_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.MinecartCommandBlockEditScreen",
+    "category": "operator_entity",
+    "intermediary": "net.minecraft.class_496"
+  },
+  {
+    "id": "inventory.nautilus_inventory_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.NautilusInventoryScreen",
+    "category": "entity",
+    "intermediary": "net.minecraft.class_12349"
+  },
+  {
+    "id": "inventory.shulker_box_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_495"
+  },
+  {
+    "id": "inventory.sign_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.SignEditScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_498"
+  },
+  {
+    "id": "inventory.smithing_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.SmithingScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_4895"
+  },
+  {
+    "id": "inventory.smoker_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.SmokerScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3874"
+  },
+  {
+    "id": "inventory.stonecutter_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.StonecutterScreen",
+    "category": "block",
+    "intermediary": "net.minecraft.class_3979"
+  },
+  {
+    "id": "inventory.structure_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.StructureBlockEditScreen",
+    "category": "operator_block",
+    "intermediary": "net.minecraft.class_497"
+  },
+  {
+    "id": "inventory.test_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.TestBlockEditScreen",
+    "category": "operator_block",
+    "intermediary": "net.minecraft.class_10642"
+  },
+  {
+    "id": "inventory.test_instance_block_edit_screen",
+    "class": "net.minecraft.client.gui.screens.inventory.TestInstanceBlockEditScreen",
+    "category": "operator_block",
+    "intermediary": "net.minecraft.class_10643"
+  },
+  {
+    "id": "level_loading_screen",
+    "class": "net.minecraft.client.gui.screens.LevelLoadingScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_3928"
+  },
+  {
+    "id": "manage_server_screen",
+    "class": "net.minecraft.client.gui.screens.ManageServerScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_422"
+  },
+  {
+    "id": "multiplayer.code_of_conduct_screen",
+    "class": "net.minecraft.client.gui.screens.multiplayer.CodeOfConductScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_11777"
+  },
+  {
+    "id": "multiplayer.join_multiplayer_screen",
+    "class": "net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_500"
+  },
+  {
+    "id": "multiplayer.safety_screen",
+    "class": "net.minecraft.client.gui.screens.multiplayer.SafetyScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_4749"
+  },
+  {
+    "id": "multiplayer.server_reconfig_screen",
+    "class": "net.minecraft.client.gui.screens.multiplayer.ServerReconfigScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_8671"
+  },
+  {
+    "id": "net.minecraft.client.gui.components.popup_screen",
+    "class": "net.minecraft.client.gui.components.PopupScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_8816"
+  },
+  {
+    "id": "net.minecraft.client.multiplayer.client_common_packet_listener_impl.pack_confirm_screen",
+    "class": "net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl$PackConfirmScreen",
+    "category": "multiplayer",
+    "intermediary": "net.minecraft.class_8673$class_9058"
+  },
+  {
+    "id": "notice_with_link_screen",
+    "class": "net.minecraft.client.gui.screens.NoticeWithLinkScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_8669"
+  },
+  {
+    "id": "options.accessibility_options_screen",
+    "class": "net.minecraft.client.gui.screens.options.AccessibilityOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_4189"
+  },
+  {
+    "id": "options.chat_options_screen",
+    "class": "net.minecraft.client.gui.screens.options.ChatOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_404"
+  },
+  {
+    "id": "options.controls.controls_screen",
+    "class": "net.minecraft.client.gui.screens.options.controls.ControlsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_458"
+  },
+  {
+    "id": "options.controls.key_binds_screen",
+    "class": "net.minecraft.client.gui.screens.options.controls.KeyBindsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_6599"
+  },
+  {
+    "id": "options.font_options_screen",
+    "class": "net.minecraft.client.gui.screens.options.FontOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_9246"
+  },
+  {
+    "id": "options.language_select_screen",
+    "class": "net.minecraft.client.gui.screens.options.LanguageSelectScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_426"
+  },
+  {
+    "id": "options.mouse_settings_screen",
+    "class": "net.minecraft.client.gui.screens.options.MouseSettingsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_4288"
+  },
+  {
+    "id": "options.online_options_screen",
+    "class": "net.minecraft.client.gui.screens.options.OnlineOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_6777"
+  },
+  {
+    "id": "options.options_screen",
+    "class": "net.minecraft.client.gui.screens.options.OptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_429"
+  },
+  {
+    "id": "options.skin_customization_screen",
+    "class": "net.minecraft.client.gui.screens.options.SkinCustomizationScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_440"
+  },
+  {
+    "id": "options.sound_options_screen",
+    "class": "net.minecraft.client.gui.screens.options.SoundOptionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_443"
+  },
+  {
+    "id": "options.unsupported_graphics_warning_screen",
+    "class": "net.minecraft.client.gui.screens.options.UnsupportedGraphicsWarningScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_5405"
+  },
+  {
+    "id": "options.video_settings_screen",
+    "class": "net.minecraft.client.gui.screens.options.VideoSettingsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_446"
+  },
+  {
+    "id": "out_of_memory_screen",
+    "class": "net.minecraft.client.gui.screens.OutOfMemoryScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_428"
+  },
+  {
+    "id": "packs.pack_selection_screen",
+    "class": "net.minecraft.client.gui.screens.packs.PackSelectionScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_5375"
+  },
+  {
+    "id": "pause_screen",
+    "class": "net.minecraft.client.gui.screens.PauseScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_433"
+  },
+  {
+    "id": "pause_screen.feedback_sub_screen",
+    "class": "net.minecraft.client.gui.screens.PauseScreen$FeedbackSubScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_433$class_9804"
+  },
+  {
+    "id": "preset_flat_world_screen",
+    "class": "net.minecraft.client.gui.screens.PresetFlatWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_430"
+  },
+  {
+    "id": "progress_screen",
+    "class": "net.minecraft.client.gui.screens.ProgressScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_435"
+  },
+  {
+    "id": "realms_broken_world_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsBrokenWorldScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4384"
+  },
+  {
+    "id": "realms_client_outdated_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsClientOutdatedScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4387"
+  },
+  {
+    "id": "realms_confirm_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsConfirmScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4389"
+  },
+  {
+    "id": "realms_create_realm_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsCreateRealmScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4390"
+  },
+  {
+    "id": "realms_download_latest_world_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsDownloadLatestWorldScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4392"
+  },
+  {
+    "id": "realms_generic_error_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsGenericErrorScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4394"
+  },
+  {
+    "id": "realms_long_running_mco_connect_task_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsLongRunningMcoConnectTaskScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_11461"
+  },
+  {
+    "id": "realms_long_running_mco_task_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsLongRunningMcoTaskScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4398"
+  },
+  {
+    "id": "realms_notifications_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsNotificationsScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4399"
+  },
+  {
+    "id": "realms_parental_consent_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsParentalConsentScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4400"
+  },
+  {
+    "id": "realms_pending_invites_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsPendingInvitesScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4401"
+  },
+  {
+    "id": "realms_reset_world_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsResetWorldScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4410"
+  },
+  {
+    "id": "realms_select_file_to_upload_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsSelectFileToUploadScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4416"
+  },
+  {
+    "id": "realms_select_world_template_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsSelectWorldTemplateScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4419"
+  },
+  {
+    "id": "realms_terms_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsTermsScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4426"
+  },
+  {
+    "id": "realms_upload_screen",
+    "class": "com.mojang.realmsclient.gui.screens.RealmsUploadScreen",
+    "category": "realms",
+    "intermediary": "net.minecraft.class_4427"
+  },
+  {
+    "id": "recover_world_data_screen",
+    "class": "net.minecraft.client.gui.screens.RecoverWorldDataScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_8897"
+  },
+  {
+    "id": "reporting.abstract_report_screen.discard_report_warning_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.AbstractReportScreen$DiscardReportWarningScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_8768$class_7539"
+  },
+  {
+    "id": "reporting.chat_report_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.ChatReportScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_7538"
+  },
+  {
+    "id": "reporting.chat_selection_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.ChatSelectionScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_7543"
+  },
+  {
+    "id": "reporting.name_report_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.NameReportScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_8769"
+  },
+  {
+    "id": "reporting.report_player_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.ReportPlayerScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_8770"
+  },
+  {
+    "id": "reporting.report_reason_selection_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.ReportReasonSelectionScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_7551"
+  },
+  {
+    "id": "reporting.skin_report_screen",
+    "class": "net.minecraft.client.gui.screens.reporting.SkinReportScreen",
+    "category": "reporting",
+    "intermediary": "net.minecraft.class_8771"
+  },
+  {
+    "id": "share_to_lan_screen",
+    "class": "net.minecraft.client.gui.screens.ShareToLanScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_436"
+  },
+  {
+    "id": "social.social_interactions_screen",
+    "class": "net.minecraft.client.gui.screens.social.SocialInteractionsScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_5522"
+  },
+  {
+    "id": "telemetry.telemetry_info_screen",
+    "class": "net.minecraft.client.gui.screens.telemetry.TelemetryInfoScreen",
+    "category": "menu_or_system",
+    "intermediary": "net.minecraft.class_7944"
+  },
+  {
+    "id": "title_screen",
+    "class": "net.minecraft.client.gui.screens.TitleScreen",
+    "category": "menu",
+    "intermediary": "net.minecraft.class_442"
+  },
+  {
+    "id": "win_screen",
+    "class": "net.minecraft.client.gui.screens.WinScreen",
+    "category": "system",
+    "intermediary": "net.minecraft.class_445"
+  },
+  {
+    "id": "worldselection.confirm_experimental_features_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.ConfirmExperimentalFeaturesScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_7745"
+  },
+  {
+    "id": "worldselection.confirm_experimental_features_screen.details_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.ConfirmExperimentalFeaturesScreen$DetailsScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_7745$class_7746"
+  },
+  {
+    "id": "worldselection.create_world_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_525"
+  },
+  {
+    "id": "worldselection.edit_game_rules_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.EditGameRulesScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_5235"
+  },
+  {
+    "id": "worldselection.edit_world_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.EditWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_524"
+  },
+  {
+    "id": "worldselection.experiments_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.ExperimentsScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_8134"
+  },
+  {
+    "id": "worldselection.optimize_world_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.OptimizeWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_527"
+  },
+  {
+    "id": "worldselection.select_world_screen",
+    "class": "net.minecraft.client.gui.screens.worldselection.SelectWorldScreen",
+    "category": "world_selection",
+    "intermediary": "net.minecraft.class_526"
+  }
+]

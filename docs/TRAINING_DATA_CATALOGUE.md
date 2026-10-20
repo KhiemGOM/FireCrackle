@@ -121,6 +121,14 @@ No-fire archives under `.board/no-fire-*`, image-presence and related roots cont
 
 `*.firecrackle/*.json` are application/project state, not an interchangeable renderer dataset. Labels can be manual, first-person-tool or no-fire-tool sourced; retain human-check/provenance and saved exclusions. Review JSONs can whitelist/blacklist crops. CSV headers and all project schemas are listed in the inventory. Predictions JSONL and frozen benchmark outputs provide diagnostics or explicit pseudo-label experiments; never silently treat them as ground truth. Jolt imports label GUI-clock evidence and phase analysis, not sprite appearance or ownership masks.
 
+### S8 — Java 1.21.11 GUI-only renderer labels
+
+Producer: `fire-detection/mod-gui`; private sessions at `fire-detection/mod-gui/run/guilabel/<UUID>.jsonl`. This separate instance uses Sodium and no fire/ownership GPU readback. It is not a new video recording until an actual OBS video is paired and registered. See [GUI recorder schema and recording instructions](../fire-detection/mod-gui/README.md).
+
+Discriminator `record` is `session`, `frame`, `layout`, `recording_toggle` or `session_end`. Frame rows contain renderer `frame`, monotonic elapsed nanoseconds, known `screen_type`/class/category, container `menu_type`, screen/overlay visibility, stable-render flag, instance/transition IDs, dimensions/scale and optional layout ID. Layout records hold scaled-GUI panel bounds and relative slot positions. **Geometry is not a pixel mask** (`mask_ground_truth=false`); target block/entity provenance is not inferred from titles. Social screens are excluded from intended detector scope. Unknown classes, overlay-covered or unstable frames are not known-positive visual targets.
+
+Decode the Manchester/CRC frame strip to align renderer IDs to OBS frames; timestamps or game ticks alone do not establish correspondence. F8-disabled spans are omitted, not closed-GUI negatives. Preserve session boundaries and hold out complete recordings. Queue overflow/IO failure invalidates completeness; missing footer means unclean termination. Live launch/smoke labels with no paired video are unpaired diagnostics, not eligible training examples. No AI fitting has been performed on this stream.
+
 ## Reusable dataset families and producers
 
 | Family / roots | What it contains | Producer / constraints |

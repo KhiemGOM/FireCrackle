@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "org.firecracking.guilabel.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["GameRendererMixin", "HandledScreenAccessor"],
+  "injectors": {"defaultRequire": 1}
+}
