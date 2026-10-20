@@ -30,6 +30,9 @@ struct Probe {
     x: f64,
     y: f64,
     rgb: [u8; 3],
+    /// Source-only 3x3 average. Subpixel captures blend thin source edges.
+    /// None for fixed text controls and beside unknown/transparent source pixels.
+    blended: Option<[u8; 3]>,
     group: usize,
     viewport_y: f64,
 }
@@ -142,6 +145,20 @@ impl PanelTemplate {
                     x: x as f64 + 0.5,
                     y: y as f64 + 0.5,
                     rgb: [c[0], c[1], c[2]],
+                    blended: {
+                        let mut sum = [0u32; 3];
+                        let mut opaque = true;
+                        for yy in y - 1..=y + 1 {
+                            for xx in x - 1..=x + 1 {
+                                let q = pixel(xx, yy);
+                                opaque &= q[3] == 255;
+                                for k in 0..3 {
+                                    sum[k] += u32::from(q[k]);
+                                }
+                            }
+                        }
+                        opaque.then(|| sum.map(|v| ((v + 4) / 9) as u8))
+                    },
                     group,
                     viewport_y: 0.,
                 };
@@ -229,6 +246,7 @@ impl PanelTemplate {
                 x,
                 y,
                 rgb,
+                blended: None,
                 group: 0,
                 viewport_y: 0.,
             })
@@ -388,7 +406,17 @@ fn score(
             return 0.;
         }
         let offset = (y as usize * width + x as usize) * 3;
-        let agrees = (0..3).all(|k| rgb[offset + k].abs_diff(p.rgb[k]) <= tolerance);
+        // Below one output pixel per GUI texel, a thin highlight/shadow can
+        // be blended toward its opaque source neighbourhood. Keep the layout,
+        // regional quorums and acceptance fractions unchanged. This is not
+        // occlusion: unmatched visible probes still count as errors.
+        let blended = if sx < 1. && sy < 1. { p.blended } else { None };
+        let agrees = (0..3).all(|k| {
+            let other = blended.map_or(p.rgb[k], |c| c[k]);
+            let low = p.rgb[k].min(other).saturating_sub(tolerance);
+            let high = p.rgb[k].max(other).saturating_add(tolerance);
+            (low..=high).contains(&rgb[offset + k])
+        });
         good += usize::from(agrees);
         groups[p.group][0] += usize::from(agrees);
         groups[p.group][1] += 1;

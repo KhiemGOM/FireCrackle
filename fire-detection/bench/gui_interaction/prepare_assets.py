@@ -176,10 +176,14 @@ def prepare(client, version, output):
                 save('pause_screen','fixed_controls_en_us_'+skin,
                      button_patch(204),False,control_hash,(0,8.5,0.25),identity)
                 # AbstractSignEditScreen has Done at H/4+144 and title at 40.
-                identity=control('gui.done',100,6)
-                identity += [(x,y,rgb,-0.25) for x,y,rgb in control('sign.edit',100,-104)]
-                save('sign_edit','fixed_controls_en_us_'+skin,button_patch(200),False,
-                     control_hash,(0,144,0.25),identity)
+                # HangingSignEditScreen inherits those controls; only its
+                # fixed heading differs. User-written sign text is excluded.
+                for kind,key in [('sign_edit','sign.edit'),
+                                 ('hanging_sign_edit','hanging_sign.edit')]:
+                    identity=control('gui.done',100,6)
+                    identity += [(x,y,rgb,-0.25) for x,y,rgb in control(key,100,-104)]
+                    save(kind,'fixed_controls_en_us_'+skin,button_patch(200),False,
+                         control_hash,(0,144,0.25),identity)
     return rows
 
 

@@ -1,5 +1,8 @@
 # Real-footage check of occlusion-neutral scoring
 
+Historical mask-only diagnostic, before the tiny-GUI/sign changes. See
+[the subsequent soft-guard check](GUI_SOFT_GUARD_CHECK.md) for current results.
+
 The new `detect_with_occlusion` path was checked on the same **636 sampled
 screen segments** as the prior baseline, including every previously detected
 example and every previously missed example. These are midpoint samples, not
@@ -27,7 +30,7 @@ positives can receive exclusions at their known GUI location, while closed
 screens have no container layout in the metadata.
 
 The automatic detector has not yet received a video-only occlusion estimator;
-its measured unmasked result therefore remains 242/261.
+its measured unmasked result at this revision was 242/261.
 
 ## Mask protocol
 

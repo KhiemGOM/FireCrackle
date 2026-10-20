@@ -80,7 +80,17 @@ height, shared player inventory, source preview exclusions) are explicit.
   remains broader than implemented recognition. Sodium settings is modded and
   must abstain. No app scan button/automatic label path is enabled yet.
 
-## Development check, not final accuracy
+## Current tiny-GUI/sign development check
+
+**257/261 interaction-GUI samples detected (98.5%); 0/289 closed-GUI false
+detections.** The bounded subpixel source-colour guard and inherited hanging-sign
+controls recover 15 misses without losing previous detections. The same-session,
+sampled-development limits still apply. See
+[`GUI_SOFT_GUARD_CHECK.md`](../../../docs/GUI_SOFT_GUARD_CHECK.md) for the method,
+remaining cases and reproducible evidence. Regenerate local source packs to
+include the new hanging-sign control alternatives.
+
+## Historical pre-soft-guard development check
 
 **Primary interaction-GUI detection: 242/261 (92.7%), with 19 actual misses.**
 This includes all recorded `inventory.*` visits (books and sign editors too),

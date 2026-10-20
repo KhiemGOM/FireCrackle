@@ -52,6 +52,72 @@ fn opts() -> Options {
 }
 
 #[test]
+fn subpixel_source_edges_survive_resampling_without_accepting_flat_or_wrong_layout() {
+    let (template, image) = fixture("known_inventory");
+    let (width, height) = (200, 140);
+    let mut frame = vec![31; width * height * 3];
+    // Area-downsample the 80x80 source into 60x60, independently of the
+    // detector's source-neighbourhood model. No captured frame is used.
+    for y in 0..60 {
+        for x in 0..60 {
+            let mut sum = [0.; 3];
+            let mut area = 0.;
+            let x0 = x as f64 / 0.75;
+            let x1 = (x + 1) as f64 / 0.75;
+            let y0 = y as f64 / 0.75;
+            let y1 = (y + 1) as f64 / 0.75;
+            for yy in y0.floor() as usize..y1.ceil() as usize {
+                for xx in x0.floor() as usize..x1.ceil() as usize {
+                    let weight = (x1.min((xx + 1) as f64) - x0.max(xx as f64))
+                        * (y1.min((yy + 1) as f64) - y0.max(yy as f64));
+                    area += weight;
+                    for k in 0..3 {
+                        sum[k] += weight * f64::from(image[(yy * 80 + xx) * 4 + k]);
+                    }
+                }
+            }
+            let dst = ((40 + y) * width + 70 + x) * 3;
+            for k in 0..3 {
+                frame[dst + k] = (sum[k] / area).round() as u8;
+            }
+        }
+    }
+    let options = Options {
+        min_scale: 0.75,
+        max_scale: 0.75,
+        ..Options::default()
+    };
+    assert!(
+        detect(&frame, width, height, &[template.clone()], options)
+            .unwrap()
+            .gui_detected
+    );
+    assert!(
+        !detect(
+            &vec![180; width * height * 3],
+            width,
+            height,
+            &[template.clone()],
+            options
+        )
+        .unwrap()
+        .gui_detected
+    );
+    // Preserve the frame/border but erase interior layout evidence.
+    for y in 45..95 {
+        for x in 75..125 {
+            let dst = (y * width + x) * 3;
+            frame[dst..dst + 3].fill(180);
+        }
+    }
+    assert!(
+        !detect(&frame, width, height, &[template], options)
+            .unwrap()
+            .gui_detected
+    );
+}
+
+#[test]
 fn finds_panel_without_any_hotbar_and_checks_whole_layout() {
     let (template, image) = fixture("known_inventory");
     let detection = detect(&render(&image), 400, 240, &[template], opts()).unwrap();
