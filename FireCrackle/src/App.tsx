@@ -8,6 +8,7 @@ import { OpenLink, ToolSetupNotice } from "./components/OpenLink";
 import { Icon, IconButton } from "./components/Icon";
 import { PhaseTab } from "./components/PhaseTab";
 import { ImagesTab } from "./components/ImagesTab";
+import { MiscToolsTab } from "./components/MiscToolsTab";
 import { Picker } from "./components/Picker";
 import { ProjectsHome } from "./components/ProjectsHome";
 import { Credits } from "./components/Credits";
@@ -97,7 +98,7 @@ export default function App() {
   const [path, setPath] = useState("");
   const [showLink, setShowLink] = useState(false);
   const [home, setHome] = useState(false);
-  const [tab, setTab] = useState<"label" | "phase" | "images">(readPreferences().tab);
+  const [tab, setTab] = useState<"label" | "phase" | "misc" | "images">(readPreferences().tab);
   const { layout, set: setLayout, reset: resetLayout } = useLayout();
   const workareaRef = useRef<HTMLElement | null>(null);
   const { zooms, wheel: zoomWheel, reset: resetZoom } = usePanelZooms();
@@ -304,13 +305,14 @@ export default function App() {
           <button className={tab !== "images" && (!view || home) ? "on" : ""} onClick={() => { setTab("label"); setHome(true); }}><Icon name="home" /> Home</button>
           <button className={tab === "label" && view && !home ? "on" : ""} disabled={!view} onClick={() => { setTab("label"); setHome(false); }}><Icon name="label" /> Label</button>
           <button className={tab === "phase" && !home ? "on" : ""} disabled={!view} onClick={() => { setTab("phase"); setHome(false); }}><Icon name="chart" /> Phase</button>
+          <button className={tab === "misc" && !home ? "on" : ""} disabled={!view} onClick={() => { setPlayback(STOPPED); setTab("misc"); setHome(false); setShowKeys(false); }}><Icon name="settings" /> Misc tools</button>
           <button className={tab === "images" ? "on" : ""} onClick={() => { setTab("images"); setShowKeys(false); }}><Icon name="folder" /> Images</button>
         </nav>
         <div className="top-actions">
           <IconButton icon="folder" label={ws.opening ? "Opening video…" : "Open video"} onClick={() => void chooseVideo()} disabled={ws.opening} />
           <IconButton icon="link" label="Open link" title="Open a video from a URL" onClick={() => { setPlayback(STOPPED); setShowLink(true); }} disabled={ws.opening} />
           {view && (
-            <div className={`video-top-actions${tab === "images" ? " inactive" : ""}`} inert={tab === "images"} aria-hidden={tab === "images"}>
+            <div className={`video-top-actions${tab === "images" || tab === "misc" ? " inactive" : ""}`} inert={tab === "images" || tab === "misc"} aria-hidden={tab === "images" || tab === "misc"}>
               <IconButton icon="save" label="Save labels" onClick={() => void ws.save()} disabled={backend.mock || ws.opening} title="Save labels · Ctrl+S · autosave is also on" />
               <span className={`save-status${view.save_error ? " failed" : ""}`} role="status" title={backend.mock ? "Preview only" : ws.saveStatus}>
                 <Icon name={view.save_error ? "alert" : "check"} /><span className="sr-only">{backend.mock ? "Preview only" : ws.saveStatus}</span>
@@ -364,6 +366,8 @@ export default function App() {
           onOpenPath={() => { if (/^https?:\/\//i.test(path.trim())) setShowLink(true); else if (path) void openVideo(path.trim()); }}
           onOpenLink={() => { setPlayback(STOPPED); setShowLink(true); }}
         />
+      ) : tab === "misc" ? (
+        <MiscToolsTab key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} onOpenFrame={jumpToLabel}/>
       ) : tab === "phase" ? (
         <PhaseTab extraSources={extraSources} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} version={ws.version} onJump={jumpToLabel} />
       ) : (

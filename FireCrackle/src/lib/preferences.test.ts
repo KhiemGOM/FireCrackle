@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from "./preferences";
+it('restores the current-video Misc tools tab',()=>{
+ expect(readPreferences({getItem:()=>'{"tab":"misc"}'}).tab).toBe('misc');
+});
 
 it("merges independent settings and restores values including zero edge counts", () => {
   let raw: string | null = null;

@@ -34,6 +34,7 @@ import App from "./App";
 import { Picker } from "./components/Picker";
 import { VideoPane } from "./components/VideoPane";
 import { ImagesTab } from "./components/ImagesTab";
+import { MiscToolsTab } from "./components/MiscToolsTab";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdatesDialog } from "./components/UpdatesDialog";
 import { EnhancePanel } from "./components/EnhancePanel";
@@ -71,6 +72,16 @@ beforeEach(() => {
     removeEventListener: (type: string, listener: EventListener, capture = false) => target.removeEventListener(type, listener, {capture}),
     dispatchEvent: (event: Event) => target.dispatchEvent(event),
   });
+});
+it('places Misc tools between Phase and Images and passes the same active video',()=>{
+ let ui=render();const nav=find(ui.tree,e=>e.type==='nav')!;
+ const labels=(nav.props.children as Element[]).filter(e=>e.type==='button').map(e=>[e.props.children].flat().filter(c=>typeof c==='string').join('').trim());
+ expect(labels).toEqual(['Home','Label','Phase','Misc tools','Images']);
+ find(nav,e=>e.type==='button'&&[e.props.children].flat().includes(' Misc tools'))!.props.onClick();ui=render();
+ const misc=find(ui.tree,e=>e.type===MiscToolsTab)!;expect(misc.props.view).toBe(fixture.view);expect(misc.props.backend).toBe(fixture.backend);
+ expect(ui.video).toBeUndefined();key('ArrowRight');key('Enter');expect(fixture.act).not.toHaveBeenCalled();
+ misc.props.onOpenFrame(20);expect(fixture.act).toHaveBeenCalledWith({type:'goTo',frame:20});
+ expect(render().video).toBeDefined();
 });
 
 it('shows a failed native video chooser as a visible error with a path workaround',async()=>{

@@ -3,7 +3,7 @@ import { VEIL_MODES, type VeilMode } from "./veil";
 import type { PortalMode } from "./portal";
 
 export interface Preferences {
-  tab: "label" | "phase" | "images";
+  tab: "label" | "phase" | "misc" | "images";
   atlasFilter: EdgeFilter;
   matchOpen: boolean;
   matchOnlyFiltered: boolean;
@@ -23,7 +23,7 @@ export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
   try {
     const raw = JSON.parse((storage ?? localStorage).getItem(PREFERENCES_KEY) ?? "null");
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return result;
-    if (raw.tab === "label" || raw.tab === "phase" || raw.tab === "images") result.tab = raw.tab;
+    if (raw.tab === "label" || raw.tab === "phase" || raw.tab === "misc" || raw.tab === "images") result.tab = raw.tab;
     for (const key of ["matchOpen", "matchOnlyFiltered", "matchAdjustQuad", "animationOpen", "animationOnlyFiltered"] as const) if (typeof raw[key] === "boolean") result[key] = raw[key];
     if (VEIL_MODES.includes(raw.veilMode)) result.veilMode = raw.veilMode;
     if (raw.portalMode === "off" || raw.portalMode === "auto") result.portalMode = raw.portalMode;
