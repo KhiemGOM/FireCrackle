@@ -33,6 +33,7 @@ vi.mock("./hooks/usePostSettings", () => ({ usePostSettings: () => fixture.post 
 import App from "./App";
 import { Picker } from "./components/Picker";
 import { VideoPane } from "./components/VideoPane";
+import { PlaybackButton } from "./components/PlaybackButton";
 import { ImagesTab } from "./components/ImagesTab";
 import { MiscToolsTab } from "./components/MiscToolsTab";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -401,6 +402,22 @@ it("never runs the playhead ahead of the picture during slow delivery or after a
     await vi.advanceTimersByTimeAsync(1000);
     expect(fixture.act).toHaveBeenCalledTimes(1);
   } finally {vi.useRealTimers();fixture.act.mockImplementation(async()=>{});}
+});
+
+it("keeps the selected playback speed through Play and Space pause/resume", () => {
+  vi.useFakeTimers();
+  try {
+    let ui=render();
+    find(ui.tree,e=>e.type===PlaybackButton)!.props.onSpeed(.25);
+    ui=render();expect(find(ui.tree,e=>e.type===PlaybackButton)!.props.speed).toBe(.25);
+    find(ui.tree,e=>e.type===PlaybackButton)!.props.onToggle();
+    ui=render();expect(ui.video.props.motion).toEqual({dir:1,speed:.25});
+    key(' ');ui=render();expect(ui.video.props.motion.dir).toBe(0);
+    expect(find(ui.tree,e=>e.type===PlaybackButton)!.props.speed).toBe(.25);
+    key(' ');ui=render();expect(ui.video.props.motion).toEqual({dir:1,speed:.25});
+    find(ui.tree,e=>e.type===PlaybackButton)!.props.onSpeed(.5);
+    ui=render();expect(ui.video.props.motion).toEqual({dir:1,speed:.5});
+  } finally {vi.useRealTimers();}
 });
 
 it("hands the saved presets and their handlers to the Enhance panel", () => {

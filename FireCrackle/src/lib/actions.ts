@@ -112,12 +112,14 @@ export function nextPlayback(
   state: Playback,
   action: { type: "playPause" } | { type: "shuttle"; dir: -1 | 0 | 1 },
   maxSpeed: number,
+  preferredSpeed = 1,
 ): Playback {
   const max = Math.max(1, Math.floor(maxSpeed) || 1);
-  if (action.type === "playPause") return state.dir === 0 ? { dir: 1, speed: 1 } : STOPPED;
+  const startSpeed = Number.isFinite(preferredSpeed) && preferredSpeed > 0 ? Math.min(preferredSpeed, max) : 1;
+  if (action.type === "playPause") return state.dir === 0 ? { dir: 1, speed: startSpeed } : STOPPED;
   if (action.dir === 0) return STOPPED;
   if (state.dir === action.dir) return { dir: action.dir, speed: Math.min(state.speed * 2, max) };
-  return { dir: action.dir, speed: 1 };
+  return { dir: action.dir, speed: startSpeed };
 }
 
 export interface PlaybackTick {

@@ -6,6 +6,7 @@ import { FlagsPanel } from "./components/FlagsPanel";
 import { AutomationTools } from "./components/AutomationTools";
 import { OpenLink, ToolSetupNotice } from "./components/OpenLink";
 import { Icon, IconButton } from "./components/Icon";
+import { PlaybackButton } from "./components/PlaybackButton";
 import { PhaseTab } from "./components/PhaseTab";
 import { ImagesTab } from "./components/ImagesTab";
 import { MiscToolsTab } from "./components/MiscToolsTab";
@@ -82,6 +83,7 @@ export default function App() {
   const ws = useWorkspace(backend, !extraSources);
   const { view, act } = ws;
   const [playback, setPlayback] = useState<Playback>(STOPPED);
+  const [playSpeed, setPlaySpeed] = useState(1);
   useEffect(() => subscribeFailures(() => { if (getFailures().length) setPlayback(STOPPED); }), []);
   const presented = useRef<number | null>(null);
   const playbackView = useRef(view);
@@ -227,11 +229,11 @@ export default function App() {
       }
       const ui = toUiAction(a);
       if (ui) void act(ui);
-      else if (a.type === "playPause" || a.type === "shuttle") setPlayback((p) => nextPlayback(p, a, maxSpeed));
+      else if (a.type === "playPause" || a.type === "shuttle") setPlayback((p) => nextPlayback(p, a, maxSpeed, playSpeed));
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [view, home, tab, act, maxSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
+  }, [view, home, tab, act, maxSpeed, playSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
 
   // playback is a Label-tab thing: it must not keep stepping behind the chart
   useEffect(() => {
@@ -322,13 +324,10 @@ export default function App() {
               <IconButton icon="import" label="Import labels" disabled={!backend.transferLabels || ws.opening || ws.transferring} onClick={() => { setPlayback(STOPPED); void ws.transferLabels("import"); }} title="Import labels · replaces matching frames · Undo restores the import" />
               <span className="toolbar-divider" />
               <IconButton icon="undo" label="Undo" onClick={() => void act({ type: "undo" })} title="Undo · Ctrl+Z" />
-              <IconButton icon={playback.dir === 0 ? "play" : "pause"} label={playback.dir === 0 ? "Play video" : "Pause video"}
-                className={`play-button${playback.dir !== 0 ? " on" : ""}`}
-                onClick={() => setPlayback((p) => nextPlayback(p, { type: "playPause" }, maxSpeed))}
-                title={`${playback.dir === 0 ? "Play" : "Pause"} · Space`}
-              >
-                {playback.dir !== 0 && <span>{playback.dir < 0 ? "−" : ""}{playback.speed}×</span>}
-              </IconButton>
+              <PlaybackButton playback={playback} speed={playSpeed} maxSpeed={maxSpeed}
+                onToggle={() => setPlayback((p) => nextPlayback(p, { type: "playPause" }, maxSpeed, playSpeed))}
+                onSpeed={speed => { setPlaySpeed(speed); setPlayback(p => ({ ...p, speed })); }}
+              />
               <span className="toolbar-divider" />
               <IconButton icon="keyboard" label="Keyboard shortcuts" aria-pressed={showKeys} onClick={() => setShowKeys((s) => !s)} />
               <IconButton icon="robot" label="Auto" onClick={() => {setPlayback(STOPPED);setShowAutomation(true);}}>Auto</IconButton>

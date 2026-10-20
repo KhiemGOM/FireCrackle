@@ -97,6 +97,18 @@ describe("keyInfo", () => {
 describe("playback", () => {
   const play = (p: Playback, a: Parameters<typeof nextPlayback>[1], max = 8) => nextPlayback(p, a, max);
 
+  it("starts and resumes at the selected slower speed without changing shuttle doubling", () => {
+    const quarter = nextPlayback(STOPPED, { type: "playPause" }, 8, .25);
+    expect(quarter).toEqual({ dir: 1, speed: .25 });
+    const paused = nextPlayback(quarter, { type: "playPause" }, 8, .25);
+    expect(nextPlayback(paused, { type: "playPause" }, 8, .25)).toEqual(quarter);
+    expect(nextPlayback(quarter, { type: "shuttle", dir: 1 }, 8, .25).speed).toBe(.5);
+    expect(nextPlayback(STOPPED, { type: "shuttle", dir: -1 }, 8, .5)).toEqual({ dir: -1, speed: .5 });
+    expect(nextPlayback(STOPPED, { type: "playPause" }, 2, 4).speed).toBe(2);
+    expect(nextPlayback(STOPPED, { type: "playPause" }, 8, NaN).speed).toBe(1);
+    expect(stepIntervalMs(60,quarter)).toBeCloseTo(1000/15);
+  });
+
   it("space toggles between playing forward and stopped", () => {
     const playing = play(STOPPED, { type: "playPause" });
     expect(playing).toEqual({ dir: 1, speed: 1 });
