@@ -80,7 +80,16 @@ height, shared player inventory, source preview exclusions) are explicit.
   remains broader than implemented recognition. Sodium settings is modded and
   must abstain. No app scan button/automatic label path is enabled yet.
 
-## Current tiny-GUI/sign development check
+## Whole-video frame check
+
+**All 27,385 frames scanned: 9,458/9,970 interaction-GUI frames detected
+(94.86%), with 0/12,958 closed-GUI false detections.** Excluding creative
+inventory, recall is 6,573/6,613 (99.40%). Creative inventory accounts for 472 of 512
+misses. See [`GUI_ALL_FRAMES_CHECK.md`](../../../docs/GUI_ALL_FRAMES_CHECK.md)
+for full scope, per-type errors, contiguous misses and provenance. These are
+same-session development recordings; neighbouring frames are correlated.
+
+## Segment-midpoint development check
 
 **260/261 interaction-GUI samples detected (99.6%); 0/289 closed-GUI false
 detections.** The bounded subpixel source-colour guard, inherited hanging-sign
