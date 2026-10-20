@@ -1,0 +1,334 @@
+{
+  "date": "2026-10-21",
+  "scope": "Engineering throughput comparison of identical frozen model and preprocessing. No fitting/calibration/accuracy experiment.",
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "cached_abba": {
+    "unique_real_inputs": 32,
+    "repeats_per_pass": 16,
+    "order": [
+      "frame_lock",
+      "resize_outside_lock",
+      "resize_outside_lock",
+      "frame_lock"
+    ],
+    "provider_setup_excluded": true,
+    "same_provider_session": true,
+    "raw_passes": [
+      {
+        "accepted": 112,
+        "fps": 75.855834564114,
+        "mode": "frame_lock",
+        "model_frame_calls": 368,
+        "pass": 0,
+        "processed": 512,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 6.7496456,
+        "unique_frames": 32,
+        "workers": 12
+      },
+      {
+        "accepted": 112,
+        "fps": 151.89491126830322,
+        "mode": "resize_outside_lock",
+        "model_frame_calls": 368,
+        "pass": 1,
+        "processed": 512,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 3.3707515,
+        "unique_frames": 32,
+        "workers": 12
+      },
+      {
+        "accepted": 112,
+        "fps": 155.38423836306347,
+        "mode": "resize_outside_lock",
+        "model_frame_calls": 368,
+        "pass": 2,
+        "processed": 512,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 3.2950575,
+        "unique_frames": 32,
+        "workers": 12
+      },
+      {
+        "accepted": 112,
+        "fps": 82.65898855071299,
+        "mode": "frame_lock",
+        "model_frame_calls": 368,
+        "pass": 3,
+        "processed": 512,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 6.1941237000000005,
+        "unique_frames": 32,
+        "workers": 12
+      }
+    ],
+    "aggregate": {
+      "frame_lock": {
+        "frames": 1024,
+        "seconds": 12.9437693,
+        "fps": 79.11142235824614
+      },
+      "resize_outside_lock": {
+        "frames": 1024,
+        "seconds": 6.665808999999999,
+        "fps": 153.61976318253343
+      }
+    },
+    "speed_ratio": 1.9418152095267056
+  },
+  "decode_and_detector": {
+    "catalogue_source": "V03/clip2",
+    "video_sha256": "91e6fa9db3202e005b351b1f2db28b81a6050ad0f4435bc613049fe25045845d",
+    "native_dimensions": [
+      1920,
+      1080
+    ],
+    "range_seconds": [
+      20,
+      50
+    ],
+    "contiguous_frames": 1800,
+    "raw_passes": [
+      {
+        "accepted": 308,
+        "fps": 84.15178384320252,
+        "mode": "frame_lock",
+        "model_frame_calls": 1220,
+        "processed": 1800,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 21.3899209,
+        "start_seconds": 20,
+        "video": "catalogue V03 clip2",
+        "workers": 12,
+        "workload": "decode_plus_detector"
+      },
+      {
+        "accepted": 308,
+        "fps": 139.63026526337217,
+        "mode": "resize_outside_lock",
+        "model_frame_calls": 1220,
+        "processed": 1800,
+        "provider": "GPU (DirectML 0)",
+        "same_reference_decisions": true,
+        "seconds": 12.891188,
+        "start_seconds": 20,
+        "video": "catalogue V03 clip2",
+        "workers": 12,
+        "workload": "decode_plus_detector"
+      }
+    ],
+    "speed_ratio": 1.6592668495719713,
+    "all1800decisions_identical": true,
+    "equal_clear_count": 308,
+    "equal_model_frame_calls": 1220,
+    "excludes": [
+      "frontend",
+      "project timestamp validation",
+      "result persistence",
+      "provider startup"
+    ],
+    "pass_order": [
+      "frame_lock",
+      "resize_outside_lock"
+    ]
+  },
+  "source_sha256": {
+    "FireCrackle/crates/no_fire_cnn/src/lib.rs": "4eb422349e46c9c2c566943a405db8632a717f852455aa2bcaba63b760d2308d",
+    "FireCrackle/crates/no_fire_cnn/src/engine.rs": "890c4297831b785f70938362f1ea0c616d65a4aa1942b8ed8902cb036bc8b22c",
+    "FireCrackle/crates/no_fire_cnn/src/frame.rs": "735ff488179cb419de9c9660814d94e50a88472284ed119cbcef8804952b5b2b",
+    "FireCrackle/crates/no_fire_cnn/tests/frame.rs": "e16b80454de5fb008d99cf30f84d306171701f92df79cdb9c825914480e847cf",
+    "FireCrackle/src-tauri/src/no_fire.rs": "a434482d4cccfe7ec4c751b81c08af8149381774563422d2c5628665c5cfd32e",
+    "fire-detection/core/src/gui_mask.rs": "2e6af9a8725da4e06e514c05deec0471cad615299789fbd70e548761fd44d593",
+    "fire-detection/core/src/gui_interaction.rs": "64d13ca6677967bcc476f78b18303e234be8e5eef659c014b72dc4b368b782a4",
+    "fire-detection/core/src/gui_interaction_fast.rs": "33a53ce0bfcc2d45500666a250fb8d1831dac85fe4fb9c790da55b9d1e485f5c",
+    "fire-detection/core/src/gui_screens.rs": "2939c6c97efeee7dd91278182e22596a9b7b666a14b5c2ca3e68c64eb19babb5",
+    "fire-detection/core/src/pov.rs": "b337c892d79919aa0c31cad585815ee46bb56ceedc399306b78329d38ddaec36",
+    "FireCrackle/crates/studio_core/src/gui.rs": "3513b6b8f003d7c4e9a8e51426b5b70fc28948aa4d67d02022100b4cd81587eb"
+  },
+  "model_sha256": "1c74f08c7f8680244e20731fbb02eda71f4726b34746660d05b0b0e48a41a097",
+  "inputs": [
+    {
+      "id": "clip1-0",
+      "sha256": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c"
+    },
+    {
+      "id": "clip1-2970",
+      "sha256": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6"
+    },
+    {
+      "id": "clip1-5940",
+      "sha256": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c"
+    },
+    {
+      "id": "clip1-8910",
+      "sha256": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592"
+    },
+    {
+      "id": "clip1-11880",
+      "sha256": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65"
+    },
+    {
+      "id": "clip1-14850",
+      "sha256": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50"
+    },
+    {
+      "id": "clip1-17730",
+      "sha256": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe"
+    },
+    {
+      "id": "clip1-20700",
+      "sha256": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2"
+    },
+    {
+      "id": "clip1-23670",
+      "sha256": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e"
+    },
+    {
+      "id": "clip1-26640",
+      "sha256": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080"
+    },
+    {
+      "id": "clip1-29610",
+      "sha256": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97"
+    },
+    {
+      "id": "clip1-32580",
+      "sha256": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c"
+    },
+    {
+      "id": "clip2-0",
+      "sha256": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7"
+    },
+    {
+      "id": "clip2-1800",
+      "sha256": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba"
+    },
+    {
+      "id": "clip2-3510",
+      "sha256": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e"
+    },
+    {
+      "id": "clip2-5310",
+      "sha256": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba"
+    },
+    {
+      "id": "clip2-7110",
+      "sha256": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2"
+    },
+    {
+      "id": "clip2-8910",
+      "sha256": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0"
+    },
+    {
+      "id": "clip2-10620",
+      "sha256": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44"
+    },
+    {
+      "id": "clip2-12420",
+      "sha256": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69"
+    },
+    {
+      "id": "clip2-14220",
+      "sha256": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0"
+    },
+    {
+      "id": "clip2-16020",
+      "sha256": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b"
+    },
+    {
+      "id": "clip2-17730",
+      "sha256": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70"
+    },
+    {
+      "id": "clip2-19530",
+      "sha256": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0"
+    },
+    {
+      "id": "clip2-clear-127",
+      "sha256": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77"
+    },
+    {
+      "id": "clip2-clear-2045",
+      "sha256": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892"
+    },
+    {
+      "id": "clip2-clear-4147",
+      "sha256": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5"
+    },
+    {
+      "id": "clip2-clear-7658",
+      "sha256": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a"
+    },
+    {
+      "id": "clip2-clear-9032",
+      "sha256": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7"
+    },
+    {
+      "id": "clip2-clear-11598",
+      "sha256": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633"
+    },
+    {
+      "id": "clip2-clear-16329",
+      "sha256": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3"
+    },
+    {
+      "id": "clip2-clear-18943",
+      "sha256": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+    }
+  ],
+  "local_artifact_sha256": {
+    ".board\\scan-profile\\lock-final.jsonl": "29d613e1f24e18441c13f5f62e29cfcc987d9d4d81d34dafbbf19bcb1e4d7ff8",
+    ".board\\scan-profile\\lock-final.stderr": "9ab961304c513770bdf05e8df0086030155440e49e77d452ce653f523a21b75f",
+    ".board\\scan-profile\\resize-lock\\scan-profile.exe": "fb233b5cf2cef7b52edc7998cf58525f60b0e8fe1ca77ab9971e82e2bea34662",
+    ".board\\scan-profile\\resize-lock\\scan_profile.pdb": "40c048e1a8f916d884d7d6699e384bf98404af495e2bb0c8b32aa5a0d2a72bff",
+    ".board\\scan-profile\\resize-lock\\compare_lock.rs": "1e7eff4c43542e1bbb5b9ab8dee7885b4b9c3355c67f10a5531c708fb026232b",
+    ".board\\scan-profile\\resize-lock\\main.rs": "027e5fcff5a0159c55deb359f1564f6ff31a97cc6202318d4fd226b8f144b583",
+    ".board\\scan-profile\\resize-lock\\Cargo.toml": "a1e409515270df0091b4de9972fde8cd84dac3d94dd489d3dd25bcb0db5816da"
+  },
+  "reproduce_local": "cargo build --manifest-path .board/scan-profile/Cargo.toml --release --offline; scan-profile.exe ROOT compare 16 stream",
+  "gui_audit": {
+    "new_versioned_fast_interaction_detector_commit": "363df75",
+    "both_scans_use_shared_GuiDetector_plus_fast_interactions": true,
+    "HUD_fit_has_different_role": true,
+    "POV_legacy_add_screen_masks_overlap_left_unchanged": true,
+    "legacy_inclusive_busy_snapshots": 170,
+    "total_POV_busy_snapshots": 7251,
+    "legacy_inclusive_share": 0.023445042063163703,
+    "note": "Earlier under1% number was direct samples; inclusive2.3%. Coverage/equivalence of removing legacy extension unproven."
+  },
+  "checks": [
+    "10 library tests passed including GPU-failure/full CPU restart and concurrent backend-change recheck",
+    "4 frame-flow tests passed",
+    "6 frozen preprocessing tests passed",
+    "native no-fire:2passed,2externalfixturesignored",
+    "native Clippy clean; release build tracked separately"
+  ],
+  "limits": [
+    "Rates depend on machine load/content",
+    "Cached32unique cases repeated: output parity, not accuracy evaluation",
+    "No GPU failures in real timing; fallback behavior covered by mocked scorer tests",
+    "No GUI rules or thresholds/models changed",
+    "First-person detector unchanged by this patch"
+  ],
+  "release_build": {
+    "command": "cargo build --manifest-path FireCrackle/src-tauri/Cargo.toml --release --offline",
+    "result": "passed",
+    "elapsed": "3m04s",
+    "executable": "FireCrackle\\src-tauri\\target\\release\\firecrackle.exe",
+    "bytes": 24812032,
+    "sha256": "0c5763be6a7cd3f10c617c950abe2c01f645fc74e102f10ddcb3a6081d3dca5a",
+    "app_relaunched": false
+  }
+}

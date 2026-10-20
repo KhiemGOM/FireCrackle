@@ -119,15 +119,7 @@ pub(crate) fn scan_resuming(
                 project.meta.width,
                 project.meta.height,
                 &detector,
-                |raw, auto| {
-                    let mut model = engine.lock().map_err(|_| "AI state unavailable")?;
-                    let result = model.clear_frame(raw, auto, cancel);
-                    if result.is_err() && model.provider.starts_with("GPU") {
-                        *model = Engine::load(&runtime, MODEL, false, 2)?;
-                        return model.clear_frame(raw, auto, cancel);
-                    }
-                    result
-                },
+                |raw, auto| Engine::clear_frame_shared(&engine, &runtime, MODEL, raw, auto, cancel),
             )?;
             Ok(clear.then_some(0))
         },

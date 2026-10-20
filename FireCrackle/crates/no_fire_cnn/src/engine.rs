@@ -232,20 +232,30 @@ impl Engine {
         auto: Option<&[u8]>,
         cancel: &AtomicBool,
     ) -> Result<bool, String> {
-        for rgb in std::iter::once(raw).chain(auto) {
-            if rgb.len() != 1920 * 1080 * 3 {
-                return Err("Invalid AI video frame".into());
-            }
-            let cropped = &rgb[1920 * 12 * 3..];
-            for rect in crate::tile_boxes() {
-                if cancel.load(Ordering::Relaxed) {
-                    return Ok(false);
-                }
-                if !crate::clear_score(self.score_view(&crate::resize(cropped, 1920, rect))?) {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
+        crate::clear_frame_with(raw, auto, cancel, |view| self.score_view(view))
+    }
+
+    /// Share one session without serializing the CPU resize across workers.
+    /// A GPU failure still restarts the complete frame on the CPU backend.
+    pub fn clear_frame_shared(
+        engine: &std::sync::Mutex<Self>,
+        runtime: &Path,
+        model: &[u8],
+        raw: &[u8],
+        auto: Option<&[u8]>,
+        cancel: &AtomicBool,
+    ) -> Result<bool, String> {
+        crate::frame::clear_shared(engine, raw, auto, cancel, || {
+            Self::load(runtime, model, false, 2)
+        })
+    }
+}
+
+impl crate::frame::Scorer for Engine {
+    fn is_gpu(&self) -> bool {
+        self.provider.starts_with("GPU")
+    }
+    fn score(&mut self, view: &[u8]) -> Result<f32, String> {
+        self.score_view(view)
     }
 }
