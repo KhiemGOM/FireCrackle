@@ -11,14 +11,16 @@ vi.mock("react",async original=>({...(await original<typeof import("react")>()),
   useEffect:(setup:()=>void|(()=>void))=> {if(!hooks.cleanup)hooks.cleanup=setup()||undefined;},
 }));
 vi.mock("../lib/quadMatch",()=>({matchFireQuad:vi.fn()}));
+vi.mock("../lib/quadRefine",async original=>({...await original<typeof import("../lib/quadRefine")>(),refineMatchCandidates:vi.fn(async(_url:string,candidates:QuadCandidate[])=>candidates)}));
 import { matchFireQuad } from "../lib/quadMatch";
+import {refineMatchCandidates} from "../lib/quadRefine";
 import { QuadMatchControls } from "./QuadMatchControls";
 
 const pending=new Map<string,{onload:(()=>void)|null}>();
 const q:ManualQuad=[[0,0],[1,0],[1,1],[0,1]];
 const best={sheet:1 as const,row:12,mirrored:true,score:0.95,quad:q};
-function render(frameUrl:string,onPreview:(candidate:QuadCandidate)=>void,disabled=false,filter?:EdgeFilter,material:"normal"|"soul"="normal") {
-  hooks.cursor=0;return QuadMatchControls({frameUrl,quad:q,disabled,onPreview,filter,material});
+function render(frameUrl:string,onPreview:(candidate:QuadCandidate)=>void,disabled=false,filter?:EdgeFilter,material:"normal"|"soul"="normal",sourceFrame?:Parameters<typeof QuadMatchControls>[0]['sourceFrame']) {
+  hooks.cursor=0;return QuadMatchControls({frameUrl,quad:q,disabled,onPreview,filter,material,sourceFrame});
 }
 function buttons(node:unknown):ReactElement<Record<string,unknown>>[] {
   if(Array.isArray(node))return node.flatMap(buttons);
@@ -34,6 +36,7 @@ function adjustment(node:unknown,label="Adjust quad while matching"):ReactElemen
 }
 async function settle(){for(let i=0;i<20;i++)await Promise.resolve();}
 beforeEach(()=> {
+  vi.mocked(refineMatchCandidates).mockImplementation(async(_url,candidates)=>candidates);
   hooks.values=[];hooks.cursor=0;hooks.cleanup=undefined;pending.clear();vi.clearAllMocks();
   class ImageMock {
     naturalWidth=16;naturalHeight=512;onload:(()=>void)|null=null;
@@ -51,6 +54,30 @@ it("routes soul matching to the frozen cyan scorer and preserves its source on p
   pending.get("frame-soul")!.onload?.();await settle();
   expect(vi.mocked(matchFireQuad).mock.calls[0][3]).toEqual({refineGeometry:true,colourTolerance:[.18,.30]});
   expect(preview).toHaveBeenCalledWith(expect.objectContaining({atlas:"soul_fire_1",row:12}));
+});
+it("automatically refines matching suggestions when mask changes are allowed",async()=>{
+  const refined={...best,quad:[[.01,0],[1,0],[1,1],[.01,1]] as ManualQuad};
+  vi.mocked(refineMatchCandidates).mockResolvedValue([refined]);
+  const preview=vi.fn();(buttons(render("frame-auto",preview))[0].props.onClick as ()=>void)();pending.get("frame-auto")!.onload?.();await settle();
+  expect(refineMatchCandidates).toHaveBeenCalledWith("frame-auto",[best],"normal",expect.any(AbortSignal));
+  expect(preview).toHaveBeenCalledExactlyOnceWith(refined);
+});
+it("does not run automatic ECC when mask changes are off",async()=>{
+  const preview=vi.fn();adjustment(render("frame-fixed",preview))!.props.onChange({target:{checked:false}});
+  (buttons(render("frame-fixed",preview))[0].props.onClick as ()=>void)();pending.get("frame-fixed")!.onload?.();await settle();
+  expect(refineMatchCandidates).not.toHaveBeenCalled();expect(preview).toHaveBeenCalledExactlyOnceWith(best);
+});
+it("discards a late refinement after navigating away",async()=>{
+  let finish!:(value:QuadCandidate[])=>void;
+  vi.mocked(refineMatchCandidates).mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+  const preview=vi.fn();(buttons(render("frame-old",preview))[0].props.onClick as ()=>void)();pending.get("frame-old")!.onload?.();await settle();
+  expect(finish).toBeTypeOf("function");render("frame-new",preview);finish([best]);await settle();expect(preview).not.toHaveBeenCalled();
+});
+it("uses original pixels and disposes their temporary URL after refinement",async()=>{
+  const preview=vi.fn(),dispose=vi.fn(),source=vi.fn(async()=>({url:"frame-original",dispose}));
+  (buttons(render("frame-enhanced",preview,false,undefined,"normal",source))[0].props.onClick as ()=>void)();await settle();
+  expect(pending.has("frame-enhanced")).toBe(false);pending.get("frame-original")!.onload?.();await settle();
+  expect(refineMatchCandidates).toHaveBeenCalledWith("frame-original",[best],"normal",expect.any(AbortSignal));expect(dispose).toHaveBeenCalledOnce();
 });
 it("discards an in-flight normal match when the same frame switches to soul fire",async()=>{
   const preview=vi.fn();(buttons(render("frame-switch",preview))[0].props.onClick as ()=>void)();

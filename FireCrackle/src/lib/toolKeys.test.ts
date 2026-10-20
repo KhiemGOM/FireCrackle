@@ -15,6 +15,7 @@ describe("the four tool keys", () => {
     expect(handleToolKey(ev("h"), IDLE)).toMatchObject({ action: { type: "firstPerson" }, consumed: true });
     expect(handleToolKey(ev("m"), IDLE)).toMatchObject({ action: { type: "matcher" }, consumed: true });
     expect(handleToolKey(ev("u"), IDLE)).toMatchObject({ action: { type: "ruler" }, consumed: true });
+    expect(handleToolKey(ev("g"), IDLE)).toMatchObject({ action: { type: "refine" }, consumed: true });
   });
 
   it("works with Caps Lock (an upper-case key without Shift)", () => {
@@ -23,7 +24,7 @@ describe("the four tool keys", () => {
   });
 
   it("is documented in one list the help screen can show", () => {
-    expect(TOOL_KEYS.map((k) => k.key)).toEqual(["q", "h", "m", "u"]);
+    expect(TOOL_KEYS.map((k) => k.key)).toEqual(["q", "h", "m", "u", "g"]);
     for (const k of TOOL_KEYS) expect(k.description.length).toBeGreaterThan(10);
   });
 

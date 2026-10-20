@@ -13,6 +13,8 @@ vi.mock("react", async (original) => ({
   useImperativeHandle: () => {},
 }));
 vi.mock("../hooks/useWheel", () => ({ useWheel: () => {} }));
+vi.mock("../lib/quadRefine",async original=>({...await original<typeof import("../lib/quadRefine")>(),refineFireQuads:vi.fn()}));
+import {refineFireQuads} from "../lib/quadRefine";
 import { VideoPane } from "./VideoPane";
 import * as proofs from "../lib/comparisonProof";
 import { ANIMATION_ATLASES } from "../lib/animationAtlases";
@@ -61,6 +63,52 @@ function pointer(x: number, y: number, button = 0) {
 }
 beforeEach(() => { hooks.states = []; hooks.refs = []; vi.stubGlobal("document", {querySelector: () => null}); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+it("refines the selected mask through the compact button using original frame bytes",async()=>{
+  const save=vi.fn();vi.stubGlobal("localStorage",{getItem:(key:string)=>key===MASK_STATE_KEY?JSON.stringify({...DEFAULT_MASK_STATE,manualEnabled:true,manualRow:12}):null,setItem:save});
+  const backend=createMockBackend(),frame=vi.spyOn(backend,"frame").mockResolvedValue(new ArrayBuffer(4));
+  const quad=[[.2,.2],[.8,.2],[.8,.8],[.2,.8]] as Parameters<typeof refineFireQuads>[1][0]['quad'];
+  vi.mocked(refineFireQuads).mockResolvedValue([{quad,changed:true,gain:.02}]);
+  await tree({backend});hooks.states[0]="blob:enhanced";hooks.states[1]=0;
+  let root=await tree({backend});const button=find(root,"Refine alignment")!;expect(button.props.disabled).toBe(false);
+  button.props.onClick();for(let i=0;i<12;i++)await Promise.resolve();root=await tree({backend});
+  expect(frame).toHaveBeenCalledExactlyOnceWith(0);expect(vi.mocked(refineFireQuads).mock.calls.slice(-1)[0][0]).not.toBe("blob:enhanced");
+  hooks.effects[0]();const saved=JSON.parse(save.mock.calls.slice().reverse().find((call:any[])=>call[0]===MASK_STATE_KEY)![1]);
+  expect(saved.manualQuad).toEqual(quad);expect(saved.manualRow).toBe(12);
+  expect(find(root,"Refine alignment")!.props.title).toContain("G");
+});
+it("keeps refinement unavailable for water",async()=>{
+  vi.stubGlobal("localStorage",{getItem:(key:string)=>key===MASK_STATE_KEY?JSON.stringify({...DEFAULT_MASK_STATE,manualEnabled:true,manualAtlas:"water_flow"}):null,setItem:vi.fn()});
+  await tree();hooks.states[0]="blob:frame";hooks.states[1]=0;
+  expect(find(await tree(),"Refine alignment")!.props.disabled).toBe(true);
+});
+it("discards selected-sprite refinement after changing video frame",async()=>{
+  const save=vi.fn();vi.stubGlobal("localStorage",{getItem:(key:string)=>key===MASK_STATE_KEY?JSON.stringify({...DEFAULT_MASK_STATE,manualEnabled:true}):null,setItem:save});
+  const backend=createMockBackend();vi.spyOn(backend,"frame").mockResolvedValue(new ArrayBuffer(0));
+  let resolve!:(answer:Awaited<ReturnType<typeof refineFireQuads>>)=>void;
+  vi.mocked(refineFireQuads).mockReset().mockReturnValue(new Promise(done=>{resolve=done;}));
+  await tree({backend});hooks.states[0]="blob:frame";hooks.states[1]=0;
+  const root=await tree({backend});find(root,"Refine alignment")!.props.onClick();
+  for(let i=0;i<12;i++)await Promise.resolve();
+  const view=await backend.view();await tree({backend,view:{...view,current:1}});
+  const quad=[[.2,.2],[.8,.2],[.8,.8],[.2,.8]] as Parameters<typeof refineFireQuads>[1][0]['quad'];
+  resolve([{quad,changed:true,gain:.02}]);for(let i=0;i<12;i++)await Promise.resolve();
+  await tree({backend,view:{...view,current:1}});hooks.effects[0]();
+  const saved=JSON.parse(save.mock.calls.slice().reverse().find((call:any[])=>call[0]===MASK_STATE_KEY)![1]);
+  expect(saved.manualQuad).not.toEqual(quad);
+});
+it("runs selected-sprite refinement from G and blocks it during playback",async()=>{
+  const listeners=new Map<string,(e:any)=>void>();vi.stubGlobal("window",{addEventListener:(type:string,handler:(e:any)=>void)=>listeners.set(type,handler),removeEventListener:vi.fn()});
+  vi.stubGlobal("localStorage",{getItem:(key:string)=>key===MASK_STATE_KEY?JSON.stringify({...DEFAULT_MASK_STATE,manualEnabled:true}):null,setItem:vi.fn()});
+  const backend=createMockBackend();vi.spyOn(backend,"frame").mockResolvedValue(new ArrayBuffer(0));
+  vi.mocked(refineFireQuads).mockReset().mockImplementation(async(_url,targets)=>targets.map(t=>({quad:t.quad,changed:false,gain:0})));
+  await tree({backend});hooks.states[0]="blob:frame";hooks.states[1]=0;await tree({backend});
+  const stop=hooks.effects.find(effect=>effect.toString().includes("dispatchToolKey"))!();
+  const press=()=>listeners.get("keydown")!({key:"g",target:{tagName:"BUTTON"},preventDefault:vi.fn(),stopPropagation:vi.fn()});
+  press();for(let i=0;i<12;i++)await Promise.resolve();expect(refineFireQuads).toHaveBeenCalledOnce();
+  const root=await tree({backend,motion:{dir:1,speed:1}});expect(find(root,"Refine alignment")!.props.disabled).toBe(true);
+  press();for(let i=0;i<12;i++)await Promise.resolve();expect(refineFireQuads).toHaveBeenCalledOnce();stop?.();
+});
 
 it("makes the viewer focusable and takes focus before pan/overlay handlers can retain a field's focus", async () => {
   const frame = await pane();

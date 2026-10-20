@@ -66,6 +66,7 @@ const KEY_HELP: Array<[string, string]> = [
   ["Shift (quad)", "resize / rotate handles"],
   ["Shift (video)", "rotate around pointer anchor"],
   ["P", "make quad a parallelogram"],
+  ["G", "refine selected fire sprite alignment"],
   ["E", "toggle preview opacity 0% / 100%"],
   ["Corner + Alt+click", "place selected corner"],
 ];

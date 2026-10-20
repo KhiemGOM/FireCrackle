@@ -8,6 +8,7 @@ export type ToolAction =
   | { type: "firstPerson" }
   | { type: "matcher" }
   | { type: "ruler" }
+  | { type: "refine" }
   | { type: "candidate"; index: 0 | 1 | 2 };
 
 export interface ToolKeyEvent {
@@ -40,6 +41,7 @@ export const TOOL_KEYS: ReadonlyArray<{ key: string; description: string }> = [
   { key: "h", description: "First-person fire: show or hide the HUD fire overlay" },
   { key: "m", description: "Sprite matcher: open and find the best match, or close if already open; hold M while opening and press 1, 2 or 3 to preview a match" },
   { key: "u", description: "Ruler: show or hide the calibrated ruler" },
+  { key: "g", description: "Refine alignment of the selected fire sprite; keeps its phase and appearance" },
 ];
 
 const IDLE: ChordState = { mHeld: false };
@@ -48,6 +50,7 @@ const ACTIONS: Record<string, ToolAction> = {
   h: { type: "firstPerson" },
   m: { type: "matcher" },
   u: { type: "ruler" },
+  g: { type: "refine" },
 };
 
 /**

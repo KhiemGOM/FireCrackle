@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import fire0 from "../assets/fire_0.png";
-import fire1 from "../assets/fire_1.png";
-import { matchFireQuad, type MatchImage, type QuadCandidate, type QuadMatch } from "../lib/quadMatch";
+import { matchFireQuad, type QuadCandidate, type QuadMatch } from "../lib/quadMatch";
 import type { ManualQuad } from "../lib/quadMask";
 import { Icon } from "./Icon";
 import type { EdgeFilter } from "../lib/atlasFilter";
@@ -11,39 +9,13 @@ import {invoke,isTauri} from "@tauri-apps/api/core";
 import {fuseQuadPhases} from "../lib/quadPhase";
 import {phaseMatchInput} from "../lib/quadPhaseInput";
 import {matchSoulQuad} from "../lib/quadSoul";
-import {atlasSource,atlasTile} from "../lib/animationAtlases";
+import {readMatchImage as readImage,readFireAtlas as readAtlas,refineMatchCandidates} from "../lib/quadRefine";
 import "./QuadMatchControls.css";
 
 interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void; material?:"normal"|"soul";
+  sourceFrame?:(signal:AbortSignal)=>Promise<{url:string;dispose?:()=>void}>;
   /** Increases to ask for a match run (the M key). */ runToken?:number;
   /** A request to preview the nth candidate (M then 1, 2, 3); `n` makes each request distinct. */ pick?:{index:number;n:number}|null }
-function readImage(src:string):Promise<MatchImage> {
-  return new Promise((resolve,reject)=> {
-    const image=new Image();
-    image.onload=()=> {
-      try {
-        const canvas=document.createElement("canvas");canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
-        const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)throw new Error("Canvas unavailable");
-        ctx.drawImage(image,0,0);
-        resolve({width:canvas.width,height:canvas.height,data:ctx.getImageData(0,0,canvas.width,canvas.height).data});
-      }catch(e){reject(e);}
-    };
-    image.onerror=()=>reject(new Error("Could not load matching image"));image.src=src;
-  });
-}
-const atlases=new Map<string,Promise<[Uint8ClampedArray,Uint8ClampedArray]>>();
-function readAtlas(material:"normal"|"soul") {
-  if(!atlases.has(material))atlases.set(material,Promise.all((material==="soul"?[atlasSource("soul_fire_0"),atlasSource("soul_fire_1")]:[fire0,fire1]).map(readImage)).then(images=> {
-    if(images.some(i=>i.width!==16||i.height!==512))throw new Error("Invalid fire texture sheets");
-    return images.map((image,sheet)=>{
-      if(material!=="soul")return image.data;
-      const normalized=new Uint8ClampedArray(image.data.length),source=sheet===0?"soul_fire_0":"soul_fire_1";
-      for(let row=0;row<32;row++){const start=atlasTile(source,row)*16*16*4;normalized.set(image.data.subarray(start,start+16*16*4),row*16*16*4);}
-      return normalized;
-    }) as [Uint8ClampedArray,Uint8ClampedArray];
-  }).catch(e=>{atlases.delete(material);throw e;}));
-  return atlases.get(material)!;
-}
 const identity=(frameUrl:string,quad:ManualQuad,adjustQuad=false,filter?:EdgeFilter,material="normal")=>JSON.stringify([frameUrl,quad,adjustQuad,filter,material]);
 const name=(c:QuadCandidate)=>`row ${c.row} · sheet ${c.sheet} · ${c.mirrored?"mirrored":"normal"}`;
 function showDetails(e:SyntheticEvent<HTMLButtonElement>) {
@@ -59,7 +31,7 @@ function hideDetails(e:SyntheticEvent<HTMLButtonElement>) {
   tip?.hidePopover?.();
 }
 
-export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null,material="normal"}:Props) {
+export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null,material="normal",sourceFrame}:Props) {
   const saved=readPreferences();
   const [adjustQuad,setAdjustQuad]=useState(saved.matchAdjustQuad);
   const [onlyFiltered,setOnlyFiltered]=useState(saved.matchOnlyFiltered);
@@ -93,9 +65,13 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     const mine=++token.current,start=key;
     cancel.current?.();cancel.current=null;
     setBusy(start);setResult(null);
+    let dispose:(()=>void)|undefined;
     try {
+      const controller=new AbortController(),stop=()=>controller.abort();cancel.current=stop;
+      const source=sourceFrame?await sourceFrame(controller.signal):{url:frameUrl};dispose=source.dispose;
+      if(controller.signal.aborted)return;
       // Read the original JPEG, never the displayed overlay or a screenshot.
-      const [image,sheets]=await Promise.all([readImage(frameUrl),readAtlas(material)]);
+      const [image,sheets]=await Promise.all([readImage(source.url),readAtlas(material)]);
       await new Promise(resolve=>window.setTimeout(resolve,0));
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       const options={refineGeometry:adjustQuad,...(isTauri()?{phaseEvidence:true}:{}),...(material==="soul"?{material}:{}),...(activeFilter?{filter:activeFilter}:{})};
@@ -130,11 +106,18 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
         }
       }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
+      if(adjustQuad&&data.candidates.length){
+        const controller=new AbortController(),stop=()=>controller.abort();cancel.current=stop;
+        try{data={...data,candidates:await refineMatchCandidates(source.url,data.candidates,material,controller.signal)};}
+        catch(error){if(controller.signal.aborted)return;reportError("Refine alignment — original match kept",String(error));}
+        finally{if(cancel.current===stop)cancel.current=null;}
+      }
+      if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       const best=data.status==="clear"?data.candidates[0]:undefined;
       setResult({key:best?identity(frameUrl,best.quad,adjustQuad,activeFilter,material):start,data,selected:best});
       if(best)latest.current.onPreview(best);
     }catch(e){if(mine===token.current&&latest.current.key===start)setResult({key:start,error:String(e)});}
-    finally{if(mine===token.current)setBusy(null);}
+    finally{dispose?.();if(mine===token.current)setBusy(null);}
   }
   function preview(candidate:QuadCandidate) {
     if(!current?.data||disabled)return;
@@ -154,7 +137,7 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
       <Icon name="zoomIn" /> {busy===key?"Matching…":"Find best match"}
     </button>
     <label title="Apply the atlas left/right edge filters before trying any sprite"><input type="checkbox" aria-label="Only filtered sprites" checked={onlyFiltered} onChange={e=>setOnlyFiltered(e.target.checked)} /> Only filtered sprites</label>
-    <label title="Optimize position, size and perspective for each sprite, within 120% of your outline. Off keeps all four corners exactly where you placed them."><input type="checkbox" aria-label="Adjust quad while matching" checked={adjustQuad} onChange={e=>setAdjustQuad(e.target.checked)} /> Adjust quad</label>
+    <label title="Fit candidate corners, then refine alignment of each suggested sprite. Off keeps all four corners exactly where you placed them."><input type="checkbox" aria-label="Adjust quad while matching" checked={adjustQuad} onChange={e=>setAdjustQuad(e.target.checked)} /> Allow mask changes</label>
     {current?.data?.candidates.slice(0,3).map((c,i)=> {
       const details=[`Match ${i+1}: ${name(c)}`,c.phaseScore!==undefined?`AI + colour phase rank score ${c.phaseScore.toFixed(3)}`:"",`${Math.round(c.score*256)} votes · ${c.support??"—"} matching / ${c.maskSamples??"—"} fire-colour samples`,`${c.regions??"—"} supported regions · ${current.data!.searched} sprites tried`,current.selected===c?"Currently previewed":"Click to preview",adjustQuad?"May move and resize the quad":"Quad corners stay fixed","Rank scores are not guaranteed confidence. Confirm/Enter saves the label."].filter(Boolean).join("\n");
       return <span className="match-hover" key={`${c.sheet}-${c.row}-${c.mirrored}`}>

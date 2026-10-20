@@ -1,0 +1,58 @@
+{
+  "implementation": "Production TypeScript masked homography ECC, worker-based; not numerically identical to OpenCV pilot",
+  "cohort": "Same approved 128 real V06/V14 cases as ECC final-polish pilot, 64 normal + 64 soul; correct appearance supplied; not fresh independent validation or a wrong-sprite test",
+  "preprocessing": "Cached original RGB and shared native unveil from prior pilot; production worker calls shared Rust/WASM phaseMatchInput; no alternative inverse math",
+  "guards": {
+    "iterations": 60,
+    "canvas": 128,
+    "minimum_common_pixels": 1024,
+    "minimum_ncc_gain": 0.005,
+    "maximum_corner_move": "half smallest projected texel",
+    "bidirectional_cycle_max_canvas_px": 0.75
+  },
+  "interpretation": "Stricter cycle consistency reduces coverage relative to OpenCV pilot. Zero harmful cases here is not a general guarantee. Geometry only; rankings, sprite identity and labels unchanged. Auto runs only with Allow mask changes enabled.",
+  "results": {
+    "matched_normal": {
+      "count": 64,
+      "changed": 2,
+      "improved_over_0_25px": 2,
+      "worsened_over_0_25px": 0,
+      "median_ms": 48.3617999999999,
+      "p95_ms": 109.93080000000009
+    },
+    "matched_soul": {
+      "count": 64,
+      "changed": 0,
+      "improved_over_0_25px": 0,
+      "worsened_over_0_25px": 0,
+      "median_ms": 53.65344999999979,
+      "p95_ms": 95.60659999999916
+    },
+    "exact_normal": {
+      "count": 64,
+      "changed": 0,
+      "improved_over_0_25px": 0,
+      "worsened_over_0_25px": 0,
+      "median_ms": 37.2527999999993,
+      "p95_ms": 105.64469999999983
+    },
+    "exact_soul": {
+      "count": 64,
+      "changed": 0,
+      "improved_over_0_25px": 0,
+      "worsened_over_0_25px": 0,
+      "median_ms": 55.905249999999796,
+      "p95_ms": 111.29570000000058
+    }
+  },
+  "sha256": {
+    "FireCrackle/src/lib/ecc.ts": "ec68cdaee5a9fe4a1a258d1a800f44ff68a7826b3f41a1397c51b7223b35f89b",
+    "FireCrackle/src/lib/quadEcc.ts": "8fe9c74fa6df4308ddb25e5be80803fa9d33b82ed69249d44b3bdfaa79a6103b",
+    "FireCrackle/src/lib/quadRefine.ts": "814dc69623487ee469151127225137cbed8870ed139dc5eea8f44e938d7bf7d5",
+    "FireCrackle/src/lib/quadRefine.worker.ts": "1dc335439f2dd9698e7fd9a38c2df620500f2d0b69edb5139c47d082d73ea89c"
+  },
+  "cache_sha256": {
+    ".board/ecc-align/cases.json": "8589724a6d2c9f316c68a770a3b2d88738a1cc0093d2c947833106cedbb40384",
+    ".board/ecc-align/selected.json": "c750742328fa326baea9ea29135c4d3c1813aee4c97a73e1dfc1287f6c4b5454"
+  }
+}

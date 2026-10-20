@@ -15,6 +15,7 @@ import { compressionGeometry } from "../lib/compressionPreview";
 import { readMaskState, writeMaskState, type MaskState } from "../lib/maskState";
 import { parallelizeQuad } from "../lib/quadTransform";
 import { QuadMatchControls } from "./QuadMatchControls";
+import {refineFireQuads} from "../lib/quadRefine";
 import { VideoRuler } from "./VideoRuler";
 import { DEFAULT_RULER, readRuler, rulerUnit, scaleRulerUnit, writeRuler, type RulerState } from "../lib/ruler";
 import type { AtlasEdges, EdgeFilter } from "../lib/atlasFilter";
@@ -203,6 +204,33 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   // the four tools, shared by the buttons and the keys (Q, H, M, U; M then 1-3)
   const [findToken, setFindToken] = useState(0);
   const [matchPick, setMatchPick] = useState<{ index: number; n: number } | null>(null);
+  const [refineBusy,setRefineBusy]=useState<string|null>(null);
+  const [refineStatus,setRefineStatus]=useState<{key:string;text:string}|null>(null);
+  const refineAbort=useRef<AbortController|null>(null);
+  const alignmentKey=(q:ManualQuad)=>JSON.stringify([url,view.current,shown,playing,manualEnabled,manualAtlas,manualSheet,manualRow,manualMirrored,q]);
+  const refineKey=alignmentKey(manualQuad),refineLatest=useRef(refineKey);refineLatest.current=refineKey;
+  const canRefine=manualEnabled&&(!manualAtlas||soulFire(manualAtlas))&&!!url&&shown===view.current&&!playing;
+  useEffect(()=>()=>{refineAbort.current?.abort();},[refineKey]);
+  async function sourceForMatch(signal:AbortSignal):Promise<{url:string;dispose?:()=>void}> {
+    if(stillImage)return {url:stillImage.url};
+    const {bytes}=buffer?await buffer.load(view.current,signal):{bytes:await backend.frame(view.current)};
+    if(signal.aborted)throw new DOMException("Alignment cancelled","AbortError");
+    const original=URL.createObjectURL(new Blob([bytes],{type:"image/jpeg"}));
+    return {url:original,dispose:()=>URL.revokeObjectURL(original)};
+  }
+  async function refineSelected() {
+    if(!canRefine||refineBusy===refineKey)return;
+    refineAbort.current?.abort();const controller=new AbortController();refineAbort.current=controller;
+    const start=refineKey;setRefineBusy(start);let source:{url:string;dispose?:()=>void}|undefined;
+    try{
+      source=await sourceForMatch(controller.signal);
+      const [answer]=await refineFireQuads(source.url,[{quad:manualQuad,sprite:{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}}],manualAtlas&&soulFire(manualAtlas)?"soul":"normal",controller.signal);
+      if(controller.signal.aborted||refineLatest.current!==start)return;
+      if(answer.changed)setManualQuad(answer.quad);
+      setRefineStatus({key:alignmentKey(answer.quad),text:answer.changed?"Alignment refined":"Alignment unchanged"});
+    }catch(error){if(!controller.signal.aborted&&refineLatest.current===start)onError(`Refine alignment: ${String(error)}`);}
+    finally{source?.dispose?.();if(refineAbort.current===controller)setRefineBusy(null);}
+  }
   function toggleRuler() { setRuler(current => ({ ...current, enabled: !current.enabled })); }
   useEffect(() => { if (!firstPersonAllowed) setHudEnabled(false); }, [firstPersonAllowed]);
   function toggleFirstPerson() {
@@ -236,6 +264,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
     else if (action.type === "firstPerson") toggleFirstPerson();
     else if (action.type === "matcher") runMatcher();
     else if (action.type === "ruler") toggleRuler();
+    else if (action.type === "refine") void refineSelected();
     else setMatchPick(current => ({ index: action.index, n: (current?.n ?? 0) + 1 }));
   };
   const toolsRef = useRef(runTool);
@@ -539,6 +568,8 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
           <IconButton icon="reset" label="Reset quad corners" onClick={() => setManualQuad(DEFAULT_QUAD)} />
           <IconButton icon="parallel" label="Make quad a parallelogram" title="Make a parallelogram · P · keeps the center" onClick={() => setManualQuad(parallelizeQuad)} />
+          <IconButton icon="fit" label="Refine alignment" title="Refine alignment · G · keeps the selected sprite" disabled={!canRefine||refineBusy===refineKey} aria-busy={refineBusy===refineKey} onClick={()=>void refineSelected()} />
+          {refineStatus?.key===refineKey&&<span className="hud-hint" role="status">{refineStatus.text}</span>}
           <label title="FFmpeg encodes all 32 fire rows at their video-relative pixel size on white, using H.264 at 60 fps. Only the extracted fire is displayed. This is a real codec stress test, not YouTube's exact encoding recipe."><input type="checkbox" disabled={!!manualAtlas} checked={compressionEnabled && !manualAtlas} onChange={e=>setCompressionEnabled(e.target.checked)} /> FFmpeg compression</label>
           {compressionEnabled && <>
             <label>Resolution <select aria-label="Compression resolution" value={compressionHeight} onChange={e=>setCompressionHeight(Number(e.target.value))}>
@@ -551,14 +582,14 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
             <span className="hud-hint">H.264 · 4:2:0 · 60 fps · animated fire on white · extracted mask only</span>
           </>}
           <IconButton icon="copy" label="Use frame label for manual mask" disabled={!labelSprite(view.label)} onClick={() => {const sprite=labelSprite(view.label);if(sprite)selectPreview(sprite);}} />
-          <span className="hud-hint">Shift: resize / rotate · P: parallelogram · Ctrl+drag: move all · select corner + Alt+click: place</span>
+          <span className="hud-hint">Shift: resize / rotate · P: parallelogram · G: refine alignment · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
           onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { setManualAtlas(sprite.atlas); setManualSheet(sprite.sheet); setManualRow(sprite.row); setManualMirrored(sprite.mirrored); }} />
       </div>}
       {matchingEnabled && (!manualAtlas||soulFire(manualAtlas)) && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
-        {url ? <QuadMatchControls material={manualAtlas&&soulFire(manualAtlas)?"soul":"normal"} frameUrl={url} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current} runToken={findToken} pick={matchPick} onPreview={candidate=> {
+        {url ? <QuadMatchControls material={manualAtlas&&soulFire(manualAtlas)?"soul":"normal"} frameUrl={url} sourceFrame={sourceForMatch} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current||playing} runToken={findToken} pick={matchPick} onPreview={candidate=> {
           setManualAtlas(candidate.atlas);setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
           onMatchCandidate?.({atlas:candidate.atlas,sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
         }} /> : <span className="hud-hint">Open a video to match sprites</span>}

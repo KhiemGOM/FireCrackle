@@ -45,3 +45,32 @@ The no-fire model uses a MobileNetV3 Small backbone from torchvision, fine-tuned
 The ordinary-fire and soul-fire quad phase models use separate ResNet-101 backbones from torchvision, initialized from generic ImageNet weights and fine-tuned on real recorded quad crops. Their checkpoint/export provenance and hashes are pinned separately in `FireCrackle/release/quad-phase-model.json` and `FireCrackle/release/quad-soul-phase-model.json`. The same upstream attribution and provenance distinction apply; neither model is a redistributed recording or texture atlas. Model weights remain outside Git source.
 
 ONNX Runtime 1.22.0 is distributed under its upstream MIT license with its third-party notices. Windows packages also include Microsoft DirectML 1.15.4 under the accompanying Microsoft redistributable terms. The exact upstream LICENSE, LICENSE-CODE and third-party notices extracted from the pinned official archives are included beside the native libraries in `ai/`. Linux packages include ONNX Runtime with CPU and CUDA providers and its notices; CUDA/cuDNN are separately installed vendor runtime dependencies. These licenses are not replaced by the project's MIT grant. End users do not install Python, torchvision or CUDA to run the app.
+
+## ECC alignment
+
+The lightweight TypeScript ECC registration in `FireCrackle/src/lib/ecc.ts` follows OpenCV's masked homography implementation in [modules/video/src/ecc.cpp](https://github.com/opencv/opencv/blob/4.13.0/modules/video/src/ecc.cpp). It adds independent finite-geometry, bidirectional consistency and conservative final-adjustment checks; it is not the OpenCV binary. The upstream source carries this Intel BSD license:
+
+Copyright (C) 2000, Intel Corporation, all rights reserved.
+Third party copyrights are property of their respective owners.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+- Redistribution's of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistribution's in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+- The name of Intel Corporation may not be used to endorse or promote products
+  derived from this software without specific prior written permission.
+
+This software is provided by the copyright holders and contributors "as is" and
+any express or implied warranties, including, but not limited to, the implied
+warranties of merchantability and fitness for a particular purpose are disclaimed.
+In no event shall the Intel Corporation or contributors be liable for any direct,
+indirect, incidental, special, exemplary, or consequential damages
+(including, but not limited to, procurement of substitute goods or services;
+loss of use, data, or profits; or business interruption) however caused
+and on any theory of liability, whether in contract, strict liability,
+or tort (including negligence or otherwise) arising in any way out of
+the use of this software, even if advised of the possibility of such damage.
