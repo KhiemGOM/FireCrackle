@@ -254,3 +254,14 @@ describe("processFrame with an enhancement stage", () => {
     expect(r.enhanced).toBeFalsy();
   });
 });
+
+it.each(['auto','on'] as const)('preserves supplied GUI coverage only for Auto (%s)',async mode=>{
+ const pixels=normalPixels(),saved=new Uint8ClampedArray(pixels),fake=io(pixels),world=new Uint8Array(W*H).fill(1);world[0]=0;
+ const expected=unveilRgba(pixels,W,H);if(mode==='auto')expected.set(pixels.subarray(0,4),0);
+ const portal=vi.fn(async(image:{data:Uint8ClampedArray})=>{expect(image.data).toEqual(expected);return {data:image.data,applied:false,valid:new Uint8Array(W*H),phase:0,opacity:0};});
+ await processFrame(bytes,original(),mode,DEFAULT_VEIL_OPTIONS,fake,portal,undefined,{width:W,height:H},{width:W,height:H,world});
+ expect(fake.encoded[0]).toEqual(expected);expect(portal).toHaveBeenCalledOnce();expect(pixels).toEqual(saved);
+});
+it.each([{width:W+1,height:H,world:new Uint8Array(W*H)},{width:W,height:H,world:new Uint8Array(1)}])('ignores coverage with mismatched decoded dimensions or pixel count',async coverage=>{
+ const pixels=veiledPixels(),fake=io(pixels);await processFrame(bytes,original(),'auto',DEFAULT_VEIL_OPTIONS,fake,undefined,undefined,undefined,coverage);expect(fake.encoded[0]).toEqual(unveilRgba(pixels,W,H));
+});

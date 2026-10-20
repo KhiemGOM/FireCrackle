@@ -15,8 +15,8 @@ export const ROW_NAMES: Record<RowId, string> = {
 const VEIL_LABELS: Record<VeilMode, string> = { off: "Off", auto: "Auto-undo", on: "Always undo" };
 /** Shown on hover, on the row name, instead of paragraphs in the panel. */
 const ROW_HELP: Partial<Record<RowId, string>> = {
-  veil: "Reverses the darkening Minecraft draws behind an open screen. Auto only when a frame looks veiled; thresholds are in Settings.",
-  portal: "Assumes portal rendering like vanilla 1.16.5; custom textures or shaders may change the result. Auto fits the frame and opacity; Manual applies the ones you pick, even where Auto finds no fit. GUI pixels are protected when a mask is available.",
+  veil: "Reverses the darkening Minecraft draws behind an open screen. Auto uses veil evidence and preserves detected GUI pixels. Always undo processes every pixel; thresholds are in Settings.",
+  portal: "Assumes portal rendering like vanilla 1.16.5; custom textures or shaders may change the result. Auto fits the frame and opacity; Manual applies the ones you pick, even where Auto finds no fit. Auto protects detected GUI pixels; Manual processes the entire picture.",
   ...Object.fromEntries((Object.keys(STAGES) as StageId[]).filter(id => STAGES[id].help).map(id => [id, STAGES[id].help])),
 };
 const MASTER_TITLE = `Post-processing on/off · ${POST_TOGGLE_KEY.toUpperCase()} · view only: detection and exports use the original frames`;

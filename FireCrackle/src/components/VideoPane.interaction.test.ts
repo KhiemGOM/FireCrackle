@@ -511,7 +511,7 @@ it("runs no stage at all when every effect is off, an effect is neutral, or the 
   }
 });
 
-it("runs the portal stage with the manual phase and opacity, and keeps the GUI mask on for it", async () => {
+it("runs manual portal correction with the chosen values and no GUI exclusion", async () => {
   const image = { data: new Uint8ClampedArray(8), width: 2, height: 1 };
   const portal = vi.spyOn(portalProcessing, "portalPreview").mockResolvedValue({ data: image.data, applied: true, phase: 7, opacity: 0.4, valid: new Uint8Array(2) } as Awaited<ReturnType<typeof portalProcessing.portalPreview>>);
   vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original, _m, _o, _io, transform) => {
@@ -522,7 +522,8 @@ it("runs the portal stage with the manual phase and opacity, and keeps the GUI m
   await runLoad(postOf({ portal: "manual", portalManual: { phase: 12, opacity: 0.62 } }));
   expect(portal).toHaveBeenCalledOnce();
   expect(portal.mock.calls[0][3]).toEqual({ phase: 12, opacity: 0.62 });
-  expect(mask.mock.calls[mask.mock.calls.length - 1][3]).toBe(true);
+  expect(mask.mock.calls[mask.mock.calls.length - 1][3]).toBe(false);
+  expect(portal.mock.calls[0][2]).toBeUndefined();
 });
 
 it("does not pass manual values to the automatic portal fit, and reports that fit so the panel can copy it", async () => {
@@ -635,4 +636,16 @@ it("disables first-person for soul selection, clears an active overlay, and allo
   expect(find(root,"First-person fire settings")).toBeUndefined();
   find(root,"Toggle first-person fire")!.props.onClick();
   expect(find(await tree(),"First-person fire settings")).toBeDefined();
+});
+
+it.each(['auto','manual'] as const)('passes the new HUD-independent GUI mask to %s correction with the correct scope',async mode=>{
+ const image={data:new Uint8ClampedArray(8),width:2,height:1};
+ const portal=vi.spyOn(portalProcessing,'portalPreview').mockResolvedValue({data:image.data,applied:true,valid:new Uint8Array(2),phase:0,opacity:.5});
+ const processing=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original,_m,_o,_io,transform)=>{await transform?.(image);return {blob:original,applied:false};});
+ const {current}=await createMockBackend().view();
+ const mask={supported:true,busy:false,error:null,maskFrame:current,pixels:new Uint8ClampedArray([255,215,0,110,0,0,0,0]),reply:{width:2,height:1,reliable:false,mask_available:true,scale:null,scaled_width:null,scaled_height:null,notes:[],pieces:[{piece:'InventoryPanel',count:1}]}};
+ await runLoad(postOf({veil:'auto',portal:mode}),{},mask);
+ expect(processing.mock.calls[0][7]).toEqual({width:2,height:1});
+ expect(processing.mock.calls[0][8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
+ expect(portal.mock.calls[0][2]).toEqual(mode==='auto'?new Uint8Array([0,1]):undefined);
 });

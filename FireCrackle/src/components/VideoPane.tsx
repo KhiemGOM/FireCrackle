@@ -30,7 +30,7 @@ import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
 import { canvasFrameIo, processFrame } from "../lib/veilFrame";
-import { portalPreview, portalWorldMask } from "../lib/portalPreview";
+import { portalPreview, guiWorldCoverage } from "../lib/portalPreview";
 import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
@@ -197,7 +197,7 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   const reportPortalStatus = (status: string) => { setPortalStatus(status); onPortalStatus?.(status); };
   // GUI mask: videos only (photos have no project to keep the vanilla answer in)
   const [guiMaskOn, setGuiMaskOn] = useState(false);
-  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode !== "off" || veilMode === "auto") && !stillImage);
+  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode === "auto" || veilMode === "auto") && !stillImage);
   const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
   const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
 
@@ -329,11 +329,11 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
   useEffect(() => {
     const mine = ++token.current;
     const cancel = new AbortController();
-    const guiReady = !stillImage && guiMask.maskFrame === view.current && !!guiMask.reply?.reliable && !!guiMask.pixels;
+    const guiCoverage = stillImage ? undefined : guiWorldCoverage(guiMask, view.current), guiReady = !!guiCoverage;
     const correcting = correctsNow({ playing, veilMode, portalMode, enhance: enhanceOn });
     const runPortal = portalMode !== "off" && correcting;
     let guiProtected = false;
-    if (runPortal) reportPortalStatus(guiReady ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
+    if (runPortal) reportPortalStatus(guiReady && portalMode === "auto" ? "Checking portal · GUI protected…" : "Checking portal · entire frame…");
     else reportPortalStatus(playing && portalMode !== "off" ? "Applied when playback is paused" : "");
     if (stillImage && veilMode === "off" && portalMode === "off" && !enhanceOn) {
       if (urlRef.current && !urlFromBuffer.current) URL.revokeObjectURL(urlRef.current);
@@ -372,14 +372,14 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
       .then(async ({ bytes, original }) => {
         const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo, runPortal ? async image => {
           let world: Uint8Array | undefined;
-          if (guiReady && guiMask.pixels && guiMask.reply && image.width === guiMask.reply.width && image.height === guiMask.reply.height) {
-            world = portalWorldMask(guiMask.pixels);
+          if (portalMode === "auto" && guiCoverage && image.width === guiCoverage.width && image.height === guiCoverage.height) {
+            world = guiCoverage.world;
             guiProtected = true;
           }
           const fit = await portalPreview(image, cancel.signal, world, manualPortal);
           if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
           return fit;
-        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined);
+        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined, guiCoverage);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
         if (made.error) onError(`Picture correction: ${made.error}`);
         if (runPortal) reportPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
@@ -532,8 +532,8 @@ export function VideoPane({ firstPersonAllowed = true, backend, view, onError, o
           if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
         }}>Animation</IconButton>
         {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title="Assumes the vanilla Minecraft 1.16.5 GUI layout and textures, no HUD-changing packs or mods, and uncropped footage. Shows GUI pixels only when the HUD fit is reliable." aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
-        {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto only when a frame looks veiled, On for every frame. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
-        {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Protects GUI pixels when a reliable mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
+        {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto preserves detected GUI pixels; Always undo processes every pixel. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
+        {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Auto protects GUI pixels when a mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
         <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
       </div>
