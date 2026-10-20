@@ -7,6 +7,7 @@ import {formatTimecode} from '../lib/timecode';
 import {ComparisonProofButton} from './ComparisonProofButton';
 import {GuiInteractionTool} from './GuiInteractionTool';
 import {displayFrame} from '../lib/imagePreview';
+import {readPreferences,writePreferences} from '../lib/preferences';
 import './MiscToolsTab.css';
 
 function useReviewImage(backend:Backend,frame:number|null){
@@ -37,7 +38,8 @@ function DifferencePicture({before,after,gain}:{before:string;after:string;gain:
 }
 function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null}:{backend:Backend;frame:number|null;title:string;fps:number;onOpen:(frame:number)=>void;compareFrame?:number|null}){
  const image=useReviewImage(backend,frame),comparison=useReviewImage(backend,compareFrame);
- const [mode,setMode]=useState<'original'|'diff'|'blink'>('original'),[gain,setGain]=useState(3),[showBefore,setShowBefore]=useState(false);
+ const [mode,setMode]=useState(()=>readPreferences().miscCompareMode),[gain,setGain]=useState(()=>readPreferences().miscDifferenceGain),[showBefore,setShowBefore]=useState(false);
+ useEffect(()=>{if(title==='After')writePreferences({miscCompareMode:mode,miscDifferenceGain:gain});},[title,mode,gain]);
  const ready=!!image.url&&!!comparison.url,inspect=title==='After',diffReady=ready&&image.full&&comparison.full;
  useEffect(()=>{
   setShowBefore(false);
@@ -69,7 +71,8 @@ function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null}:{backend
 
 /** Same workspace decoder/video as Label and Phase. Detector integration is a separate step. */
 export function MiscToolsTab({backend,view,videoKey,onOpenFrame}:{backend:Backend;view:View;videoKey?:string;onOpenFrame:(frame:number)=>void}){
- const [tool,setTool]=useState<'compare'|'gui'>('compare');
+ const [tool,setTool]=useState(()=>readPreferences().miscTool);
+ useEffect(()=>writePreferences({miscTool:tool}),[tool]);
  const [interval,setInterval]=useState<ReviewInterval>(()=>readReviewInterval(videoKey,view.current,view.frame_count));
  const [proofBusy,setProofBusy]=useState(false),[proofFeedback,setProofFeedback]=useState<string>(),[proofError,setProofError]=useState('');
  const exporting=useRef(false);

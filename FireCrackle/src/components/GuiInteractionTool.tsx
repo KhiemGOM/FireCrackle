@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {Backend} from '../lib/api';
 import type {GuiRange,GuiScanStatus} from '../lib/guiScan';
 import {formatTimecode} from '../lib/timecode';
+import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
 import {guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../lib/guiAimReview';
@@ -34,11 +35,12 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
 }
 
 export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange)=>void}) {
-  const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(false),[busy,setBusy]=useState(false);
-  const [mode,setMode]=useState<'intervals'|'aim'>('intervals'),[display,setDisplay]=useState<'blink'|'before'|'after'>('blink');
-  const [order,setOrder]=useState<'motion'|'time'>('motion');
+  const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(()=>readPreferences().miscGuiMenus),[busy,setBusy]=useState(false);
+  const [mode,setMode]=useState(()=>readPreferences().miscGuiMode),[display,setDisplay]=useState(()=>readPreferences().miscGuiDisplay);
+  const [order,setOrder]=useState(()=>readPreferences().miscGuiOrder);
   const [ranking,setRanking]=useState<{key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({key:'',scores:new Map(),processed:0,done:false});
   const motionScores=useRef<{cache:unknown;scores:Map<string,number|null>}>({cache:null,scores:new Map()});
+  useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order}),[menus,mode,display,order]);
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
     let stopped=false, timer:ReturnType<typeof setTimeout>;

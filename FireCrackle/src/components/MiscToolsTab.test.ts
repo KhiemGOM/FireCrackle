@@ -4,6 +4,7 @@ const hooks=vi.hoisted(()=>({values:[] as any[],cursor:0,effects:[] as Array<()=
 vi.mock('react',async original=>({...await original<typeof import('react')>(),useEffect:(f:()=>any)=>hooks.effects.push(f),useRef:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]={current:initial};return hooks.values[i];},useState:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]=typeof initial==='function'?initial():initial;return [hooks.values[i],(v:any)=>{hooks.values[i]=typeof v==='function'?v(hooks.values[i]):v;}];}}));
 import {MiscToolsTab} from './MiscToolsTab';
 import type {Backend,View} from '../lib/api';
+import {PREFERENCES_KEY} from '../lib/preferences';
 type El=ReactElement<Record<string,any>>;
 function find(node:any,predicate:(n:El)=>boolean):El[]{if(Array.isArray(node))return node.flatMap(n=>find(n,predicate));if(!node?.props)return [];return [...(predicate(node)?[node]:[]),...find(node.props.children,predicate)];}
 const backend={frame:vi.fn(async()=>new ArrayBuffer(2))} as unknown as Backend,onOpen=vi.fn();
@@ -11,6 +12,25 @@ const view={current:10,frame_count:100,fps:60} as View;
 function render(){hooks.cursor=0;hooks.effects=[];return MiscToolsTab({backend,view,videoKey:'video.mp4',onOpenFrame:onOpen});}
 beforeEach(()=>{hooks.values=[];hooks.effects=[];onOpen.mockClear();});
 afterEach(()=>vi.unstubAllGlobals());
+it('restores the selected inspection tool after remount and merges other settings',()=>{
+ let raw:string|null=null;
+ vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?raw:null,setItem:(key:string,value:string)=>{if(key===PREFERENCES_KEY)raw=value;}});
+ let root=render();find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props.onClick();root=render();
+ hooks.effects.forEach(effect=>effect());hooks.values=[];root=render();
+ expect(find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props['aria-selected']).toBe(true);
+});
+it('restores comparison view and brightness and saves changes',async()=>{
+ let raw=JSON.stringify({miscCompareMode:'diff',miscDifferenceGain:6});
+ vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?raw:null,setItem:(key:string,value:string)=>{if(key===PREFERENCES_KEY)raw=value;}});
+ const side=find(render(),n=>n.props.title==='After')[0];hooks.values=[];hooks.cursor=0;hooks.effects=[];
+ vi.stubGlobal('URL',{createObjectURL:vi.fn(()=> 'blob:review'),revokeObjectURL:vi.fn()});
+ (side.type as Function)(side.props);const cleanups=hooks.effects.map(effect=>effect());await Promise.resolve();await Promise.resolve();
+ hooks.cursor=0;hooks.effects=[];let child=(side.type as Function)(side.props);
+ const gain=find(child,n=>n.props['aria-label']==='Difference brightness')[0];expect(gain.props.value).toBe(6);
+ gain.props.onChange({target:{value:'7'}});hooks.cursor=0;hooks.effects=[];child=(side.type as Function)(side.props);
+ hooks.effects[2]();expect(JSON.parse(raw)).toMatchObject({miscCompareMode:'diff',miscDifferenceGain:7});
+ cleanups.forEach(cleanup=>cleanup?.());
+});
 it('manual comparison uses exactly both entered endpoints and their midpoint',()=>{
  let root=render();expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(10);
  expect(find(root,n=>n.props.title==='Midpoint')[0].props.frame).toBe(10);

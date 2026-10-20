@@ -1,5 +1,13 @@
 import { expect, it } from "vitest";
 import { DEFAULT_PREFERENCES, readPreferences, writePreferences } from "./preferences";
+it('restores all Misc tools controls and rejects invalid saved settings',()=>{
+ let raw:string|null=null;const storage={getItem:()=>raw,setItem:(_:string,value:string)=>{raw=value;}};
+ writePreferences({miscTool:'gui',miscGuiMode:'aim',miscGuiDisplay:'after',miscGuiOrder:'time',miscGuiMenus:true},storage);
+ writePreferences({miscCompareMode:'diff',miscDifferenceGain:8},storage);
+ expect(readPreferences(storage)).toMatchObject({miscTool:'gui',miscGuiMode:'aim',miscGuiDisplay:'after',miscGuiOrder:'time',miscGuiMenus:true,miscCompareMode:'diff',miscDifferenceGain:8});
+ raw=JSON.stringify({miscTool:'bad',miscGuiMode:'bad',miscGuiDisplay:'bad',miscGuiOrder:'bad',miscGuiMenus:1,miscCompareMode:'bad',miscDifferenceGain:9});
+ expect(readPreferences(storage)).toEqual(DEFAULT_PREFERENCES);
+});
 it('restores the current-video Misc tools tab',()=>{
  expect(readPreferences({getItem:()=>'{"tab":"misc"}'}).tab).toBe('misc');
 });

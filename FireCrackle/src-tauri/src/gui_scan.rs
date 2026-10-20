@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Write},
     path::PathBuf,
-    process::{Child, Stdio},
+    process::Child,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -308,38 +308,8 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     drop(cache);
     let total = previous.len() as u32;
     if start < total {
-        let mut child = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
-            .args(["-nostdin", "-v", "error", "-i"])
-            .arg(&job.project.video_path)
-            .args(["-map", "0:v:0", "-vf"])
-            .arg(format!("trim=start_frame={start}"))
-            .args(studio_core::import::passthrough_args(&tools.ffmpeg))
-            .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        let output = child.stdout.take().ok_or("GUI decoder has no output")?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or("GUI decoder has no diagnostics")?;
-        let diagnostics = std::thread::spawn(move || {
-            let mut reader = stderr;
-            let mut text = Vec::new();
-            let mut buffer = [0; 4096];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(n) => {
-                        let keep = n.min(16384usize.saturating_sub(text.len()));
-                        text.extend_from_slice(&buffer[..keep]);
-                    }
-                }
-            }
-            String::from_utf8_lossy(&text).into_owned()
-        });
-        *job.child.lock().map_err(|_| "GUI decoder unavailable")? = Some(child);
+        let (output, diagnostics) =
+            crate::pov::open_scan_decoder(&job.project, tools, start as usize, &job.child)?;
         let mut write_error = None;
         let result = parallel_frames_indexed(
             output,

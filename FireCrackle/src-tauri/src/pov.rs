@@ -413,6 +413,187 @@ fn scan_resuming(
     )
 }
 
+/// Validate each RGB frame against its indexed timestamp before any worker can
+/// classify/cache it. A bad seek must fail explicitly, never shift scan labels.
+pub(crate) struct CheckedFrames<'a, R> {
+    reader: R,
+    times: std::sync::mpsc::Receiver<f64>,
+    expected: &'a [studio_core::project::FrameRecord],
+    frame: usize,
+    offset: usize,
+    frame_bytes: usize,
+    time_base: f64,
+}
+impl<R: Read> Read for CheckedFrames<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        let size = buffer.len().min(self.frame_bytes - self.offset);
+        let count = self.reader.read(&mut buffer[..size])?;
+        if count == 0 {
+            return Ok(0);
+        }
+        if self.offset == 0 && self.frame < self.expected.len() {
+            let expected = self.expected[self.frame];
+            let time =
+                self.times.recv().map_err(|_| {
+                    std::io::Error::other("Decoder did not report a frame timestamp")
+                })? + self.time_base;
+            let next = self
+                .expected
+                .get(self.frame + 1)
+                .map(|next| next.pts - expected.pts)
+                .filter(|gap| *gap > 0.);
+            let previous = self
+                .frame
+                .checked_sub(1)
+                .map(|n| expected.pts - self.expected[n].pts)
+                .filter(|gap| *gap > 0.);
+            let interval = next.into_iter().chain(previous).fold(0.04_f64, f64::min);
+            if !time.is_finite() || (time - expected.pts).abs() > interval * 0.5 {
+                return Err(std::io::Error::other(format!(
+                    "Resume decoder frame {} is misaligned: expected {:.6}s, got {:.6}s",
+                    self.frame, expected.pts, time
+                )));
+            }
+        }
+        self.offset += count;
+        if self.offset == self.frame_bytes {
+            self.frame += 1;
+            self.offset = 0;
+        }
+        Ok(count)
+    }
+}
+
+/// Shared exact raw decoder for first-person, no-fire and GUI scans.
+pub(crate) fn open_scan_decoder<'a>(
+    project: &'a Project,
+    tools: &Tools,
+    start: usize,
+    slot: &Mutex<Option<Child>>,
+) -> Result<
+    (
+        CheckedFrames<'a, std::process::ChildStdout>,
+        std::thread::JoinHandle<String>,
+    ),
+    String,
+> {
+    if start >= project.frames.len() {
+        return Err("Resume frame is outside the video".into());
+    }
+    let frame_bytes = project
+        .meta
+        .width
+        .checked_mul(project.meta.height)
+        .and_then(|n| n.checked_mul(3))
+        .ok_or("Video dimensions overflow")?;
+    let mut command = studio_core::proc::ffmpeg_command(&tools.ffmpeg);
+    // Seek near the saved position using the exact preview decoder's backoff.
+    // Some demuxers/B-frame streams return an earlier GOP without accurate seek;
+    // retain accurate seeking and validate every output timestamp instead.
+    let key = project.frames[..=start]
+        .iter()
+        .rposition(|entry| entry.key)
+        .unwrap_or(0);
+    let seek = studio_core::frames::seek_arg(project.frames[key].pts, 0.5);
+    let time_base = seek
+        .as_ref()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(project.frames[0].pts);
+    let prefix = if seek.is_some() {
+        project
+            .frames
+            .partition_point(|entry| entry.pts < time_base)
+            .min(start)
+    } else {
+        0
+    };
+    command.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-nostats"]);
+    if let Some(seek) = &seek {
+        command.args(["-seek_timestamp", "1", "-ss", seek]);
+    }
+    command
+        .arg("-i")
+        .arg(&project.video_path)
+        .args(["-map", "0:v:0"])
+        // Trim by display-frame index (not approximate timestamp seeking), preserving VFR frame identity.
+        .args([
+            "-vf",
+            &format!("trim=start_frame={},showinfo", start - prefix),
+        ])
+        .args(studio_core::import::passthrough_args(&tools.ffmpeg))
+        .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Could not start FFmpeg: {e}"))?;
+    let pipe = child.stdout.take().ok_or("Decoder output missing")?;
+    let stderr = child.stderr.take().ok_or("Decoder errors missing")?;
+    let (time_tx, time_rx) = std::sync::mpsc::channel();
+    let errors = std::thread::spawn(move || {
+        use std::io::BufRead;
+        let mut saved = std::collections::VecDeque::new();
+        let mut tick = None;
+        for line in std::io::BufReader::new(stderr)
+            .lines()
+            .map_while(Result::ok)
+        {
+            if line.contains("showinfo") {
+                if let Some(raw) = line
+                    .split_once("config in time_base:")
+                    .map(|(_, raw)| raw.trim())
+                {
+                    tick = raw
+                        .split_whitespace()
+                        .next()
+                        .and_then(|v| v.trim_end_matches(',').split_once('/'))
+                        .and_then(|(a, b)| Some(a.parse::<f64>().ok()? / b.parse::<f64>().ok()?));
+                }
+                if line.contains("] n:") {
+                    let pts = tick.and_then(|tick| {
+                        line.split_once(" pts:")?
+                            .1
+                            .split_whitespace()
+                            .next()?
+                            .parse::<f64>()
+                            .ok()
+                            .map(|n| n * tick)
+                    });
+                    // Integer pts + timebase avoids showinfo's rounded pts_time on long videos.
+                    let _ = time_tx.send(pts.unwrap_or(f64::NAN));
+                }
+            } else {
+                saved.push_back(line.chars().take(1000).collect::<String>());
+                if saved.len() > 12 {
+                    saved.pop_front();
+                }
+            }
+        }
+        saved.into_iter().collect::<Vec<_>>().join("\n")
+    });
+    *slot.lock().map_err(|_| "Decoder state unavailable")? = Some(child);
+    Ok((
+        CheckedFrames {
+            reader: pipe,
+            times: time_rx,
+            expected: &project.frames,
+            frame: start,
+            offset: 0,
+            frame_bytes,
+            time_base,
+        },
+        errors,
+    ))
+}
+
 #[allow(clippy::too_many_arguments)] // Decoder ownership, resume state and the two closures are independent.
 pub(crate) fn scan_with_workers_resuming(
     project: &Project,
@@ -443,41 +624,7 @@ pub(crate) fn scan_with_workers_resuming(
         .checked_mul(h)
         .and_then(|n| n.checked_mul(3))
         .ok_or("Video dimensions overflow")?;
-    let mut command = studio_core::proc::ffmpeg_command(&tools.ffmpeg);
-    command
-        .args(["-nostdin", "-v", "error", "-i"])
-        .arg(&project.video_path)
-        .args(["-map", "0:v:0"])
-        // Trim by display-frame index (not approximate timestamp seeking), preserving VFR frame identity.
-        .args(["-vf", &format!("trim=start_frame={start}")])
-        .args(studio_core::import::passthrough_args(&tools.ffmpeg))
-        .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("Could not start FFmpeg: {e}"))?;
-    let pipe = child.stdout.take().ok_or("Decoder output missing")?;
-    let stderr = child.stderr.take().ok_or("Decoder errors missing")?;
-    let errors = std::thread::spawn(move || {
-        let mut pipe = stderr;
-        let mut saved = Vec::new();
-        let mut buffer = [0u8; 4096];
-        while let Ok(n) = pipe.read(&mut buffer) {
-            if n == 0 {
-                break;
-            }
-            let keep = n.min(16384usize.saturating_sub(saved.len()));
-            saved.extend_from_slice(&buffer[..keep]);
-        }
-        String::from_utf8_lossy(&saved).into_owned()
-    });
-    *slot.lock().map_err(|_| "Decoder state unavailable")? = Some(child);
+    let (pipe, errors) = open_scan_decoder(project, tools, start, slot)?;
     parallel_frames_indexed(
         pipe,
         frame_bytes,
@@ -511,6 +658,158 @@ pub(crate) fn scan_with_workers_resuming(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn decoder_rejects_shifted_frames_even_beside_a_long_timestamp_gap() {
+        let expected =
+            [0., 0.05, 5., 5.05].map(|pts| studio_core::project::FrameRecord { pts, key: false });
+        let (tx, times) = std::sync::mpsc::channel();
+        tx.send(0.).unwrap();
+        drop(tx);
+        let mut reader = CheckedFrames {
+            reader: std::io::Cursor::new(vec![1; 3]),
+            times,
+            expected: &expected,
+            frame: 1,
+            offset: 0,
+            frame_bytes: 3,
+            time_base: 0.,
+        };
+        let error = reader.read(&mut [0; 3]).unwrap_err();
+        assert!(error.to_string().contains("frame 1 is misaligned"));
+    }
+    #[test]
+    #[ignore = "Requires SCAN_RESUME_PROJECT pointing to an existing imported real video project"]
+    fn real_resume_first_output_timing() {
+        let project: Project = serde_json::from_slice(
+            &std::fs::read(std::env::var("SCAN_RESUME_PROJECT").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let tools = Tools {
+            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
+            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
+        };
+        for start in [0, 659, 3178, 90000] {
+            if start >= project.frames.len() {
+                continue;
+            }
+            let slot = Mutex::new(None);
+            let began = std::time::Instant::now();
+            let (mut reader, diagnostics) =
+                open_scan_decoder(&project, &tools, start, &slot).unwrap();
+            let mut frame = vec![0; project.meta.width * project.meta.height * 3];
+            let result = reader.read_exact(&mut frame);
+            let elapsed = began.elapsed();
+            drop(reader);
+            let mut child = slot.lock().unwrap().take().unwrap();
+            let _ = child.kill();
+            let _ = child.wait();
+            let log = diagnostics.join().unwrap();
+            result.unwrap_or_else(|e| panic!("frame {start}: {e}; {log}"));
+            println!(
+                "resume frame {start}: {:.3} s, indexed timestamp validated",
+                elapsed.as_secs_f64()
+            );
+        }
+    }
+    #[test]
+    fn seeked_scan_rgb_matches_full_decode_with_vfr_nonzero_start_and_b_frames() {
+        let f = crate::scan_cache::tests::fixture(96);
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let tools = Tools {
+            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
+            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
+        };
+        let raw = f.root.join("frames.rgb");
+        let data: Vec<u8> = (0..96u8).flat_map(|n| vec![n * 2; 16 * 16 * 3]).collect();
+        std::fs::write(&raw, &data).unwrap();
+        for codec in ["ffv1", "libx264"] {
+            let mut command = studio_core::proc::ffmpeg_command(&tools.ffmpeg);
+            command
+                .args([
+                    "-y",
+                    "-v",
+                    "error",
+                    "-f",
+                    "rawvideo",
+                    "-pixel_format",
+                    "rgb24",
+                    "-video_size",
+                    "16x16",
+                    "-framerate",
+                    "20",
+                    "-i",
+                ])
+                .arg(&raw)
+                .args([
+                    "-vf",
+                    "setpts=PTS+2/TB+floor(N/7)*0.02/TB",
+                    "-fps_mode",
+                    "passthrough",
+                    "-c:v",
+                    codec,
+                    "-g",
+                    "12",
+                ]);
+            if codec == "libx264" {
+                command.args(["-bf", "2", "-pix_fmt", "yuv420p"]);
+            }
+            let output = command.arg(&f.project.video_path).output().unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let project = studio_core::import::import_video(
+                &tools,
+                std::path::Path::new(&f.project.video_path),
+                &Default::default(),
+            )
+            .unwrap();
+            assert!(project.frames[0].pts > 1.9);
+            let baseline = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
+                .args(["-v", "error", "-i"])
+                .arg(&project.video_path)
+                .args([
+                    "-map",
+                    "0:v:0",
+                    "-fps_mode",
+                    "passthrough",
+                    "-pix_fmt",
+                    "rgb24",
+                    "-f",
+                    "rawvideo",
+                    "-",
+                ])
+                .output()
+                .unwrap();
+            assert!(baseline.status.success());
+            let bytes = 16 * 16 * 3;
+            for start in [13, 35, 73] {
+                let slot = Mutex::new(None);
+                let (mut reader, diagnostics) =
+                    open_scan_decoder(&project, &tools, start, &slot).unwrap();
+                let mut decoded = Vec::new();
+                let result = reader.read_to_end(&mut decoded);
+                drop(reader);
+                let mut child = slot.lock().unwrap().take().unwrap();
+                if result.is_err() {
+                    let _ = child.kill();
+                }
+                let status = child.wait().unwrap();
+                let log = diagnostics.join().unwrap();
+                result.unwrap_or_else(|e| panic!("{codec} start{start}: {e}; {log}"));
+                assert!(status.success(), "{log}");
+                assert_eq!(
+                    decoded,
+                    &baseline.stdout[start * bytes..],
+                    "{codec} start{start}"
+                );
+            }
+        }
+    }
     #[test]
     fn recovers_partial_and_completed_jobs_with_stable_candidate_frames() {
         let f = crate::scan_cache::tests::fixture(3);
