@@ -134,6 +134,11 @@ pub(crate) fn largest(m: &[u8], w: usize, h: usize, r: usize) -> usize {
 }
 /// Exact threshold decision without traversing the rest of an already-large component.
 pub(crate) fn reaches(m: &[u8], w: usize, h: usize, r: usize, threshold: usize) -> bool {
+    // Only original orange pixels count towards a component's area, so fewer
+    // orange pixels than the threshold in the whole frame cannot reach it.
+    if m.iter().map(|&v| v as usize).sum::<usize>() < threshold {
+        return false;
+    }
     largest_capped(m, w, h, r, threshold) >= threshold
 }
 fn largest_capped(m: &[u8], w: usize, h: usize, r: usize, limit: usize) -> usize {

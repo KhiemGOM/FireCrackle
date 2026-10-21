@@ -212,6 +212,8 @@ impl Engine {
         match provider {
             "cpu" => return Self::load(runtime, model, false, threads),
             "dml" | "directml" => return Self::load_on(runtime, model, Some(0), threads),
+            // DirectML adapter 1: on this laptop the Intel integrated GPU.
+            "dml1" => return Self::load_on(runtime, model, Some(1), threads),
             _ => {}
         }
         Self::preflight(runtime)?;
@@ -304,6 +306,25 @@ impl Engine {
     }
     pub fn score_view(&mut self, rgb: &[u8]) -> Result<f32, String> {
         Ok(self.infer_view(rgb, 224, 1)?[0])
+    }
+    /// Perf-lab: feed the bytes as a uint8 tensor to a graph that casts them
+    /// itself (`perf-lab/make_u8_model.py`), a quarter of the upload.
+    pub fn score_view_u8(&mut self, rgb: &[u8]) -> Result<f32, String> {
+        if rgb.len() != 224 * 224 * 3 {
+            return Err("Invalid AI image view".into());
+        }
+        let tensor = Tensor::from_array(([1usize, 224, 224, 3], rgb.to_vec())).map_err(|e| e.to_string())?;
+        let outputs = self
+            .session
+            .run(ort::inputs![tensor])
+            .map_err(|e| e.to_string())?;
+        let (_, values) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| e.to_string())?;
+        if values.len() != 1 || !values[0].is_finite() {
+            return Err("AI returned invalid evidence".into());
+        }
+        Ok(values[0])
     }
     pub fn phase_view(&mut self, rgb: &[u8]) -> Result<Vec<f32>, String> {
         self.infer_view(rgb, 128, 32)

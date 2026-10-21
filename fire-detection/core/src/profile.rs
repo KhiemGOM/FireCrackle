@@ -71,13 +71,24 @@ pub fn cycles() -> Vec<(&'static str, u64, f64)> {
         .map(|i| (STAGES[i], CALLS[i].load(Relaxed), CYCLES[i].load(Relaxed) as f64 / 1e9))
         .collect()
 }
-/// Record an already measured duration for `stage` (no cycle count available).
-pub fn record_ms(stage: usize, ms: f64) {
+/// Record an already measured duration and cycle count for `stage`.
+pub fn record(stage: usize, ms: f64, cycles: u64) {
     NANOS[stage].fetch_add((ms * 1e6) as u64, Relaxed);
+    CYCLES[stage].fetch_add(cycles, Relaxed);
     CALLS[stage].fetch_add(1, Relaxed);
 }
-pub const COUNTERS: [&str; 3] = ["panel.poses_visited", "unused", "panel.poses_planned"];
-static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+pub const COUNTERS: [&str; 21] = [
+    "panel.poses_visited",
+    "unused",
+    "panel.poses_planned",
+    "nf.reject_view00", "nf.reject_view01", "nf.reject_view02", "nf.reject_view03", "nf.reject_view04",
+    "nf.reject_view05", "nf.reject_view06", "nf.reject_view07", "nf.reject_view08", "nf.reject_view09",
+    "nf.reject_view10", "nf.reject_view11", "nf.reject_view12", "nf.reject_view13", "nf.reject_view14",
+    "nf.reject_view15", "nf.reject_view16", "nf.reject_view17",
+];
+/// First counter of the per-view no-fire rejection histogram (views 0–8 raw, 9–17 unveiled).
+pub const NF_REJECT_BASE: usize = 3;
+static COUNTS: [AtomicU64; 21] = [const { AtomicU64::new(0) }; 21];
 /// Add to a plain event counter (an index into [`COUNTERS`]).
 pub fn count(counter: usize, by: u64) {
     COUNTS[counter].fetch_add(by, Relaxed);

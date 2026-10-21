@@ -197,29 +197,44 @@ fn judge_all(data: &[u8], w: usize, h: usize, channels: usize, y0: usize, o: Opt
     let lo = (floor - o.slack).ceil().max(0.0) as u8;
     // [wide, narrow] × (judged_all, inside_all, judged_non_gui, inside_non_gui)
     let mut counts = [[0usize; 4]; 2];
+    // One straight loop per column segment: the narrow columns are a prefix of
+    // the left margin and a suffix of the right one, so each segment adds to a
+    // fixed set of counters and no pixel needs a membership test. `gui_colour`
+    // is evaluated only where its necessary condition holds (near-grey, or the
+    // tooltip fill's red/blue window).
+    let segment = |row: &[u8], hi: u8| -> (u32, u32, u32, u32) {
+        let (mut judged, mut inside_all, mut non_gui, mut inside_non_gui) = (0u32, 0u32, 0u32, 0u32);
+        for c in row.chunks_exact(channels) {
+            let (r, g, b) = (c[0], c[1], c[2]);
+            // Non-short-circuit `&`/`|`: straight-line byte tests, no branch per pixel.
+            let inside = ((r >= lo) & (r <= hi) & (g >= lo) & (g <= hi) & (b >= lo) & (b <= hi)) as u32;
+            let spread = r.max(g).max(b) - r.min(g).min(b);
+            let near = (spread <= 12) | ((r.abs_diff(16) <= 8) & (g <= 8) & (b.abs_diff(16) <= 8));
+            let gui = near && gui_colour(c);
+            judged += 1;
+            inside_all += inside;
+            non_gui += !gui as u32;
+            inside_non_gui += inside & (!gui as u32);
+        }
+        (judged, inside_all, non_gui, inside_non_gui)
+    };
+    let mut add = |sets: &[usize], (judged, inside_all, non_gui, inside_non_gui): (u32, u32, u32, u32)| {
+        for &set in sets {
+            counts[set][0] += judged as usize;
+            counts[set][1] += inside_all as usize;
+            counts[set][2] += non_gui as usize;
+            counts[set][3] += inside_non_gui as usize;
+        }
+    };
     for y in y0..h {
         let (bias, inverse) = row_transform(y, h);
         let hi = (bias + 255.0 / inverse + o.slack).floor().min(255.0) as u8;
         let row = &data[y * w * channels..(y + 1) * w * channels];
-        let mut visit = |x: usize, in_narrow: bool| {
-            let c = &row[x * channels..x * channels + 3];
-            let inside = c.iter().all(|&v| v >= lo && v <= hi) as usize;
-            let gui = gui_colour(c);
-            for set in counts.iter_mut().take(if in_narrow { 2 } else { 1 }) {
-                set[0] += 1;
-                set[1] += inside;
-                if !gui {
-                    set[2] += 1;
-                    set[3] += inside;
-                }
-            }
-        };
-        for x in 0..wide {
-            visit(x, x < narrow);
-        }
-        for x in w - wide..w {
-            visit(x, x >= w - narrow);
-        }
+        let px = |a: usize, b: usize| &row[a * channels..b * channels];
+        add(&[0, 1], segment(px(0, narrow), hi));
+        add(&[0], segment(px(narrow, wide), hi));
+        add(&[0], segment(px(w - wide, w - narrow), hi));
+        add(&[0, 1], segment(px(w - narrow, w), hi));
     }
     let mut best = 0.0_f64;
     for (set, margin) in [(0usize, wide), (1, narrow)] {

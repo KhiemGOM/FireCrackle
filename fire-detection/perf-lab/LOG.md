@@ -282,6 +282,79 @@ No-fire stage profile, 1440p fire segment →1080p (`results/round7`, per frame 
 **The CNN's cost is the CPU resize, not the GPU**: 6.3 views per frame × 7.7 ms. A pool of
 2/4/12 DirectML sessions changed nothing (91 → 87–89 fps; identical decisions) — rejected.
 
+### E12. Round 8 (`results/round8`, commit "Exact savings in both scans…"): target reached
+
+Exact changes (all decision vectors unchanged, core + no_fire_cnn tests pass): hoisted HUD
+piece templates with a heart-cell memo across row hypotheses; per-row LUT unveil; integer
+orange-mask bounds proven equal to the float rule for every byte triple; the resize walks
+contiguous spans with integer accumulators (same taps, same rounding).
+
+| Scan, 1440p fire segment, NVDEC yuv420p pipe, pruning on, app load present | fps |
+|---|---:|
+| first-person (app baseline 33.8) | **130.3 / 130.2** |
+| no-fire →1080p (app baseline 37.0) | **120.0 / 114.3** |
+| first-person 1080p V03 (app decoder) | 130.6 |
+| no-fire 1080p V03 (app decoder) | 127.7 |
+
+Thread-cycle profile (CPU per call, independent of contention), 1440p fire segment:
+first-person `gui_detect` 119 Mcyc per GUI frame (interactions 35 — of which tooltips 25,
+panel search ~10), `pov.veil` 25.6 Mcyc, `raw_silhouette` 18, screen confirmation 14,
+masked hard/soft 13 each. No-fire: `nf.resize` 9.5–10.4 Mcyc per view (104–114 Gcyc total,
+largest CPU item), `nf.infer` 1.5 Mcyc CPU but **4.9–5.3 ms wall** per view — the GPU
+session is held ~100 % of wall time (11,011 calls × 1.36 ms ≈ the 15 s run), so the no-fire
+scan is now bound by the serialised GPU session, not by CPU (≈ 5 of 12 workers busy).
+
+### E13. Round 9 (`results/round9`): hybrid CPU+GPU inference — rejected; vectorised veil — reverted
+
+- Hybrid pool (GPU session + 4 or 11 CPU sessions taking views when the GPU is busy):
+  106.0 → 108.5 / 108.3 fps, within noise; CPU sessions cost 8–9 Mcyc per view, so they
+  barely relieve the GPU queue. Decisions identical here, but the scheme is not exact in
+  principle (CPU/GPU scores may differ within 1e-4). Rejected.
+- A byte-arithmetic rewrite of the veil pass was *slower* (25.6 → 39–42 Mcyc per frame:
+  per-pixel membership branches); reverted to the committed single-pass version, then
+  rewritten as four branch-free column segments (round 10).
+- Tooltip rim predicate in saturating byte arithmetic: 24.7 → 21–22 Mcyc per frame (exact).
+- First-person 1440p fire segment: 134.7 / 124.7 fps.
+
+### E14. Round 10 (`results/round10`): uint8 input, fp16, orange-sum shortcut, segment veil
+
+| No-fire, 1440p fire segment | fps | clears | decision diffs |
+|---|---:|---|---|
+| float32 model (reference) | 99.9 | 237 | — |
+| **uint8-input model** (Cast inside the graph; 150 KB upload per view) | 106.8 | 237 | 0 |
+| fp16 internals (float32 I/O) on DirectML | 101.0 | 239 | **2** (1080p V03: 0) |
+
+fp16 is not faster on DirectML here and moves decisions: rejected. uint8 input is exact
+and a small gain. The orange-pixel-sum shortcut before dilation/BFS is exact but rarely
+fires on fire-rich frames (no measurable change). The branch-free segment-loop veil is
+exact; its single-thread cost is measured in E15.
+
+### E15. Single-thread micro profiles (`perf-lab micro`, `results/micro`), uncontended CPU cycles
+
+First-person, 120 frames (stride 15) of the 1440p fire segment, pruning on: 140 Mcyc per
+frame; `gui_detect` 88 Mcyc per GUI frame (interactions 25, of which tooltips 17 and panel
+search 7), `pov.veil` 31, `raw_silhouette` 11, screen confirmation 12, masked hard/soft
+10 each. No-fire: 209 Mcyc per frame, of which `nf.resize` 112 (5.9 views per frame at
+19 Mcyc), `nf.veil` 17, fragments 16 + 7, unveil 11.
+
+Resize micro-benchmark (full view / tile, Mcyc): committed spanned i64 version 11.8 / 4.5;
+a split-coefficient i32 variant meant to vectorise was **28.9 / 9.9 — rejected**.
+
+### E16. No-fire view order (exact): the big remaining GPU lever
+
+A frame clears only if every view of every pass clears, so the order in which the nine
+raw and nine unveiled views are scored cannot change a decision, only when a rejected frame
+stops. `perf-lab views` scored all views without early exit on 1,200 sampled frames from
+four segments (only frames the rules would send to the model count); a greedy cost-aware
+planner (`plan_view_order.py`) then chose:
+
+`raw:full, raw:t0_428, unv:t1280_0, raw:t427_0, raw:t1280_0, raw:t427_428, raw:t1280_428,
+raw:t853_0, raw:t0_0, raw:t853_428, unv:…`
+
+Expected views per consulted frame: 1440p fire segment 6.67 → 3.17 (veiled frames used to
+clear all nine raw views and then fail on the unveiled top-right tile); 1080p V03 1.04 →
+1.04; 1440p 20 s 1.22 → 1.28; 1440p 7230 s 1.07 → 1.02. Measured in E17.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on

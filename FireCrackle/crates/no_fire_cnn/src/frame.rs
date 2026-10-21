@@ -47,27 +47,55 @@ pub fn clear_frame_with(
     cancel: &AtomicBool,
     mut score: impl FnMut(&[u8]) -> Result<f32, String>,
 ) -> Result<bool, String> {
-    for rgb in std::iter::once(raw).chain(auto) {
+    let frames = [Some(raw), auto];
+    for rgb in frames.iter().flatten() {
         if rgb.len() != 1920 * 1080 * 3 {
             return Err("Invalid AI video frame".into());
         }
+    }
+    let boxes = crate::tile_boxes();
+    // A frame clears only if every view of every pass clears, so the order in
+    // which views are scored cannot change the result — only how soon a
+    // rejected frame stops. `set_view_order` installs a measured cheaper order.
+    for (ordinal, &(pass, tile)) in view_order().iter().enumerate() {
+        let Some(rgb) = frames[pass as usize] else {
+            continue;
+        };
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(false);
+        }
         let cropped = &rgb[1920 * 12 * 3..];
-        for rect in crate::tile_boxes() {
-            if cancel.load(Ordering::Relaxed) {
-                return Ok(false);
-            }
-            let timer = fire_core::profile::start(20);
-            let view = crate::resize(cropped, 1920, rect);
-            drop(timer);
-            let timer = fire_core::profile::start(21);
-            let clear = crate::clear_score(score(&view)?);
-            drop(timer);
-            if !clear {
-                return Ok(false);
-            }
+        let timer = fire_core::profile::start(20);
+        let view = crate::resize(cropped, 1920, boxes[tile as usize]);
+        drop(timer);
+        let timer = fire_core::profile::start(21);
+        let clear = crate::clear_score(score(&view)?);
+        drop(timer);
+        if !clear {
+            fire_core::profile::count(fire_core::profile::NF_REJECT_BASE + ordinal.min(17), 1);
+            return Ok(false);
         }
     }
     Ok(true)
+}
+
+/// (pass, tile) pairs: pass 0 = raw frame, 1 = unveiled frame; tile indexes `tile_boxes()`.
+static VIEW_ORDER: std::sync::OnceLock<Vec<(u8, u8)>> = std::sync::OnceLock::new();
+fn view_order() -> &'static [(u8, u8)] {
+    VIEW_ORDER.get_or_init(default_view_order)
+}
+fn default_view_order() -> Vec<(u8, u8)> {
+    (0..2u8).flat_map(|pass| (0..9u8).map(move |tile| (pass, tile))).collect()
+}
+/// Install the view order for this process (perf lab). Must contain every
+/// (pass, tile) pair exactly once; returns false if the order was already fixed.
+pub fn set_view_order(order: Vec<(u8, u8)>) -> Result<bool, String> {
+    let mut sorted = order.clone();
+    sorted.sort_unstable();
+    if sorted != default_view_order() {
+        return Err("view order must contain every (pass, tile) pair exactly once".into());
+    }
+    Ok(VIEW_ORDER.set(order).is_ok())
 }
 
 /// Perf-lab variant: all nine views of a frame (then of its unveiled copy) are

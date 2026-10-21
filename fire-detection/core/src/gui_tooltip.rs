@@ -34,15 +34,17 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
     // comparisons as `rim`; the run scan below reads the row's flags.
     let mut rim_row = vec![0u8; w];
     for y in 0..h {
+        // `b - r >= 12` on bytes is `b.saturating_sub(r) >= 12` (a negative
+        // difference saturates to 0, which also fails), so the whole predicate
+        // is unsigned byte arithmetic the compiler can vectorise.
         for (flag, p) in rim_row.iter_mut().zip(rgb[y * w * 3..(y + 1) * w * 3].chunks_exact(3)) {
-            *flag = u8::from(
-                p[1] <= 35
-                    && p[2] >= 35
-                    && p[2] <= 150
-                    && i16::from(p[2]) - i16::from(p[0]) >= 12
-                    && i16::from(p[2]) - i16::from(p[1]) >= 24
-                    && i16::from(p[0]) - i16::from(p[1]) >= 5,
-            );
+            let (r, g, b) = (p[0], p[1], p[2]);
+            *flag = (g <= 35) as u8
+                & (b >= 35) as u8
+                & (b <= 150) as u8
+                & (b.saturating_sub(r) >= 12) as u8
+                & (b.saturating_sub(g) >= 24) as u8
+                & (r.saturating_sub(g) >= 5) as u8;
         }
         let mut x = 0;
         while x < w {

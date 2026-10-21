@@ -134,6 +134,24 @@ fn candidate_prepared_inner(
         cnn.map_or_else(|| infer(rgb, auto), Ok)
     }
 }
+/// Perf-lab: would the frozen policy consult the model for this frame? Mirrors the
+/// rule stages of `candidate_prepared_inner` without running the model or GUI.
+pub fn cnn_needed(rgb: &[u8], w: usize, h: usize) -> Result<Option<bool>, String> {
+    if w != 1920 || h != 1080 || rgb.len() != w * h * 3 {
+        return Err("AI no-fire requires native 1920×1080 RGB".into());
+    }
+    let raw = fragments::mask(rgb, w, h);
+    let mut rules = !fragments::reaches(&raw, w, h, 4, 2198);
+    let (used, share) = detect_pixels(rgb, w, h, 3, 12, Options::default())?;
+    if !used && share >= 0.80 {
+        return Ok(None);
+    }
+    if used {
+        let fixed = unveil_rgb(rgb, w, h)?;
+        rules &= !fragments::reaches(&fragments::mask(&fixed, w, h), w, h, 4, 2198);
+    }
+    Ok(Some(!rules))
+}
 /// Material-patches-v3, matching translucency.py: sampled 48px patches, conservative veto.
 pub fn material(rgb: &[u8], world: &[u8], w: usize, h: usize) -> bool {
     let (sw, sh) = (w.div_ceil(3), h.div_ceil(3));

@@ -81,6 +81,9 @@ fn run() -> Result<(), String> {
         "bench" => bench(&args),
         "eval" => eval(&args),
         "yuvcheck" => yuvcheck(&args),
+        "micro" => micro(&args),
+        "resize" => resize_bench(&args),
+        "views" => views(&args),
         _ => Err(USAGE.into()),
     }
 }
@@ -121,6 +124,12 @@ struct Setup {
     batch: bool,
     /// `sessions=K`: number of model sessions shared by the workers (default 1, as in the app).
     sessions: usize,
+    /// `cpu_sessions=N`: extra CPU sessions used when the GPU session(s) are busy.
+    cpu_sessions: usize,
+    /// `extra_provider=dml1|cuda|...`: backend of the extra sessions (default: same as the first).
+    extra_provider: Option<String>,
+    /// `input=u8`: feed uint8 views (needs the u8-input model variant).
+    input_u8: bool,
     ffmpeg: PathBuf,
     runtime: PathBuf,
     model: Vec<u8>,
@@ -175,6 +184,9 @@ impl Setup {
             provider: args.get("provider").map(str::to_string),
             batch: args.get("batch") == Some("1"),
             sessions: args.num("sessions", 1)?,
+            cpu_sessions: args.num("cpu_sessions", 0)?,
+            extra_provider: args.get("extra_provider").map(str::to_string),
+            input_u8: args.get("input") == Some("u8"),
             ffmpeg,
             runtime,
             model,
@@ -337,10 +349,28 @@ fn pass(
             })?);
             // `sessions=K`: K-1 additional DirectML sessions so views from different
             // workers can be in flight at once instead of queueing on one lock.
+            let extra_provider = setup.extra_provider.as_deref().or(setup.provider.as_deref()).unwrap_or("dml");
             let extra: Vec<Mutex<Engine>> = (1..setup.sessions)
-                .map(|_| Engine::load_provider(&setup.runtime, &setup.model, setup.provider.as_deref().unwrap_or("dml"), 2).map(Mutex::new))
+                .map(|_| Engine::load_provider(&setup.runtime, &setup.model, extra_provider, 2).map(Mutex::new))
                 .collect::<Result<_, _>>()?;
-            let pool: Vec<&Mutex<Engine>> = std::iter::once(&engine).chain(extra.iter()).collect();
+            for e in &extra {
+                eprintln!("extra session: {}", e.lock().map_err(|_| "AI state unavailable")?.provider);
+            }
+            // `cpu_sessions=N`: CPU sessions that take a view whenever every GPU
+            // session is busy (hybrid; CPU and GPU scores agree within the app's
+            // own 1e-4 acceptance tolerance, decisions are compared, not assumed).
+            let cpu: Vec<Mutex<Engine>> = (0..setup.cpu_sessions)
+                .map(|_| Engine::load(&setup.runtime, &setup.model, false, 2).map(Mutex::new))
+                .collect::<Result<_, _>>()?;
+            let pool: Vec<&Mutex<Engine>> = std::iter::once(&engine).chain(extra.iter()).chain(cpu.iter()).collect();
+            let u8_input = setup.input_u8;
+            let score = move |session: &mut Engine, view: &[u8]| {
+                if u8_input {
+                    session.score_view_u8(view)
+                } else {
+                    session.score_view(view)
+                }
+            };
             // Provider selection is a one-time cost the app also pays once per process.
             started = Instant::now();
             let batched = setup.batch;
@@ -358,14 +388,15 @@ fn pass(
                             no_fire_cnn::clear_frame_batched(raw, auto, cancel, |views, count| {
                                 engine.lock().map_err(|_| "AI state unavailable")?.score_batch(views, count)
                             })
-                        } else if pool.len() > 1 {
+                        } else if pool.len() > 1 || u8_input {
                             no_fire_cnn::clear_frame_with(raw, auto, cancel, |view| {
                                 for session in &pool {
                                     if let Ok(mut session) = session.try_lock() {
-                                        return session.score_view(view);
+                                        return score(&mut session, view);
                                     }
                                 }
-                                pool[0].lock().map_err(|_| "AI state unavailable")?.score_view(view)
+                                let mut guard = pool[0].lock().map_err(|_| "AI state unavailable")?;
+                                score(&mut guard, view)
                             })
                         } else {
                             Engine::clear_frame_shared(&engine, &setup.runtime, &setup.model, raw, auto, cancel)
@@ -414,8 +445,19 @@ fn write_rows(path: &str, tool: &str, rows: &[(u32, Option<u8>)], stride: u32) -
 
 fn bench(args: &Args) -> Result<(), String> {
     let setup = Setup::new(args)?;
-    // Experiment switches that live inside fire_core.
+    // Experiment switches that live inside fire_core / no_fire_cnn.
     let scale_prune = args.get("scale_prune") == Some("1");
+    if let Some(order) = args.get("view_order") {
+        // "0:5,0:3,1:4,..." as (pass, tile) pairs
+        let pairs: Vec<(u8, u8)> = order
+            .split(',')
+            .map(|p| {
+                let (a, b) = p.split_once(':').ok_or("view_order=pass:tile,...")?;
+                Ok((a.parse().map_err(|_| "bad pass")?, b.parse().map_err(|_| "bad tile")?))
+            })
+            .collect::<Result<_, String>>()?;
+        no_fire_cnn::set_view_order(pairs)?;
+    }
     fire_core::gui_interaction::SCALE_PRUNE.store(scale_prune, std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 600)?;
@@ -448,6 +490,7 @@ fn bench(args: &Args) -> Result<(), String> {
                 "ffmpeg": setup.ffmpeg.display().to_string(), "resize_in_decoder": setup.resize_in_decoder,
                 "checksum": setup.checksum, "provider": setup.provider, "batch": setup.batch,
                 "pixfmt": setup.pixfmt, "scale_prune": scale_prune, "sessions": setup.sessions,
+                "cpu_sessions": setup.cpu_sessions, "input_u8": setup.input_u8, "view_order": args.get("view_order"),
                 "model": args.get("model"),
                 "native": [setup.w, setup.h], "scan": [w, h], "workers": setup.workers,
                 "start": start, "frames": frames, "repeat": repeat,
@@ -485,6 +528,168 @@ fn eval(args: &Args) -> Result<(), String> {
             "accepted": rows.iter().filter(|r| r.1.is_some()).count(),
         })
     );
+    Ok(())
+}
+
+/// Single-threaded stage micro-benchmark: decode `frames` frames into memory,
+/// then run the production per-frame code `repeat` times on one thread and
+/// report thread-CPU cycles per stage. Cycle counts on one uncontended thread
+/// are far steadier than the contended wall times of a full scan.
+fn micro(args: &Args) -> Result<(), String> {
+    use std::io::Read;
+    let setup = Setup::new(args)?;
+    fire_core::gui_interaction::SCALE_PRUNE.store(args.get("scale_prune") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    let start: f64 = args.num("start", 0.0)?;
+    let frames: u32 = args.num("frames", 24)?;
+    let repeat: u32 = args.num("repeat", 3)?;
+    let stride: u32 = args.num("stride", 1)?;
+    let (w, h) = setup.scan_size();
+    let (mut pipe, mut child, drain) = setup.spawn(start, stride, frames)?;
+    let mut data = vec![0u8; w * h * 3 * frames as usize];
+    pipe.read_exact(&mut data).map_err(|e| e.to_string())?;
+    if !child.wait().map_err(|e| e.to_string())?.success() {
+        return Err(drain.join().unwrap_or_default());
+    }
+    let cancel = AtomicBool::new(false);
+    fire_core::profile::reset();
+    let started = Instant::now();
+    let cycles0 = fire_core::profile::thread_cycles();
+    match setup.tool.as_str() {
+        "pov" => {
+            let matcher = PovMatcher::new(&setup.sheet, studio_core::gui::pov_textures()?, w, h)?;
+            let mut hint = GuiFitHint::default();
+            for _ in 0..repeat {
+                for frame in data.chunks_exact(w * h * 3) {
+                    matcher.match_frame_with_hint(frame, &mut hint)?;
+                }
+            }
+        }
+        "nofire" => {
+            let detector = GuiDetector::new(setup.no_fire_textures()?, GuiOptions::default())?;
+            detector.prepare(w, h);
+            let mut engine = match &setup.provider {
+                Some(provider) => Engine::load_provider(&setup.runtime, &setup.model, provider, 2)?,
+                None => Engine::auto(&setup.runtime, &setup.model, &cancel)?,
+            };
+            let mut hint = GuiFitHint::default();
+            for _ in 0..repeat {
+                for frame in data.chunks_exact(w * h * 3) {
+                    policy::candidate_prepared_with_hint(frame, w, h, &detector, &mut hint, |raw, auto| {
+                        engine.clear_frame(raw, auto, &cancel)
+                    })?;
+                }
+            }
+        }
+        other => return Err(format!("unknown tool {other}")),
+    }
+    let total_cycles = fire_core::profile::thread_cycles() - cycles0;
+    let seconds = started.elapsed().as_secs_f64();
+    let per_frame = (frames * repeat) as f64;
+    let cycles: std::collections::HashMap<_, _> = fire_core::profile::cycles().into_iter().map(|(s, _, g)| (s, g)).collect();
+    let mut stages: Vec<_> = fire_core::profile::snapshot()
+        .into_iter()
+        .map(|(stage, calls, ms)| (stage, calls, ms, cycles.get(stage).copied().unwrap_or(0.0)))
+        .collect();
+    stages.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
+    println!(
+        "{}",
+        serde_json::json!({
+            "tool": setup.tool, "scan": [w, h], "frames": frames, "repeat": repeat, "seconds": seconds,
+            "ms_per_frame": seconds * 1000.0 / per_frame, "mcycles_per_frame": total_cycles as f64 / 1e6 / per_frame,
+            "stages": stages.iter().map(|(s, calls, ms, g)| serde_json::json!({
+                "stage": s, "calls": calls, "ms_per_call": ms / *calls as f64, "mcycles_per_call": g * 1e3 / *calls as f64,
+                "mcycles_per_frame": g * 1e3 / per_frame })).collect::<Vec<_>>(),
+            "counters": fire_core::profile::counters().into_iter().collect::<std::collections::BTreeMap<_, _>>(),
+        })
+    );
+    Ok(())
+}
+
+/// Time `no_fire_cnn::resize` against the committed reference on real 1080p
+/// frames (full view and one tile), checking the outputs are identical.
+fn resize_bench(args: &Args) -> Result<(), String> {
+    use std::io::Read;
+    let setup = Setup::new(args)?;
+    let start: f64 = args.num("start", 0.0)?;
+    let frames: u32 = args.num("frames", 8)?;
+    let repeat: u32 = args.num("repeat", 10)?;
+    let (w, h) = setup.scan_size();
+    if (w, h) != (1920, 1080) {
+        return Err("resize bench needs 1920x1080 frames (use scale=1920x1080)".into());
+    }
+    let (mut pipe, mut child, drain) = setup.spawn(start, 1, frames)?;
+    let mut data = vec![0u8; w * h * 3 * frames as usize];
+    pipe.read_exact(&mut data).map_err(|e| e.to_string())?;
+    if !child.wait().map_err(|e| e.to_string())?.success() {
+        return Err(drain.join().unwrap_or_default());
+    }
+    let rects = no_fire_cnn::tile_boxes();
+    let mut report = serde_json::Map::new();
+    for (name, rect) in [("full", rects[0]), ("tile", rects[1])] {
+        let mut mismatches = 0usize;
+        let mut cycles = [0u64; 2];
+        for frame in data.chunks_exact(w * h * 3) {
+            let cropped = &frame[1920 * 12 * 3..];
+            let reference = no_fire_cnn::resize_reference(cropped, 1920, rect);
+            let fast = no_fire_cnn::resize(cropped, 1920, rect);
+            mismatches += usize::from(reference != fast);
+            for _ in 0..repeat {
+                let c0 = fire_core::profile::thread_cycles();
+                std::hint::black_box(no_fire_cnn::resize_reference(cropped, 1920, rect));
+                let c1 = fire_core::profile::thread_cycles();
+                std::hint::black_box(no_fire_cnn::resize(cropped, 1920, rect));
+                let c2 = fire_core::profile::thread_cycles();
+                cycles[0] += c1 - c0;
+                cycles[1] += c2 - c1;
+            }
+        }
+        let n = (frames * repeat) as f64;
+        report.insert(name.into(), serde_json::json!({"mismatching_frames": mismatches,
+            "reference_mcycles": cycles[0] as f64 / 1e6 / n, "fast_mcycles": cycles[1] as f64 / 1e6 / n}));
+    }
+    println!("{}", serde_json::Value::Object(report));
+    Ok(())
+}
+
+/// For a strided sample of frames, score every view of the raw frame and (when
+/// veiled) of the unveiled frame without early exit, and write one line per
+/// frame: which views would reject it. Any view order gives the same frame
+/// decision, so this is the data for choosing a cheaper order.
+fn views(args: &Args) -> Result<(), String> {
+    use std::io::Read;
+    let setup = Setup::new(args)?;
+    let start: f64 = args.num("start", 0.0)?;
+    let frames: u32 = args.num("frames", 120)?;
+    let stride: u32 = args.num("stride", 15)?;
+    let (w, h) = setup.scan_size();
+    let (mut pipe, mut child, drain) = setup.spawn(start, stride, frames)?;
+    let mut data = vec![0u8; w * h * 3 * frames as usize];
+    pipe.read_exact(&mut data).map_err(|e| e.to_string())?;
+    if !child.wait().map_err(|e| e.to_string())?.success() {
+        return Err(drain.join().unwrap_or_default());
+    }
+    let cancel = AtomicBool::new(false);
+    let mut engine = match &setup.provider {
+        Some(provider) => Engine::load_provider(&setup.runtime, &setup.model, provider, 2)?,
+        None => Engine::auto(&setup.runtime, &setup.model, &cancel)?,
+    };
+    let mut out = std::io::BufWriter::new(std::fs::File::create(args.need("out")?).map_err(|e| e.to_string())?);
+    for (i, frame) in data.chunks_exact(w * h * 3).enumerate() {
+        let (veiled, _) = fire_core::veil::detect_pixels(frame, w, h, 3, 12, fire_core::veil::Options::default())?;
+        let cnn_needed = policy::cnn_needed(frame, w, h)?;
+        let unveiled = if veiled { Some(fire_core::veil::unveil_rgb(frame, w, h)?) } else { None };
+        let mut scores = Vec::new();
+        for rgb in std::iter::once(frame).chain(unveiled.as_deref()) {
+            let cropped = &rgb[1920 * 12 * 3..];
+            for rect in no_fire_cnn::tile_boxes() {
+                let view = no_fire_cnn::resize(cropped, 1920, rect);
+                scores.push(engine.score_view(&view)?);
+            }
+        }
+        let rejects: Vec<bool> = scores.iter().map(|&s| !no_fire_cnn::clear_score(s)).collect();
+        writeln!(out, "{}", serde_json::json!({"n": i as u32 * stride, "veiled": veiled, "cnn_needed": cnn_needed, "rejects": rejects, "scores": scores}))
+            .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

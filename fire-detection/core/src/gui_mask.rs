@@ -1353,6 +1353,10 @@ pub struct GuiTimings {
     pub fit_ms: f64,
     pub pieces_ms: f64,
     pub text_ms: f64,
+    /// Thread CPU cycles of the same three stages (perf lab).
+    pub fit_cycles: u64,
+    pub pieces_cycles: u64,
+    pub text_cycles: u64,
 }
 impl GuiDetector {
     pub fn new(textures: GuiTextures, options: GuiOptions) -> Result<Self, String> {
@@ -1453,9 +1457,9 @@ impl GuiDetector {
             drop(timer);
             Ok(mask)
         });
-        crate::profile::record_ms(6, times.fit_ms);
-        crate::profile::record_ms(7, times.pieces_ms);
-        crate::profile::record_ms(8, times.text_ms);
+        crate::profile::record(6, times.fit_ms, times.fit_cycles);
+        crate::profile::record(7, times.pieces_ms, times.pieces_cycles);
+        crate::profile::record(8, times.text_ms, times.text_cycles);
         match &result {
             Ok(mask) if mask.fit.is_none() => hint.reset(),
             Ok(_) => {}
@@ -1833,6 +1837,7 @@ fn detect_prepared(
     mut hint: Option<&mut GuiFitHint>,
 ) -> Result<GuiMask, String> {
     let begin = std::time::Instant::now();
+    let cycles = crate::profile::thread_cycles();
     if w == 0 || h == 0 || frame.len() != w * h * 3 {
         return Err(format!(
             "frame must be {w}x{h} RGB24 ({} bytes), got {}",
@@ -2109,8 +2114,10 @@ fn detect_prepared(
     mask.reliable = true;
     if let Some(t) = times.as_deref_mut() {
         t.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
+        t.fit_cycles = crate::profile::thread_cycles() - cycles;
     }
     let begin = std::time::Instant::now();
+    let cycles = crate::profile::thread_cycles();
 
     // --- the pieces, each confirmed against its texture at its place
     let mut fitted_hotbar = hotbar.clone();
@@ -2543,8 +2550,10 @@ fn detect_prepared(
     }
     if let Some(t) = times.as_deref_mut() {
         t.pieces_ms = begin.elapsed().as_secs_f64() * 1000.;
+        t.pieces_cycles = crate::profile::thread_cycles() - cycles;
     }
     let begin = std::time::Instant::now();
+    let cycles = crate::profile::thread_cycles();
     detect_text(
         frame,
         w,
@@ -2566,6 +2575,7 @@ fn detect_prepared(
     }
     if let Some(t) = times {
         t.text_ms = begin.elapsed().as_secs_f64() * 1000.;
+        t.text_cycles = crate::profile::thread_cycles() - cycles;
     }
     Ok(mask)
 }
