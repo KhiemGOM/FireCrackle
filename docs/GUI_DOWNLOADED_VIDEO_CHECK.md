@@ -6,6 +6,35 @@ and fixed-control agreement85% (90%). These are engineering settings, not
 Minecraft constants or confidence probabilities. The owner explicitly requested
 more lenient source-template matching and a check on this downloaded video.
 
+## Continuous ten-minute follow-up: false positives found
+
+The owner's subsequent full-frame check supersedes any implication that the
+sampled zero false detections establishes a zero-FP production policy.
+Every original frame0–35999 (PTS0.000–599.983) was scanned with unchanged
+`320fc2a` settings at native2560x1440 RGB24. All36000 output identities and PTS
+were verified. The isolated run took722.77sec, about49.8fps on this machine
+while generating review images; this is not an isolated detector speed benchmark.
+
+The3497 detected frames form46 raw contiguous candidates. Visual inspection
+of every candidate midpoint finds40 visible interaction GUIs and six ordinary
+snowy-world false candidates: frames1490,1643–1647,1811,1813–1816,2206–2207,
+and2411 (14 falsely accepted frames in those intervals). The original app's
+cached scan recorded no GUI on those frames. This is an observed false-positive
+failure, not a harmless unknown boundary or a claim of perfect recall elsewhere.
+
+The reported chest frames5069 and5082 now lie inside one continuous
+5064–5120 candidate, with no visible GUI in the inspected after-frame5121.
+That local fragmentation improved; the policy still needs work on small false
+panel matches. Do not silently raise/merge boundaries to conceal those candidates.
+No thresholds changed during this continuous check.
+
+Private `.board/gui-ten-minute-review/` preserves the native per-frame outputs,
+source/video hashes, timestamp verification, all46 original before/after GIFs,
+eight numbered animated gallery sheets and midpoint inspection sheets. Every
+raw candidate is included; none of the false candidates was removed from the
+owner's chat gallery. This is not full ground-truth annotation of every GUI
+open/closed frame, so it does not establish full-video recall.
+
 ## Real-video sample
 
 `misc/dream/recovered-video.mkv` is a downloaded YouTube recording:2560x1440,
