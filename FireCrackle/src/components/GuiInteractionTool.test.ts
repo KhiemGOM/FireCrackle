@@ -35,12 +35,31 @@ it('shows image-only large cards in aim mode, and clicks open the original GUI i
   find(root,n=>n.props.children==='Before')[0].props.onClick();root=render();
   expect(find(root,n=>n.props.large===true)[0].props.display).toBe('before');
 });
-it('sorts only when ranking completes and can restore chronological order',()=>{
-  let root=render();find(root,n=>n.props.children==='Aim jumps')[0].props.onClick();
-  const key=JSON.stringify(['video',100,['20-39','50-59']]);
-  hooks.values[7]={key,scores:new Map([['20-39',.1],['50-59',.9]]),processed:1,done:false};
-  root=render();expect(find(root,n=>n.props.large===true).map(n=>n.props.first)).toEqual([20,50]);
-  hooks.values[7].done=true;root=render();expect(find(root,n=>n.props.large===true).map(n=>n.props.first)).toEqual([50,20]);
+const firsts=(root:any)=>find(root,n=>n.props.large===true).map(n=>n.props.first);
+const aim=()=>{const root=render();find(root,n=>n.props.children==='Aim jumps')[0].props.onClick();return root;};
+it('orders by the scores known so far while ranking is still running, and can restore chronological order',()=>{
+  let root=aim();
+  hooks.values[7]={video:'video',key:'sealed',scores:new Map([['20-39',.1],['50-59',.9]]),processed:1,done:false};
+  root=render();expect(firsts(root)).toEqual([50,20]);
   find(root,n=>n.type==='select')[0].props.onChange({target:{value:'time'}});root=render();
-  expect(find(root,n=>n.props.large===true).map(n=>n.props.first)).toEqual([20,50]);
+  expect(firsts(root)).toEqual([20,50]);
+});
+it('a newly arrived range joins after the scored ones, then moves into place when scored, without reverting',()=>{
+  let root=aim();
+  hooks.values[0]={state:'running',total:100,processed:90,ranges:[...ranges.slice(0,2),{first:80,last:89,menu:false}]};
+  hooks.values[7]={video:'video',key:'older-key',scores:new Map([['20-39',.1],['50-59',.9]]),processed:2,done:false};
+  root=render();expect(firsts(root)).toEqual([50,20,80]);
+  hooks.values[7].scores.set('80-89',.5);root=render();expect(firsts(root)).toEqual([50,80,20]);
+});
+it('never applies scores computed for another video',()=>{
+  let root=aim();
+  hooks.values[7]={video:'other-video',key:'sealed',scores:new Map([['20-39',.1],['50-59',.9]]),processed:2,done:true};
+  root=render();expect(firsts(root)).toEqual([20,50]);
+});
+it('keeps video order when a preview failed to score (null) and when nothing is scored yet',()=>{
+  let root=aim();
+  hooks.values[7]={video:'video',key:'sealed',scores:new Map([['20-39',null],['50-59',null]]),processed:2,done:true};
+  root=render();expect(firsts(root)).toEqual([20,50]);
+  hooks.values[7]={video:'video',key:'sealed',scores:new Map(),processed:0,done:false};
+  root=render();expect(firsts(root)).toEqual([20,50]);
 });
