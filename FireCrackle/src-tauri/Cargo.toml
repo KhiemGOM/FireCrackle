@@ -1,6 +1,6 @@
 [package]
 name = "firecrackle"
-version = "0.4.2"
+version = "0.5.0"
 description = "Frame-by-frame Minecraft fire annotation and animation timing analysis"
 edition = "2024"
 

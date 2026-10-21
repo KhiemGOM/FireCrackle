@@ -1153,7 +1153,7 @@ version = "0.1.0"
 
 [[package]]
 name = "firecrackle"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "fire_core",
  "gtk",
