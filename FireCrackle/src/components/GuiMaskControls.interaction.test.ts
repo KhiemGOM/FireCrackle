@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import type { Backend } from "../lib/api";
-import type { GuiAnswer, GuiMaskReply } from "../lib/guiMask";
+import type { GuiAnswer, GuiMaskReply, GuiMaskFrame } from "../lib/guiMask";
 const hooks = vi.hoisted(() => ({ states: [] as any[], refs: [] as any[], effects: [] as any[], pending: [] as Array<() => void>, si: 0, ri: 0, ei: 0, dirty: false }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
@@ -66,6 +66,50 @@ it("runs under the stated GUI assumption without asking or saving confirmation",
   expect(text(tree)).toContain("10 Health");
   expect(tree.props.title).toContain("1.16.5");
   expect(tree.props.title).toContain("1.21.11");
+});
+
+it("uses one atomic request without issuing a separate pixel read", async () => {
+  backend.guiMaskFrame = vi.fn(async () => ({reply:REPLY, packed:new Uint8Array([0x11,0])}));
+  await settle();
+  expect(backend.guiMaskFrame).toHaveBeenCalledExactlyOnceWith(5);
+  expect(backend.guiMask).not.toHaveBeenCalled();
+  expect(backend.guiMaskPixels).not.toHaveBeenCalled();
+  expect(maskState.maskFrame).toBe(5);
+  expect(maskState.pixels?.length).toBe(8);
+});
+
+it("does not read legacy pixels after the frame changes or the tool turns off", async () => {
+  let resolve!: (reply:GuiMaskReply) => void;
+  backend.guiMask = vi.fn(() => new Promise<GuiMaskReply>(yes => {resolve=yes;}));
+  render(5);
+  render(6,false);
+  resolve(REPLY);
+  await settle(6,false);
+  expect(backend.guiMaskPixels).not.toHaveBeenCalled();
+  expect(maskState.busy).toBe(false);
+});
+
+it("abandons unmounted requests before fetching legacy pixels", async () => {
+  let resolve!: (reply:GuiMaskReply) => void;
+  backend.guiMask = vi.fn(() => new Promise<GuiMaskReply>(yes => {resolve=yes;}));
+  render();
+  hooks.effects.forEach(effect => effect.cleanup?.());
+  resolve(REPLY);
+  for(let i=0;i<6;i++)await Promise.resolve();
+  expect(backend.guiMaskPixels).not.toHaveBeenCalled();
+});
+
+it("keeps the current atomic result when an older frame completes later", async () => {
+  let old!: (result:{reply:GuiMaskReply;packed:Uint8Array}) => void;
+  backend.guiMaskFrame = vi.fn(frame => frame===5
+    ? new Promise<GuiMaskFrame>(resolve => {old=resolve;})
+    : Promise.resolve({reply:REPLY,packed:new Uint8Array([0x22,0])}));
+  render(5); await settle(6);
+  const currentPixels=maskState.pixels;
+  old({reply:REPLY,packed:new Uint8Array([0x11,0])});
+  await settle(6);
+  expect(maskState.maskFrame).toBe(6);
+  expect(maskState.pixels).toBe(currentPixels);
 });
 
 it("loads an independent neutral panel mask without claiming a reliable HUD", async () => {

@@ -5,7 +5,7 @@ import type { UiAction } from "./actions";
 import type { PhaseChart } from "./chart";
 import type { Label } from "./grid";
 import type { ThumbStatus } from "./thumbs";
-import type { GuiAnswer, GuiMaskReply } from "./guiMask";
+import { readGuiMaskFrame, type GuiAnswer, type GuiMaskReply, type GuiMaskFrame } from "./guiMask";
 import type { GuiScanStatus } from "./guiScan";
 
 export interface PickState {
@@ -122,7 +122,9 @@ export interface Backend {
   /** The per-video "vanilla 1.16.5 GUI?" answer (desktop app only). */
   guiAnswerGet?(): Promise<GuiAnswer | null>;
   guiAnswerSet?(answer: GuiAnswer): Promise<void>;
-  /** The GUI mask of a frame; refused unless the answer is "yes". Pixels come raw, one byte each. */
+  /** Atomic mask metadata and packed pixels from one analysis. */
+  guiMaskFrame?(frame: number): Promise<GuiMaskFrame>;
+  /** Legacy two-step mask APIs. */
   guiMask?(frame: number): Promise<GuiMaskReply>;
   guiMaskPixels?(frame: number): Promise<ArrayBuffer>;
   guiScanStart?(): Promise<GuiScanStatus>;
@@ -173,6 +175,7 @@ export async function createBackend(): Promise<Backend> {
     povApply: (id) => invoke<View>("pov_apply",{id}),
     guiAnswerGet: () => invoke<GuiAnswer | null>("gui_answer_get"),
     guiAnswerSet: (answer) => invoke<void>("gui_answer_set", { answer }),
+    guiMaskFrame: async (frame) => readGuiMaskFrame(await invoke<ArrayBuffer>("gui_mask_frame", { frame })),
     guiMask: (frame) => invoke<GuiMaskReply>("gui_mask", { frame }),
     guiMaskPixels: (frame) => invoke<ArrayBuffer>("gui_mask_pixels", { frame }),
     guiScanStart: () => invoke<GuiScanStatus>("gui_scan_start"),

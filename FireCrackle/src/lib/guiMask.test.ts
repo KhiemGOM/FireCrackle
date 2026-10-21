@@ -1,9 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, veilScreenEvidence, type GuiMaskReply } from "./guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, veilScreenEvidence, readGuiMaskFrame, type GuiMaskReply } from "./guiMask";
 
 const reply = (over: Partial<GuiMaskReply> = {}): GuiMaskReply => ({
   width: 4, height: 1, reliable: true, scale: 4.5, scaled_width: 427, scaled_height: 240, notes: [],
   pieces: [{ piece: "Hotbar", count: 1 }, { piece: "Health", count: 10 }, { piece: "HotbarItem", count: 9 }], ...over,
+});
+
+function packet(metadata: GuiMaskReply, pixels: number[]) {
+  const json = new TextEncoder().encode(JSON.stringify(metadata));
+  const bytes = new Uint8Array(4 + json.length + pixels.length);
+  new DataView(bytes.buffer).setUint32(0, json.length, true);
+  bytes.set(json, 4); bytes.set(pixels, 4 + json.length);
+  return bytes.buffer;
+}
+
+it("reads independent atomic masks without a latest-frame lookup", () => {
+  const first = readGuiMaskFrame(packet(reply(), [0x11, 0x22, 0, 0]));
+  const second = readGuiMaskFrame(packet(reply({width: 1}), [0x33]));
+  expect([...first.packed!]).toEqual([0x11, 0x22, 0, 0]);
+  expect([...second.packed!]).toEqual([0x33]);
+  expect(first.reply.width).toBe(4);
+  expect(readGuiMaskFrame(packet(reply({reliable:false,mask_available:false}), [])).packed).toBeNull();
+});
+
+it("rejects truncated or mismatched atomic mask packets", () => {
+  for (const bytes of [new ArrayBuffer(2), new Uint8Array([99,0,0,0]).buffer,
+    packet(reply(), [0x11]), packet(reply({width:-4}), []),
+    packet(reply({reliable:false,mask_available:false}), [0])]) {
+    expect(() => readGuiMaskFrame(bytes)).toThrow();
+  }
 });
 
 describe("the GUI compatibility assumption", () => {

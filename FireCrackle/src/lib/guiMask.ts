@@ -18,6 +18,22 @@ export interface GuiMaskReply {
   pieces: Array<{ piece: string; count: number }>;
 }
 
+export interface GuiMaskFrame { reply: GuiMaskReply; packed: Uint8Array | null }
+
+/** One binary IPC reply: little-endian JSON length, JSON metadata, packed mask. */
+export function readGuiMaskFrame(bytes: ArrayBuffer): GuiMaskFrame {
+  if (bytes.byteLength < 4) throw new Error("GUI mask response is truncated");
+  const size = new DataView(bytes).getUint32(0, true);
+  if (size > bytes.byteLength - 4) throw new Error("GUI mask metadata is truncated");
+  const reply: GuiMaskReply = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes, 4, size)));
+  const count = reply.width * reply.height;
+  if (!Number.isSafeInteger(count) || !Number.isInteger(reply.width) || !Number.isInteger(reply.height) || reply.width <= 0 || reply.height <= 0) throw new Error("Invalid GUI mask dimensions");
+  const available = reply.mask_available ?? reply.reliable;
+  const packed = new Uint8Array(bytes, 4 + size);
+  if (packed.length !== (available ? count : 0)) throw new Error("GUI mask pixels do not match their metadata");
+  return { reply, packed: available ? packed : null };
+}
+
 /** A texture-confirmed open screen, not merely the always-visible HUD. */
 export function veilScreenEvidence(reply: GuiMaskReply | null): { width: number; height: number } | undefined {
   if (!reply || !(reply.mask_available ?? reply.reliable) || !(reply.width > 0) || !(reply.height > 0)) return undefined;

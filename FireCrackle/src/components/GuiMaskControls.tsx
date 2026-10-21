@@ -15,7 +15,7 @@ export interface GuiMaskState {
 
 /** Detect the mask under the stated vanilla-GUI assumption while the tool is on. */
 export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: boolean): GuiMaskState {
-  const supported = !!(backend.guiMask && backend.guiMaskPixels);
+  const supported = !!(backend.guiMaskFrame || (backend.guiMask && backend.guiMaskPixels));
   const [reply, setReply] = useState<GuiMaskReply | null>(null);
   const [maskFrame, setMaskFrame] = useState<number | null>(null);
   const [pixels, setPixels] = useState<Uint8ClampedArray | null>(null);
@@ -25,13 +25,20 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
 
   useEffect(() => {
     const mine = ++token.current;
-    if (!supported || !on || !ready) return;
+    if (!supported || !on || !ready) { setBusy(false); return; }
     setBusy(true);
     setError(null);
     (async () => {
       try {
-        const r = await backend.guiMask!(frame);
-        const raw = (r.mask_available ?? r.reliable) ? new Uint8Array(await backend.guiMaskPixels!(frame)) : null;
+        let r: GuiMaskReply, raw: Uint8Array | null;
+        if (backend.guiMaskFrame) {
+          const result = await backend.guiMaskFrame(frame);
+          r = result.reply; raw = result.packed;
+        } else {
+          r = await backend.guiMask!(frame);
+          if (mine !== token.current) return;
+          raw = (r.mask_available ?? r.reliable) ? new Uint8Array(await backend.guiMaskPixels!(frame)) : null;
+        }
         if (mine !== token.current) return;
         setReply(r);
         setMaskFrame(frame);
@@ -42,6 +49,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
         if (mine === token.current) setBusy(false);
       }
     })();
+    return () => { ++token.current; };
   }, [backend, supported, on, ready, frame]);
 
   return { supported, reply, maskFrame, pixels, busy, error };

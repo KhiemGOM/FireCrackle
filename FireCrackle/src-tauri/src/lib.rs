@@ -531,6 +531,7 @@ pub fn run_app() {
             thumb,
             gui::gui_answer_get,
             gui::gui_answer_set,
+            gui::gui_mask_frame,
             gui::gui_mask,
             gui::gui_mask_pixels,
             gui_scan_start,
