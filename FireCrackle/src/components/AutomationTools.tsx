@@ -75,7 +75,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           </details>
           <p>Best results with:</p>
           <ul>
-            <li>Original 1920 × 1080 vanilla Java 1.16.5 footage, with the full game view.</li>
+            <li>Original vanilla Java 1.16.5 footage with the full game view; any resolution (the no-fire scan works on a 1920 × 1080 view of it).</li>
             <li>Default textures and HUD; no shaders, resource packs, cropping or colour edits.</li>
             <li>Clear gameplay with a visible hotbar. Menus, tiny/distant fire and transparent blocks can confuse it.</li>
           </ul>

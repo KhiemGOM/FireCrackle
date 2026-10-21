@@ -1,16 +1,16 @@
-use no_fire_cnn::{THRESHOLD, clear_frame_with, views};
+use no_fire_cnn::{DEFAULT_VIEW_ORDER, THRESHOLD, clear_frame_with, views};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
-fn scorer_receives_frozen_views_in_raw_then_restored_order() {
+fn scorer_receives_frozen_views_in_the_default_order() {
     let raw: Vec<u8> = (0..1920 * 1080 * 3)
         .map(|i| ((i * 17 + i / 1920 * 31) % 256) as u8)
         .collect();
     let auto: Vec<u8> = raw.iter().map(|v| v.saturating_add(19)).collect();
-    let expected: Vec<_> = views(&raw)
-        .unwrap()
-        .into_iter()
-        .chain(views(&auto).unwrap())
+    let passes = [views(&raw).unwrap(), views(&auto).unwrap()];
+    let expected: Vec<_> = DEFAULT_VIEW_ORDER
+        .iter()
+        .map(|&(pass, tile)| passes[pass as usize][tile as usize].clone())
         .collect();
     let mut index = 0;
     assert!(

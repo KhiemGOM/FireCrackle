@@ -1,5 +1,5 @@
 //! One frame-preserving video pass, shared source detector, resumable local evidence.
-use fire_core::video::{parallel_frames_indexed, scan_workers};
+use fire_core::video::{parallel_frames_indexed_with_state, scan_workers};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -280,10 +280,6 @@ impl Jobs {
 fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     let detector = studio_core::gui::interaction_detector()?;
     let (w, h) = (job.project.meta.width, job.project.meta.height);
-    let size = w
-        .checked_mul(h)
-        .and_then(|n| n.checked_mul(3))
-        .ok_or("Invalid video dimensions")?;
     detector.prepare(w, h)?;
     let mut cache = job.cache.lock().map_err(|_| "GUI cache unavailable")?;
     std::fs::create_dir_all(cache.path.parent().ok_or("GUI cache has no parent")?)
@@ -308,19 +304,22 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     drop(cache);
     let total = previous.len() as u32;
     if start < total {
+        let feed = crate::pov::ScanFeed::for_scan(&job.project, tools, None);
         let (output, diagnostics) =
-            crate::pov::open_scan_decoder(&job.project, tools, start as usize, &job.child)?;
+            crate::pov::open_scan_decoder(&job.project, tools, start as usize, &job.child, &feed)?;
         let mut write_error = None;
-        let result = parallel_frames_indexed(
+        let result = parallel_frames_indexed_with_state(
             output,
-            size,
+            feed.frame_bytes(),
             total - start,
-            scan_workers(size),
+            scan_workers(feed.frame_bytes()),
             &job.cancel,
-            |index, rgb| {
+            Vec::new,
+            |buffer, index, frame| {
                 if let Some(hit) = &previous[(start + index) as usize] {
                     return Ok(hit.clone());
                 }
+                let rgb = feed.rgb(frame, buffer)?;
                 let d = detector.detect(rgb, w, h)?;
                 Ok(d.alternatives.first().map(|hit| Surface {
                     bounds: [

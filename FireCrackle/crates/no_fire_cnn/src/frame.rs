@@ -48,19 +48,17 @@ pub fn clear_frame_with(
     mut score: impl FnMut(&[u8]) -> Result<f32, String>,
 ) -> Result<bool, String> {
     let frames = [Some(raw), auto];
-    for rgb in frames.iter().flatten() {
-        if rgb.len() != 1920 * 1080 * 3 {
-            return Err("Invalid AI video frame".into());
-        }
-    }
     let boxes = crate::tile_boxes();
     // A frame clears only if every view of every pass clears, so the order in
     // which views are scored cannot change the result — only how soon a
-    // rejected frame stops. `set_view_order` installs a measured cheaper order.
+    // rejected frame stops. `DEFAULT_VIEW_ORDER` is the measured order.
     for (ordinal, &(pass, tile)) in view_order().iter().enumerate() {
         let Some(rgb) = frames[pass as usize] else {
             continue;
         };
+        if rgb.len() != 1920 * 1080 * 3 {
+            return Err("Invalid AI video frame".into());
+        }
         if cancel.load(Ordering::Relaxed) {
             return Ok(false);
         }
@@ -82,17 +80,26 @@ pub fn clear_frame_with(
 /// (pass, tile) pairs: pass 0 = raw frame, 1 = unveiled frame; tile indexes `tile_boxes()`.
 static VIEW_ORDER: std::sync::OnceLock<Vec<(u8, u8)>> = std::sync::OnceLock::new();
 fn view_order() -> &'static [(u8, u8)] {
-    VIEW_ORDER.get_or_init(default_view_order)
+    VIEW_ORDER.get_or_init(|| DEFAULT_VIEW_ORDER.to_vec())
 }
-fn default_view_order() -> Vec<(u8, u8)> {
+/// Scoring order of the eighteen views. Views that most often reject a frame come
+/// first; it was chosen from the full rejection matrix of 1,200 frames the rules
+/// would send to the model, from four segments of two recordings
+/// (`fire-detection/perf-lab/plan_view_order.py`). The frame decision is the same
+/// for every order; only how soon a rejected frame stops differs.
+pub const DEFAULT_VIEW_ORDER: [(u8, u8); 18] = [
+    (0, 0), (0, 5), (1, 4), (0, 2), (0, 4), (0, 6), (0, 8), (0, 3), (0, 1), (0, 7),
+    (1, 0), (1, 1), (1, 2), (1, 3), (1, 5), (1, 6), (1, 7), (1, 8),
+];
+fn every_view() -> Vec<(u8, u8)> {
     (0..2u8).flat_map(|pass| (0..9u8).map(move |tile| (pass, tile))).collect()
 }
-/// Install the view order for this process (perf lab). Must contain every
+/// Install another view order for this process (perf lab). Must contain every
 /// (pass, tile) pair exactly once; returns false if the order was already fixed.
 pub fn set_view_order(order: Vec<(u8, u8)>) -> Result<bool, String> {
     let mut sorted = order.clone();
     sorted.sort_unstable();
-    if sorted != default_view_order() {
+    if sorted != every_view() {
         return Err("view order must contain every (pass, tile) pair exactly once".into());
     }
     Ok(VIEW_ORDER.set(order).is_ok())
@@ -156,6 +163,40 @@ mod tests {
             Ok(-2.0)
         }
     }
+    /// The first byte of each view in scoring order: raw views carry `raw`, unveiled `auto`.
+    fn ordered_views(raw: u8, auto: u8) -> Vec<u8> {
+        view_order().iter().map(|&(pass, _)| if pass == 0 { raw } else { auto }).collect()
+    }
+    #[test]
+    fn default_order_covers_every_view_once_and_starts_with_the_full_raw_view() {
+        let mut seen = DEFAULT_VIEW_ORDER.to_vec();
+        seen.sort_unstable();
+        assert_eq!(seen, every_view());
+        assert_eq!(DEFAULT_VIEW_ORDER[0], (0, 0));
+        assert_eq!(view_order().len(), 18);
+    }
+    #[test]
+    fn a_rejecting_view_stops_the_frame_wherever_it_is_in_the_order() {
+        let raw = vec![37; 1920 * 1080 * 3];
+        let auto = vec![83; raw.len()];
+        for stop in 0..18 {
+            let mut calls = 0;
+            let clear = clear_frame_with(&raw, Some(&auto), &AtomicBool::new(false), |_| {
+                calls += 1;
+                Ok(if calls == stop + 1 { 0.0 } else { -2.0 })
+            })
+            .unwrap();
+            assert!(!clear);
+            assert_eq!(calls, stop + 1);
+        }
+        let mut calls = 0;
+        assert!(clear_frame_with(&raw, Some(&auto), &AtomicBool::new(false), |_| {
+            calls += 1;
+            Ok(-2.0)
+        })
+        .unwrap());
+        assert_eq!(calls, 18);
+    }
     fn model(gpu: bool) -> Mock {
         Mock {
             gpu,
@@ -180,7 +221,7 @@ mod tests {
         );
         let cpu = engine.lock().unwrap();
         assert!(!cpu.gpu);
-        assert_eq!(cpu.calls, [vec![37; 9], vec![83; 9]].concat());
+        assert_eq!(cpu.calls, ordered_views(37, 83));
     }
 
     #[test]
@@ -202,7 +243,7 @@ mod tests {
             )
             .unwrap()
         );
-        let expected = [vec![37; 9], vec![83; 9]].concat();
+        let expected = ordered_views(37, 83);
         assert_eq!(
             engine.lock().unwrap().calls,
             [expected.clone(), expected].concat()

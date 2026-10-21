@@ -94,8 +94,10 @@ pub(crate) fn scan_resuming(
     completed: &[Option<i16>],
     update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
+    let (w, h) = crate::pov::no_fire_scan_size(&project.meta);
+    let feed = crate::pov::ScanFeed::for_scan(project, tools, Some((w, h)));
     let detector = GuiDetector::new(textures()?, GuiOptions::default())?;
-    detector.prepare(project.meta.width, project.meta.height);
+    detector.prepare(w, h);
     let runtime = runtime()?;
     let previous = ENGINE.lock().map_err(|_| "AI state unavailable")?.take();
     let engine = Mutex::new(match previous {
@@ -111,14 +113,15 @@ pub(crate) fn scan_resuming(
         tools,
         cancel,
         slot,
-        fire_core::video::scan_workers(project.meta.width * project.meta.height * 3),
+        &feed,
+        fire_core::video::scan_workers(feed.frame_bytes()),
         completed,
         fire_core::gui_mask::GuiFitHint::default,
         |hint, rgb| {
             let clear = policy::candidate_prepared_with_hint(
                 rgb,
-                project.meta.width,
-                project.meta.height,
+                w,
+                h,
                 &detector,
                 hint,
                 |raw, auto| Engine::clear_frame_shared(&engine, &runtime, MODEL, raw, auto, cancel),

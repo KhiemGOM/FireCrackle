@@ -10,8 +10,6 @@
 //!
 //! Arguments are `key=value` pairs after the mode, see `usage`.
 
-mod yuv;
-
 use fire_core::{
     gui_mask::{GuiDetector, GuiFitHint, GuiOptions, GuiTextures},
     pov::PovMatcher,
@@ -307,7 +305,7 @@ fn pass(
     let state = || (GuiFitHint::default(), if yuv { vec![0u8; w * h * 3] } else { Vec::new() });
     fn as_rgb<'a>(yuv: bool, frame: &'a [u8], buffer: &'a mut Vec<u8>, w: usize, h: usize) -> &'a [u8] {
         if yuv {
-            yuv::yuv420p_to_rgb24(frame, w, h, buffer);
+            fire_core::yuv::yuv420p_to_rgb24(frame, w, h, fire_core::yuv::Matrix::Bt709, buffer).expect("yuv frame");
             buffer
         } else {
             frame
@@ -447,7 +445,7 @@ fn write_rows(path: &str, tool: &str, rows: &[(u32, Option<u8>)], stride: u32) -
 fn bench(args: &Args) -> Result<(), String> {
     let setup = Setup::new(args)?;
     // Experiment switches that live inside fire_core / no_fire_cnn.
-    let scale_prune = args.get("scale_prune") == Some("1");
+    let scale_prune = args.get("scale_prune") != Some("0");
     if let Some(order) = args.get("view_order") {
         // "0:5,0:3,1:4,..." as (pass, tile) pairs
         let pairs: Vec<(u8, u8)> = order
@@ -461,7 +459,7 @@ fn bench(args: &Args) -> Result<(), String> {
     }
     fire_core::gui_interaction::SCALE_PRUNE.store(scale_prune, std::sync::atomic::Ordering::Relaxed);
     fire_core::gui_mask::HINT_ROLLING.store(args.get("hint_rolling") == Some("1"), std::sync::atomic::Ordering::Relaxed);
-    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") != Some("0"), std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 600)?;
     let repeat: u32 = args.num("repeat", 1)?;
@@ -493,7 +491,7 @@ fn bench(args: &Args) -> Result<(), String> {
                 "ffmpeg": setup.ffmpeg.display().to_string(), "resize_in_decoder": setup.resize_in_decoder,
                 "checksum": setup.checksum, "provider": setup.provider, "batch": setup.batch,
                 "pixfmt": setup.pixfmt, "scale_prune": scale_prune, "sessions": setup.sessions,
-                "hint_rolling": args.get("hint_rolling") == Some("1"), "hint_mirror": args.get("hint_mirror") == Some("1"),
+                "hint_rolling": args.get("hint_rolling") == Some("1"), "hint_mirror": args.get("hint_mirror") != Some("0"),
                 "cpu_sessions": setup.cpu_sessions, "input_u8": setup.input_u8, "view_order": args.get("view_order"),
                 "model": args.get("model"),
                 "native": [setup.w, setup.h], "scan": [w, h], "workers": setup.workers,
@@ -542,9 +540,9 @@ fn eval(args: &Args) -> Result<(), String> {
 fn micro(args: &Args) -> Result<(), String> {
     use std::io::Read;
     let setup = Setup::new(args)?;
-    fire_core::gui_interaction::SCALE_PRUNE.store(args.get("scale_prune") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_interaction::SCALE_PRUNE.store(args.get("scale_prune") != Some("0"), std::sync::atomic::Ordering::Relaxed);
     fire_core::gui_mask::HINT_ROLLING.store(args.get("hint_rolling") == Some("1"), std::sync::atomic::Ordering::Relaxed);
-    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") != Some("0"), std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 24)?;
     let repeat: u32 = args.num("repeat", 3)?;
@@ -768,7 +766,7 @@ fn yuvcheck(args: &Args) -> Result<(), String> {
     let mut worst = 0u8;
     let mut bad_frames = 0;
     for f in 0..frames as usize {
-        yuv::yuv420p_to_rgb24(&yuv[f * w * h * 3 / 2..(f + 1) * w * h * 3 / 2], w, h, &mut rgb);
+        fire_core::yuv::yuv420p_to_rgb24(&yuv[f * w * h * 3 / 2..(f + 1) * w * h * 3 / 2], w, h, fire_core::yuv::Matrix::Bt709, &mut rgb)?;
         let before = differing;
         for (a, b) in rgb.iter().zip(&reference[f * w * h * 3..(f + 1) * w * h * 3]) {
             if a != b {

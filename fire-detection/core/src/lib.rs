@@ -17,3 +17,4 @@ pub mod report;
 pub mod sync;
 pub mod veil;
 pub mod video;
+pub mod yuv;

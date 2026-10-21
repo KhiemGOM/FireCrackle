@@ -730,7 +730,7 @@ pub struct GuiFit {
 /// selected slot, item contents or panel decision. Do not share between workers.
 /// Perf-lab experiment switches, see `detect_prepared`'s hint check.
 pub static HINT_ROLLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-pub static HINT_MIRROR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static HINT_MIRROR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 #[derive(Debug, Default)]
 pub struct GuiFitHint {
     previous: Option<(usize, usize, GuiFit, f64, f64)>,

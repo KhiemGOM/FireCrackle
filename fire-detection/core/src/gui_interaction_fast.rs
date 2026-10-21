@@ -463,7 +463,7 @@ const PREFETCH_DISTANCE: usize = 6;
 /// horizontal scale is within `SCALE_PRUNE_TOLERANCE` of the HUD fit scale.
 /// Vanilla draws every screen with the window's single GUI scale factor, so a
 /// panel at another scale than the hotbar does not occur in unmodified footage.
-pub static SCALE_PRUNE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static SCALE_PRUNE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 pub const SCALE_PRUNE_TOLERANCE: f64 = 0.26;
 
 fn find(

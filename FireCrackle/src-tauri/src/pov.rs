@@ -132,9 +132,6 @@ impl Jobs {
         tools: Tools,
         complete: Option<Completion>,
     ) -> Result<Status, String> {
-        if project.meta.width != 1920 || project.meta.height != 1080 {
-            return Err("No-fire scanning currently requires native 1920×1080 footage".into());
-        }
         self.start_impl(project, tools, true, complete)
     }
     pub fn candidates(&self, id: u64, offset: usize) -> Result<Vec<u32>, String> {
@@ -402,12 +399,14 @@ fn scan_resuming(
 ) -> Result<(), String> {
     let (w, h) = (project.meta.width, project.meta.height);
     let matcher = PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?;
+    let feed = ScanFeed::for_scan(project, tools, None);
     scan_with_worker_state_resuming(
         project,
         tools,
         cancel,
         slot,
-        scan_workers(w * h * 3),
+        &feed,
+        scan_workers(feed.frame_bytes()),
         completed,
         GuiFitHint::default,
         |hint, frame| Ok(matcher.match_frame_with_hint(frame, hint)?.row),
@@ -469,29 +468,175 @@ impl<R: Read> Read for CheckedFrames<'_, R> {
     }
 }
 
-/// Shared exact raw decoder for first-person, no-fire and GUI scans.
-pub(crate) fn open_scan_decoder<'a>(
-    project: &'a Project,
+
+/// What the scan decoder's pipe carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PixelFormat {
+    /// FFmpeg converts (and scales) to RGB itself.
+    Rgb24,
+    /// FFmpeg delivers planar YUV at native size; each worker converts with the
+    /// same arithmetic swscale would have used (`fire_core::yuv`): half the bytes
+    /// over the pipe, and the conversion runs on every worker.
+    Yuv420p(fire_core::yuv::Matrix),
+}
+
+/// How a scan receives its frames: size as scanned, pipe format and decoder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ScanFeed {
+    pub width: usize,
+    pub height: usize,
+    pub pixel_format: PixelFormat,
+    /// An NVDEC decoder (`av1_cuvid`, `h264_cuvid`, ...) that was verified on this video.
+    pub decoder: Option<String>,
+}
+impl ScanFeed {
+    /// `target`: the size the scan wants (`None` = native). YUV only when FFmpeg
+    /// would not scale, the dimensions are even and the stream's matrix is one
+    /// the converter reproduces; otherwise FFmpeg's own conversion is used.
+    pub fn plan(
+        meta: &studio_core::project::VideoMeta,
+        target: Option<(usize, usize)>,
+        matrix: Option<fire_core::yuv::Matrix>,
+        decoder: Option<String>,
+    ) -> ScanFeed {
+        let (width, height) = target.unwrap_or((meta.width, meta.height));
+        let native = (width, height) == (meta.width, meta.height);
+        let pixel_format = match matrix {
+            Some(matrix) if native && width % 2 == 0 && height % 2 == 0 => {
+                PixelFormat::Yuv420p(matrix)
+            }
+            _ => PixelFormat::Rgb24,
+        };
+        ScanFeed {
+            width,
+            height,
+            pixel_format,
+            decoder,
+        }
+    }
+    /// Probe the video once for its colour matrix and for NVDEC support of its codec.
+    pub fn for_scan(project: &Project, tools: &Tools, target: Option<(usize, usize)>) -> ScanFeed {
+        let matrix = colour_space(tools, &project.video_path)
+            .and_then(|tag| fire_core::yuv::Matrix::for_colour_space(&tag));
+        let decoder = nvdec_decoder(&project.meta.codec)
+            .filter(|name| nvdec_available(tools, &project.video_path, name))
+            .map(str::to_string);
+        Self::plan(&project.meta, target, matrix, decoder)
+    }
+    pub fn frame_bytes(&self) -> usize {
+        match self.pixel_format {
+            PixelFormat::Rgb24 => self.width * self.height * 3,
+            PixelFormat::Yuv420p(_) => fire_core::yuv::frame_bytes(self.width, self.height),
+        }
+    }
+    pub fn ffmpeg_pix_fmt(&self) -> &'static str {
+        match self.pixel_format {
+            PixelFormat::Rgb24 => "rgb24",
+            PixelFormat::Yuv420p(_) => "yuv420p",
+        }
+    }
+    pub fn scaled(&self, meta: &studio_core::project::VideoMeta) -> bool {
+        (self.width, self.height) != (meta.width, meta.height)
+    }
+    /// The RGB24 frame a scan works on: the pipe frame itself, or its conversion in `buffer`.
+    pub fn rgb<'a>(&self, frame: &'a [u8], buffer: &'a mut Vec<u8>) -> Result<&'a [u8], String> {
+        match self.pixel_format {
+            PixelFormat::Rgb24 => {
+                if frame.len() != self.frame_bytes() {
+                    return Err("Decoded frame has the wrong size".into());
+                }
+                Ok(frame)
+            }
+            PixelFormat::Yuv420p(matrix) => {
+                buffer.resize(self.width * self.height * 3, 0);
+                fire_core::yuv::yuv420p_to_rgb24(frame, self.width, self.height, matrix, buffer)?;
+                Ok(buffer.as_slice())
+            }
+        }
+    }
+}
+
+/// FFmpeg's NVDEC decoder for a codec name as ffprobe reports it.
+pub(crate) fn nvdec_decoder(codec: &str) -> Option<&'static str> {
+    match codec {
+        "av1" => Some("av1_cuvid"),
+        "h264" => Some("h264_cuvid"),
+        "hevc" => Some("hevc_cuvid"),
+        "vp9" => Some("vp9_cuvid"),
+        _ => None,
+    }
+}
+
+/// The no-fire policy and model are 1920×1080-only; every recording is scanned
+/// at that size (FFmpeg scales other resolutions).
+pub(crate) fn no_fire_scan_size(_meta: &studio_core::project::VideoMeta) -> (usize, usize) {
+    (1920, 1080)
+}
+
+/// The stream's `color_space` tag as ffprobe reports it (`unknown` when untagged).
+fn colour_space(tools: &Tools, video: &str) -> Option<String> {
+    let output = studio_core::proc::hidden_command(&tools.ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=color_space",
+            "-of",
+            "default=nw=1:nk=1",
+        ])
+        .arg(video)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+    )
+}
+
+/// Decode one frame with the NVDEC decoder; remembered per decoder for this process.
+fn nvdec_available(tools: &Tools, video: &str, decoder: &str) -> bool {
+    static PROBED: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
+    if let Ok(probed) = PROBED.lock()
+        && let Some((_, ok)) = probed.iter().find(|(name, _)| name == decoder)
+    {
+        return *ok;
+    }
+    let ok = studio_core::proc::background_command(&tools.ffmpeg)
+        .args(["-v", "error", "-nostdin", "-c:v", decoder, "-i"])
+        .arg(video)
+        .args(["-frames:v", "1", "-f", "null", "-"])
+        .output()
+        .is_ok_and(|output| output.status.success());
+    if let Ok(mut probed) = PROBED.lock() {
+        probed.push((decoder.to_string(), ok));
+    }
+    ok
+}
+
+/// The exact decoder command for a scan: trim by display-frame index from an
+/// accurate seek, `showinfo` for per-frame timestamp validation, then the feed's
+/// pipe format (and FFmpeg's own scaler when the feed is not native size).
+/// No decoder thread caps: a scan owns the machine while it runs, at below-normal
+/// priority. Returns the command and the seek's time base.
+pub(crate) fn scan_decoder_command(
+    project: &Project,
     tools: &Tools,
     start: usize,
-    slot: &Mutex<Option<Child>>,
-) -> Result<
-    (
-        CheckedFrames<'a, std::process::ChildStdout>,
-        std::thread::JoinHandle<String>,
-    ),
-    String,
-> {
+    feed: &ScanFeed,
+) -> Result<(std::process::Command, f64), String> {
     if start >= project.frames.len() {
         return Err("Resume frame is outside the video".into());
     }
-    let frame_bytes = project
-        .meta
-        .width
-        .checked_mul(project.meta.height)
-        .and_then(|n| n.checked_mul(3))
-        .ok_or("Video dimensions overflow")?;
-    let mut command = studio_core::proc::ffmpeg_command(&tools.ffmpeg);
+    let mut command = studio_core::proc::background_command(&tools.ffmpeg);
     // Seek near the saved position using the exact preview decoder's backoff.
     // Some demuxers/B-frame streams return an earlier GOP without accurate seek;
     // retain accurate seeking and validate every output timestamp instead.
@@ -516,24 +661,41 @@ pub(crate) fn open_scan_decoder<'a>(
     if let Some(seek) = &seek {
         command.args(["-seek_timestamp", "1", "-ss", seek]);
     }
+    if let Some(decoder) = &feed.decoder {
+        command.args(["-c:v", decoder]);
+    }
+    // Trim by display-frame index (not approximate timestamp seeking), preserving VFR frame identity.
+    let mut filters = format!("trim=start_frame={},showinfo", start - prefix);
+    if feed.scaled(&project.meta) {
+        filters.push_str(&format!(",scale={}:{}", feed.width, feed.height));
+    }
     command
         .arg("-i")
         .arg(&project.video_path)
         .args(["-map", "0:v:0"])
-        // Trim by display-frame index (not approximate timestamp seeking), preserving VFR frame identity.
-        .args([
-            "-vf",
-            &format!("trim=start_frame={},showinfo", start - prefix),
-        ])
+        .args(["-vf", &filters])
         .args(studio_core::import::passthrough_args(&tools.ffmpeg))
-        .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
+        .args(["-pix_fmt", feed.ffmpeg_pix_fmt(), "-f", "rawvideo", "-"]);
+    Ok((command, time_base))
+}
+
+/// Shared exact raw decoder for first-person, no-fire and GUI scans.
+pub(crate) fn open_scan_decoder<'a>(
+    project: &'a Project,
+    tools: &Tools,
+    start: usize,
+    slot: &Mutex<Option<Child>>,
+    feed: &ScanFeed,
+) -> Result<
+    (
+        CheckedFrames<'a, std::process::ChildStdout>,
+        std::thread::JoinHandle<String>,
+    ),
+    String,
+> {
+    let frame_bytes = feed.frame_bytes();
+    let (mut command, time_base) = scan_decoder_command(project, tools, start, feed)?;
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command
         .spawn()
         .map_err(|e| format!("Could not start FFmpeg: {e}"))?;
@@ -612,6 +774,7 @@ pub(crate) fn scan_with_workers_resuming(
         tools,
         cancel,
         slot,
+        &ScanFeed::plan(&project.meta, None, None, None),
         workers,
         completed,
         || (),
@@ -626,6 +789,7 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
     tools: &Tools,
     cancel: &AtomicBool,
     slot: &Mutex<Option<Child>>,
+    feed: &ScanFeed,
     workers: usize,
     completed: &[Option<i16>],
     initialize: impl Fn() -> S + Sync,
@@ -646,22 +810,17 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
     if start == project.frames.len() {
         return Ok(());
     }
-    let (w, h) = (project.meta.width, project.meta.height);
-    let frame_bytes = w
-        .checked_mul(h)
-        .and_then(|n| n.checked_mul(3))
-        .ok_or("Video dimensions overflow")?;
-    let (pipe, errors) = open_scan_decoder(project, tools, start, slot)?;
+    let (pipe, errors) = open_scan_decoder(project, tools, start, slot, feed)?;
     parallel_frames_indexed_with_state(
         pipe,
-        frame_bytes,
+        feed.frame_bytes(),
         (project.frames.len() - start) as u32,
         workers.clamp(1, 12),
         cancel,
-        initialize,
-        |state, n, rgb| match completed.get(start + n as usize).copied().flatten() {
+        || (initialize(), Vec::new()),
+        |(state, buffer), n, frame| match completed.get(start + n as usize).copied().flatten() {
             Some(row) => Ok((row >= 0).then_some(row as u8)),
-            None => process(state, rgb),
+            None => process(state, feed.rgb(frame, buffer)?),
         },
         |n, row| update(n + start as u32, row),
     )?;
@@ -724,8 +883,9 @@ mod tests {
             }
             let slot = Mutex::new(None);
             let began = std::time::Instant::now();
+            let feed = ScanFeed::plan(&project.meta, None, None, None);
             let (mut reader, diagnostics) =
-                open_scan_decoder(&project, &tools, start, &slot).unwrap();
+                open_scan_decoder(&project, &tools, start, &slot, &feed).unwrap();
             let mut frame = vec![0; project.meta.width * project.meta.height * 3];
             let result = reader.read_exact(&mut frame);
             let elapsed = began.elapsed();
@@ -817,8 +977,9 @@ mod tests {
             let bytes = 16 * 16 * 3;
             for start in [13, 35, 73] {
                 let slot = Mutex::new(None);
+                let feed = ScanFeed::plan(&project.meta, None, None, None);
                 let (mut reader, diagnostics) =
-                    open_scan_decoder(&project, &tools, start, &slot).unwrap();
+                    open_scan_decoder(&project, &tools, start, &slot, &feed).unwrap();
                 let mut decoded = Vec::new();
                 let result = reader.read_to_end(&mut decoded);
                 drop(reader);
@@ -836,6 +997,156 @@ mod tests {
                     "{codec} start{start}"
                 );
             }
+        }
+    }
+    fn meta(width: usize, height: usize, codec: &str) -> studio_core::project::VideoMeta {
+        studio_core::project::VideoMeta {
+            width,
+            height,
+            fps_num: 60,
+            fps_den: 1,
+            codec: codec.into(),
+        }
+    }
+    #[test]
+    fn scan_feed_takes_yuv_at_native_size_and_rgb_when_scaling_or_uncertain() {
+        use fire_core::yuv::Matrix;
+        let native = ScanFeed::plan(&meta(1920, 1080, "h264"), None, Some(Matrix::Bt709), None);
+        assert_eq!(
+            (native.width, native.height, native.pixel_format, native.frame_bytes()),
+            (1920, 1080, PixelFormat::Yuv420p(Matrix::Bt709), 1920 * 1080 * 3 / 2)
+        );
+        assert_eq!(native.ffmpeg_pix_fmt(), "yuv420p");
+        let same = ScanFeed::plan(&meta(1920, 1080, "h264"), Some((1920, 1080)), Some(Matrix::Bt601), None);
+        assert_eq!(same.pixel_format, PixelFormat::Yuv420p(Matrix::Bt601));
+        let scaled = ScanFeed::plan(&meta(2560, 1440, "av1"), Some((1920, 1080)), Some(Matrix::Bt709), None);
+        assert_eq!(
+            (scaled.width, scaled.height, scaled.pixel_format, scaled.frame_bytes()),
+            (1920, 1080, PixelFormat::Rgb24, 1920 * 1080 * 3)
+        );
+        assert_eq!(scaled.ffmpeg_pix_fmt(), "rgb24");
+        let odd = ScanFeed::plan(&meta(1281, 721, "h264"), None, Some(Matrix::Bt709), None);
+        assert_eq!(odd.pixel_format, PixelFormat::Rgb24);
+        let unknown = ScanFeed::plan(&meta(1920, 1080, "h264"), None, None, None);
+        assert_eq!(unknown.pixel_format, PixelFormat::Rgb24);
+        let nvdec = ScanFeed::plan(&meta(1920, 1080, "h264"), None, Some(Matrix::Bt709), Some("h264_cuvid".into()));
+        assert_eq!(nvdec.decoder.as_deref(), Some("h264_cuvid"));
+    }
+    #[test]
+    fn scan_feed_converts_yuv_frames_and_passes_rgb_through() {
+        use fire_core::yuv::Matrix;
+        let feed = ScanFeed::plan(&meta(2, 2, "h264"), None, Some(Matrix::Bt709), None);
+        let mut buffer = Vec::new();
+        let rgb = feed.rgb(&[128, 128, 128, 128, 128, 128], &mut buffer).unwrap();
+        assert_eq!(rgb, &[130; 12]);
+        let feed = ScanFeed::plan(&meta(2, 2, "h264"), None, None, None);
+        let frame = [7u8; 12];
+        let rgb = feed.rgb(&frame, &mut buffer).unwrap();
+        assert_eq!(rgb, &frame);
+        assert!(feed.rgb(&[7u8; 11], &mut buffer).is_err());
+    }
+    #[test]
+    fn nvdec_decoder_names_follow_the_codec() {
+        assert_eq!(nvdec_decoder("av1"), Some("av1_cuvid"));
+        assert_eq!(nvdec_decoder("h264"), Some("h264_cuvid"));
+        assert_eq!(nvdec_decoder("hevc"), Some("hevc_cuvid"));
+        assert_eq!(nvdec_decoder("vp9"), Some("vp9_cuvid"));
+        assert_eq!(nvdec_decoder("ffv1"), None);
+        assert_eq!(nvdec_decoder(""), None);
+    }
+    #[test]
+    fn no_fire_scans_every_resolution_at_1080p() {
+        assert_eq!(no_fire_scan_size(&meta(1920, 1080, "h264")), (1920, 1080));
+        assert_eq!(no_fire_scan_size(&meta(2560, 1440, "av1")), (1920, 1080));
+        assert_eq!(no_fire_scan_size(&meta(1280, 720, "h264")), (1920, 1080));
+    }
+    #[test]
+    fn scan_decoder_command_selects_pipe_and_decoder_without_thread_caps() {
+        use fire_core::yuv::Matrix;
+        let f = crate::scan_cache::tests::fixture(4);
+        let tools = Tools {
+            ffmpeg: "ffmpeg".into(),
+            ffprobe: "ffprobe".into(),
+        };
+        let args_of = |feed: &ScanFeed| -> Vec<String> {
+            let (command, _) = scan_decoder_command(&f.project, &tools, 0, feed).unwrap();
+            command
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let feed = ScanFeed {
+            width: 16,
+            height: 16,
+            pixel_format: PixelFormat::Yuv420p(Matrix::Bt601),
+            decoder: Some("h264_cuvid".into()),
+        };
+        let args = args_of(&feed);
+        assert!(!args.windows(2).any(|w| w == ["-threads", "2"]), "{args:?}");
+        assert!(!args.iter().any(|a| a == "-filter_threads"), "{args:?}");
+        let input = args.iter().position(|a| a == "-i").unwrap();
+        let codec = args.iter().position(|a| a == "-c:v").unwrap();
+        assert!(codec < input && args[codec + 1] == "h264_cuvid", "{args:?}");
+        assert!(args.windows(2).any(|w| w == ["-pix_fmt", "yuv420p"]), "{args:?}");
+        let filters = &args[args.iter().position(|a| a == "-vf").unwrap() + 1];
+        assert!(filters.starts_with("trim=start_frame=0,showinfo") && !filters.contains("scale="), "{filters}");
+        let feed = ScanFeed {
+            width: 8,
+            height: 8,
+            pixel_format: PixelFormat::Rgb24,
+            decoder: None,
+        };
+        let args = args_of(&feed);
+        assert!(!args.iter().any(|a| a == "-c:v"), "{args:?}");
+        assert!(args.windows(2).any(|w| w == ["-pix_fmt", "rgb24"]), "{args:?}");
+        let filters = &args[args.iter().position(|a| a == "-vf").unwrap() + 1];
+        assert!(filters.ends_with("showinfo,scale=8:8"), "{filters}");
+    }
+    #[test]
+    fn yuv_pipe_reproduces_ffmpeg_rgb24_exactly() {
+        let f = crate::scan_cache::tests::fixture(48);
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let tools = Tools {
+            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
+            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
+        };
+        let raw = f.root.join("frames.rgb");
+        let data: Vec<u8> = (0..48u32)
+            .flat_map(|n| (0..32 * 32).flat_map(move |i| [(n * 5 + i as u32) as u8, (i as u32 * 7 + n) as u8, (255 - n * 3) as u8]))
+            .collect();
+        std::fs::write(&raw, &data).unwrap();
+        let output = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
+            .args(["-y", "-v", "error", "-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", "32x32", "-framerate", "20", "-i"])
+            .arg(&raw)
+            .args(["-c:v", "libx264", "-g", "12", "-bf", "2", "-pix_fmt", "yuv420p"])
+            .arg(&f.project.video_path)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let project = studio_core::import::import_video(&tools, std::path::Path::new(&f.project.video_path), &Default::default()).unwrap();
+        let baseline = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
+            .args(["-v", "error", "-i"])
+            .arg(&project.video_path)
+            .args(["-map", "0:v:0", "-fps_mode", "passthrough", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+            .output()
+            .unwrap();
+        assert!(baseline.status.success());
+        // Untagged stream: swscale (and therefore the feed) uses BT.601.
+        let feed = ScanFeed::for_scan(&project, &tools, None);
+        assert_eq!(feed.pixel_format, PixelFormat::Yuv420p(fire_core::yuv::Matrix::Bt601));
+        let slot = Mutex::new(None);
+        let (mut reader, diagnostics) = open_scan_decoder(&project, &tools, 0, &slot, &feed).unwrap();
+        let mut decoded = Vec::new();
+        reader.read_to_end(&mut decoded).unwrap();
+        drop(reader);
+        let mut child = slot.lock().unwrap().take().unwrap();
+        assert!(child.wait().unwrap().success(), "{}", diagnostics.join().unwrap());
+        assert_eq!(decoded.len(), 48 * feed.frame_bytes());
+        let mut buffer = Vec::new();
+        for (n, frame) in decoded.chunks_exact(feed.frame_bytes()).enumerate() {
+            let rgb = feed.rgb(frame, &mut buffer).unwrap();
+            assert_eq!(rgb, &baseline.stdout[n * 32 * 32 * 3..(n + 1) * 32 * 32 * 3], "frame {n}");
         }
     }
     #[test]
@@ -1197,9 +1508,93 @@ mod tests {
         assert_eq!(jobs.candidates(1, 0).unwrap(), vec![0]);
         assert!(jobs.candidates(1, 100).unwrap().is_empty());
         assert!(jobs.candidates(2, 0).is_err());
+        // Any resolution is accepted now: the no-fire scan runs on a 1080p view.
         let mut p = project();
         p.meta.width = 1280;
-        assert!(jobs.start_no_fire(p, Tools::default()).is_err());
+        let started = jobs.start_no_fire(p, Tools::default()).unwrap();
+        assert_eq!(started.state, "running");
+        jobs.cancel(started.id).unwrap();
+    }
+    /// Full app scan of a real clip against decision vectors recorded by the perf
+    /// lab from the app's previous decoder path. `SCAN_PARITY_VIDEO` names the
+    /// clip; `SCAN_PARITY_POV_ROWS` / `SCAN_PARITY_NOFIRE_ROWS` name JSONL files of
+    /// `{n,row}` / `{n,clear}` lines.
+    #[test]
+    #[ignore = "Requires SCAN_PARITY_VIDEO and the lab's recorded decision vectors"]
+    fn full_scan_matches_recorded_decisions() {
+        let video = std::env::var("SCAN_PARITY_VIDEO").unwrap();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let tools = Tools {
+            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
+            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
+        };
+        crate::no_fire::configure(root.join("ai"));
+        let project = studio_core::import::import_video(
+            &tools,
+            std::path::Path::new(&video),
+            &studio_core::config::Settings::default(),
+        )
+        .unwrap();
+        let feed = ScanFeed::for_scan(&project, &tools, None);
+        eprintln!("feed: {feed:?}");
+        let wait = |jobs: &Jobs| loop {
+            let status = jobs.status().unwrap().unwrap();
+            if status.state != "running" {
+                assert_eq!(status.state, "done", "{:?}", status.error);
+                let rows = jobs.current.lock().unwrap().as_ref().unwrap().rows.clone();
+                break (status, rows);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        };
+        let recorded = |name: &str| -> Vec<(u32, Option<u8>)> {
+            let Ok(path) = std::env::var(name) else {
+                return Vec::new();
+            };
+            std::fs::read_to_string(path)
+                .unwrap()
+                .lines()
+                .map(|line| {
+                    let v: serde_json::Value = serde_json::from_str(line).unwrap();
+                    let n = v["n"].as_u64().unwrap() as u32;
+                    let row = v["row"].as_u64().map(|r| r as u8);
+                    let clear = v["clear"].as_bool().filter(|&c| c).map(|_| 0u8);
+                    (n, row.or(clear))
+                })
+                .collect()
+        };
+        for (name, no_fire) in [("SCAN_PARITY_POV_ROWS", false), ("SCAN_PARITY_NOFIRE_ROWS", true)] {
+            let expected = recorded(name);
+            if expected.is_empty() {
+                continue;
+            }
+            let mut cache_folder = std::path::Path::new(&project.video_path)
+                .file_name()
+                .unwrap()
+                .to_os_string();
+            cache_folder.push(".firecrackle");
+            let _ = std::fs::remove_dir_all(
+                std::path::Path::new(&project.video_path)
+                    .with_file_name(cache_folder)
+                    .join("auto-cache"),
+            );
+            let jobs = Jobs::default();
+            let started = std::time::Instant::now();
+            if no_fire {
+                jobs.start_no_fire(project.clone(), tools.clone()).unwrap();
+            } else {
+                jobs.start(project.clone(), tools.clone()).unwrap();
+            }
+            let (status, rows) = wait(&jobs);
+            let seconds = started.elapsed().as_secs_f64();
+            let expected_accepted: Vec<(u32, u8)> =
+                expected.iter().filter_map(|&(n, r)| r.map(|r| (n, r))).collect();
+            let mut got = rows.clone();
+            got.sort();
+            assert_eq!(expected.len() as u32, status.total, "frame count");
+            assert_eq!(got, expected_accepted, "{name}: decisions differ");
+            eprintln!("{name}: {} frames in {seconds:.1}s = {:.1} fps, {} accepted, identical", status.total, status.total as f64 / seconds, got.len());
+        }
     }
     #[test]
     #[ignore = "Requires the lossless real clip2 frame765 fixture and FFmpeg paths"]

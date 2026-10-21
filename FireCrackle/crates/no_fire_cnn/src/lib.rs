@@ -103,7 +103,7 @@ pub fn views(rgb: &[u8]) -> Result<Vec<Vec<u8>>, String> {
 mod engine;
 pub use engine::Engine;
 mod frame;
-pub use frame::{clear_frame_batched, clear_frame_with, set_view_order};
+pub use frame::{DEFAULT_VIEW_ORDER, clear_frame_batched, clear_frame_with, set_view_order};
 pub mod policy;
 pub fn resize_reference(rgb: &[u8], width: usize, rect: (usize, usize, usize, usize)) -> Vec<u8> {
     // Same separable filter, taps and 22-bit rounding as before; the sums are

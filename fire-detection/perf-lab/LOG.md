@@ -473,6 +473,28 @@ Hint mirror + rolling reference together (`results/hint3`): rolling lowered hint
 | 720p clip | 99.5 → 196.8 | 49.9 → 128.1 | speed only |
 | 2160p clip | 38.6 → 64.6 | 28.2 → 130.6 | speed only |
 
+## Integration (same branch, after the owner's go-ahead)
+
+- `fire_core::yuv` is the one canonical yuv420p→rgb24 converter (BT.709 and BT.601, matrix
+  chosen the way swscale chooses it: from the `color_space` tag, BT.601 when untagged at
+  any size — verified with untagged 512² and 1080p synthetic frames). The lab uses it too.
+- `no_fire_cnn::DEFAULT_VIEW_ORDER` is the planned order; frame validation stays lazy per
+  pass so the old "invalid restored frame after a raw rejection" behaviour is unchanged.
+- `SCALE_PRUNE` and `HINT_MIRROR` default to on (the lab can pass `=0`).
+- App (`src-tauri/src/pov.rs`): `ScanFeed` plans the pipe per scan — yuv420p at native even
+  size with a reproducible matrix, otherwise rgb24 with FFmpeg's fused `scale`; the decoder
+  is probed once per codec (`<codec>_cuvid` decodes one frame) and falls back to software
+  without the old `-threads 2 / -filter_threads 1` caps (still below-normal priority);
+  `showinfo` pts validation is unchanged; workers are budgeted on the pipe's bytes. The
+  first-person, no-fire and GUI scans all go through it. The no-fire gate is gone: every
+  recording is scanned at a 1920×1080 view (`no_fire_scan_size`).
+- Tests written first: feed planning, conversion/pass-through, NVDEC names, command
+  arguments (decoder before `-i`, no caps, pipe format, scale after showinfo), the 1080p
+  no-fire size, and an end-to-end test that decodes a libx264 fixture through the YUV feed
+  and matches FFmpeg's own rgb24 output byte for byte (untagged → BT.601). All app, core and
+  model-crate tests pass. `full_scan_matches_recorded_decisions` (ignored, needs env) runs
+  the real `Jobs` scan on a clip and compares every decision with the lab's old-path vectors.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on
