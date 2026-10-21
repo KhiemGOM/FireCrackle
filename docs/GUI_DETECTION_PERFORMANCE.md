@@ -198,3 +198,49 @@ this test. It does **not** explain the large end-to-end change: the decoder is
 the main improvement. A subsequent full-runtime run with the old writer took
 77.902 s (77.02 fps), further demonstrating workload variation; do not attribute
 the difference from earlier 60–62 fps runs to the cache writer.
+
+## Follow-up: transferring Fable's prepared-geometry methods
+
+Compared the methods recorded in `AUTO_SCAN_DEEP_REFACTOR.md` against current
+GUI presence detection (`cdc4e74`, including the dav1d runtime improvement).
+Support thresholds and border coordinates are already prepared once; the new
+experiments target remaining duplicate storage and coordinate arithmetic.
+No model, threshold, mask rule, search order or frame cadence changed.
+
+1. **Shared border geometry:** intern identical ordered offset arrays using
+   `Arc<[u32]>`, retaining each pose and its original order. Equality checks the
+   complete array. Sharing is immutable and does not reuse frame decisions.
+2. **All-stage geometry:** additionally precompute structure, fallback-structure
+   and identity offsets for each pose using the original `offset` function.
+   This trades extra arrays and preparation work for less per-frame arithmetic.
+
+| Candidate | Cached detector time, before / after | Decoded stream FPS, before / after |
+|---|---:|---:|
+| Shared border arrays | 11.349 / 10.618 s (6.4% less) | 109.81 / 112.15 |
+| All-stage precomputation plus shared borders | 13.856 / 12.477 s (10.0% less) | 118.69 / 109.79 |
+
+Cached tests use the same 398 real native 1440p samples with before/after/after/
+before calls per sample. Every complete Detection debug representation matches,
+including scores, support counts, bounds and reasons. Tooltip outputs also match.
+These are implementation-parity checks, not new ground-truth accuracy estimates.
+
+Each stream comparison is A-B-B-A, 2,400 frames per pass, decoding the exact same
+owner recording with full/dav1d. Shared-array times: 22.41, 21.70, 21.10, 21.30 s.
+All-stage times: 19.40, 22.45, 21.27, 21.04 s. All 19,200 output records across
+both comparisons match the frozen first-ten-minute reference by frame ID.
+The harness includes decoding, RGB transfer, parallel detection and buffered
+result output; it does **not** include the app's checked-timestamp/cache lifecycle.
+These rates must not be presented as production app FPS. Other applications
+remain running, and baseline throughput varies between the two comparisons.
+
+**Decision:** neither candidate is promoted. Shared arrays show only a 2.1%
+stream throughput change, too small here to establish a dependable improvement;
+all-stage precomputation loses 7.5% throughput in its paired stream comparison.
+Fable's invariant-work principle transfers to detector CPU cost, but this pass
+provides no additional established wall-clock gain. Keep the already validated
+production implementation and dav1d runtime. No app restart or scan interruption.
+
+Private reproducibility files: `.board/gui-performance/fable-methods.json`
+(source SHA-256s and cached timing totals), `fable-stream.json`,
+`geometry-stream.json`, `fable*.rs`, `geometry*.rs` and their Python drivers.
+Do not commit these recording-derived caches or local source bundles.
