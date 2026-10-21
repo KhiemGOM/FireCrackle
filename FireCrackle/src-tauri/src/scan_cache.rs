@@ -106,6 +106,19 @@ impl Journal {
         {
             return None;
         }
+        // A stale journal (other pipeline/project) is rejected from its first
+        // line without reading a possibly very large file.
+        {
+            use std::io::BufRead;
+            let mut first = Vec::new();
+            std::io::BufReader::new(File::open(&path).ok()?)
+                .read_until(b'\n', &mut first)
+                .ok()?;
+            match serde_json::from_slice::<Record>(&first).ok()? {
+                Record::Header { key: k, total: n } if k == key && n == total => {}
+                _ => return None,
+            }
+        }
         let bytes = std::fs::read(&path).ok()?;
         let mut journal = Self {
             decisions: vec![None; total],
