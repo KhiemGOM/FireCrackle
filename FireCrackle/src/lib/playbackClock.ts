@@ -1,10 +1,12 @@
-/** Presentation-gated media clock. Timer jitter may skip frames once a picture is ready;
- * buffering pauses media time and discards catch-up debt. */
+/** Presentation-gated media clock. Short delivery delays retain elapsed media time;
+ * sustained buffering pauses it instead of accumulating a large catch-up jump. */
 export interface PlaybackClock {
   /** `performance.now()` when playback (at this speed and direction) started. */
   startMs: number;
   /** Frames moved since then. */
   stepped: number;
+  /** Once genuinely stalled, keep pausing until presentation resumes. */
+  stalled?: true;
 }
 
 export function startClock(nowMs: number): PlaybackClock {
@@ -24,10 +26,15 @@ export function framesDue(
   maxCatchUp: number,
   ready = true,
 ): { frames: number; clock: PlaybackClock } {
-  // A missing picture pauses media time. Waiting never becomes catch-up debt.
-  if (!ready) return { frames: 0, clock: startClock(nowMs) };
   const rate = (fps * speed) / 1000; // frames per millisecond
   if (!Number.isFinite(rate) || !(rate > 0) || !Number.isFinite(nowMs)) return { frames: 0, clock };
+  if (!ready) {
+    // An IPC/image-load taking one timer tick is normal, even for cached frames.
+    // Resetting the clock on every such tick makes 1x playback run at about 0.6x.
+    const waitingMs = nowMs - clock.startMs - clock.stepped / rate;
+    return { frames: 0, clock: clock.stalled || waitingMs >= 250
+      ? { ...startClock(nowMs), stalled: true } : clock };
+  }
   const owed = Math.floor((nowMs - clock.startMs) * rate) - clock.stepped;
   if (!(owed > 0)) return { frames: 0, clock };
   const cap = Number.isFinite(maxCatchUp) && maxCatchUp >= 1 ? Math.floor(maxCatchUp) : 1;

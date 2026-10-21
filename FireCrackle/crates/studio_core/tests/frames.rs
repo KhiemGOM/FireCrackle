@@ -695,7 +695,9 @@ fn an_index_longer_than_the_file_is_a_short_read() {
         slow: false,
     };
     match decode(&v, &long, &job) {
-        Err(DecodeError::ShortRead { expected, got }) => assert_eq!((expected, got), (41, 30)),
+        // Only the requested frames are encoded now; the discarded seek prefix
+        // is excluded from both the expected and actual picture counts.
+        Err(DecodeError::ShortRead { expected, got }) => assert_eq!((expected, got), (13, 2)),
         other => panic!("{other:?}"),
     }
     let _ = std::fs::remove_dir_all(&dir);

@@ -27,6 +27,7 @@ import { DEFAULT_MASK_STATE, MASK_STATE_KEY, readMaskState } from "../lib/maskSt
 import * as guiControls from "./GuiMaskControls";
 import * as frameProcessing from "../lib/veilFrame";
 import * as portalProcessing from "../lib/portalPreview";
+import * as thumbnailCache from "../lib/guiThumbnailCache";
 import { DEFAULT_POST, DEFAULT_TONE, pictureSettings, type PostSettings } from "../lib/post/settings";
 
 type Element = ReactElement<Record<string, any>>;
@@ -443,6 +444,30 @@ it("image mode shares every viewer tool without decoding or labelling a video fr
 
 const postOf = (patch: Partial<PostSettings> = {}, tone: Partial<typeof DEFAULT_TONE> = {}, on = false): PostSettings => ({
   ...DEFAULT_POST, ...patch, stages: { ...DEFAULT_POST.stages, tone: { on, params: { ...DEFAULT_TONE, ...tone } } },
+});
+
+it("loads the original without waiting for a thumbnail and ignores a late placeholder", async () => {
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+  let release!: (url: string) => void;
+  const pending = new Promise<string>(resolve => { release = resolve; });
+  vi.spyOn(thumbnailCache, "previewFrames").mockReturnValue(new thumbnailCache.GuiThumbnailCache(() => pending));
+  vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_bytes, original) => ({ blob: original, applied: false }));
+  const backend = createMockBackend();
+  backend.previewThumbnail = vi.fn();
+  const frame = vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(0));
+  const view = await backend.view();
+  hooks.stateCursor = hooks.refCursor = 0; hooks.effects = [];
+  VideoPane({ backend, view, post: postOf(), onError: vi.fn() });
+  const stop = hooks.effects.find(effect => effect.toString().includes("const mine"))!();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  expect(frame).toHaveBeenCalledWith(view.current);
+  expect(hooks.states[1]).toBe(view.current);
+  const originalUrl = hooks.states[0];
+  release("data:late-thumbnail");
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(hooks.states[0]).toBe(originalUrl);
+  expect(hooks.states[1]).toBe(view.current);
+  stop?.();
 });
 
 async function runLoad(post: PostSettings | undefined, extra: Record<string, unknown> = {}, mask?: guiControls.GuiMaskState) {

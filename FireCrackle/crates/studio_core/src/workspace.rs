@@ -5,7 +5,7 @@ use crate::autosave::{AutosaveError, AutosaveLog};
 use crate::chart::decimate;
 use crate::config::{DecodeConfig, SettingError, SettingInfo, Settings};
 use crate::decode_plan::{
-    cap_job, plan, trim_job, DecodeJob, FrameCache, PlanError, DEFAULT_FIRST_AHEAD, MAX_FILL_FRAMES,
+    fill_job, plan, trim_job, DecodeJob, FrameCache, PlanError, DEFAULT_FIRST_AHEAD,
 };
 use crate::frames::{decode_job, DecodeError, DecodedFrame};
 use crate::import::{import_video, ImportError, Tools};
@@ -135,7 +135,7 @@ impl Inner {
         if (job.first..=job.last).contains(&around) {
             return None;
         }
-        let job = cap_job(&self.index, job, around, MAX_FILL_FRAMES, &cfg);
+        let job = fill_job(&self.index, job, around, &cfg);
         *self.background.lock().expect("background lock") = Some((job.first, job.last));
         Some(job)
     }

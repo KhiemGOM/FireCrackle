@@ -173,6 +173,25 @@ pub fn trim_job(
 /// the frames already ahead of the playhead run out, and short enough that the next job follows the playhead.
 pub const MAX_FILL_FRAMES: u32 = 240;
 
+/// Finish a nearby keyframe interval rather than stopping mid-GOP and decoding
+/// its prefix again on the next refill. Never extend beyond the requested window
+/// or twice the ordinary refill budget; long GOPs keep the existing bounded plan.
+pub fn fill_job(index: &FrameIndex, job: DecodeJob, want: u32, cfg: &DecodeConfig) -> DecodeJob {
+    if job.first > want {
+        let end = job.last.saturating_add(1).min(job.first.saturating_add(MAX_FILL_FRAMES * 2));
+        if let Some(next_key) = ((job.first + 1)..=end)
+            .find(|&n| index.frames.get(n as usize).is_some_and(|f| f.key))
+        {
+            // Frequent keyframes already make seeking cheap. Do not turn an
+            // intra-only video into one decoder process per picture.
+            if next_key - job.first >= MAX_FILL_FRAMES / 2 {
+                return job_for(index, job.first, next_key - 1, cfg);
+            }
+        }
+    }
+    cap_job(index, job, want, MAX_FILL_FRAMES, cfg)
+}
+
 /// Cut a background job (one that does not contain the wanted frame) to `max` frames: the part next to the playhead
 /// is kept, the far end is left for the next job. A shorter job, a job for the wanted frame itself, and a `max` of 0 are
 /// returned as they are.

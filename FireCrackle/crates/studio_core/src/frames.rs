@@ -221,6 +221,13 @@ fn decode_selected(
     let _slot = gate.acquire(cancel).ok_or(DecodeError::Cancelled)?;
 
     let mut cmd = crate::proc::ffmpeg_command(&tools.ffmpeg);
+    if !preview {
+        // Interactive AV1 decoding needs more than the conservative thumbnail
+        // budget. Bound total fanout across the configured simultaneous decodes.
+        let cpus = std::thread::available_parallelism().map_or(2, usize::from);
+        let threads = (cpus.saturating_sub(2) / cfg.max_parallel.max(1) as usize).clamp(2, 8);
+        cmd.args(["-threads", &threads.to_string()]);
+    }
     cmd.args(["-nostdin", "-hide_banner", "-loglevel", "info", "-nostats"]);
     // ffmpeg reports frame times relative to the seek point (or to the first frame when there is no seek), so the
     // absolute time of decoded frame `k` is `time_base + showinfo time`. `-copyts` would keep absolute times but
@@ -235,18 +242,16 @@ fn decode_selected(
         }
         None => index.frames[0].pts,
     };
-    let first_output = if preview { job.first } else { job.keyframe };
+    let first_output = job.first;
     let output_count = job.last - first_output + 1;
-    let filter = if preview {
-        format!(
-            "trim=start_frame={}:end_frame={},scale=w=min({}\\,iw):h=-2,showinfo",
-            job.first - job.keyframe,
-            job.last - job.keyframe + 1,
-            cfg.max_width
-        )
-    } else {
-        format!("scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width)
-    };
+    // Decode the seek prefix, but do not scale, JPEG-encode or transfer frames
+    // that the caller will discard. trim preserves their original timestamps.
+    let filter = format!(
+        "trim=start_frame={}:end_frame={},scale=w=min({}\\,iw):h=-2,showinfo",
+        job.first - job.keyframe,
+        job.last - job.keyframe + 1,
+        cfg.max_width
+    );
     cmd.arg("-i")
         .arg(video)
         .args(crate::import::passthrough_args(&tools.ffmpeg))

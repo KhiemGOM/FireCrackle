@@ -99,6 +99,16 @@ describe("playback clock", () => {
 
 // Job175: consumer backpressure must stop media time, not accumulate catch-up debt.
 describe("buffer underrun backpressure", () => {
+  it("retains media time across brief frame delivery waits at 1x", () => {
+    let clock = startClock(0), total = 0;
+    // One frame presentation/IPC finishes every second 16 ms timer tick.
+    for (let now = 16; now <= 10000; now += 16) {
+      const due = framesDue(now, clock, 60, 1, 30, now % 32 === 0);
+      total += due.frames; clock = due.clock;
+    }
+    expect(total).toBeGreaterThanOrEqual(598);
+    expect(total).toBeLessThanOrEqual(600);
+  });
   it("holds indefinitely until presentation is ready, then resumes without a catch-up jump", () => {
     let clock = startClock(0);
     for (const now of [17,100,1000,10_000]) {

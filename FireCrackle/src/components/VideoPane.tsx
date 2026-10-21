@@ -345,7 +345,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if (!playing && shownRef.current !== view.current && (stillImage?.file || (!stillImage && backend.previewThumbnail && !buffer?.has(view.current)))) {
       const quick = stillImage?.file ? photoPreview(stillImage.file, 512) : previewFrames(backend).get(view.current, () => mine === token.current);
       quickReady = quick.then(preview => {
-        if (mine !== token.current) return;
+        if (mine !== token.current || shownRef.current === view.current) return;
         const old=urlRef.current,fromBuffer=urlFromBuffer.current;
         urlRef.current=preview;urlFromBuffer.current=false;shownRef.current=null;
         setUrl(preview);setShown(null);
@@ -365,16 +365,15 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
       return () => { ++token.current; cancel.abort(); };
     }
     if (!stillImage && buffer) {
-      if(!quickReady)buffer.prefetch(view.current, motionRef.current);
+      buffer.prefetch(view.current, motionRef.current);
       if (!correcting) {
         // no picture correction: show the frame buffer's own, already decoded, object URL
         const frame = view.current;
         const loadFull=()=>{
           if(cancel.signal.aborted)return Promise.reject(new Error("cancelled"));
-          if(quickReady)buffer.prefetch(frame,motionRef.current);
           return buffer.load(frame,cancel.signal);
         };
-        (quickReady?quickReady.then(loadFull):loadFull()).then(() => {
+        loadFull().then(() => {
           // the playhead moved on while this frame was on its way: it is still shown when it is newer than the picture
           // on screen and not too far behind (lib/lateFrame.ts), so a slow moment slows the picture, not freezes it
           const late = mine !== token.current;
@@ -394,7 +393,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
     const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
       ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original, fromBuffer: false }; })
-      : (quickReady?quickReady.then(() => buffer ? buffer.load(view.current,cancel.signal) : backend.frame(view.current).then(bytes=>({bytes,fromBuffer:false}))): (buffer ? buffer.load(view.current,cancel.signal) : backend.frame(view.current).then(bytes=>({bytes,fromBuffer:false}))))
+      : (buffer ? buffer.load(view.current,cancel.signal) : backend.frame(view.current).then(bytes=>({bytes,fromBuffer:false})))
         .then(({ bytes, fromBuffer }) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }), fromBuffer }));
     source
       .then(async ({ bytes, original }) => {
