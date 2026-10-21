@@ -70,3 +70,30 @@ fn malformed_or_empty_bundles_fail_closed() {
         assert!(InteractionDetector::from_bundle(bytes).is_err());
     }
 }
+
+#[test]
+fn compressed_gui_levels_remain_detectable_without_a_perfect_white_border() {
+    let (template, mut rgb) = fixture();
+    // Source colour levels shifted by28, beyond the old24-channel budget.
+    // Preserve the panel's layout and contrast, as in compressed real footage.
+    for value in &mut rgb {
+        *value = value.saturating_sub(28);
+    }
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    assert!(detector.detect(&rgb, 400, 240).unwrap().gui_detected);
+}
+
+#[test]
+fn relaxed_colour_matching_still_requires_panel_structure() {
+    let (template, rgb) = fixture();
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    for grey in [0, 31, 60, 139, 180, 212, 230, 240, 255] {
+        assert!(
+            !detector
+                .detect(&vec![grey; rgb.len()], 400, 240)
+                .unwrap()
+                .gui_detected,
+            "flat grey{grey} is not a panel"
+        );
+    }
+}

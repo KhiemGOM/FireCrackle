@@ -1,4 +1,4 @@
-//! Frozen GUI-presence policy, with geometry caching and deterministic CPU workers.
+//! GUI-presence policy, with geometry caching and deterministic CPU workers.
 use super::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -6,6 +6,14 @@ use std::sync::{
 };
 #[path = "gui_tooltip.rs"]
 mod tooltip;
+
+// Presence settings validated on the downloaded-video sample in
+// docs/GUI_DOWNLOADED_VIDEO_CHECK.md. These are detector tolerances, not game
+// constants or probabilities. Occlusion/support requirements stay independent.
+const CHANNEL_TOLERANCE: u8 = 36;
+const BORDER_MIN: f64 = 0.75;
+const STRUCTURE_MIN: f64 = 0.65;
+const IDENTITY_MIN: f64 = 0.85;
 
 struct Colour {
     low: [u8; 3],
@@ -29,8 +37,12 @@ impl Stage {
                         p.rgb
                     };
                     Colour {
-                        low: std::array::from_fn(|k| p.rgb[k].min(other[k]).saturating_sub(24)),
-                        high: std::array::from_fn(|k| p.rgb[k].max(other[k]).saturating_add(24)),
+                        low: std::array::from_fn(|k| {
+                            p.rgb[k].min(other[k]).saturating_sub(CHANNEL_TOLERANCE)
+                        }),
+                        high: std::array::from_fn(|k| {
+                            p.rgb[k].max(other[k]).saturating_add(CHANNEL_TOLERANCE)
+                        }),
                     }
                 })
                 .collect()
@@ -145,10 +157,10 @@ impl InteractionDetector {
                 .filter(|source| seen.insert(PanelKey::from(source)))
                 .map(|source| {
                     let stages = [
-                        (&source.border, 0.8),
-                        (&source.structure, 0.7),
-                        (&source.presence_structure, 0.7),
-                        (&source.identity, 0.9),
+                        (&source.border, BORDER_MIN),
+                        (&source.structure, STRUCTURE_MIN),
+                        (&source.presence_structure, STRUCTURE_MIN),
+                        (&source.identity, IDENTITY_MIN),
                     ]
                     .map(|(p, floor)| Stage::new(p, floor));
                     PreparedTemplate { source, stages }
@@ -446,7 +458,7 @@ fn find(
             false,
             mask,
         );
-        if border.value.is_some_and(|v| v < 0.8) {
+        if border.value.is_some_and(|v| v < BORDER_MIN) {
             continue;
         }
         let mut structure = evidence(
@@ -459,7 +471,7 @@ fn find(
             false,
             mask,
         );
-        if structure.value.is_some_and(|v| v < 0.7) {
+        if structure.value.is_some_and(|v| v < STRUCTURE_MIN) {
             if !source.identity.is_empty() || source.presence_structure.is_empty() {
                 continue;
             }
@@ -473,7 +485,7 @@ fn find(
                 false,
                 mask,
             );
-            if structure.value.is_none_or(|v| v < 0.7) {
+            if structure.value.is_none_or(|v| v < STRUCTURE_MIN) {
                 continue;
             }
         }
@@ -495,7 +507,7 @@ fn find(
                 mask,
             )
         };
-        if identity.value.is_some_and(|v| v < 0.9) {
+        if identity.value.is_some_and(|v| v < IDENTITY_MIN) {
             continue;
         }
         if mask.is_some()
