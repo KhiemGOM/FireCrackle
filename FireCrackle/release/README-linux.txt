@@ -8,6 +8,7 @@ AppImage:
   On Ubuntu: sudo apt install ffmpeg libfuse2
   On Fedora: sudo dnf install ffmpeg-free
   Check that both ffmpeg -version and ffprobe -version work before opening a video.
+  For fast AV1 videos, ffmpeg -decoders should list libdav1d; if it does not, FireCrackle still works but decodes AV1 about twice as slowly.
   chmod +x FireCrackle-*-linux-x86_64.AppImage
   ./FireCrackle-*-linux-x86_64.AppImage
   Without FUSE, use: ./FireCrackle-*-linux-x86_64.AppImage --appimage-extract-and-run

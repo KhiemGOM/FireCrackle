@@ -8,8 +8,9 @@ $project = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'retry.ps1')
 $lock = Get-Content -LiteralPath (Join-Path $project 'release/runtime-lock.json') -Raw | ConvertFrom-Json
 $cache = Join-Path $project '.release-cache'
-$archive = Join-Path $cache "ffmpeg-$($lock.version).zip"
-$unpacked = Join-Path $cache "ffmpeg-$($lock.version)"
+$cacheKey = "ffmpeg-$($lock.version)-$($lock.sha256)"
+$archive = Join-Path $cache "$cacheKey.$($lock.kind)"
+$unpacked = Join-Path $cache $cacheKey
 $runtime = Join-Path $project 'src-tauri/runtime'
 New-Item -ItemType Directory -Path $cache -Force | Out-Null
 if (!(Test-Path -LiteralPath $archive)) {
@@ -25,8 +26,16 @@ if (!(Test-Path -LiteralPath $archive)) {
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $lock.sha256) {
     throw "FFmpeg checksum mismatch: $archive. Remove this cached archive and retry."
 }
-if (!(Test-Path -LiteralPath $unpacked)) {
-    Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
+$extracted = Join-Path $unpacked '.extracted'
+if (!(Test-Path -LiteralPath $extracted)) {
+    if ($lock.kind -eq 'zip') {
+        Expand-Archive -LiteralPath $archive -DestinationPath $unpacked -Force
+    } elseif ($lock.kind -eq '7z') {
+        New-Item -ItemType Directory -Path $unpacked -Force | Out-Null
+        & (Join-Path $env:SystemRoot 'System32/tar.exe') -xf $archive -C $unpacked
+        if ($LASTEXITCODE -ne 0) { throw 'Could not extract pinned FFmpeg archive.' }
+    } else { throw "Unsupported FFmpeg archive: $($lock.kind)" }
+    $lock.sha256 | Set-Content -LiteralPath $extracted -Encoding ASCII
 }
 $bins = @(Get-ChildItem -LiteralPath $unpacked -Recurse -File -Filter ffmpeg.exe)
 if ($bins.Count -ne 1) { throw 'Expected one FFmpeg executable in pinned package.' }

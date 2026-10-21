@@ -50,7 +50,7 @@ const operationNames: Record<string, string> = {
   act: "Change labels or position", view: "Load project", settingsSet: "Save settings",
   transferLabels: "Import or export labels", thumbsStart: "Create thumbnails", thumbsStatus: "Create thumbnails",
   noFireStart: "Start no-fire scan", noFireStatus: "No-fire scan", povStart: "Start first-person scan", povStatus: "First-person scan",
-  linkStart: "Start video download", linkStatus: "Video download", guiMask: "Detect GUI mask", guiMaskPixels: "Read GUI mask",
+  linkStart: "Start video download", linkStatus: "Video download", guiMask: "Detect GUI mask", guiMaskFrame: "Detect GUI mask", guiMaskPixels: "Read GUI mask",
 };
 const rawBackends=new WeakMap<object,object>();
 /** Optional display preparation handles its own failures without interrupting foreground work. */

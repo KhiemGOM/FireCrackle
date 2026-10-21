@@ -11,7 +11,7 @@ Set-Location FireCrackle
 npm run release
 ```
 
-This verifies/downloads pinned FFmpeg for build tests, installs dependencies on a fresh checkout (or checks existing ones), runs checks, builds the app and creates a portable ZIP in `releases/v<version>/<build>/`. Send that ZIP; testers extract it and run `FireCrackle.exe`. Testers need Windows 10/11 x64 and Edge WebView2. External executables are not packaged: FFmpeg/FFprobe download on first use when an installed pair is unavailable. They are verified and cached in account app data for subsequent offline use.
+This verifies/downloads pinned FFmpeg for build tests, installs dependencies on a fresh checkout (or checks existing ones), runs checks, builds the app and creates a portable ZIP in `releases/v<version>/<build>/`. Send that ZIP; testers extract it and run `FireCrackle.exe`. Testers need Windows 10/11 x64 and Edge WebView2. External executables are not packaged: FFmpeg/FFprobe download on first use when a suitable installed pair is unavailable (Windows requires dav1d AV1 decoding). They are verified and cached in account app data for subsequent offline use.
 
 For a single installer EXE that installs WebView2 when missing (internet required):
 
@@ -29,7 +29,7 @@ ZIP is the default so Windows can extract it directly. Both portable and setup p
 
 Each run has a fresh output folder, `release.json` containing commit/build/runtime versions, and SHA-256 checksums. Only the executable, notices and tester instructions are packaged, never third-party tool binaries, recordings or labels. Normal builds run checks; `-SkipChecks` is an explicit shortcut. `-CleanInstall` forces locked `npm ci` as CI does; stop any dev command first so its native modules can be replaced. Validate prerequisites/configuration without building with `npm run release -- -ValidateOnly`.
 
-FFmpeg comes from [Gyan's Windows builds](https://www.gyan.dev/ffmpeg/builds/), pinned in `release/runtime-lock.json`; its original license/build notices and source links remain beside cached tools. Update version, URL, SHA-256 and source together when upgrading. `.release-cache` and `src-tauri/runtime` hold developer test tools, not packaged runtime files. Neither is committed.
+FFmpeg comes from [Gyan's Windows builds](https://www.gyan.dev/ffmpeg/builds/), pinned in `release/runtime-lock.json`; its original license/build notices and source links remain beside cached tools. Update version, archive kind, URL, SHA-256 and source together when upgrading. Windows uses the full build with dav1d; hash-specific cache directories keep older running windows untouched. `.release-cache` and `src-tauri/runtime` hold developer test tools, not packaged runtime files. Neither is committed.
 
 ## Picture correction
 
@@ -79,4 +79,4 @@ npm ci
 npm run tauri dev
 ```
 
-The app reuses FFmpeg/FFprobe from `PATH` or a legacy adjacent `tools` folder when available. Windows otherwise fetches them into app-local data; Linux uses distribution packages. Labels autosave alongside the video; UI preferences are per account.
+The app reuses FFmpeg/FFprobe from `PATH` or a legacy adjacent `tools` folder when available; on Windows the FFmpeg build must include libdav1d. Windows otherwise fetches them into app-local data; Linux uses distribution packages. Labels autosave alongside the video; UI preferences are per account.

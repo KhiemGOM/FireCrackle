@@ -18,7 +18,7 @@ The tracked `fire-detection/mod/gradle/wrapper/gradle-wrapper.jar` is the Gradle
 
 ## FFmpeg
 
-FFmpeg and FFprobe are separate executable programs, not linked into the app or included in Windows installers/portable archives. An installed pair is reused where available; otherwise Windows downloads the Gyan essentials package pinned by `FireCrackle/release/runtime-lock.json`, verifies its SHA-256 and caches it in app data. This build is GPLv3; its original LICENSE, README with build/dependency details, and source links are retained beside the cached executables. Build/test preparation may also download a local runtime; it must not be copied into release packages. Do not represent FFmpeg as MIT-licensed.
+FFmpeg and FFprobe are separate executable programs, not linked into the app or included in Windows installers/portable archives. An installed pair is reused where available; otherwise Windows downloads the Gyan full-build package (7z, includes the dav1d AV1 decoder; never the essentials build) pinned by `FireCrackle/release/runtime-lock.json`, verifies its SHA-256 and caches it in app data. This build is GPLv3; its original LICENSE, README with build/dependency details, and source links are retained beside the cached executables. Build/test preparation may also download a local runtime; it must not be copied into release packages. Do not represent FFmpeg as MIT-licensed.
 
 Linux packages use the system FFmpeg/FFprobe installed through the user's distribution; they do not redistribute the Windows runtime. The Debian package declares FFmpeg as a dependency. Distribution-provided libraries and tools retain their own license terms.
 

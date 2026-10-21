@@ -106,6 +106,17 @@ fn video_tool_check(exe: &std::ffi::OsStr) -> Result<(), String> {
         )),
     }
 }
+fn lists_dav1d(decoders: &str) -> bool {
+    decoders
+        .lines()
+        .any(|line| line.split_whitespace().nth(1) == Some("libdav1d"))
+}
+fn has_dav1d(exe: &std::ffi::OsStr) -> bool {
+    command(exe)
+        .args(["-hide_banner", "-decoders"])
+        .output()
+        .is_ok_and(|o| o.status.success() && lists_dav1d(&String::from_utf8_lossy(&o.stdout)))
+}
 fn verify(path: &Path, expected: &str) -> Result<(), String> {
     let mut input = File::open(path).map_err(|e| e.to_string())?;
     let mut sha = Sha256::new();
@@ -210,6 +221,103 @@ fn extract_zip(archive: &Path, dir: &Path, executables: &[&str]) -> Result<(), S
     }
     Ok(())
 }
+fn asset_cache_name(name: &str, asset: &Asset) -> String {
+    // A new build must not overwrite tools still used by another running app.
+    if name == "ffmpeg" {
+        format!("{name}-{}-{}", asset.version, asset.sha256)
+    } else {
+        format!("{name}-{}", asset.version)
+    }
+}
+
+fn selected_archive_members(
+    list: &str,
+    executables: &[&str],
+) -> Result<Vec<(String, String)>, String> {
+    let mut selected = BTreeMap::new();
+    for member in list.lines() {
+        if member.ends_with('/') {
+            continue;
+        }
+        let path = Path::new(member);
+        if !path
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err("Unsafe tool archive path".into());
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let upper = name.to_ascii_uppercase();
+        if executables.contains(&name)
+            || upper.starts_with("LICENSE")
+            || upper.starts_with("COPYING")
+            || upper.starts_with("README")
+        {
+            if selected
+                .insert(name.to_owned(), member.to_owned())
+                .is_some()
+            {
+                return Err(format!("Duplicate tool archive member: {name}"));
+            }
+        }
+    }
+    if !executables.iter().all(|name| selected.contains_key(*name)) {
+        return Err("Tool archive is missing its executable".into());
+    }
+    Ok(selected.into_iter().collect())
+}
+
+fn extract_7z(archive: &Path, dir: &Path, executables: &[&str]) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        // Windows' bundled libarchive tar reads 7z. Stream only selected members
+        // into files we create: archive paths never control filesystem extraction.
+        let tar =
+            PathBuf::from(std::env::var_os("SystemRoot").ok_or("Windows directory unavailable")?)
+                .join("System32/tar.exe");
+        let listing = command(&tar)
+            .arg("-tf")
+            .arg(archive)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !listing.status.success() {
+            return Err(format!(
+                "Could not read FFmpeg archive: {}",
+                String::from_utf8_lossy(&listing.stderr)
+            ));
+        }
+        let members = selected_archive_members(
+            std::str::from_utf8(&listing.stdout).map_err(|e| e.to_string())?,
+            executables,
+        )?;
+        for (name, member) in members {
+            let output = File::create(dir.join(name)).map_err(|e| e.to_string())?;
+            let result = command(&tar)
+                .arg("-xOf")
+                .arg(archive)
+                .arg("--")
+                .arg(member)
+                .stdout(output)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !result.status.success() {
+                return Err(format!(
+                    "Could not unpack FFmpeg: {}",
+                    String::from_utf8_lossy(&result.stderr)
+                ));
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (archive, dir, executables);
+        Err("7z runtime installation is only used on Windows".into())
+    }
+}
+
 fn install(
     name: &str,
     asset: &Asset,
@@ -217,8 +325,8 @@ fn install(
     cancel: Option<&AtomicBool>,
 ) -> Result<PathBuf, String> {
     check_cancel(cancel)?;
-    let dir = root()?.join(format!("{name}-{}", asset.version));
-    // A re-pinned download with an unchanged version string must replace the cached copy.
+    let dir = root()?.join(asset_cache_name(name, asset));
+    // Reuse only a completed installation of the exact pinned archive.
     if fs::read_to_string(dir.join("ready")).is_ok_and(|sha| sha == asset.sha256)
         && executables.iter().all(|n| dir.join(n).is_file())
     {
@@ -230,6 +338,8 @@ fn install(
     check_cancel(cancel)?;
     if asset.kind == "zip" {
         extract_zip(&archive, &dir, executables)?;
+    } else if asset.kind == "7z" {
+        extract_7z(&archive, &dir, executables)?;
     } else {
         fs::copy(&archive, dir.join(executables[0])).map_err(|e| e.to_string())?;
         #[cfg(unix)]
@@ -274,7 +384,13 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
         video_tool_check(&tools.ffmpeg),
         video_tool_check(&tools.ffprobe),
     ];
-    if checks.iter().all(Result::is_ok) {
+    // Older portable Windows builds carry essentials beside the app. Do not
+    // let that valid-but-slow AV1 decoder bypass the upgraded runtime cache.
+    if checks.iter().all(Result::is_ok) && (!cfg!(windows) || has_dav1d(&tools.ffmpeg)) {
+        // Linux uses the distribution's FFmpeg, which we cannot replace: only say so.
+        if !cfg!(windows) && !has_dav1d(&tools.ffmpeg) {
+            eprintln!("FireCrackle: this FFmpeg has no libdav1d, so AV1 videos decode with a slower decoder. Install an FFmpeg build with libdav1d for faster AV1 scans.");
+        }
         let _ = VIDEO.set(tools.clone());
         return Ok(tools);
     }
@@ -285,6 +401,7 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
             url: String,
             sha256: String,
             version: String,
+            kind: String,
         }
         let lock: Lock = serde_json::from_str(include_str!("../../release/runtime-lock.json"))
             .map_err(|e| e.to_string())?;
@@ -292,14 +409,17 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
             url: lock.url,
             sha256: lock.sha256,
             version: lock.version,
-            kind: "zip".into(),
+            kind: lock.kind,
         };
         let dir = install("ffmpeg", &asset, &["ffmpeg.exe", "ffprobe.exe"], cancel)?;
         let tools = Tools {
             ffmpeg: dir.join("ffmpeg.exe").into_os_string(),
             ffprobe: dir.join("ffprobe.exe").into_os_string(),
         };
-        if !runs(&tools.ffmpeg, "-version") || !runs(&tools.ffprobe, "-version") {
+        if !runs(&tools.ffmpeg, "-version")
+            || !runs(&tools.ffprobe, "-version")
+            || !has_dav1d(&tools.ffmpeg)
+        {
             let _ = fs::remove_file(dir.join("ready"));
             return Err("Downloaded FFmpeg could not start".into());
         }
@@ -346,6 +466,20 @@ pub fn link_tools(cancel: Option<&AtomicBool>) -> Result<(PathBuf, PathBuf), Str
 mod tests {
     use super::*;
     #[test]
+    fn decoder_list_with_dav1d_is_recognised() {
+        let list = "Decoders:\n V....D av1                  Alliance for Open Media AV1\n V....D libdav1d             dav1d AV1 decoder by VideoLAN (codec av1)\n V....D libaom-av1           libaom AV1 (codec av1)\n";
+        assert!(lists_dav1d(list));
+    }
+    #[test]
+    fn decoder_list_without_dav1d_is_rejected() {
+        // essentials-style: libaom only, and a description that merely mentions dav1d.
+        let list = "Decoders:\n V....D libaom-av1           libaom AV1 (codec av1)\n V....D av1                  slower than libdav1d without it\n";
+        assert!(!lists_dav1d(list));
+        assert!(!lists_dav1d(""));
+        assert!(!lists_dav1d("libdav1d"));
+        assert!(!lists_dav1d(" V....D libdav1d_extra   something else\n"));
+    }
+    #[test]
     fn manifest_has_verified_https_downloads() {
         let manifest: BTreeMap<String, BTreeMap<String, Asset>> =
             serde_json::from_str(include_str!("../../release/download-tools.json")).unwrap();
@@ -370,6 +504,60 @@ mod tests {
         );
         assert!(verify(&path, &"0".repeat(64)).is_err());
         fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn runtime_builds_have_separate_cache_directories() {
+        let mut asset = Asset {
+            url: String::new(),
+            sha256: "a".repeat(64),
+            kind: "7z".into(),
+            version: "8.1.2".into(),
+        };
+        let previous = asset_cache_name("ffmpeg", &asset);
+        asset.sha256 = "b".repeat(64);
+        assert_ne!(previous, asset_cache_name("ffmpeg", &asset));
+    }
+    #[test]
+    fn archive_selection_requires_unique_safe_tools_and_preserves_notices() {
+        let required = ["ffmpeg.exe", "ffprobe.exe"];
+        let valid = "vendor/\nvendor/bin/ffmpeg.exe\nvendor/bin/ffprobe.exe\nvendor/LICENSE\nvendor/README.txt\nvendor/doc/large.html\n";
+        let members = selected_archive_members(valid, &required).unwrap();
+        assert_eq!(members.len(), 4);
+        assert!(members.iter().any(|(n, _)| n == "LICENSE"));
+        for bad in [
+            "../ffmpeg.exe\nffprobe.exe",
+            "/ffmpeg.exe\nffprobe.exe",
+            "ffmpeg.exe",
+            "a/ffmpeg.exe\nb/ffmpeg.exe\nffprobe.exe",
+        ] {
+            assert!(selected_archive_members(bad, &required).is_err(), "{bad}");
+        }
+    }
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "Requires the checksum-verified pinned FFmpeg archive in the local release cache"]
+    fn unpack_pinned_runtime_and_check_dav1d() {
+        let asset: Asset =
+            serde_json::from_str(include_str!("../../release/runtime-lock.json")).unwrap();
+        let cache = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.release-cache");
+        let archive = cache.join(format!(
+            "{}.{}",
+            asset_cache_name("ffmpeg", &asset),
+            asset.kind
+        ));
+        verify(&archive, &asset.sha256).unwrap();
+        let dir = cache.join(format!("extract-check-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        extract_7z(&archive, &dir, &["ffmpeg.exe", "ffprobe.exe"]).unwrap();
+        assert!(dir.join("LICENSE").is_file());
+        assert!(dir.join("README.txt").is_file());
+        let output = command(dir.join("ffmpeg.exe"))
+            .args(["-hide_banner", "-decoders"])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("libdav1d"));
+        assert!(runs(dir.join("ffprobe.exe").as_os_str(), "-version"));
     }
     #[test]
     fn cancelled_setup_does_not_download() {
@@ -405,12 +593,15 @@ mod tests {
                 url: asset["url"].as_str().unwrap().into(),
                 sha256: asset["sha256"].as_str().unwrap().into(),
                 version: asset["version"].as_str().unwrap().into(),
-                kind: "zip".into(),
+                kind: asset["kind"].as_str().unwrap().into(),
             };
-            let dir = root().unwrap().join(format!("ffmpeg-{}", asset.version));
+            let dir = root().unwrap().join(asset_cache_name("ffmpeg", &asset));
             fs::create_dir_all(&dir).unwrap();
-            let existing = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../.release-cache/ffmpeg-8.1.2.zip");
+            let existing = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+                "../.release-cache/{}.{}",
+                asset_cache_name("ffmpeg", &asset),
+                asset.kind
+            ));
             if existing.is_file() && !dir.join("ready").is_file() {
                 fs::copy(existing, dir.join("download")).unwrap();
             }

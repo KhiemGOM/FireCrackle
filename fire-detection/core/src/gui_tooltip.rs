@@ -1,5 +1,11 @@
 // Vanilla1.21.11 TooltipRenderUtil background/frame signatures. This detects
 // the independent rendered layer; no GUI-match errors or renderer labels enter.
+// Capture-space tolerances, not Minecraft layout constants. Compression can
+// break the faint bottom rim or shorten its endpoints. Joining a bounded gap
+// does not credit it as matching: the 85% line coverage, 75% side coverage and
+// 55% dark-fill requirements below still apply independently.
+const MAX_RIM_GAP_PX: usize = 12;
+const ENDPOINT_SLACK_PX: usize = 12;
 #[derive(Clone, Copy, Debug)]
 pub struct TipRect {
     pub x: usize,
@@ -55,7 +61,7 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             let start = x;
             let mut last = x;
             let mut good = 0;
-            while x < w && x <= last + 2 {
+            while x < w && x <= last + MAX_RIM_GAP_PX {
                 if rim_row[x] != 0 {
                     last = x;
                     good += 1;
@@ -83,7 +89,7 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             if bottom > top + 450 {
                 break;
             }
-            if l.abs_diff(left) > 4 || r.abs_diff(right) > 4 {
+            if l.abs_diff(left) > ENDPOINT_SLACK_PX || r.abs_diff(right) > ENDPOINT_SLACK_PX {
                 continue;
             }
             let height = bottom - top + 1;
@@ -151,4 +157,55 @@ pub fn mask(rects: &[TipRect], w: usize, h: usize) -> Vec<u8> {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tooltip() -> Vec<u8> {
+        let mut rgb = vec![100; 320 * 180 * 3];
+        for y in 30..130 {
+            for x in 40..240 {
+                let rim = x < 42 || x >= 238 || y < 32 || y >= 128;
+                let colour = if rim { [80, 16, 128] } else { [16, 0, 16] };
+                rgb[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3]
+                    .copy_from_slice(&colour);
+            }
+        }
+        rgb
+    }
+
+    fn erase(rgb: &mut [u8], xs: std::ops::Range<usize>, ys: std::ops::Range<usize>) {
+        for y in ys {
+            for x in xs.clone() {
+                rgb[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3].fill(100);
+            }
+        }
+    }
+
+    #[test]
+    fn compressed_rim_gaps_do_not_turn_known_tooltip_pixels_into_mismatches() {
+        let mut rgb = tooltip();
+        erase(&mut rgb, 110..118, 128..130);
+        erase(&mut rgb, 230..240, 128..130);
+        let boxes = detect_tooltips(&rgb, 320, 180);
+        assert_eq!(boxes.len(), 1);
+        let excluded = mask(&boxes, 320, 180);
+        assert_eq!(excluded[80 * 320 + 140], 255);
+        assert_eq!(excluded[10 * 320 + 10], 0);
+    }
+
+    #[test]
+    fn broken_lines_still_need_coverage_sides_and_dark_fill() {
+        let mut too_broken = tooltip();
+        erase(&mut too_broken, 100..150, 128..130);
+        assert!(detect_tooltips(&too_broken, 320, 180).is_empty());
+        let mut no_side = tooltip();
+        erase(&mut no_side, 40..42, 40..120);
+        assert!(detect_tooltips(&no_side, 320, 180).is_empty());
+        let mut no_fill = tooltip();
+        erase(&mut no_fill, 42..238, 32..128);
+        assert!(detect_tooltips(&no_fill, 320, 180).is_empty());
+    }
 }
