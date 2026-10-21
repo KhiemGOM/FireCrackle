@@ -10,10 +10,10 @@ mod tooltip;
 // Presence settings validated on the downloaded-video sample in
 // docs/GUI_DOWNLOADED_VIDEO_CHECK.md. These are detector tolerances, not game
 // constants or probabilities. Occlusion/support requirements stay independent.
-const CHANNEL_TOLERANCE: u8 = 36;
-const BORDER_MIN: f64 = 0.75;
-const STRUCTURE_MIN: f64 = 0.65;
-const IDENTITY_MIN: f64 = 0.85;
+const CHANNEL_TOLERANCE: u8 = 32;
+const BORDER_MIN: f64 = 0.80;
+const STRUCTURE_MIN: f64 = 0.70;
+const IDENTITY_MIN: f64 = 0.90;
 
 struct Colour {
     low: [u8; 3],

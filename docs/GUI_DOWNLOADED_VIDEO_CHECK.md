@@ -1,6 +1,101 @@
-# More lenient GUI presence on downloaded footage
+# GUI presence on downloaded footage
 
-The production interaction detector now accepts channel differences up to36
+## Current policy: colour tolerance with independent tooltip repair
+
+The current policy uses channel tolerance32 with the original80% border,
+70% interior and90% fixed-control requirements. It also recognizes short breaks
+in independently detected tooltip rims. The previous36 /75% /65% /85% policy
+and its initial sample results below are historical, not the current settings.
+
+Restoring shape gates alone was insufficient. On original frames0–35999,
+colour32 with the old tooltip detector rejected all14 known snowy-world false
+frames but also rejected eight actual chest frames29311–29314 and29317–29320.
+Colour36 with the restored shape gates lost the same eight and retained one
+snow false positive (1646). An eight-combination check at tolerance32 showed
+that globally weakening border/interior gates recovered the tooltip frames
+only while also accepting snow. Fixed-control relaxation did not resolve it.
+
+The eight chest failures have a visible Wooden Axe tooltip. The independent
+tooltip detector returned no rectangle on inspected failures29311,29317,29320:
+short breaks in the faint bottom rim fragmented its line, and shortened line
+endpoints exceeded the former4px pairing tolerance. They were therefore counted
+as GUI mismatches rather than known occlusion. The repair allows up to12px in
+the rim run scan and12px endpoint disagreement. Missing rim pixels are **not**
+credited as matches:85% horizontal coverage,75% side coverage,55% dark fill,
+geometry bounds and the GUI visible-support requirements remain unchanged.
+These12px values are measured capture-space tolerances, not game constants.
+No GUI mismatch is reclassified as an occlusion merely to improve a match.
+
+Source evidence was rechecked in the local1.21.11 `TooltipRenderUtil`
+(`gvm.a(GuiGraphics,int,int,int,int,ResourceLocation)`): it draws separate
+`tooltip/background` and `tooltip/frame` sprites, with optional custom styles.
+The prior source manifest is `.board/gui-calibration-plan/tooltip-source-evidence.json`;
+the actual decompiled class and source assets were reread for this repair.
+The downloaded video's exact version remains unverified. This is robustness
+work on the existing default-style signature, not a claim to recognize every
+version, custom tooltip style or resource pack.
+
+The owner requested economical independent labelling. `gpt-6-luna` reviewed
+all46 previous candidate midpoints, all92 surrounding frames,120 evenly spaced
+frames at2.5+5k seconds, and three full-size tooltip failures. Midpoints1–6
+were non-GUI and7–46 were GUI; all92 surrounding frames were non-GUI.
+The systematic sample has11GUI and109non-GUI frames. Initial small-sheet ID
+transcription errors were corrected by rereading all120 images with large
+printed IDs; the discarded IDs and correction remain in the private record.
+These are model visual labels, not owner or renderer ground truth. No claim of
+exhaustive recall follows from sampled labels.
+
+Private `.board/gui-balance/` records frozen policies, per-frame decisions,
+original-PTS verification, labelled review sheets, source hashes and results.
+The earlier256-frame pool remains a regression check; its previously inspected
+later block is not a new unseen holdout for this follow-up. No new AI model,
+training or synthetic fire data is involved. Generic GUI unit fixtures check
+the rejection and occlusion behavior without committing private footage/assets.
+
+### Final full-frame result
+
+The final production implementation was run directly on **all 36,000 original
+frames**, including every previous negative; original frame identities and PTS
+were verified. It reports **3,483 frames in 40 contiguous GUI intervals**.
+Its entire difference from the prior relaxed scan is removal of the14 snow
+frames forming six false intervals. It loses no other prior positive frame,
+adds no positive frame, and preserves the exact40 remaining interval boundaries.
+Both the reported chest5064–5120 and tooltip-covered chest29269–29412 remain
+continuous. No temporal merging, smoothing or minimum-duration filter was used.
+
+| Policy | Positive frames | Raw intervals | Known snow frames accepted | Tooltip gap frames recovered |
+|---|---:|---:|---:|---:|
+| Original24 /80 /70 /90 |1,271|64|0/14|0/8|
+| Previous relaxed36 /75 /65 /85 |3,497|46|14/14|8/8|
+| Colour32 /80 /70 /90, old tooltip |3,475|42|0/14|0/8|
+| Colour36 /80 /70 /90, old tooltip |3,476|43|1/14|0/8|
+| Final32 /80 /70 /90, repaired tooltip |3,483|40|0/14|8/8|
+
+For the first comparison, all prior positives were evaluated under the frozen
+stricter policies; the colour32 policy was additionally evaluated on every
+prior negative. Baseline/colour36 negative results use the prior relaxed scan
+as their screening bound. The final repaired policy was evaluated directly on
+every frame, without that bound or any cached decision substitution.
+
+The final implementation also passed398 native-image checks: earlier256 pool
+(93GUI/163non-GUI), Luna's120 systematic frames (11GUI/109non-GUI), the14 snow
+frames and eight tooltip failures. Source-policy parity was checked on these
+images. These pools overlap and must not be pooled into an independent accuracy
+estimate. All33 targeted Rust tests and the native app compilation check passed.
+The new incomplete-border and broken-tooltip-rim regressions failed before
+their respective repairs and pass afterward. Tooltip negative tests preserve
+the horizontal coverage, side and fill requirements.
+
+The final scan took453.73seconds (~79.3fps) with gallery work on this machine;
+this is an observed run time, not a controlled performance comparison. The app
+was not restarted. Its existing source-hashed GUI cache key includes both changed
+detector files, so rebuilt versions invalidate prior GUI-scan decisions.
+The private final directory contains40 individual blinks and seven gallery
+sheets, per-frame outputs and a source/assets/video hash manifest.
+
+## Historical first relaxation
+
+The first relaxation accepted channel differences up to36
 (previously24), border agreement75% (80%), interior/presence agreement65% (70%),
 and fixed-control agreement85% (90%). These are engineering settings, not
 Minecraft constants or confidence probabilities. The owner explicitly requested

@@ -97,3 +97,18 @@ fn relaxed_colour_matching_still_requires_panel_structure() {
         );
     }
 }
+
+#[test]
+fn a_partial_border_is_not_enough_even_with_matching_interior() {
+    let (template, mut rgb) = fixture();
+    // A world patch can resemble the inner greys without completing the panel.
+    // This is an actual mismatch, not a known occlusion to mask out.
+    for y in 40..48 {
+        for x in 140..260 {
+            let at = (y * 400 + x) * 3;
+            rgb[at..at + 3].fill(31);
+        }
+    }
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    assert!(!detector.detect(&rgb, 400, 240).unwrap().gui_detected);
+}
