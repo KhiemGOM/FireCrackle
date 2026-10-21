@@ -124,7 +124,9 @@ struct Plan {
 /// No exact container identity is inferred from renameable titles.
 pub struct InteractionDetector {
     templates: Vec<PreparedTemplate>,
-    plan: Mutex<Option<Arc<Plan>>>,
+    /// One plan per frame size: scans of the same video at different sizes
+    /// (e.g. native GUI scan and the 1080p no-fire view) share this detector.
+    plans: Mutex<Vec<Arc<Plan>>>,
     workers: usize,
 }
 impl std::fmt::Debug for InteractionDetector {
@@ -169,7 +171,7 @@ impl InteractionDetector {
                     PreparedTemplate { source, stages }
                 })
                 .collect(),
-            plan: Mutex::new(None),
+            plans: Mutex::new(Vec::new()),
             workers,
         })
     }
@@ -190,13 +192,16 @@ impl InteractionDetector {
         Self::new(templates)
     }
     fn plan(&self, width: usize, height: usize) -> Arc<Plan> {
-        let mut cache = self.plan.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(plan) = cache
-            .as_ref()
-            .filter(|p| p.width == width && p.height == height)
-        {
-            return plan.clone();
+        let find = |plans: &[Arc<Plan>]| {
+            plans
+                .iter()
+                .find(|p| p.width == width && p.height == height)
+                .cloned()
+        };
+        if let Some(plan) = find(&self.plans.lock().unwrap_or_else(|e| e.into_inner())) {
+            return plan;
         }
+        // Build outside the lock: planning one size never blocks lookups of another.
         let mut poses: Vec<Vec<Pose>> = self
             .templates
             .iter()
@@ -226,7 +231,16 @@ impl InteractionDetector {
             poses,
             border_count,
         });
-        *cache = Some(plan.clone());
+        let mut plans = self.plans.lock().unwrap_or_else(|e| e.into_inner());
+        // Another thread may have built the same size meanwhile: keep the first.
+        if let Some(existing) = find(&plans) {
+            return existing;
+        }
+        // A handful of sizes at most in practice; bound memory regardless.
+        if plans.len() >= 4 {
+            plans.remove(0);
+        }
+        plans.push(plan.clone());
         plan
     }
     pub fn prepare(&self, width: usize, height: usize) -> Result<(), String> {
@@ -667,6 +681,28 @@ mod folding {
             presence_structure: vec![p; 16],
             identity: vec![p; 16],
         }
+    }
+    /// Scans at different frame sizes share one detector (the app's first-person,
+    /// no-fire and GUI scans): alternating sizes must reuse each size's plan, not
+    /// rebuild it on every call.
+    #[test]
+    fn plans_for_different_frame_sizes_are_kept_side_by_side() {
+        let bank = InteractionDetector::with_workers(vec![base()], 1).unwrap();
+        let small = bank.plan(1920, 1080);
+        let large = bank.plan(2560, 1440);
+        for _ in 0..5 {
+            assert!(Arc::ptr_eq(&small, &bank.plan(1920, 1080)));
+            assert!(Arc::ptr_eq(&large, &bank.plan(2560, 1440)));
+        }
+        assert_eq!((small.width, small.height), (1920, 1080));
+        assert_eq!((large.width, large.height), (2560, 1440));
+        // Detection results do not depend on which sizes were planned before.
+        let fresh = InteractionDetector::with_workers(vec![base()], 1).unwrap();
+        let rgb = vec![31u8; 1920 * 1080 * 3];
+        let a = bank.detect(&rgb, 1920, 1080).unwrap();
+        let b = fresh.detect(&rgb, 1920, 1080).unwrap();
+        assert_eq!(a.gui_detected, b.gui_detected);
+        assert_eq!(a.reason, b.reason);
     }
     #[test]
     fn exact_aliases_keep_first_source_and_every_decision_input_matters() {
