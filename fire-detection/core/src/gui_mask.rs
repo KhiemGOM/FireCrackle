@@ -3465,8 +3465,9 @@ fn centred_scaled_glyphs(
     let half = (sw / 2 - x0) / unit;
     let first = (hits.iter().map(|p| p.0).min().unwrap_or(x0) - x0) / unit;
     let glyphs = glyph_columns(font);
+    let costs = GlyphCosts::new(&ink, &glyphs);
     for start in (first - 1).max(1)..=(first + 1).min(half - 1) {
-        if let Some(p) = parse_centred(&ink, half, start, &glyphs, o.action_bar_glyph_cost) {
+        if let Some(p) = parse_centred(&costs, half, start, o.action_bar_glyph_cost) {
             let count = p.glyphs.iter().filter(|&&g| glyphs[g].ch != ' ').count();
             if count >= 2
                 && p.ink >= 20
@@ -3517,19 +3518,49 @@ struct Parse {
     ink: u32,
 }
 
+/// Integer pixel/glyph comparisons depend on the absolute band column, not
+/// the proposed line start or parser state. Reuse them only within this band
+/// and colour hypothesis; current-frame pixels and font remain the inputs.
+struct GlyphCosts<'a> {
+    ink: &'a [u16],
+    font: &'a [GlyphCols],
+    rows: Vec<OnceCell<Vec<(u32, u32)>>>,
+}
+impl<'a> GlyphCosts<'a> {
+    fn new(ink: &'a [u16], font: &'a [GlyphCols]) -> Self {
+        Self {
+            ink,
+            font,
+            rows: (0..ink.len()).map(|_| OnceCell::new()).collect(),
+        }
+    }
+    fn row(&self, position: usize) -> &[(u32, u32)] {
+        self.rows[position].get_or_init(|| {
+            self.font
+                .iter()
+                .map(|gc| {
+                    let (mut mismatch, mut hit) = (0, 0);
+                    for (j, &c) in gc.cols.iter().enumerate() {
+                        let col = self.ink.get(position + j).copied().unwrap_or(0);
+                        let c = (c as u16) << 1;
+                        mismatch += (col ^ c).count_ones();
+                        hit += (col & c).count_ones();
+                    }
+                    (mismatch, hit)
+                })
+                .collect()
+        })
+    }
+}
+
 /// Read `ink` (one column bitmask per GUI column: bit 0 the row above the band, bits 1..8 its 8 rows, bit 9 the row
 /// below) as glyphs, left to right from `s`, for a line whose width `tw` puts it centred: `s = W/2 - tw/2`
 /// (InGameHud 247), so `tw` is `2(W/2 - s)` or one more. A line starts and ends with a glyph and never has two spaces in
 /// a row (vanilla messages do not), and the font leaves a free frame around it: the columns just outside must be free
 /// of ink and ink in the rows above and below counts as mismatch, so text over a bright blob is not read at all rather
 /// than read wrong.
-fn parse_centred(
-    ink: &[u16],
-    half: i32,
-    s: i32,
-    font: &[GlyphCols],
-    glyph_cost: f64,
-) -> Option<Parse> {
+fn parse_centred(costs: &GlyphCosts<'_>, half: i32, s: i32, glyph_cost: f64) -> Option<Parse> {
+    let (ink, font) = (costs.ink, costs.font);
     let k = half - s;
     if k < 1 {
         return None;
@@ -3538,7 +3569,6 @@ fn parse_centred(
     if s < 1 || s as usize + len > ink.len() {
         return None;
     }
-    let at = |i: usize| ink.get(s as usize + i).copied().unwrap_or(0);
     // dp[i][last glyph was a space] = (mismatches, glyph ink, previous position, previous state, glyph) and the path's
     // gain: ink the glyphs explain that is really there, minus mismatches, minus `glyph_cost` per non-space glyph
     // (spaces are free: a gap over bright world is a space, not punctuation made of world specks)
@@ -3549,6 +3579,10 @@ fn parse_centred(
     dp[0][1] = Some((0, 0, 0, 0, 0));
     gain[0][1] = 0.0;
     for i in 0..len {
+        if dp[i].iter().all(Option::is_none) {
+            continue;
+        }
+        let comparisons = costs.row(s as usize + i);
         for st in 0..2 {
             let Some((m0, k0, _, _, _)) = dp[i][st] else {
                 continue;
@@ -3562,12 +3596,7 @@ fn parse_centred(
                 if i + a > len {
                     continue;
                 }
-                let (mut m, mut hit) = (0u32, 0u32);
-                for (j, &c) in gc.cols.iter().enumerate() {
-                    let (col, c) = (at(i + j), (c as u16) << 1);
-                    m += (col ^ c).count_ones();
-                    hit += (col & c).count_ones();
-                }
+                let (m, hit) = comparisons[g];
                 let ns = space as usize;
                 let gn = gain[i][st] + hit as f64 - m as f64 - if space { 0.0 } else { glyph_cost };
                 if gn > gain[i + a][ns] {
@@ -3661,6 +3690,7 @@ fn detect_action_bar(
             .iter()
             .map(|col| (0..10).fold(0u16, |m, r| if is_ink(col[r]) { m | 1 << r } else { m }))
             .collect();
+        let costs = GlyphCosts::new(&ink, &glyphs);
         let mut best: Option<(Parse, f64)> = None;
         for s in 1..=s_max.min(half - 1) {
             // glyphs are left-aligned in their cells, so a line starts on an inked column after a free one
@@ -3673,7 +3703,7 @@ fn detect_action_bar(
             if !inked(2 * k - 2) && !inked(2 * k - 1) {
                 continue;
             }
-            let Some(p) = parse_centred(&ink, half, s, &glyphs, o.action_bar_glyph_cost) else {
+            let Some(p) = parse_centred(&costs, half, s, o.action_bar_glyph_cost) else {
                 continue;
             };
             let ratio = p.mismatch as f64 / p.ink.max(1) as f64;
@@ -3927,7 +3957,8 @@ fn detect_captions(
         let mut read = Vec::new();
         let mut total = 0.0;
         for l in &lines {
-            let Some(p) = parse_centred(&l.ink, c, l.a, &glyphs, o.action_bar_glyph_cost) else {
+            let costs = GlyphCosts::new(&l.ink, &glyphs);
+            let Some(p) = parse_centred(&costs, c, l.a, o.action_bar_glyph_cost) else {
                 break;
             };
             let ratio = p.mismatch as f64 / p.ink.max(1) as f64;
@@ -4044,6 +4075,39 @@ fn detect_captions(
 #[cfg(test)]
 mod correlation_parity {
     use super::*;
+    #[test]
+    fn glyph_costs_keep_tie_order_and_do_not_cross_ink_hypotheses() {
+        let font: Vec<_> = [
+            (' ', vec![0; 4]),
+            ('A', vec![7, 5, 7, 0]),
+            ('B', vec![7, 7, 5, 0]),
+            ('C', vec![7, 5, 7, 0]),
+        ]
+        .into_iter()
+        .map(|(ch, cols)| {
+            let ink = cols.iter().map(|c: &u8| c.count_ones()).sum();
+            GlyphCols { ch, cols, ink }
+        })
+        .collect();
+        for expected in [[1, 2], [2, 1]] {
+            let mut ink = vec![0; 24];
+            for (position, &g) in expected.iter().enumerate() {
+                for (j, &column) in font[g].cols.iter().enumerate() {
+                    ink[8 + position * 4 + j] = (column as u16) << 1;
+                }
+            }
+            let costs = GlyphCosts::new(&ink, &font);
+            // Nearby proposed starts share costs, but must not alter the
+            // winning reading or replace the first glyph in an exact tie.
+            let _ = parse_centred(&costs, 12, 7, 3.5);
+            for _ in 0..2 {
+                let p = parse_centred(&costs, 12, 8, 3.5).unwrap();
+                assert_eq!(p.glyphs, expected);
+                assert_eq!((p.start, p.mismatch, p.ink), (8, 0, 16));
+            }
+        }
+    }
+
     #[test]
     fn plausible_nearby_wrong_hint_does_not_override_the_current_peak() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui");

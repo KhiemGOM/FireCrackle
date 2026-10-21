@@ -1,0 +1,2371 @@
+{
+  "date": "2026-10-21",
+  "baseline_revision": "89cf131",
+  "scope": "Profile-guided exact integer work reuse in GUI text parsing. Fixed models and thresholds; no training, calibration, model comparison, or new TP/FP claims.",
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "source_sha256": {
+    "fire-detection/core/src/gui_mask.rs": "d82d7b21fd6d52f6e83039a501d8e180a4fc989b42b4e681aed445809f1eb60d"
+  },
+  "baseline_gui_source_sha256": "d311ea9f2d9d46fae2eea650d958262a57b57260ec62f6f9286d3c307076502a",
+  "model_sha256": "1c74f08c7f8680244e20731fbb02eda71f4726b34746660d05b0b0e48a41a097",
+  "gui_source_pack_sha256": {
+    "ascii.rgba": "851eeb5efd9867a586f745e6b167f1aacb107c432d1d2e45ab1fbb1c592b16f0",
+    "bars.rgba": "8d4a1c9a98e37e21c6446979d78432d5432656f5338ffd305515e61bafb12bb5",
+    "icons.rgba": "7eeacd972267ef5e09b4b67f7a3a40a9a2b92558d6ca0be8c0dfef60d9550941",
+    "interaction.bundle": "e64f1a86986b7434d23b0a2efc4c06ae7aa3a63bd8a59e636d90d1c3b69b724b",
+    "inventory.rgba": "672a347726dcb0a1c9267164408fdec885584ed2639a5ad7a42c67d3f0bd95a6",
+    "recipe_book.rgba": "d8c1e4de5b4438f87176ffffb7b88d6b8b3054115b1d8b5d09716430c4cfa6dd",
+    "widgets.rgba": "470a8d1829435297e1cacd1bb92159f2eae53e7f190dd9d19f0db25031a56143"
+  },
+  "input_sha256": {
+    "fire-detection/data/video/2026-10-15 18-18-16.mkv": "91e6fa9db3202e005b351b1f2db28b81a6050ad0f4435bc613049fe25045845d",
+    "misc/dream/recovered-video.mkv": "cfd239c247a6dc94ae10b27da4b86c6d38de98b2386f8f7f4acebfdace99c6f3"
+  },
+  "cached_inputs": [
+    {
+      "id": "clip1-0",
+      "sha256": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c"
+    },
+    {
+      "id": "clip1-2970",
+      "sha256": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6"
+    },
+    {
+      "id": "clip1-5940",
+      "sha256": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c"
+    },
+    {
+      "id": "clip1-8910",
+      "sha256": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592"
+    },
+    {
+      "id": "clip1-11880",
+      "sha256": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65"
+    },
+    {
+      "id": "clip1-14850",
+      "sha256": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50"
+    },
+    {
+      "id": "clip1-17730",
+      "sha256": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe"
+    },
+    {
+      "id": "clip1-20700",
+      "sha256": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2"
+    },
+    {
+      "id": "clip1-23670",
+      "sha256": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e"
+    },
+    {
+      "id": "clip1-26640",
+      "sha256": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080"
+    },
+    {
+      "id": "clip1-29610",
+      "sha256": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97"
+    },
+    {
+      "id": "clip1-32580",
+      "sha256": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c"
+    },
+    {
+      "id": "clip2-0",
+      "sha256": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7"
+    },
+    {
+      "id": "clip2-1800",
+      "sha256": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba"
+    },
+    {
+      "id": "clip2-3510",
+      "sha256": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e"
+    },
+    {
+      "id": "clip2-5310",
+      "sha256": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba"
+    },
+    {
+      "id": "clip2-7110",
+      "sha256": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2"
+    },
+    {
+      "id": "clip2-8910",
+      "sha256": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0"
+    },
+    {
+      "id": "clip2-10620",
+      "sha256": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44"
+    },
+    {
+      "id": "clip2-12420",
+      "sha256": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69"
+    },
+    {
+      "id": "clip2-14220",
+      "sha256": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0"
+    },
+    {
+      "id": "clip2-16020",
+      "sha256": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b"
+    },
+    {
+      "id": "clip2-17730",
+      "sha256": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70"
+    },
+    {
+      "id": "clip2-19530",
+      "sha256": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0"
+    },
+    {
+      "id": "clip2-clear-127",
+      "sha256": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77"
+    },
+    {
+      "id": "clip2-clear-2045",
+      "sha256": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892"
+    },
+    {
+      "id": "clip2-clear-4147",
+      "sha256": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5"
+    },
+    {
+      "id": "clip2-clear-7658",
+      "sha256": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a"
+    },
+    {
+      "id": "clip2-clear-9032",
+      "sha256": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7"
+    },
+    {
+      "id": "clip2-clear-11598",
+      "sha256": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633"
+    },
+    {
+      "id": "clip2-clear-16329",
+      "sha256": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3"
+    },
+    {
+      "id": "clip2-clear-18943",
+      "sha256": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+    }
+  ],
+  "gui_abba": [
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1098,
+      "seconds": 10.8988443,
+      "workers": 12,
+      "cache": false,
+      "pass": 0
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1103,
+      "seconds": 8.7296867,
+      "workers": 12,
+      "cache": true,
+      "pass": 1
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1099,
+      "seconds": 8.7623756,
+      "workers": 12,
+      "cache": true,
+      "pass": 2
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1099,
+      "seconds": 10.987232,
+      "workers": 12,
+      "cache": false,
+      "pass": 3
+    }
+  ],
+  "auto_scans": {
+    "pov": {
+      "baseline": {
+        "records": [
+          {
+            "changed_decisions": [],
+            "kind": "cached_quality",
+            "tool": "pov",
+            "unique_frames": 32
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 173.8795510847302,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 0,
+            "seconds": 10.3519936,
+            "tool": "pov",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 176.053758523765,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 40,
+            "seconds": 10.2241498,
+            "tool": "pov",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 174.54831502208376,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 40,
+            "seconds": 10.312331,
+            "tool": "pov",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 174.33699061346397,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 0,
+            "seconds": 10.3248312,
+            "tool": "pov",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 175.29780467547292,
+        "decision_vector_sha256": {
+          "full": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+          "hint": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c"
+        }
+      },
+      "cached": {
+        "records": [
+          {
+            "changed_decisions": [],
+            "kind": "cached_quality",
+            "tool": "pov",
+            "unique_frames": 32
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 176.79622608418515,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 0,
+            "seconds": 10.1812128,
+            "tool": "pov",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 176.24231987374,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 41,
+            "seconds": 10.213211,
+            "tool": "pov",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 175.55858376773435,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 40,
+            "seconds": 10.2529877,
+            "tool": "pov",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 110,
+            "changed_decisions": [],
+            "fps": 169.10277057415635,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": null,
+            "reused": 0,
+            "seconds": 10.6444146,
+            "tool": "pov",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 175.8997873894384,
+        "decision_vector_sha256": {
+          "full": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+          "hint": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c"
+        }
+      },
+      "hint_speedup_percent": 0.3434057346467734
+    },
+    "no_fire": {
+      "baseline": {
+        "records": [
+          {
+            "changed_decisions": [],
+            "kind": "cached_quality",
+            "tool": "no_fire",
+            "unique_frames": 32
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 149.76308229196823,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 0,
+            "seconds": 12.0189834,
+            "tool": "no_fire",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 162.2919884424662,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 269,
+            "seconds": 11.0911205,
+            "tool": "no_fire",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 184.09393053254396,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 269,
+            "seconds": 9.7776173,
+            "tool": "no_fire",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 165.37955282673576,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 0,
+            "seconds": 10.8840541,
+            "tool": "no_fire",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 172.506839393037,
+        "decision_vector_sha256": {
+          "full": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+          "hint": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118"
+        }
+      },
+      "cached": {
+        "records": [
+          {
+            "changed_decisions": [],
+            "kind": "cached_quality",
+            "tool": "no_fire",
+            "unique_frames": 32
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 152.90679902460414,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 0,
+            "seconds": 11.7718768,
+            "tool": "no_fire",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 182.5826035396782,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 268,
+            "seconds": 9.8585515,
+            "tool": "no_fire",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 179.70078920094096,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 269,
+            "seconds": 10.0166505,
+            "tool": "no_fire",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 308,
+            "changed_decisions": [],
+            "fps": 168.13729194528028,
+            "kind": "scan",
+            "processed": 1800,
+            "provider": "GPU (DirectML 0)",
+            "reused": 0,
+            "seconds": 10.705537,
+            "tool": "no_fire",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 181.1302345505721,
+        "decision_vector_sha256": {
+          "full": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+          "hint": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118"
+        }
+      },
+      "hint_speedup_percent": 4.998871458010834
+    },
+    "pov1440": {
+      "baseline": {
+        "records": [
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 53.45389252982653,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 0,
+            "seconds": 11.2246269,
+            "tool": "pov1440",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 53.38994613390453,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 361,
+            "seconds": 11.2380709,
+            "tool": "pov1440",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 54.64194277824718,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 359,
+            "seconds": 10.9805759,
+            "tool": "pov1440",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 47.06195434899442,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 0,
+            "seconds": 12.7491518,
+            "tool": "pov1440",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 54.008689674116425,
+        "decision_vector_sha256": {
+          "full": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+          "hint": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9"
+        }
+      },
+      "cached": {
+        "records": [
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 49.90572185320407,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 0,
+            "seconds": 12.0226695,
+            "tool": "pov1440",
+            "use_hint": false,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 58.42178911510152,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 360,
+            "seconds": 10.2701408,
+            "tool": "pov1440",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 57.45151128354863,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 363,
+            "seconds": 10.4435895,
+            "tool": "pov1440",
+            "use_hint": true,
+            "workers": 12
+          },
+          {
+            "accepted": 0,
+            "changed_decisions": [],
+            "fps": 49.30907183454887,
+            "kind": "scan",
+            "processed": 600,
+            "provider": null,
+            "reused": 0,
+            "seconds": 12.1681463,
+            "tool": "pov1440",
+            "use_hint": false,
+            "workers": 12
+          }
+        ],
+        "hint_weighted_fps": 57.93258783522927,
+        "decision_vector_sha256": {
+          "full": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+          "hint": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9"
+        }
+      },
+      "hint_speedup_percent": 7.265308943411308
+    }
+  },
+  "profiles": {
+    "hint-baseline": {
+      "label": "hint-baseline",
+      "total_wall_stack_samples": 4781,
+      "active_stack_samples": 3112,
+      "wait_stack_samples": 1669,
+      "wait_types": {
+        "NtWaitForWorkViaWorkerFactory": 888,
+        "ZwWaitForAlertByThreadId": 475,
+        "ZwDelayExecution": 306
+      },
+      "worker_wait_samples": {
+        "all": 526
+      },
+      "inclusive_counts": [
+        [
+          "BaseThreadInitThunk",
+          3112
+        ],
+        [
+          "RtlUserThreadStart",
+          3112
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1::closure$0",
+          3087
+        ],
+        [
+          "core::panic::unwind_safe::impl$25::call_once",
+          3087
+        ],
+        [
+          "std::panicking::catch_unwind::do_call",
+          3087
+        ],
+        [
+          "std::panicking::catch_unwind",
+          3087
+        ],
+        [
+          "std::panic::catch_unwind",
+          3087
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1",
+          3087
+        ],
+        [
+          "alloc::boxed::impl$10::drop",
+          3087
+        ],
+        [
+          "alloc::boxed::impl$31::call_once",
+          3087
+        ],
+        [
+          "std::sys::thread::windows::impl$0::new::thread_start",
+          3087
+        ],
+        [
+          "gui_next_bench::profile::run::closure$2",
+          3019
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2",
+          3019
+        ],
+        [
+          "std::sys::backtrace::__rust_begin_short_backtrace<fire_core::video::parallel_frames_indexed_with_state::closure$0::closure_env$2<std::process::ChildStdout,fire_core::gui_mask::GuiFitHint,tuple$<bool,bool,u64>,fire_core::gui_mask::GuiFitHint (*)(),gui_next_bench::profile::run::closure_env$2,gui_next_bench::profile::run::closure_env$3>,tuple$<> >",
+          3019
+        ],
+        [
+          "core::ops::function::FnOnce::call_once<std::thread::lifecycle::spawn_unchecked::closure_env$1<fire_core::video::parallel_frames_indexed_with_state::closure$0::closure_env$2<std::process::ChildStdout,fire_core::gui_mask::GuiFitHint,tuple$<bool,bool,u64>,fire_core::gui_mask::GuiFitHint (*)(),gui_next_bench::profile::run::closure_env$2,gui_next_bench::profile::run::closure_env$3>,tuple$<> >,tuple$<> >",
+          3019
+        ],
+        [
+          "enum2$<core::result::Result<fire_core::gui_mask::GuiMask,alloc::string::String> >::and_then",
+          2794
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::detect_with_hint",
+          2794
+        ],
+        [
+          "core::result::impl$27::branch",
+          2794
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          2008
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar",
+          962
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4",
+          949
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          936
+        ],
+        [
+          "fire_core::gui_interaction::fast::InteractionDetector::detect",
+          786
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::merge_interactions",
+          786
+        ],
+        [
+          "fire_core::gui_mask::impl$13::detect_with_hint::closure$1",
+          786
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map::check::closure$0",
+          709
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold::enumerate::closure$0",
+          709
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::try_fold",
+          709
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold",
+          709
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map",
+          709
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          704
+        ],
+        [
+          "alloc::sync::impl$34::deref",
+          704
+        ],
+        [
+          "fire_core::gui_interaction::fast::impl$2::detect::closure$2",
+          704
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          695
+        ],
+        [
+          "fire_core::gui_mask::score",
+          522
+        ],
+        [
+          "core::num::impl$7::count_ones",
+          473
+        ],
+        [
+          "fire_core::gui_mask::detect_text",
+          405
+        ],
+        [
+          "enum2$<core::option::Option<fire_core::gui_mask::Texture> >::as_ref",
+          405
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          403
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$22",
+          391
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          372
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums",
+          366
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          361
+        ],
+        [
+          "alloc::vec::Vec<tuple$<i32,i32,array$<f64,3> >,alloc::alloc::Global>::len",
+          349
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          316
+        ],
+        [
+          "core::iter::adapters::chain::impl$1::fold",
+          210
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          164
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$4",
+          109
+        ],
+        [
+          "enum2$<core::option::Option<ref_mut$<fire_core::gui_mask::GuiFitHint> > >::as_ref",
+          109
+        ],
+        [
+          "alloc::vec::impl$14::index",
+          106
+        ]
+      ],
+      "nearest_application_frame_counts": [
+        [
+          "fire_core::gui_mask::parse_centred",
+          888
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          657
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          339
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2",
+          225
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          164
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          154
+        ],
+        [
+          "fire_core::gui_mask::score",
+          115
+        ],
+        [
+          "fire_core::video::read_frame<std::process::ChildStdout>",
+          68
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          63
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          54
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row",
+          48
+        ],
+        [
+          "fire_core::gui_mask::parse_centred::closure$0",
+          48
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1",
+          38
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          33
+        ],
+        [
+          "ZwCreateUserProcess",
+          24
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          19
+        ],
+        [
+          "fire_core::gui_mask::piece_template",
+          18
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          14
+        ],
+        [
+          "fire_core::gui_mask::impl$80::hash",
+          12
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          10
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$22",
+          10
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$28",
+          10
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          9
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar",
+          8
+        ],
+        [
+          "fire_core::gui_mask::impl$11::from",
+          7
+        ],
+        [
+          "fire_core::gui_mask::label",
+          7
+        ],
+        [
+          "fire_core::gui_mask::luma",
+          7
+        ],
+        [
+          "fire_core::gui_mask::luma3",
+          6
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          5
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums",
+          5
+        ],
+        [
+          "fire_core::gui_mask::impl$8::row::closure$0",
+          4
+        ],
+        [
+          "fire_core::gui_mask::impl$111::hash",
+          4
+        ],
+        [
+          "fire_core::gui_mask::brightest",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4::closure$0::closure$0",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$0",
+          3
+        ],
+        [
+          "fire_core::gui_mask::composite",
+          3
+        ],
+        [
+          "fire_core::gui_mask::Texture::texel",
+          3
+        ],
+        [
+          "fire_core::gui_mask::gui_class",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4::closure$0",
+          2
+        ],
+        [
+          "fire_core::gui_mask::impl$113::eq",
+          2
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4",
+          2
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$27",
+          2
+        ],
+        [
+          "fire_core::gui_mask::impl$117::eq",
+          2
+        ],
+        [
+          "fire_core::gui_mask::hud_layout",
+          2
+        ],
+        [
+          "fire_core::gui_mask::Template::new",
+          1
+        ],
+        [
+          "fire_core::gui_mask::impl$78::eq",
+          1
+        ],
+        [
+          "fire_core::gui_mask::impl$115::hash",
+          1
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$5",
+          1
+        ],
+        [
+          "fire_core::gui_mask::glyph_columns::closure$0::closure$1",
+          1
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$10",
+          1
+        ]
+      ],
+      "application_line_counts": [
+        [
+          "fire_core::gui_mask::parse_centred:3568",
+          533
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:343",
+          233
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2:173",
+          225
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:331",
+          156
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3572",
+          104
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:3002",
+          92
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:372",
+          87
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:357",
+          82
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1077",
+          79
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1076",
+          70
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3567",
+          69
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:3003",
+          69
+        ],
+        [
+          "fire_core::video::read_frame<std::process::ChildStdout>:297",
+          68
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1:3022",
+          54
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row:1131",
+          48
+        ],
+        [
+          "fire_core::gui_mask::parse_centred::closure$0:3541",
+          48
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3566",
+          47
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1075",
+          46
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1069",
+          45
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2998",
+          43
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3571",
+          43
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1078",
+          41
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3573",
+          41
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0:12",
+          39
+        ],
+        [
+          "fire_core::gui_mask::score:1628",
+          38
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1:330",
+          38
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3017",
+          38
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:342",
+          28
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:344",
+          24
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3014",
+          21
+        ],
+        [
+          "fire_core::gui_mask::score:1630",
+          20
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1079",
+          20
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0:13",
+          17
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1066",
+          16
+        ],
+        [
+          "fire_core::gui_mask::scan_text:3054",
+          16
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3569",
+          16
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:351",
+          15
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2984",
+          15
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:332",
+          15
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1072",
+          15
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3556",
+          14
+        ],
+        [
+          "fire_core::gui_mask::score:1631",
+          12
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3023",
+          12
+        ],
+        [
+          "fire_core::gui_mask::piece_template:1290",
+          10
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3022",
+          10
+        ],
+        [
+          "fire_core::gui_mask::score:1624",
+          10
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2995",
+          9
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips:36",
+          9
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips:34",
+          9
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$28:2191",
+          8
+        ]
+      ],
+      "leaf_counts": [
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          560
+        ],
+        [
+          "core::num::impl$7::count_ones",
+          473
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          331
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          317
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          146
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          126
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          119
+        ],
+        [
+          "fire_core::gui_mask::score",
+          108
+        ],
+        [
+          "NtReadFile",
+          68
+        ],
+        [
+          "core::ptr::mut_ptr::impl$0::add",
+          62
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          54
+        ],
+        [
+          "core::slice::index::impl$2::index",
+          45
+        ],
+        [
+          "core::ptr::non_null::impl$16::eq",
+          43
+        ],
+        [
+          "core::num::impl$9::wrapping_mul",
+          39
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1",
+          38
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          37
+        ],
+        [
+          "core::slice::index::impl$2::get",
+          36
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          33
+        ],
+        [
+          "core::slice::iter::impl$166::next",
+          27
+        ],
+        [
+          "ZwCreateUserProcess",
+          24
+        ],
+        [
+          "alloc::vec::Vec<fire_core::gui_interaction::fast::Colour,alloc::alloc::Global>::as_slice",
+          21
+        ],
+        [
+          "RtlAllocateHeap",
+          19
+        ],
+        [
+          "core::iter::adapters::zip::impl$5::next",
+          18
+        ],
+        [
+          "core::slice::index::impl$7::index",
+          18
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          18
+        ],
+        [
+          "NtFreeVirtualMemory",
+          17
+        ],
+        [
+          "gui_next_bench::profile::run::closure$2::closure$0",
+          14
+        ],
+        [
+          "enum2$<core::option::Option<alloc::vec::Vec<f64,alloc::alloc::Global> > >::as_ref",
+          14
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          13
+        ],
+        [
+          "alloc::raw_vec::RawVecInner<alloc::alloc::Global>::non_null",
+          12
+        ]
+      ],
+      "threads": {
+        "47776": {
+          "samples": 296,
+          "cpu_ticks": 0
+        },
+        "54672": {
+          "samples": 296,
+          "cpu_ticks": 0
+        },
+        "59056": {
+          "samples": 296,
+          "cpu_ticks": 625000,
+          "active": 25
+        },
+        "59700": {
+          "samples": 296,
+          "cpu_ticks": 0
+        },
+        "29036": {
+          "samples": 256,
+          "cpu_ticks": 36093750,
+          "active": 68
+        },
+        "30220": {
+          "samples": 257,
+          "cpu_ticks": 103437500,
+          "active": 253
+        },
+        "51524": {
+          "samples": 258,
+          "cpu_ticks": 101562500,
+          "active": 252
+        },
+        "61464": {
+          "samples": 257,
+          "cpu_ticks": 101250000,
+          "active": 252
+        },
+        "64100": {
+          "samples": 257,
+          "cpu_ticks": 102187500,
+          "active": 252
+        },
+        "65884": {
+          "samples": 260,
+          "cpu_ticks": 103906250,
+          "active": 255
+        },
+        "66328": {
+          "samples": 257,
+          "cpu_ticks": 102656250,
+          "active": 250
+        },
+        "66448": {
+          "samples": 258,
+          "cpu_ticks": 103437500,
+          "active": 253
+        },
+        "67064": {
+          "samples": 256,
+          "cpu_ticks": 102500000,
+          "active": 251
+        },
+        "68492": {
+          "samples": 257,
+          "cpu_ticks": 103593750,
+          "active": 249
+        },
+        "68668": {
+          "samples": 257,
+          "cpu_ticks": 103125000,
+          "active": 249
+        },
+        "70288": {
+          "samples": 255,
+          "cpu_ticks": 102187500,
+          "active": 248
+        },
+        "70812": {
+          "samples": 255,
+          "cpu_ticks": 0
+        },
+        "70992": {
+          "samples": 257,
+          "cpu_ticks": 103437500,
+          "active": 255
+        }
+      }
+    },
+    "hint-cached": {
+      "label": "hint-cached",
+      "total_wall_stack_samples": 3673,
+      "active_stack_samples": 2429,
+      "wait_stack_samples": 1244,
+      "wait_types": {
+        "NtWaitForWorkViaWorkerFactory": 648,
+        "ZwWaitForAlertByThreadId": 371,
+        "ZwDelayExecution": 225
+      },
+      "worker_wait_samples": {
+        "all": 397
+      },
+      "inclusive_counts": [
+        [
+          "BaseThreadInitThunk",
+          2429
+        ],
+        [
+          "RtlUserThreadStart",
+          2429
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1::closure$0",
+          2428
+        ],
+        [
+          "core::panic::unwind_safe::impl$25::call_once",
+          2428
+        ],
+        [
+          "std::panicking::catch_unwind::do_call",
+          2428
+        ],
+        [
+          "std::panicking::catch_unwind",
+          2428
+        ],
+        [
+          "std::panic::catch_unwind",
+          2428
+        ],
+        [
+          "std::thread::lifecycle::spawn_unchecked::closure$1",
+          2428
+        ],
+        [
+          "alloc::boxed::impl$10::drop",
+          2428
+        ],
+        [
+          "alloc::boxed::impl$31::call_once",
+          2428
+        ],
+        [
+          "std::sys::thread::windows::impl$0::new::thread_start",
+          2428
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2",
+          2335
+        ],
+        [
+          "std::sys::backtrace::__rust_begin_short_backtrace<fire_core::video::parallel_frames_indexed_with_state::closure$0::closure_env$2<std::process::ChildStdout,fire_core::gui_mask::GuiFitHint,tuple$<bool,bool,u64>,fire_core::gui_mask::GuiFitHint (*)(),gui_next_bench::profile::run::closure_env$2,gui_next_bench::profile::run::closure_env$3>,tuple$<> >",
+          2335
+        ],
+        [
+          "core::ops::function::FnOnce::call_once<std::thread::lifecycle::spawn_unchecked::closure_env$1<fire_core::video::parallel_frames_indexed_with_state::closure$0::closure_env$2<std::process::ChildStdout,fire_core::gui_mask::GuiFitHint,tuple$<bool,bool,u64>,fire_core::gui_mask::GuiFitHint (*)(),gui_next_bench::profile::run::closure_env$2,gui_next_bench::profile::run::closure_env$3>,tuple$<> >,tuple$<> >",
+          2335
+        ],
+        [
+          "gui_next_bench::profile::run::closure$2",
+          2334
+        ],
+        [
+          "enum2$<core::result::Result<fire_core::gui_mask::GuiMask,alloc::string::String> >::and_then",
+          2116
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::detect_with_hint",
+          2116
+        ],
+        [
+          "core::result::impl$27::branch",
+          2116
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          1310
+        ],
+        [
+          "fire_core::gui_interaction::fast::InteractionDetector::detect",
+          806
+        ],
+        [
+          "fire_core::gui_mask::GuiDetector::merge_interactions",
+          806
+        ],
+        [
+          "fire_core::gui_mask::impl$13::detect_with_hint::closure$1",
+          806
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::try_fold",
+          732
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map::check::closure$0",
+          726
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold::enumerate::closure$0",
+          726
+        ],
+        [
+          "core::iter::adapters::enumerate::impl$1::try_fold",
+          726
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::find_map",
+          726
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          718
+        ],
+        [
+          "alloc::sync::impl$34::deref",
+          718
+        ],
+        [
+          "fire_core::gui_interaction::fast::impl$2::detect::closure$2",
+          718
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          705
+        ],
+        [
+          "fire_core::gui_mask::score",
+          522
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$22",
+          402
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          400
+        ],
+        [
+          "fire_core::gui_mask::detect_text",
+          376
+        ],
+        [
+          "enum2$<core::option::Option<fire_core::gui_mask::Texture> >::as_ref",
+          376
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          373
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums",
+          364
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          362
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          360
+        ],
+        [
+          "alloc::vec::Vec<tuple$<i32,i32,array$<f64,3> >,alloc::alloc::Global>::len",
+          313
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar",
+          288
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4",
+          267
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          258
+        ],
+        [
+          "core::iter::adapters::chain::impl$1::fold",
+          205
+        ],
+        [
+          "alloc::vec::impl$14::index",
+          193
+        ],
+        [
+          "alloc::vec::spec_from_iter_nested::impl$1::from_iter",
+          146
+        ],
+        [
+          "alloc::vec::spec_from_iter::impl$0::from_iter",
+          146
+        ],
+        [
+          "alloc::vec::impl$16::from_iter",
+          146
+        ],
+        [
+          "core::iter::traits::iterator::Iterator::collect",
+          146
+        ]
+      ],
+      "nearest_application_frame_counts": [
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          673
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          333
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2",
+          219
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          159
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          158
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          137
+        ],
+        [
+          "fire_core::gui_mask::score",
+          130
+        ],
+        [
+          "fire_core::video::read_frame<std::process::ChildStdout>",
+          92
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0::closure$0",
+          89
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          66
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          65
+        ],
+        [
+          "fire_core::gui_mask::piece_template",
+          36
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row",
+          34
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1",
+          32
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          22
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          17
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          16
+        ],
+        [
+          "fire_core::gui_mask::impl$81::hash",
+          13
+        ],
+        [
+          "fire_core::gui_interaction::fast::find",
+          13
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0",
+          11
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$22",
+          9
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar",
+          8
+        ],
+        [
+          "fire_core::gui_mask::impl$8::row::closure$0::closure$0",
+          8
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared",
+          7
+        ],
+        [
+          "fire_core::gui_mask::detect_prepared::closure$28",
+          7
+        ],
+        [
+          "fire_core::gui_mask::impl$118::eq",
+          7
+        ],
+        [
+          "fire_core::gui_mask::luma",
+          7
+        ],
+        [
+          "fire_core::gui_mask::label",
+          7
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::at",
+          5
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$0",
+          4
+        ],
+        [
+          "fire_core::gui_mask::brightest",
+          4
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums",
+          4
+        ],
+        [
+          "fire_core::gui_mask::composite",
+          3
+        ],
+        [
+          "fire_core::gui_mask::impl$116::hash",
+          3
+        ],
+        [
+          "fire_core::gui_mask::is_text::closure$0",
+          3
+        ],
+        [
+          "fire_core::gui_mask::Texture::texel",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4::closure$0::closure$0",
+          3
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$0::closure$0",
+          2
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4::closure$0::closure$0::closure$0",
+          2
+        ],
+        [
+          "fire_core::gui_mask::impl$112::hash",
+          2
+        ],
+        [
+          "fire_core::gui_mask::impl$11::from",
+          2
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::new",
+          1
+        ],
+        [
+          "fire_core::gui_mask::luma3",
+          1
+        ],
+        [
+          "fire_core::gui_mask::gui_class",
+          1
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$1",
+          1
+        ],
+        [
+          "fire_core::gui_mask::impl$8::row::closure$0",
+          1
+        ],
+        [
+          "fire_core::gui_mask::detect_text::closure$8::closure$0",
+          1
+        ],
+        [
+          "fire_core::gui_mask::detect_action_bar::closure$4::closure$0",
+          1
+        ],
+        [
+          "fire_core::gui_mask::glyph",
+          1
+        ],
+        [
+          "fire_core::gui_mask::is_text",
+          1
+        ]
+      ],
+      "application_line_counts": [
+        [
+          "fire_core::gui_interaction::fast::evidence:343",
+          246
+        ],
+        [
+          "fire_core::video::parallel_frames_indexed_with_state::closure$0::closure$2:173",
+          218
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:331",
+          215
+        ],
+        [
+          "fire_core::video::read_frame<std::process::ChildStdout>:297",
+          92
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:3002",
+          80
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:357",
+          75
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1077",
+          72
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0::closure$0:3546",
+          71
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1076",
+          67
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1:3022",
+          66
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3601",
+          65
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1078",
+          59
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0:3003",
+          56
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1069",
+          51
+        ],
+        [
+          "fire_core::gui_mask::score:1628",
+          46
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3017",
+          45
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:329",
+          39
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3602",
+          35
+        ],
+        [
+          "fire_core::gui_mask::LumaRows::row:1131",
+          34
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1075",
+          34
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1:330",
+          32
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0:12",
+          32
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2998",
+          30
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:342",
+          26
+        ],
+        [
+          "fire_core::gui_mask::gui_px:2984",
+          25
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0:13",
+          23
+        ],
+        [
+          "fire_core::gui_mask::piece_template:1290",
+          20
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1079",
+          20
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3014",
+          20
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:332",
+          16
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:323",
+          16
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3590",
+          15
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:344",
+          14
+        ],
+        [
+          "fire_core::gui_mask::score:1630",
+          14
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3023",
+          12
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1072",
+          12
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips:36",
+          12
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized:1066",
+          12
+        ],
+        [
+          "fire_core::gui_mask::score:1631",
+          11
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0:3551",
+          11
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:313",
+          11
+        ],
+        [
+          "fire_core::gui_mask::score:1624",
+          10
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence:351",
+          10
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3599",
+          10
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0::closure$0:3545",
+          10
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips:34",
+          9
+        ],
+        [
+          "fire_core::gui_mask::gui_px:3022",
+          9
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score:1195",
+          8
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3596",
+          8
+        ],
+        [
+          "fire_core::gui_mask::parse_centred:3591",
+          8
+        ]
+      ],
+      "leaf_counts": [
+        [
+          "fire_core::gui_interaction::fast::evidence",
+          608
+        ],
+        [
+          "fire_core::gui_mask::SampleGrid::sums_sized",
+          310
+        ],
+        [
+          "core::slice::iter::impl$166::fold",
+          147
+        ],
+        [
+          "fire_core::gui_mask::gui_px",
+          125
+        ],
+        [
+          "fire_core::gui_mask::parse_centred",
+          124
+        ],
+        [
+          "fire_core::gui_mask::score",
+          119
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$0",
+          102
+        ],
+        [
+          "NtReadFile",
+          88
+        ],
+        [
+          "fire_core::gui_mask::gui_px::closure$1",
+          66
+        ],
+        [
+          "core::num::impl$7::count_ones",
+          63
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips::closure$0",
+          47
+        ],
+        [
+          "core::slice::index::impl$2::index",
+          39
+        ],
+        [
+          "core::ptr::mut_ptr::impl$0::add",
+          33
+        ],
+        [
+          "fire_core::gui_interaction::fast::evidence::closure$1",
+          32
+        ],
+        [
+          "core::num::impl$9::wrapping_mul",
+          29
+        ],
+        [
+          "fire_core::gui_interaction::fast::tooltip::detect_tooltips",
+          22
+        ],
+        [
+          "core::iter::adapters::zip::impl$5::next",
+          20
+        ],
+        [
+          "fire_core::gui_mask::impl$14::row::closure$0::closure$0",
+          18
+        ],
+        [
+          "alloc::vec::Vec<fire_core::gui_interaction::fast::Colour,alloc::alloc::Global>::as_slice",
+          17
+        ],
+        [
+          "NtFreeVirtualMemory",
+          17
+        ],
+        [
+          "core::num::impl$11::unchecked_add",
+          16
+        ],
+        [
+          "fire_core::gui_mask::CompiledTemplate::score",
+          16
+        ],
+        [
+          "fire_core::gui_mask::scan_text",
+          16
+        ],
+        [
+          "RtlAllocateHeap",
+          15
+        ],
+        [
+          "gui_next_bench::profile::run::closure$2::closure$0",
+          14
+        ],
+        [
+          "core::ptr::non_null::impl$16::eq",
+          14
+        ],
+        [
+          "core::slice::index::impl$7::index",
+          12
+        ],
+        [
+          "enum2$<core::option::Option<alloc::vec::Vec<f64,alloc::alloc::Global> > >::as_ref",
+          11
+        ],
+        [
+          "floor",
+          10
+        ],
+        [
+          "core::ops::range::RangeInclusive<usize>::is_empty",
+          10
+        ]
+      ],
+      "threads": {
+        "15040": {
+          "samples": 216,
+          "cpu_ticks": 156250
+        },
+        "38988": {
+          "samples": 216,
+          "cpu_ticks": 156250
+        },
+        "60212": {
+          "samples": 216,
+          "cpu_ticks": 468750,
+          "active": 1
+        },
+        "63136": {
+          "samples": 216,
+          "cpu_ticks": 0
+        },
+        "3720": {
+          "samples": 199,
+          "cpu_ticks": 75312500,
+          "active": 192
+        },
+        "15128": {
+          "samples": 201,
+          "cpu_ticks": 78125000,
+          "active": 196
+        },
+        "24696": {
+          "samples": 199,
+          "cpu_ticks": 0
+        },
+        "25648": {
+          "samples": 201,
+          "cpu_ticks": 78125000,
+          "active": 197
+        },
+        "28452": {
+          "samples": 201,
+          "cpu_ticks": 77187500,
+          "active": 198
+        },
+        "39464": {
+          "samples": 203,
+          "cpu_ticks": 78437500,
+          "active": 195
+        },
+        "41684": {
+          "samples": 199,
+          "cpu_ticks": 33750000,
+          "active": 93
+        },
+        "44596": {
+          "samples": 201,
+          "cpu_ticks": 78750000,
+          "active": 193
+        },
+        "50904": {
+          "samples": 201,
+          "cpu_ticks": 78593750,
+          "active": 193
+        },
+        "56244": {
+          "samples": 202,
+          "cpu_ticks": 77343750,
+          "active": 193
+        },
+        "59036": {
+          "samples": 201,
+          "cpu_ticks": 76875000,
+          "active": 193
+        },
+        "63396": {
+          "samples": 199,
+          "cpu_ticks": 74687500,
+          "active": 194
+        },
+        "66480": {
+          "samples": 201,
+          "cpu_ticks": 78125000,
+          "active": 194
+        },
+        "69924": {
+          "samples": 201,
+          "cpu_ticks": 77031250,
+          "active": 197
+        }
+      }
+    }
+  },
+  "checks": {
+    "integration_tests": 84,
+    "unit_tests": 5,
+    "total_tests_passed": 89,
+    "core_clippy": "passed",
+    "app_relaunched": false,
+    "real_gui_controls": {
+      "count": 32,
+      "stateless_frozen_mask_bytes": "all exact",
+      "hint_geometry_mask_reliability_records": "all exact vs pre-cache result",
+      "note": "Existing scale-stabilization difference vs stateless on clip2-clear-9032 is unchanged, not introduced by text cache."
+    },
+    "native_clippy": "passed"
+  },
+  "limitations": [
+    "Profiler percentages are inclusive busy-looking wall-stack samples, not exact CPU utilization or fractions of wall time. Overlapping counts are not additive.",
+    "GUI ABBA speed includes decoding and full mask-plane hashes; it is not the whole Auto scan speed.",
+    "Auto comparison ran the baseline process then the optimized process, each with full/hint/hint/full internal order; noise and thermal/provider warm-up can affect small changes.",
+    "Preliminary timing overlapped targeted tests and was excluded. Final GUI ABBA and Auto runs had no concurrent agent build/test work.",
+    "Other owner apps stayed running. No Linux or cross-machine performance claim.",
+    "Cache is bounded by current ink band width and font size, and discarded per colour/tolerance hypothesis; memory peak was not separately measured.",
+    "Frozen predictions are not ground truth."
+  ],
+  "gui_weighted_fps": {
+    "baseline": 109.65876053351784,
+    "cached": 137.20509102005656
+  },
+  "gui_speedup_percent": 25.120045450558436,
+  "gui_mask_vector_sha256": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+  "artifact_sha256": {
+    "analyze_stacks.py": "d526ffdc3d5d3bb996873e673cc0a76e13229a42de1dfe125e2b41b993344d31",
+    "baseline.exe": "d7519697787b7b7d35f1022dda8fb31baa9f33105848e125550383a1c0dbd5f3",
+    "baseline.pdb": "2c57b814c08ea21afc690c2c40603b0ed2f205d0e6c876e3d69a91666e723314",
+    "build.log": "e235b19bf1927f363c95ed9d463c7ca9e4cf14fc14410c215aa469cc0555b9fc",
+    "cached-build.log": "71b9873606975fa05706fd636565f54e81f20c2b3755b03e5893db7a0a6f6807",
+    "cached-profile-summary.txt": "edbe48ce456a7b2870efdf592368e64f05b439bd785496977ad9e619d35186c9",
+    "clippy.log": "59619548d0630a1d527c51aceacf4ac893d85b9942a6ad3536d0716c39a212bf",
+    "core-tests.log": "7a321cd7109d700699f6857a7fd5055bd41274758ddf0fd60fee6e03d7542f59",
+    "cost-abba-0-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "cost-abba-0.jsonl": "b9769572cfd474b7f8134fa3eabb86a804bb1059768142be1a3256bbebb202d1",
+    "cost-abba-1-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "cost-abba-1.jsonl": "a42cef11230b2319fd8d9d125127c9f42972f2a85a0b6cdc1c9f4f4b38f4d622",
+    "cost-abba-2-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "cost-abba-2.jsonl": "0d57cd7bb4f4286c1be123c8de21b357373a6023f893e700cbcc37588df45d5f",
+    "cost-abba-3-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "cost-abba-3.jsonl": "e9983bedef1313afeee79273463cfd4214805f589945b5f4be833c6742d5f10c",
+    "final-abba-0-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "final-abba-0.jsonl": "2f24a3cc80d0b7da2f7f6bd68d707f87240adf2d801ce208fc1293d5fe410f32",
+    "final-abba-1-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "final-abba-1.jsonl": "6bd6f3b8f9a980d14119a3e57daea0a81f22db8368970639e85d181bbba8ee9b",
+    "final-abba-2-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "final-abba-2.jsonl": "aa86e23eada61423b0b301c661e38b4c4e393673347fa79f6b3df16f16310642",
+    "final-abba-3-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "final-abba-3.jsonl": "66294c44fa4393a49cab53a88aeccd262183172458c6320efec82e3ca028ce80",
+    "final-bench-build.log": "5b695aac8f4ca02cf6ea4b3553cac008d3dd865507af34dacfe63e4c14079c42",
+    "gui_mask-baseline.rs": "d311ea9f2d9d46fae2eea650d958262a57b57260ec62f6f9286d3c307076502a",
+    "hint-baseline-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "hint-baseline.jsonl": "e7ecab04040d124e7247d840a05567633b2de990b4e6bb92459e7a3eddfe0de0",
+    "hint-baseline.profile.json": "0207c9bf7440514dffd83f4ac4f78113b6ebefac73ab3baacca27deacc9c9e82",
+    "hint-baseline.sampler.log": "48f7b04d6e43ba5bcd0b110300dcd207e96f36b19c33b726048d7d3d76334c3b",
+    "hint-baseline.stacks.tsv": "aeea6770a160253eb9012329036f71cb7bcbd98aa9510869bcf47edbfd31d7b6",
+    "hint-cached-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "hint-cached.jsonl": "c807f48fc420d591dae40d8debf8ff2e880893db120f3b434e01254b7fe47851",
+    "hint-cached.profile.json": "c5fa5f2de8c010e50593d1d689d635f1f8e6c1ef9484bb18cca5fcdd500210b6",
+    "hint-cached.sampler.log": "af61cc144cc073cd32b38aa7ca291552674840f04547ab123855b7bd4bcea7db",
+    "hint-cached.stacks.tsv": "b5bc7f200a19b7f7b1cdaff054db1d58b6334ba0c563b2d00115ab1b8bdcbdeb",
+    "isolated-abba.json": "38dd99dd86a6121638057faa10dd900901301221db3e4812ed111c3cd739330d",
+    "main.rs": "6738a5ed9375131d740f954847ec3ee17640598ec1133b040b76a2181b31169a",
+    "native-clippy.log": "813e034087c53d4d77bf97756f84ffa95884a06a83d4337b498e39d75520d6f4",
+    "no_fire-baseline-full-rows.json": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+    "no_fire-baseline-hint-rows.json": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+    "no_fire-baseline.jsonl": "8b35f564071a31a0f73c8c70393254e9c0840d6e1484c63805bc3d3e1cccd563",
+    "no_fire-cached-full-rows.json": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+    "no_fire-cached-hint-rows.json": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+    "no_fire-cached.jsonl": "382dc7e9082373aca732024f6ee8ae72c7292bfbb0463393aed568c45e4d4106",
+    "parse_reference.rs": "7ef20c6ee9317b9cd940c1bd9acb4ac7653a3fcd4b21a97d3be7696a008eb75a",
+    "pov-baseline-full-rows.json": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+    "pov-baseline-hint-rows.json": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+    "pov-baseline.jsonl": "081287153e25071a45d4626dd6c2ed6deb867772a62b71129d81683b9ad18b31",
+    "pov-cached-full-rows.json": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+    "pov-cached-hint-rows.json": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+    "pov-cached.jsonl": "a42c36fbbd8d1d2cb142215191ea1c7491eaa00530f76944a681779cb43770ff",
+    "pov1440-baseline-full-rows.json": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+    "pov1440-baseline-hint-rows.json": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+    "pov1440-baseline.jsonl": "d7b66e4cc0a5b6500cd42a0ac8d2eb5512e2349e437cbab864f834dc9c92d8f0",
+    "pov1440-cached-full-rows.json": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+    "pov1440-cached-hint-rows.json": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+    "pov1440-cached.jsonl": "e1a32f59abaac4cb908128c0e0e2e80f146a9438c7a4c2d833f6f9ff5e031618",
+    "profile-summary.txt": "5b846de7273079a07be10d588c6be3e8733ee3212888e65a6af8e175885f413c",
+    "profile.rs": "170a014cade50b95e223906244a6002a1481675838f144d29e7b6befe203ec3e",
+    "real-controls.jsonl": "99261964c6a44fe4a758bb0e6791cfef612be2160306e7aede10ce6b040d4747",
+    "scans.rs": "1e1085f49f4d6188d60a80e4b3fc2abafeb9d3fd778598029413f022310acf9a",
+    "symbols.json": "b801922bc9e40913a51372838360eef07cac52cb810839f2a0ebd1218689f734",
+    "unit-tests.log": "a28de89be1d2962b52d1a7f9f632db55253a97f9f19684fb98615b69f4a20e20",
+    "native-build.log": "8882146ca6f79b1dfc7795889b6166d00e47269738a99bda01ade980ff3d9d67",
+    "native-build-seconds.txt": "3610c77deda10b2171ee63a941bf54a00bf677e142f7860f0f46b05344233c45"
+  },
+  "build": {
+    "result": "passed",
+    "command": "cargo build --manifest-path FireCrackle/src-tauri/Cargo.toml --release --offline",
+    "seconds": 260.6562828,
+    "executable": "FireCrackle/src-tauri/target/release/firecrackle.exe",
+    "bytes": 24840704,
+    "sha256": "c49f2d6871739d92954407c1f80882df32da6ce3848bd7e1430df3768ce6569e",
+    "app_relaunched": false
+  },
+  "profiler_tool_sha256": {
+    "stack_sampler.cpp": "727ed640a41db4df8585685ca81525834b879ed82515942227e8551bdea925c6",
+    "stack_sampler_v2.exe": "7ac0a80af75881295ad7b30742da936b71095dd2b3743d23f9900f2dfbcd5701"
+  }
+}
