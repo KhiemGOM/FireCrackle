@@ -1279,6 +1279,43 @@ mod tests {
         let back = jobs.restore(&f.project, false).unwrap().unwrap();
         assert_eq!((back.state.as_str(), back.processed), ("cancelled", 1));
     }
+    /// Status polling on a real long project with stale journals (the freeze):
+    /// the first poll may be slow, every later poll must be cheap.
+    #[test]
+    #[ignore = "Requires STATUS_POLL_PROJECT pointing to a long imported project.json"]
+    fn status_polling_stays_cheap_on_a_long_real_project() {
+        let project: Project = serde_json::from_slice(
+            &std::fs::read(std::env::var("STATUS_POLL_PROJECT").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let time = |f: &mut dyn FnMut()| {
+            let started = std::time::Instant::now();
+            f();
+            started.elapsed().as_secs_f64() * 1000.
+        };
+        let old = time(&mut || {
+            let _ = Journal::load(&project, false);
+        });
+        for no_fire in [false, true] {
+            let jobs = Jobs::default();
+            let first = time(&mut || {
+                let _ = jobs.restore(&project, no_fire).unwrap();
+            });
+            let later: Vec<f64> = (0..20)
+                .map(|_| {
+                    time(&mut || {
+                        let _ = jobs.restore(&project, no_fire).unwrap();
+                    })
+                })
+                .collect();
+            let worst = later.iter().cloned().fold(0., f64::max);
+            eprintln!(
+                "frames {} no_fire {no_fire}: old per-poll load {old:.1} ms; first poll {first:.1} ms; next 20 polls worst {worst:.2} ms",
+                project.frames.len()
+            );
+            assert!(worst < 50., "a repeated poll took {worst:.1} ms");
+        }
+    }
     #[test]
     fn starting_a_scan_forgets_a_remembered_missing_journal() {
         let f = crate::scan_cache::tests::fixture(3);
