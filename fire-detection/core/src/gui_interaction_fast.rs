@@ -15,6 +15,7 @@ const BORDER_MIN: f64 = 0.80;
 const STRUCTURE_MIN: f64 = 0.70;
 const IDENTITY_MIN: f64 = 0.90;
 
+#[derive(Hash, PartialEq, Eq, Clone)]
 struct Colour {
     low: [u8; 3],
     high: [u8; 3],
@@ -110,11 +111,13 @@ struct Pose {
     sx: f64,
     sy: f64,
     border: Vec<u32>,
+    border_id: usize,
 }
 struct Plan {
     width: usize,
     height: usize,
     poses: Vec<Vec<Pose>>,
+    border_count: usize,
 }
 
 /// Presence only: first supported source pose in stable template/search order.
@@ -194,15 +197,34 @@ impl InteractionDetector {
         {
             return plan.clone();
         }
-        let poses = self
+        let mut poses: Vec<Vec<Pose>> = self
             .templates
             .iter()
             .map(|t| poses(&t.source, width, height))
             .collect();
+        // Border scores depend only on the ordered RGB offsets and colour
+        // intervals when no tooltip is present. Fold those exact checks, not
+        // panel identities: later structure/identity stages remain independent.
+        // HashMap equality checks the complete key (hash collisions are safe).
+        let mut keys = std::collections::HashMap::new();
+        for (t, poses) in self.templates.iter().zip(&mut poses) {
+            for pose in poses {
+                let colours = if pose.sx < 1. && pose.sy < 1. {
+                    &t.stages[0].small
+                } else {
+                    &t.stages[0].normal
+                };
+                let key = (pose.border.clone(), colours.clone());
+                let next = keys.len();
+                pose.border_id = *keys.entry(key).or_insert(next);
+            }
+        }
+        let border_count = keys.len();
         let plan = Arc::new(Plan {
             width,
             height,
             poses,
+            border_count,
         });
         *cache = Some(plan.clone());
         plan
@@ -231,11 +253,20 @@ impl InteractionDetector {
         let first = AtomicUsize::new(self.templates.len());
         let chunk = self.templates.len().div_ceil(self.workers);
         let hits = if self.workers == 1 {
+            let mut rejected = vec![false; plan.border_count];
             self.templates
                 .iter()
                 .enumerate()
                 .find_map(|(i, t)| {
-                    find(rgb, &plan, t, &plan.poses[i], mask.as_deref()).map(|hit| {
+                    find(
+                        rgb,
+                        &plan,
+                        t,
+                        &plan.poses[i],
+                        mask.as_deref(),
+                        &mut rejected,
+                    )
+                    .map(|hit| {
                         first.store(i, Ordering::Relaxed);
                         (i, hit)
                     })
@@ -250,13 +281,19 @@ impl InteractionDetector {
                         let end = (start + chunk).min(self.templates.len());
                         let (plan, mask, first) = (&plan, mask.as_deref(), &first);
                         scope.spawn(move || {
+                            let mut rejected = vec![false; plan.border_count];
                             for i in start..end {
                                 if i >= first.load(Ordering::Relaxed) {
                                     break;
                                 }
-                                if let Some(hit) =
-                                    find(rgb, plan, &self.templates[i], &plan.poses[i], mask)
-                                {
+                                if let Some(hit) = find(
+                                    rgb,
+                                    plan,
+                                    &self.templates[i],
+                                    &plan.poses[i],
+                                    mask,
+                                    &mut rejected,
+                                ) {
                                     first.fetch_min(i, Ordering::Relaxed);
                                     return Some((i, hit));
                                 }
@@ -349,6 +386,7 @@ fn poses(t: &PanelTemplate, w: usize, h: usize) -> Vec<Pose> {
                         sx,
                         sy,
                         border: Vec::new(),
+                        border_id: 0,
                     };
                     pose.border = t.border.iter().map(|p| offset(p, &pose, w, h)).collect();
                     result.push(pose);
@@ -445,9 +483,16 @@ fn find(
     t: &PreparedTemplate,
     poses: &[Pose],
     mask: Option<&[u8]>,
+    rejected: &mut [bool],
 ) -> Option<PanelMatch> {
     let source = &t.source;
     for pose in poses {
+        // Reuse only definite border rejection, within this frame and worker.
+        // With occlusion, group/support accounting also matters; use the
+        // original path. Never reuse results across frames or reorder winners.
+        if mask.is_none() && rejected[pose.border_id] {
+            continue;
+        }
         let border = evidence(
             rgb,
             plan,
@@ -459,6 +504,9 @@ fn find(
             mask,
         );
         if border.value.is_some_and(|v| v < BORDER_MIN) {
+            if mask.is_none() {
+                rejected[pose.border_id] = true;
+            }
             continue;
         }
         let mut structure = evidence(
@@ -615,6 +663,49 @@ mod folding {
             );
         }
     }
+    #[test]
+    fn shared_border_rejection_keeps_structure_and_frame_independent() {
+        let a = base();
+        let mut b = a.clone();
+        b.screen_type = "second".into();
+        b.structure[0].rgb = [40; 3];
+        b.identity[0].rgb = [40; 3];
+        let detector = InteractionDetector::with_workers(vec![a, b], 1).unwrap();
+        let plan = detector.plan(400, 240);
+        assert!(plan.border_count < plan.poses.iter().map(Vec::len).sum());
+        assert_eq!(plan.poses[0][0].border_id, plan.poses[1][0].border_id);
+        for colour in [0, 180, 40, 180, 255] {
+            let rgb = vec![colour; 400 * 240 * 3];
+            // Exhaustive ordered reference: no failure is reused between poses.
+            let expected = detector
+                .templates
+                .iter()
+                .zip(&plan.poses)
+                .find_map(|(t, poses)| {
+                    poses.iter().find_map(|pose| {
+                        find(
+                            &rgb,
+                            &plan,
+                            t,
+                            std::slice::from_ref(pose),
+                            None,
+                            &mut vec![false; plan.border_count],
+                        )
+                    })
+                });
+            let actual = detector.detect(&rgb, 400, 240).unwrap();
+            assert_eq!(
+                format!("{:?}", expected),
+                format!("{:?}", actual.alternatives.first().cloned())
+            );
+        }
+        let mut c = base();
+        c.border[0].rgb = [40; 3];
+        let detector = InteractionDetector::with_workers(vec![base(), c], 1).unwrap();
+        let plan = detector.plan(400, 240);
+        assert_ne!(plan.poses[0][0].border_id, plan.poses[1][0].border_id);
+    }
+
     #[test]
     fn installed_source_bank_equivalence_audit() {
         let bytes = std::fs::read(
