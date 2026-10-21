@@ -182,17 +182,67 @@ pub fn detect_pixels(
     if !valid_options {
         return Err("invalid veil settings/start row".into());
     }
+    Ok(judge_all(data, w, h, channels, y0, o))
+}
+
+/// The four judgments of `detect_pixels` — wide margin then narrow margin, each
+/// judged as plain background then GUI-neutral — share one pass over the pixels.
+/// The narrow columns are a subset of the wide ones, so four counters per margin
+/// reproduce every `judge` result and the same first-yes / best-share order.
+fn judge_all(data: &[u8], w: usize, h: usize, channels: usize, y0: usize, o: Options) -> (bool, f64) {
+    let margin_px = |m: f64| ((w as f64 * m).floor() as usize).max(1).min((w / 2).max(1));
+    let wide = margin_px(o.margin);
+    let narrow = margin_px(o.margin.min(0.1));
+    let floor = (COLOUR * A_TOP).round();
+    let lo = (floor - o.slack).ceil().max(0.0) as u8;
+    // [wide, narrow] × (judged_all, inside_all, judged_non_gui, inside_non_gui)
+    let mut counts = [[0usize; 4]; 2];
+    for y in y0..h {
+        let (bias, inverse) = row_transform(y, h);
+        let hi = (bias + 255.0 / inverse + o.slack).floor().min(255.0) as u8;
+        let row = &data[y * w * channels..(y + 1) * w * channels];
+        let mut visit = |x: usize, in_narrow: bool| {
+            let c = &row[x * channels..x * channels + 3];
+            let inside = c.iter().all(|&v| v >= lo && v <= hi) as usize;
+            let gui = gui_colour(c);
+            for set in counts.iter_mut().take(if in_narrow { 2 } else { 1 }) {
+                set[0] += 1;
+                set[1] += inside;
+                if !gui {
+                    set[2] += 1;
+                    set[3] += inside;
+                }
+            }
+        };
+        for x in 0..wide {
+            visit(x, x < narrow);
+        }
+        for x in w - wide..w {
+            visit(x, x >= w - narrow);
+        }
+    }
     let mut best = 0.0_f64;
-    for margin in [o.margin, o.margin.min(0.1)] {
-        for mode in [Judgment::Background, Judgment::GuiNeutral] {
-            let (yes, share) = judge(data, w, h, channels, y0, Options { margin, ..o }, mode);
+    for (set, margin) in [(0usize, wide), (1, narrow)] {
+        for neutral_gui in [false, true] {
+            let total = (h - y0) * margin * 2;
+            let (judged, inside) = if neutral_gui {
+                (counts[set][2], counts[set][3])
+            } else {
+                (counts[set][0], counts[set][1])
+            };
+            let share = if judged > 0 {
+                inside as f64 / judged as f64
+            } else {
+                0.0
+            };
+            let yes = judged > 0 && (!neutral_gui || judged * 2 >= total) && share >= o.min_share;
             best = best.max(share);
             if yes {
-                return Ok((true, share));
+                return (true, share);
             }
         }
     }
-    Ok((false, best))
+    (false, best)
 }
 pub fn detect_veil(rgb: &[u8], w: usize, h: usize, y0: usize) -> Result<bool, String> {
     Ok(detect_pixels(rgb, w, h, 3, y0, Options::default())?.0)

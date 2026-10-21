@@ -1434,6 +1434,7 @@ impl GuiDetector {
             return Err("invalid GUI frame dimensions".into());
         }
         let plan = self.plan(width, height);
+        let mut times = GuiTimings::default();
         let result = detect_prepared(
             frame,
             width,
@@ -1443,13 +1444,18 @@ impl GuiDetector {
             &self.hotbar,
             Some(&plan),
             Some(&self.shapes),
-            None,
+            Some(&mut times),
             Some(hint),
         )
         .and_then(|mut mask| {
+            let timer = crate::profile::start(9);
             self.merge_interactions(frame, width, height, &mut mask)?;
+            drop(timer);
             Ok(mask)
         });
+        crate::profile::record_ms(6, times.fit_ms);
+        crate::profile::record_ms(7, times.pieces_ms);
+        crate::profile::record_ms(8, times.text_ms);
         match &result {
             Ok(mask) if mask.fit.is_none() => hint.reset(),
             Ok(_) => {}
@@ -1465,8 +1471,9 @@ impl GuiDetector {
         mask: &mut GuiMask,
     ) -> Result<(), String> {
         if let Some(detector) = &self.textures.interactions {
+            let hud_scale = mask.fit.filter(|_| mask.reliable).map(|fit| fit.scale);
             detector
-                .detect(frame, width, height)?
+                .detect_with_scale(frame, width, height, hud_scale)?
                 .merge_neutral_panel(mask)?;
         }
         Ok(())
@@ -1575,6 +1582,75 @@ fn corners(t: &Template) -> Template {
 /// Zero-normalised cross-correlation of a template placed with its GUI origin at video (`x`, `y`), `s` video px per GUI
 /// px. `None` when fewer than 60% of the points fall inside the frame or either side is flat.
 #[allow(clippy::too_many_arguments)]
+/// One-place patch cache for `score`'s all-in-frame path: the sampled luma
+/// values `b` and their sums depend only on the sampled coordinates, so
+/// consecutive templates with the same point coordinates at the same place
+/// reuse them. Every value is produced by the same expressions, in the same
+/// order, as `score`; clipped or sub-sampled cases fall back to `score`.
+#[derive(Default)]
+struct PatchSampler {
+    key: Option<(u64, u64, u64)>,
+    coords: Vec<(f64, f64)>,
+    samples: Vec<f64>,
+    sb: f64,
+    sbb: f64,
+}
+impl PatchSampler {
+    fn score(
+        &mut self,
+        lum: &LumaRows<'_>,
+        w: usize,
+        h: usize,
+        t: &Template,
+        x: f64,
+        y: f64,
+        s: f64,
+    ) -> Option<f64> {
+        let in_frame = !t.pts.is_empty()
+            && x + t.bounds[0] * s >= 0.
+            && y + t.bounds[1] * s >= 0.
+            && x + t.bounds[2] * s < w as f64
+            && y + t.bounds[3] * s < h as f64;
+        if !in_frame {
+            return score(lum, w, h, t, x, y, s, 1);
+        }
+        let key = (x.to_bits(), y.to_bits(), s.to_bits());
+        let same_coords = self.key == Some(key)
+            && self.coords.len() == t.pts.len()
+            && self
+                .coords
+                .iter()
+                .zip(&t.pts)
+                .all(|(&(cu, cv), &(u, v, _))| cu.to_bits() == u.to_bits() && cv.to_bits() == v.to_bits());
+        if !same_coords {
+            self.key = Some(key);
+            self.coords.clear();
+            self.samples.clear();
+            let (mut sb, mut sbb) = (0., 0.);
+            for &(u, v, _) in &t.pts {
+                let b = lum.at((x + u * s) as usize, (y + v * s) as usize);
+                self.coords.push((u, v));
+                self.samples.push(b);
+                sb += b;
+                sbb += b * b;
+            }
+            self.sb = sb;
+            self.sbb = sbb;
+        }
+        let mut sab = 0.;
+        for (&(_, _, a), &b) in t.pts.iter().zip(&self.samples) {
+            sab += a * b;
+        }
+        let m = t.pts.len() as f64;
+        let va = t.squares - t.sum * t.sum / m;
+        let vb = self.sbb - self.sb * self.sb / m;
+        if va <= 1e-9 * m || vb <= 1e-6 * m {
+            return None;
+        }
+        Some((sab - t.sum * self.sb / m) / (va * vb).sqrt())
+    }
+}
+
 fn score(
     lum: &LumaRows<'_>,
     w: usize,
@@ -2055,15 +2131,28 @@ fn detect_prepared(
             ..HudState::default()
         },
     );
-    // best of several candidates (each a placed piece variant), offsets in GUI px
+    // best of several candidates (each a placed piece variant), offsets in GUI px.
+    // Variants of one piece sit at the same place and sample the same pixels; the
+    // patch is sampled once per place and only the template side changes.
     let best_of = |mut cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
-        let mut top: Option<(usize, i32, f64)> = None;
-        for (index, c) in cands.iter().enumerate() {
-            let t = piece_template(tex, c, shape_cache);
-            for &dy in dys {
+        let templates: Vec<Arc<Template>> = cands
+            .iter()
+            .map(|c| piece_template(tex, c, shape_cache))
+            .collect();
+        let mut scores = vec![vec![None; dys.len()]; cands.len()];
+        let mut sampler = PatchSampler::default();
+        for (k, &dy) in dys.iter().enumerate() {
+            for (index, c) in cands.iter().enumerate() {
                 let x = fit.origin_x + c.x as f64 * fit.scale;
                 let y = fit.origin_y + (c.y + dy) as f64 * fit.scale;
-                if let Some(v) = score(&lum, w, h, &t, x, y, fit.scale, 1) {
+                scores[index][k] = sampler.score(&lum, w, h, &templates[index], x, y, fit.scale);
+            }
+        }
+        // Same selection order as scoring each candidate in turn: first maximum wins.
+        let mut top: Option<(usize, i32, f64)> = None;
+        for (index, row) in scores.iter().enumerate() {
+            for (k, &dy) in dys.iter().enumerate() {
+                if let Some(v) = row[k] {
                     if top.as_ref().is_none_or(|b| v > b.2) {
                         top = Some((index, dy, v));
                     }

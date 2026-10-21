@@ -182,14 +182,29 @@ impl PovMatcher {
         )?;
         drop(inner);
         let inner = crate::profile::start(18);
-        let mut opaque = Vec::with_capacity(self.width * self.height);
-        let mut broad = Vec::with_capacity(self.width * self.height);
-        for (&class, &piece) in gui.class.iter().zip(&gui.piece) {
-            let screen = [24, 25, 26].contains(&piece);
-            opaque.push(u8::from(class == 1 || screen));
-            broad.push(u8::from(
-                class == 1 || class == 2 || [4, 5, 11].contains(&piece) || screen,
-            ));
+        // Per-pixel masks from (class, piece): table lookups keep this a plain
+        // vectorisable pass instead of two small linear searches per pixel.
+        let mut screen_of = [0u8; 256];
+        let mut broad_of = [0u8; 256];
+        for piece in [24usize, 25, 26] {
+            screen_of[piece] = 1;
+            broad_of[piece] = 1;
+        }
+        for piece in [4usize, 5, 11] {
+            broad_of[piece] = 1;
+        }
+        let n = self.width * self.height;
+        let mut opaque = vec![0u8; n];
+        let mut broad = vec![0u8; n];
+        for (((o, b), &class), &piece) in opaque
+            .iter_mut()
+            .zip(broad.iter_mut())
+            .zip(&gui.class)
+            .zip(&gui.piece)
+        {
+            let screen = screen_of[piece as usize];
+            *o = u8::from(class == 1) | screen;
+            *b = u8::from(class == 1 || class == 2) | broad_of[piece as usize];
         }
         drop(inner);
         drop(timer);

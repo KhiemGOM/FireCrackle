@@ -195,6 +195,34 @@ change colours. NVDEC → yuv420p → the exact converter reproduces the softwar
 byte-for-byte (on the frames checked), which makes the YUV pipe the right integration path
 for both speed and correctness.
 
+### E8. Round 3 (`results/round3`): exact YUV pipe, NVDEC frame parity, `target-cpu=native`
+
+| Run (1440p fire segment, NVDEC, yuv420p pipe, 12 workers) | fps | decisions |
+|---|---:|---|
+| default build, run A | 85.4 | 347 accepted, **identical rows** to NVDEC rgb24 |
+| default build, run B (same binary, same input) | 79.7 | identical |
+| `-C target-cpu=native` build | **93.9** | identical |
+| no-fire →1080p (yuv scaled by swscale, then exact conversion) | 83.6 | 237 clears (vs 263 rgb24-NVDEC, 265 libaom) |
+| first-person, 20 s no-fire segment | 69.3 | 0 accepted, GUI on 1,418 frames |
+
+Run-to-run noise under the app's background load is about ±5 %; from now on key
+comparisons are repeated and the median reported.
+
+NVDEC vs libaom on 300 frames at 20 s: 6 frames differ (max channel difference 255: those
+frames are decoded differently, not rounding); at 5490 s all checked frames match. On the
+fire segment the NVDEC decisions differ from libaom's on **8 of 1,800 frames (0.4 %)**, all
+attributable to those frame-level decode differences. Software libdav1d would give exact
+parity at a similar speed (E1) but needs the "full" FFmpeg build instead of "essentials".
+
+The no-fire 1440p→1080p downscale has no app precedent; the three set-ups above are three
+different resamplers. Which one to standardise on is an open question for the owner (none
+can be scored: the 1440p recording has no labels).
+
+Sub-stage profile (default build, run B), per GUI frame: `gui.panel_find` 31.3 ms,
+`gui.tooltips` 9.2 ms, `pov.opaque_broad` **21.2 ms** (building two per-pixel mask vectors —
+pure overhead), `pov.screen_confirm` 6.9 ms, `gui.pieces` 27.4 ms, `gui.text` 15.2 ms,
+`pov.veil` 21.1 ms.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on
