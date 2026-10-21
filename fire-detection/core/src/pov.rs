@@ -121,6 +121,7 @@ impl PovMatcher {
         frame: &[u8],
         hint: Option<&mut GuiFitHint>,
     ) -> Result<PovResult, String> {
+        let timer = crate::profile::start(0);
         let (auto, share) = detect_pixels(
             frame,
             self.width,
@@ -129,11 +130,14 @@ impl PovMatcher {
             16.min(self.height - 1),
             Options::default(),
         )?;
+        drop(timer);
         let dual = (share - Options::default().min_share).abs() <= DUAL_DISTANCE + 1e-12;
+        let timer = crate::profile::start(1);
         let mut branches = vec![self.raw(frame, auto)?];
         if dual {
             branches.push(self.raw(frame, !auto)?);
         }
+        drop(timer);
         let result = |row, used_gui| PovResult {
             row,
             used_gui,
@@ -149,12 +153,14 @@ impl PovMatcher {
         {
             return Ok(result(Some(possible[0].row), false));
         }
+        let timer = crate::profile::start(2);
         let mut gui = match hint {
             Some(hint) => self
                 .gui
                 .detect_with_hint(frame, self.width, self.height, hint)?,
             None => self.gui.detect(frame, self.width, self.height)?,
         };
+        drop(timer);
         if !gui.reliable
             && !gui.hits.iter().any(|hit| {
                 matches!(
@@ -165,6 +171,8 @@ impl PovMatcher {
         {
             return Ok(result(Self::selected(&branches), true));
         }
+        let timer = crate::profile::start(3);
+        let inner = crate::profile::start(19);
         add_screen_masks(
             frame,
             self.width,
@@ -172,6 +180,8 @@ impl PovMatcher {
             self.gui.textures(),
             &mut gui,
         )?;
+        drop(inner);
+        let inner = crate::profile::start(18);
         let mut opaque = Vec::with_capacity(self.width * self.height);
         let mut broad = Vec::with_capacity(self.width * self.height);
         for (&class, &piece) in gui.class.iter().zip(&gui.piece) {
@@ -181,19 +191,25 @@ impl PovMatcher {
                 class == 1 || class == 2 || [4, 5, 11].contains(&piece) || screen,
             ));
         }
+        drop(inner);
+        drop(timer);
         let viable = branches.iter().filter(|b| b.possible).count();
         for b in branches.iter_mut().filter(|b| b.possible) {
             let matcher = &self.matchers[b.fov];
             let row = b.row as usize;
+            let timer = crate::profile::start(4);
             let hard = matcher.inspect_scores(frame, Some(&opaque), b.veiled)?;
+            drop(timer);
             let hard = evidence(hard.diagnostics.as_ref().expect("opaque diagnostics"), row);
             b.evidence = b.evidence.max(hard);
             b.accepted |= hard >= THRESHOLD;
             if viable == 1 && b.accepted {
                 return Ok(result(Some(b.row), true));
             }
+            let timer = crate::profile::start(5);
             let soft: SilhouetteResult =
                 matcher.inspect_candidate(frame, &broad, b.veiled, b.row)?;
+            drop(timer);
             let d = soft.diagnostics.as_ref().expect("broad diagnostics");
             let score = |r: usize| d.silhouette_z[r] + d.colour_weight * d.colour_z[r];
             let margin = score(row)

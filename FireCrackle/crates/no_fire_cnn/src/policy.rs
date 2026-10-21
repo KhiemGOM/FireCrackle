@@ -58,8 +58,12 @@ fn candidate_prepared_inner(
     if w != 1920 || h != 1080 || rgb.len() != w * h * 3 {
         return Err("AI no-fire requires native 1920×1080 RGB".into());
     }
+    use fire_core::profile::start as stage;
+    let timer = stage(10);
     let raw = fragments::mask(rgb, w, h);
     let mut rules = !fragments::reaches(&raw, w, h, 4, 2198);
+    drop(timer);
+    let timer = stage(11);
     let (used, share) = detect_pixels(rgb, w, h, 3, 12, Options::default())?;
     if !used && share >= 0.80 {
         return Ok(false);
@@ -70,18 +74,26 @@ fn candidate_prepared_inner(
         Cow::Borrowed(rgb)
     };
     rules &= !used || !fragments::reaches(&fragments::mask(&fixed, w, h), w, h, 4, 2198);
+    drop(timer);
     let auto = used.then_some(fixed.as_ref());
+    let timer = stage(12);
     let cnn = if rules { None } else { Some(infer(rgb, auto)?) };
+    drop(timer);
     if cnn == Some(false) {
         return Ok(false);
     }
+    let timer = stage(13);
     if fire_core::veil::portal::guard(rgb, w, h, None, None)?.abstain {
         return Ok(false);
     }
+    drop(timer);
+    let timer = stage(14);
     let gui = match hint {
         Some(hint) => detector.detect_with_hint(rgb, w, h, hint)?,
         None => detector.detect(rgb, w, h)?,
     };
+    drop(timer);
+    let _timer = stage(15);
     if !gui.reliable {
         return Ok(false);
     }

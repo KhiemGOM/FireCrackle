@@ -214,8 +214,11 @@ impl InteractionDetector {
         }
         self.prepare(width, height)?;
         let plan = self.plan(width, height);
+        let timer = crate::profile::start(16);
         let tips = tooltip::detect_tooltips(rgb, width, height);
         let mask = (!tips.is_empty()).then(|| tooltip::mask(&tips, width, height));
+        drop(timer);
+        let _timer = crate::profile::start(17);
         let first = AtomicUsize::new(self.templates.len());
         let chunk = self.templates.len().div_ceil(self.workers);
         let hits = if self.workers == 1 {

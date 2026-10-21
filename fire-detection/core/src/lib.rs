@@ -12,6 +12,7 @@ pub mod overlay;
 pub mod patch;
 pub mod pov;
 pub mod presence;
+pub mod profile;
 pub mod report;
 pub mod sync;
 pub mod veil;

@@ -65,6 +65,39 @@ pub fn clear_frame_with(
     Ok(true)
 }
 
+/// Perf-lab variant: all nine views of a frame (then of its unveiled copy) are
+/// resized first and scored in one batch. Same views, same rounding, same
+/// clear rule; only the early exit between views is gone, which cannot change
+/// the frame's boolean result.
+pub fn clear_frame_batched(
+    raw: &[u8],
+    auto: Option<&[u8]>,
+    cancel: &AtomicBool,
+    mut score_batch: impl FnMut(&[u8], usize) -> Result<Vec<f32>, String>,
+) -> Result<bool, String> {
+    let boxes = crate::tile_boxes();
+    for rgb in std::iter::once(raw).chain(auto) {
+        if rgb.len() != 1920 * 1080 * 3 {
+            return Err("Invalid AI video frame".into());
+        }
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(false);
+        }
+        let cropped = &rgb[1920 * 12 * 3..];
+        let mut views = Vec::with_capacity(boxes.len() * 224 * 224 * 3);
+        for rect in &boxes {
+            views.extend_from_slice(&crate::resize(cropped, 1920, *rect));
+        }
+        if score_batch(&views, boxes.len())?
+            .into_iter()
+            .any(|score| !crate::clear_score(score))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

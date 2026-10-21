@@ -1,0 +1,21 @@
+[package]
+name = "perf-lab"
+version = "0.0.0"
+edition = "2021"
+description = "Scan performance laboratory: app-faithful end-to-end benchmarks and accuracy runs for the first-person and no-fire scans"
+
+[dependencies]
+fire_core = { path = "../core" }
+studio_core = { path = "../../FireCrackle/crates/studio_core" }
+no_fire_cnn = { path = "../../FireCrackle/crates/no_fire_cnn" }
+serde_json = "1"
+
+[[bin]]
+name = "perf-lab"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = 1

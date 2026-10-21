@@ -1,0 +1,3 @@
+models/
+swscale_G.npy
+results/**/*.log

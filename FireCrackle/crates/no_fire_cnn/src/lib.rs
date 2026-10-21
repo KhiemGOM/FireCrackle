@@ -93,5 +93,5 @@ pub fn views(rgb: &[u8]) -> Result<Vec<Vec<u8>>, String> {
 mod engine;
 pub use engine::Engine;
 mod frame;
-pub use frame::clear_frame_with;
+pub use frame::{clear_frame_batched, clear_frame_with};
 pub mod policy;

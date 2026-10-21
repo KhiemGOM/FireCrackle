@@ -199,6 +199,109 @@ impl Engine {
         let _ = (cancel, best_time, refs);
         Ok(best)
     }
+    /// Experimental backends for the perf lab: `cpu`, `dml`, `cuda`, `tensorrt`,
+    /// `tensorrt-fp16`. The CUDA/TensorRT providers need the ONNX Runtime GPU
+    /// build's provider DLLs beside `runtime`, plus CUDA 12 / cuDNN 9 (and
+    /// TensorRT) libraries on the loader path.
+    pub fn load_provider(
+        runtime: &Path,
+        model: &[u8],
+        provider: &str,
+        threads: usize,
+    ) -> Result<Self, String> {
+        match provider {
+            "cpu" => return Self::load(runtime, model, false, threads),
+            "dml" | "directml" => return Self::load_on(runtime, model, Some(0), threads),
+            _ => {}
+        }
+        Self::preflight(runtime)?;
+        let builder = || -> ort::Result<SessionBuilder> {
+            Session::builder()?
+                .with_intra_threads(threads.clamp(1, 4))?
+                .with_inter_threads(1)?
+                .with_parallel_execution(false)?
+                .with_memory_pattern(false)?
+                .with_intra_op_spinning(false)
+        };
+        use ort::execution_providers::{
+            CUDAExecutionProvider, TensorRTExecutionProvider, cuda::CuDNNConvAlgorithmSearch,
+        };
+        let ep = match provider {
+            "cuda" => CUDAExecutionProvider::default()
+                .with_device_id(0)
+                .with_tf32(false)
+                .with_conv_algorithm_search(CuDNNConvAlgorithmSearch::Heuristic)
+                .build(),
+            "tensorrt" | "tensorrt-fp16" => TensorRTExecutionProvider::default()
+                .with_device_id(0)
+                .with_fp16(provider == "tensorrt-fp16")
+                .with_engine_cache(true)
+                .with_engine_cache_path(std::env::temp_dir().join("firecrackle-trt").to_string_lossy())
+                .with_timing_cache(true)
+                .build(),
+            other => return Err(format!("unknown provider {other}")),
+        };
+        let session = builder()
+            .and_then(|b| b.with_execution_providers([ep.error_on_failure()]))
+            .and_then(|b| b.commit_from_memory(model))
+            .map_err(|e| format!("Could not load no-fire model on {provider}: {e}"))?;
+        Ok(Self {
+            session,
+            provider: format!("GPU ({provider})"),
+        })
+    }
+    fn preflight(runtime: &Path) -> Result<(), String> {
+        if !runtime.is_file() {
+            return Err("AI inference runtime is missing".into());
+        }
+        let absolute = runtime.canonicalize().map_err(|e| e.to_string())?;
+        static LIBRARY: std::sync::OnceLock<Result<libloading::Library, String>> =
+            std::sync::OnceLock::new();
+        LIBRARY
+            .get_or_init(|| {
+                #[cfg(windows)]
+                let loaded = unsafe {
+                    libloading::os::windows::Library::load_with_flags(
+                        &absolute,
+                        0x00000100 | 0x00001000,
+                    )
+                }
+                .map(Into::into);
+                #[cfg(not(windows))]
+                let loaded = unsafe { libloading::Library::new(&absolute) };
+                loaded.map_err(|e| format!("Could not load AI runtime: {e:?}"))
+            })
+            .as_ref()
+            .map_err(Clone::clone)?;
+        ort::init_from(absolute.to_string_lossy())
+            .with_name("FireCrackle AI")
+            .commit()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    /// Score `count` concatenated 224×224 RGB views in one run. Needs a model
+    /// whose batch dimension is symbolic (`perf-lab/make_batched_model.py`).
+    pub fn score_batch(&mut self, views: &[u8], count: usize) -> Result<Vec<f32>, String> {
+        if count == 0 || views.len() != count * 224 * 224 * 3 {
+            return Err("Invalid AI view batch".into());
+        }
+        let tensor = Tensor::from_array((
+            [count, 224usize, 224, 3],
+            views.iter().map(|v| *v as f32).collect::<Vec<_>>(),
+        ))
+        .map_err(|e| e.to_string())?;
+        let outputs = self
+            .session
+            .run(ort::inputs![tensor])
+            .map_err(|e| e.to_string())?;
+        let (_, values) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| e.to_string())?;
+        if values.len() != count || values.iter().any(|s| !s.is_finite()) {
+            return Err("AI returned invalid evidence".into());
+        }
+        Ok(values.to_vec())
+    }
     pub fn score_view(&mut self, rgb: &[u8]) -> Result<f32, String> {
         Ok(self.infer_view(rgb, 224, 1)?[0])
     }
