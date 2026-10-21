@@ -145,8 +145,12 @@ impl Cache {
     }
 }
 fn write_entry(file: &mut File, entry: &Entry) -> Result<(), String> {
-    serde_json::to_writer(&mut *file, entry).map_err(|e| e.to_string())?;
-    file.write_all(b"\n").map_err(|e| e.to_string())
+    // Serialize before touching the file: one write per complete cache record,
+    // instead of a Windows filesystem call for each JSON token. Do not buffer
+    // across frames; interrupted scans still retain every completed record.
+    let mut bytes = serde_json::to_vec(entry).map_err(|e| e.to_string())?;
+    bytes.push(b'\n');
+    file.write_all(&bytes).map_err(|e| e.to_string())
 }
 struct Job {
     project: Project,
@@ -395,6 +399,142 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cache_record_bytes_match_streamed_serialization() {
+        let fixture = crate::scan_cache::tests::fixture(3);
+        let path = fixture.root.join("entries-test");
+        let mut file = File::create(&path).unwrap();
+        let entries = [
+            Entry::Header {
+                key: "test".into(),
+                total: 3,
+            },
+            Entry::Frame {
+                frame: 0,
+                hit: None,
+            },
+            Entry::Frame {
+                frame: 2,
+                hit: Some(Surface {
+                    bounds: [1.0, 2.5, 30.0, 40.0],
+                    menu: false,
+                }),
+            },
+            Entry::Finished,
+        ];
+        let mut expected = Vec::new();
+        for entry in entries {
+            serde_json::to_writer(&mut expected, &entry).unwrap();
+            expected.push(b'\n');
+            write_entry(&mut file, &entry).unwrap();
+        }
+        drop(file);
+        assert_eq!(std::fs::read(path).unwrap(), expected);
+    }
+    #[test]
+    #[ignore = "Requires GUI_BENCH_PROJECT, GUI_BENCH_ROOT, GUI_SMOKE_FFMPEG/FFPROBE and GUI_SMOKE_REFERENCE"]
+    fn benchmark_real_video_through_production_pipeline() {
+        let mut project: Project = serde_json::from_slice(
+            &std::fs::read(std::env::var("GUI_BENCH_PROJECT").unwrap()).unwrap(),
+        )
+        .unwrap();
+        let count: usize = std::env::var("GUI_BENCH_FRAMES")
+            .unwrap_or("36000".into())
+            .parse()
+            .unwrap();
+        assert!(count > 0 && count <= project.frames.len());
+        project.frames.truncate(count);
+        let root = PathBuf::from(std::env::var("GUI_BENCH_ROOT").unwrap());
+        std::fs::create_dir_all(&root).unwrap();
+        let run = root.join(format!(
+            "run-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&run).unwrap();
+        let video = run.join("source.mkv");
+        let tools = Tools {
+            ffmpeg: std::env::var_os("GUI_SMOKE_FFMPEG").unwrap(),
+            ffprobe: std::env::var_os("GUI_SMOKE_FFPROBE").unwrap(),
+        };
+        // Bound the input itself without re-encoding. Do not touch the original
+        // video's live cache, or leave FFmpeg producing past this test's end.
+        assert!(
+            crate::external_tools::command(&tools.ffmpeg)
+                .args([
+                    "-v",
+                    "error",
+                    "-i",
+                    &project.video_path,
+                    "-map",
+                    "0:v:0",
+                    "-c:v",
+                    "copy",
+                    "-frames:v",
+                    &count.to_string()
+                ])
+                .arg(&video)
+                .status()
+                .unwrap()
+                .success()
+        );
+        project.video_path = video.to_string_lossy().into_owned();
+        let start = std::time::Instant::now();
+        let jobs = Jobs::default();
+        jobs.start(project.clone(), tools).unwrap();
+        loop {
+            let status = jobs.status(&project).unwrap();
+            if status.state != "running" {
+                assert_eq!(status.state, "done", "{:?}", status.error);
+                assert_eq!(status.processed as usize, count);
+                break;
+            }
+            assert!(start.elapsed().as_secs() < 1800);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let seconds = start.elapsed().as_secs_f64();
+        eprintln!(
+            "GUI_BENCH frames={count} seconds={seconds:.3} fps={:.2} cache={}",
+            count as f64 / seconds,
+            run.display()
+        );
+        let cache = Cache::load(&project);
+        assert!(cache.finished);
+        let mut compared = 0;
+        for line in std::fs::read_to_string(std::env::var("GUI_SMOKE_REFERENCE").unwrap())
+            .unwrap()
+            .lines()
+        {
+            let value: serde_json::Value = serde_json::from_str(line).unwrap();
+            let frame = value["frame"].as_u64().unwrap() as usize;
+            if frame >= count {
+                continue;
+            }
+            let expected: Option<[f64; 4]> =
+                serde_json::from_value(value["bounds"].clone()).unwrap();
+            assert_eq!(
+                cache.frames[frame]
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .map(|s| s.bounds),
+                expected,
+                "frame {frame}"
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, count);
+        assert_eq!(
+            Jobs::default()
+                .start(project, Tools::default())
+                .unwrap()
+                .state,
+            "done"
+        );
+    }
     #[test]
     fn cache_keeps_original_indices_and_retries_a_truncated_tail() {
         let f = crate::scan_cache::tests::fixture(5);

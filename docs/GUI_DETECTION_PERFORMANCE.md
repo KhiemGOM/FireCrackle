@@ -57,3 +57,144 @@ The retained change reduces measured detector time without changing decisions; t
 
 Reproduction artifacts: `.board/gui-performance/{bench.rs,all.py,multi.rs,multi.py,pipeline.rs,manifest.json,pipeline-results.json,full/verified.json}`. `bench.rs` alternates old/new/new/old on identical decoded RGB, excluding PNG loading, IPC and initial plan construction from timing. Public results are compared before timing. Targeted tests: `cargo test --manifest-path fire-detection/core/Cargo.toml --lib gui_interaction`, `--test gui_interaction_fast`, `--test gui_interaction`.
 
+
+## Follow-up: remove the wall-clock decoder bottleneck
+
+The first detector-only result was insufficient. The follow-up profiles decoding,
+RGB transfer and complete scans separately. Measurements below are from the same
+native 2560×1440 AV1 recording; the user's other app remained running. Absolute
+rates vary with live workload and thermal state. Compare paired runs, not numbers
+from different batches.
+
+### Root cause and runtime change
+
+The pinned Gyan FFmpeg 8.1.2 **essentials** build lacks libdav1d and selected
+libaom-av1 for this source. The same-version **full** build selects libdav1d
+(dav1d 1.5.3-62-g77ef6635 in its vendor README). This is verified in both binaries'
+`-decoders` output and actual decode logs. Gyan's [library inventory](https://www.gyan.dev/ffmpeg/builds/)
+places libdav1d in the additional full-build libraries. FFmpeg source commit remains
+`38b88335f9`; the pinned full archive SHA-256 is
+`0fff188997a499b5382e0f66e845d4556c48c54f0113ebed4853d556dbdd7059`.
+
+An initial 1,200-frame run with detection completely bypassed still ran at about
+92 fps, approximately the same as detection enabled. Decoder/pipe reads occupied
+almost the whole scan wall time. Therefore further detector arithmetic changes
+could not solve this bottleneck.
+
+### Full decode + transfer + detector benchmark
+
+Same harness, current exact detector, full RGB24, every original frame,
+`showinfo` retained, default frame-worker policy and automatic decoder threads.
+Include detector initialization in the following wall times. Runs were sequential
+A-B-B-A, each with 6,000 frames (100 seconds of footage):
+
+| Runtime | First run | Second run | Aggregate FPS |
+|---|---:|---:|---:|
+| Essentials / libaom (A) | 87.197 s | 81.444 s | 71.16 |
+| Full / dav1d (B) | 46.759 s | 52.003 s | 121.50 |
+
+This is **1.71× throughput / 41.4% less wall time** for this batch. All four runs
+matched the frozen baseline's GUI presence and panel bounds for all 6,000 frames.
+The harness includes buffered result output, not the app's full cache lifecycle;
+the separate production-pipeline test below covers that distinction.
+
+### Further candidates actually tried
+
+- Windows anonymous-pipe buffer hint of 1 MiB: no established additional gain.
+  Reads still arrived in small chunks; do not infer the actual pipe capacity from
+  the requested hint. [CreatePipe documentation](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createpipe)
+  explicitly describes the buffer size as a suggestion.
+- `showinfo=checksum=0`: retained timestamps but no clear repeatable improvement
+  in the 1,200-frame screen. Keep current diagnostics; no production change.
+- Single filter thread, alone and combined with checksum/pipe changes: mixed or
+  slower. No production change.
+- CUVID, QSV, native CUDA and D3D11 decoding: some decode-only improvements did
+  not survive full RGB transfer plus detection. Short full-pipeline trials were
+  approximately 39–96 fps; none displaced dav1d. No hardware path forced.
+- Restrict dav1d to four threads: 6,000-frame runs took 105.283 s, or 97.742 s
+  with one filter thread. Slower than automatic threading; rejected.
+- Fewer frames, resized frames, removed tooltip masks and temporal answer reuse
+  remain changes to detection coverage, not exact speedups. Not introduced.
+
+### Delivery and isolation
+
+Windows now requires dav1d support before accepting a pre-existing local runtime;
+an older portable essentials binary cannot silently bypass the new pinned cache.
+The installer streams only the selected executables and vendor notices from the
+checksum-verified 7z archive using Windows' bundled tar. It checks safe unique
+member names and required executables. No archive-controlled output paths are
+extracted. Cache directories include the archive checksum, so an old running
+window's binaries are not overwritten. Linux keeps its existing system-tool
+behavior. The build preparation script uses the same pin and hash-specific cache.
+
+The archive is 166,721,853 bytes; installed ffmpeg and ffprobe total about 485 MB.
+This is a larger one-time runtime download/install, not a per-scan cost. No private
+video, game asset, executable or cache is committed. The original app and its
+running work are left alone. Gains here apply to this AV1 bottleneck; do not claim
+the same improvement for H.264 or for the other detectors without measuring them.
+
+### Additional correctness checks
+
+RGB24 frame hashes and output timestamps match between the two runtime builds for
+all 6,000 initial frames and another 900 frames starting at 480 seconds (including
+the recovered tooltip-covered GUI cases): 6,900 exact matches. The new archive's
+SHA-256 verification, selected-member extraction, preserved vendor notices, both
+executable startup checks and the libdav1d capability check pass locally. Six
+runtime unit tests and two existing GUI cache/range tests pass; release-script
+checks also pass.
+
+An opt-in `gui_scan::tests::benchmark_real_video_through_production_pipeline`
+creates an isolated stream-copy prefix (no re-encoding), preserves the original
+indexed timestamps, runs the production Jobs/CheckedFrames/cache path and checks
+every original frame ID and bound against frozen JSONL results. This avoids
+mutating the user's live video cache. It also verifies that the completed cache
+can be reopened without invoking a decoder.
+
+The full 36,000-frame production scan completed with every frame's presence and
+bounds identical to the frozen baseline, and compatible cache reuse passed.
+Its 509.432-second validation run overlapped installation/compilation work and is
+not used as a before/after speed estimate. Original timestamp validation remained
+active throughout. Further paired production timing is recorded below.
+
+The cache writer now serializes one complete JSONL record in memory and writes it
+once. It does not buffer across frames. A byte-equivalence test covers header,
+negative frame, positive bounds and completion records; existing truncated-tail,
+resume-index and range tests still pass. This removes per-token filesystem calls
+without changing cache format or detection semantics.
+
+### Paired production wall-clock result
+
+The real app scan path (frame timestamp checks, detection, progress polling,
+per-frame cache writes, final sync) was run sequentially A-B-B-A on isolated
+6,000-frame stream-copy prefixes of the same source. The user's other app was
+left running and had an active FFmpeg process during these tests.
+
+| Production configuration | Run 1 | Run 2 | Aggregate FPS |
+|---|---:|---:|---:|
+| Essentials runtime + previous per-token cache writer | 189.215 s | 186.805 s | 31.91 |
+| Full/dav1d runtime + complete-record cache writes | 97.225 s | 99.346 s | 61.05 |
+
+**1.91× throughput, 47.7% less wall time.** All 24,000 output records across the
+four runs match the frozen presence/bounds baseline. Cache completion/reopen
+checks pass in every run. This is the relevant end-to-end result; it supersedes
+any temptation to present the faster standalone harness rate as actual app FPS.
+These are live-workload measurements, not a universal throughput guarantee or a
+whole-recording ETA.
+
+### Last transfer/worker screen and cache attribution
+
+With the full runtime, paired default 1,200-frame runs took 11.852/11.107 s;
+`-avioflags direct` took 10.998/11.011 s, direct plus a larger pipe 11.163 s,
+and 2/4/6 detector workers took 11.584/10.974/10.950 s. These small differences
+under live workload do not establish another robust gain; read-call counts
+remained about 260k–280k per 1,200 frames. Keep the existing transfer and worker
+policy. All eight runs matched all 1,200 frozen GUI results.
+
+The isolated cache serialization/file-write ABBA for 6,000 records measured
+0.234823/0.226343 s for token writes versus 0.010849/0.011312 s for complete-record
+writes, including final sync; file bytes were identical. Retain the smaller
+number of filesystem calls, but it saves only about 0.22 s per 6,000 records in
+this test. It does **not** explain the large end-to-end change: the decoder is
+the main improvement. A subsequent full-runtime run with the old writer took
+77.902 s (77.02 fps), further demonstrating workload variation; do not attribute
+the difference from earlier 60–62 fps runs to the cache writer.
