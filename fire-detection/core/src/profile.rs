@@ -1,7 +1,12 @@
 //! Process-wide stage timers for the scan performance lab. One relaxed atomic
 //! add per stage per frame; zero allocation. Not a correctness feature.
+//!
+//! Compiled out unless the `scan-profile` feature is on (the perf lab turns it
+//! on): shipped builds get a zero-sized timer and no shared counters, so
+//! concurrent scans never contend on these atomics.
 
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+#[cfg(feature = "scan-profile")]
 use std::time::Instant;
 
 pub const STAGES: [&str; 24] = [
@@ -33,11 +38,21 @@ pub const STAGES: [&str; 24] = [
 static NANOS: [AtomicU64; 24] = [const { AtomicU64::new(0) }; 24];
 static CALLS: [AtomicU64; 24] = [const { AtomicU64::new(0) }; 24];
 
+#[cfg(feature = "scan-profile")]
 pub struct Timer(usize, Instant, u64);
+#[cfg(not(feature = "scan-profile"))]
+pub struct Timer;
 /// Start timing `stage` (an index into [`STAGES`]); dropping records it.
+#[cfg(feature = "scan-profile")]
 pub fn start(stage: usize) -> Timer {
     Timer(stage, Instant::now(), thread_cycles())
 }
+#[cfg(not(feature = "scan-profile"))]
+#[inline(always)]
+pub fn start(_stage: usize) -> Timer {
+    Timer
+}
+#[cfg(feature = "scan-profile")]
 impl Drop for Timer {
     fn drop(&mut self) {
         NANOS[self.0].fetch_add(self.1.elapsed().as_nanos() as u64, Relaxed);
@@ -48,7 +63,7 @@ impl Drop for Timer {
 static CYCLES: [AtomicU64; 24] = [const { AtomicU64::new(0) }; 24];
 /// CPU cycles consumed by the calling thread: unlike wall time it does not
 /// count time spent descheduled behind other workers or other programs.
-#[cfg(windows)]
+#[cfg(all(windows, feature = "scan-profile"))]
 pub fn thread_cycles() -> u64 {
     #[link(name = "kernel32")]
     extern "system" {
@@ -60,7 +75,7 @@ pub fn thread_cycles() -> u64 {
     unsafe { QueryThreadCycleTime(GetCurrentThread(), &mut cycles) };
     cycles
 }
-#[cfg(not(windows))]
+#[cfg(not(all(windows, feature = "scan-profile")))]
 pub fn thread_cycles() -> u64 {
     0
 }
@@ -79,6 +94,9 @@ pub fn cycles() -> Vec<(&'static str, u64, f64)> {
 }
 /// Record an already measured duration and cycle count for `stage`.
 pub fn record(stage: usize, ms: f64, cycles: u64) {
+    if !cfg!(feature = "scan-profile") {
+        return;
+    }
     NANOS[stage].fetch_add((ms * 1e6) as u64, Relaxed);
     CYCLES[stage].fetch_add(cycles, Relaxed);
     CALLS[stage].fetch_add(1, Relaxed);
@@ -119,6 +137,9 @@ pub const NF_REJECT_BASE: usize = 3;
 static COUNTS: [AtomicU64; 29] = [const { AtomicU64::new(0) }; 29];
 /// Add to a plain event counter (an index into [`COUNTERS`]).
 pub fn count(counter: usize, by: u64) {
+    if !cfg!(feature = "scan-profile") {
+        return;
+    }
     COUNTS[counter].fetch_add(by, Relaxed);
 }
 pub fn counters() -> Vec<(&'static str, u64)> {
@@ -149,4 +170,23 @@ pub fn snapshot() -> Vec<(&'static str, u64, f64)> {
             )
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// Shipped builds must not pay for the lab's timers: without the
+    /// `scan-profile` feature nothing is measured or recorded.
+    #[cfg(not(feature = "scan-profile"))]
+    #[test]
+    fn profiling_is_compiled_out_by_default() {
+        reset();
+        drop(start(0));
+        count(0, 5);
+        record(1, 1.0, 1);
+        assert!(snapshot().is_empty());
+        assert!(counters().is_empty());
+        assert_eq!(thread_cycles(), 0);
+        assert_eq!(std::mem::size_of::<Timer>(), 0);
+    }
 }
