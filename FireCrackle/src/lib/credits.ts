@@ -38,7 +38,7 @@ export const CREDITS: CreditSection[] = [
     entries: [
       { name: "yt-dlp contributors", note: "provide online video downloads · github.com/yt-dlp/yt-dlp · source: Unlicense; standalone builds contain separately licensed components." },
       { name: "Deno contributors", note: "provide the JavaScript runtime for YouTube extraction · deno.com · MIT and third-party licenses." },
-      { name: "FFmpeg contributors and Gyan Doshi", note: "provide video decoding, probing and compression · ffmpeg.org / gyan.dev · Windows essentials build: GPLv3." },
+      { name: "FFmpeg contributors and Gyan Doshi", note: "provide video decoding, probing and compression · ffmpeg.org / gyan.dev · Windows full build (with dav1d): GPLv3." },
     ],
   },
 ];
