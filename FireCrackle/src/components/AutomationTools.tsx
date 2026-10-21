@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Backend, PovStatus } from "../lib/api";
 import { messageOf } from "../hooks/useWorkspace";
 import { Icon } from "./Icon";
+import { ScanProgressStats } from "./ScanProgressStats";
 import "./AutomationTools.css";
 
 export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void;onReview?:(frame:number)=>void}) {
@@ -53,6 +54,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
           <span>{status.state==="running"?"Scanning":status.state==="done"?"Scan complete":status.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
           <span>{status.accepted.toLocaleString()} accepted matches{status.applied>0?` · ${status.applied.toLocaleString()} added`:""}</span>
+          {running&&<ScanProgressStats key={`${status.video_path}:${status.id}`} status={status}/>}
         </div>}
         {(error||status?.error)&&<p role="alert">{error??status?.error}</p>}
         <div className="automation-actions">
@@ -84,6 +86,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           {noFire&&<div className="automation-progress" role="status">
             <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
             <span>{noFire.state==="running"?(noFire.processed===0?"Preparing AI":"Scanning"):noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
+            {noFire.state==="running"&&<ScanProgressStats key={`${noFire.video_path}:${noFire.id}`} status={noFire}/>}
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
           {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}
