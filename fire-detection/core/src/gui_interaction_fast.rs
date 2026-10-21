@@ -14,9 +14,11 @@ struct Colour {
 struct Stage {
     normal: Vec<Colour>,
     small: Vec<Colour>,
+    floor: f64,
+    allowed: usize,
 }
 impl Stage {
-    fn new(points: &[Probe]) -> Self {
+    fn new(points: &[Probe], floor: f64) -> Self {
         let colours = |small| {
             points
                 .iter()
@@ -33,9 +35,16 @@ impl Stage {
                 })
                 .collect()
         };
+        // Identical support requirement for every pose and frame. Calculate
+        // with the policy's original division/comparison, only once.
+        let minimum = (0..=points.len())
+            .find(|&n| n as f64 / points.len().max(1) as f64 >= floor)
+            .unwrap_or(points.len());
         Self {
             normal: colours(false),
             small: colours(true),
+            floor,
+            allowed: points.len() - minimum,
         }
     }
 }
@@ -93,12 +102,12 @@ impl InteractionDetector {
                 .into_iter()
                 .map(|source| {
                     let stages = [
-                        &source.border,
-                        &source.structure,
-                        &source.presence_structure,
-                        &source.identity,
+                        (&source.border, 0.8),
+                        (&source.structure, 0.7),
+                        (&source.presence_structure, 0.7),
+                        (&source.identity, 0.9),
                     ]
-                    .map(|p| Stage::new(p));
+                    .map(|(p, floor)| Stage::new(p, floor));
                     PreparedTemplate { source, stages }
                 })
                 .collect(),
@@ -308,7 +317,6 @@ fn evidence(
     points: &[Probe],
     stage: &Stage,
     cached: Option<&[u32]>,
-    floor: f64,
     regional: bool,
     mask: Option<&[u8]>,
 ) -> Evidence {
@@ -317,10 +325,6 @@ fn evidence(
     } else {
         &stage.normal
     };
-    let minimum = (0..=points.len())
-        .find(|&n| n as f64 / points.len().max(1) as f64 >= floor)
-        .unwrap_or(points.len());
-    let allowed = points.len() - minimum;
     let (mut good, mut visible, mut groups) = (0usize, 0usize, [[0usize; 2]; 4]);
     for (i, p) in points.iter().enumerate() {
         let at = cached.map_or_else(|| offset(p, pose, plan.width, plan.height), |v| v[i]);
@@ -350,7 +354,7 @@ fn evidence(
         }
         // Safe upper bound: masking can only reduce the final denominator.
         // Do not reject a masked stage until it has enough visible support.
-        if visible - good > allowed && (mask.is_none() || visible >= 16) {
+        if visible - good > stage.allowed && (mask.is_none() || visible >= 16) {
             return Evidence {
                 value: Some(0.),
                 probes: visible,
@@ -369,7 +373,7 @@ fn evidence(
     if regional
         && groups
             .iter()
-            .any(|g| g[1] > 0 && g[0] as f64 / (g[1] as f64) < floor - 0.15)
+            .any(|g| g[1] > 0 && g[0] as f64 / (g[1] as f64) < stage.floor - 0.15)
     {
         value = 0.;
     }
@@ -396,7 +400,6 @@ fn find(
             &source.border,
             &t.stages[0],
             Some(&pose.border),
-            0.8,
             false,
             mask,
         );
@@ -410,7 +413,6 @@ fn find(
             &source.structure,
             &t.stages[1],
             None,
-            0.7,
             false,
             mask,
         );
@@ -425,7 +427,6 @@ fn find(
                 &source.presence_structure,
                 &t.stages[2],
                 None,
-                0.7,
                 false,
                 mask,
             );
@@ -447,7 +448,6 @@ fn find(
                 &source.identity,
                 &t.stages[3],
                 None,
-                0.9,
                 true,
                 mask,
             )

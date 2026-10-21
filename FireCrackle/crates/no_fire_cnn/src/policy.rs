@@ -9,6 +9,7 @@ use fire_core::{
     gui_mask::{GuiDetector, GuiOptions, GuiTextures},
     veil::{Options, detect_pixels, unveil_rgb},
 };
+use std::borrow::Cow;
 pub fn candidate(
     rgb: &[u8],
     w: usize,
@@ -41,12 +42,12 @@ pub fn candidate_prepared(
         return Ok(false);
     }
     let fixed = if used {
-        unveil_rgb(rgb, w, h)?
+        Cow::Owned(unveil_rgb(rgb, w, h)?)
     } else {
-        rgb.to_vec()
+        Cow::Borrowed(rgb)
     };
     rules &= !used || !fragments::reaches(&fragments::mask(&fixed, w, h), w, h, 4, 2198);
-    let auto = used.then_some(fixed.as_slice());
+    let auto = used.then_some(fixed.as_ref());
     let cnn = if rules { None } else { Some(infer(rgb, auto)?) };
     if cnn == Some(false) {
         return Ok(false);

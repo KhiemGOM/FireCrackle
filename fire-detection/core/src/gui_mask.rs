@@ -972,6 +972,88 @@ struct Template {
     sum: f64,
     squares: f64,
     bounds: [f64; 4],
+    grid: Option<SampleGrid>,
+}
+
+// Sampling geometry is immutable. Large templates revisit the same columns
+// and rows thousands of times per fit; transform each coordinate only once.
+// These are scratch-space limits, not assumptions about Minecraft layouts.
+const SAMPLE_COLUMNS: usize = 512;
+const SAMPLE_ROWS: usize = 128;
+struct SampleGrid {
+    columns: Vec<f64>,
+    rows: Vec<f64>,
+    points: Vec<(u16, u16)>,
+}
+impl SampleGrid {
+    fn new(pts: &[(f64, f64, f64)]) -> Option<Self> {
+        if pts.len() < 32 {
+            return None;
+        }
+        let (mut columns, mut rows) = (Vec::new(), Vec::new());
+        let (mut xs, mut ys) = (HashMap::new(), HashMap::new());
+        let mut points = Vec::with_capacity(pts.len());
+        for &(u, v, _) in pts {
+            let xi = *xs.entry(u.to_bits()).or_insert_with(|| {
+                columns.push(u);
+                (columns.len() - 1) as u16
+            });
+            let yi = *ys.entry(v.to_bits()).or_insert_with(|| {
+                rows.push(v);
+                (rows.len() - 1) as u16
+            });
+            if columns.len() > SAMPLE_COLUMNS || rows.len() > SAMPLE_ROWS {
+                return None;
+            }
+            points.push((xi, yi));
+        }
+        Some(Self {
+            columns,
+            rows,
+            points,
+        })
+    }
+
+    fn sums(
+        &self,
+        lum: &LumaRows<'_>,
+        pts: &[(f64, f64, f64)],
+        x: f64,
+        y: f64,
+        s: f64,
+    ) -> (f64, f64, f64) {
+        if self.columns.len() <= 32 && self.rows.len() <= 32 {
+            self.sums_sized::<32, 32>(lum, pts, x, y, s)
+        } else {
+            self.sums_sized::<SAMPLE_COLUMNS, SAMPLE_ROWS>(lum, pts, x, y, s)
+        }
+    }
+
+    fn sums_sized<const C: usize, const R: usize>(
+        &self,
+        lum: &LumaRows<'_>,
+        pts: &[(f64, f64, f64)],
+        x: f64,
+        y: f64,
+        s: f64,
+    ) -> (f64, f64, f64) {
+        let mut columns = [0; C];
+        let mut rows: [&[f64]; R] = [&[]; R];
+        for (dest, &u) in columns.iter_mut().zip(&self.columns) {
+            *dest = (x + u * s) as usize;
+        }
+        for (dest, &v) in rows.iter_mut().zip(&self.rows) {
+            *dest = lum.row((y + v * s) as usize);
+        }
+        let (mut sb, mut sbb, mut sab) = (0., 0., 0.);
+        for (&(xi, yi), &(_, _, a)) in self.points.iter().zip(pts) {
+            let b = rows[yi as usize][columns[xi as usize]];
+            sb += b;
+            sbb += b * b;
+            sab += a * b;
+        }
+        (sb, sbb, sab)
+    }
 }
 impl Template {
     fn new(pts: Vec<(f64, f64, f64)>) -> Self {
@@ -990,11 +1072,13 @@ impl Template {
             bounds[2] = bounds[2].max(u);
             bounds[3] = bounds[3].max(v);
         }
+        let grid = SampleGrid::new(&pts);
         Self {
             pts,
             sum,
             squares,
             bounds,
+            grid,
         }
     }
 }
@@ -1133,10 +1217,28 @@ struct HotbarTemplates {
 }
 
 #[derive(Hash, PartialEq, Eq)]
+enum ShapeLayers {
+    Empty,
+    One(Layer),
+    Two([Layer; 2]),
+    Many(Vec<Layer>),
+}
+impl From<&[Layer]> for ShapeLayers {
+    fn from(layers: &[Layer]) -> Self {
+        match layers {
+            [] => Self::Empty,
+            [one] => Self::One(*one),
+            [one, two] => Self::Two([*one, *two]),
+            many => Self::Many(many.to_vec()),
+        }
+    }
+}
+
+#[derive(Hash, PartialEq, Eq)]
 struct ShapeKey {
     width: u32,
     height: u32,
-    layers: Vec<Layer>,
+    layers: ShapeLayers,
     unknown: Option<(i32, i32, u32, u32)>,
 }
 type ShapeCache = RwLock<HashMap<ShapeKey, Arc<Template>>>;
@@ -1156,7 +1258,7 @@ fn piece_template(tex: &GuiTextures, p: &Placed, cache: Option<&ShapeCache>) -> 
     let key = ShapeKey {
         width: p.w,
         height: p.h,
-        layers: p.layers.clone(),
+        layers: p.layers.as_slice().into(),
         unknown: p.unknown,
     };
     if let Some(t) = cache.read().unwrap_or_else(|e| e.into_inner()).get(&key) {
@@ -1424,13 +1526,18 @@ fn score(
         && x + t.bounds[2] * s < w as f64
         && y + t.bounds[3] * s < h as f64
     {
-        let (mut sb, mut sbb, mut sab) = (0., 0., 0.);
-        for &(u, v, a) in &t.pts {
-            let b = lum.at((x + u * s) as usize, (y + v * s) as usize);
-            sb += b;
-            sbb += b * b;
-            sab += a * b;
-        }
+        let (sb, sbb, sab) = if let Some(grid) = &t.grid {
+            grid.sums(lum, &t.pts, x, y, s)
+        } else {
+            let (mut sb, mut sbb, mut sab) = (0., 0., 0.);
+            for &(u, v, a) in &t.pts {
+                let b = lum.at((x + u * s) as usize, (y + v * s) as usize);
+                sb += b;
+                sbb += b * b;
+                sab += a * b;
+            }
+            (sb, sbb, sab)
+        };
         let m = t.pts.len() as f64;
         let va = t.squares - t.sum * t.sum / m;
         let vb = sbb - sb * sb / m;
@@ -1661,11 +1768,17 @@ fn detect_prepared(
     };
     for &(_, s0) in coarse.iter().take(5) {
         let (x0, y0, _) = anchor(s0);
-        let Some(slot) = (0..9).max_by(|&a, &b| {
-            let sa = score(&lum, w, h, &flat_t[a], x0 - s0, y0 - s0, s0, 1).unwrap_or(-1.0);
-            let sb = score(&lum, w, h, &flat_t[b], x0 - s0, y0 - s0, s0, 1).unwrap_or(-1.0);
-            sa.total_cmp(&sb)
-        }) else {
+        let Some((slot, _)) = flat_t
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                (
+                    i,
+                    score(&lum, w, h, t, x0 - s0, y0 - s0, s0, 1).unwrap_or(-1.0),
+                )
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+        else {
             continue;
         };
         let t = &all_t[slot];
@@ -1798,26 +1911,27 @@ fn detect_prepared(
             ..HudState::default()
         },
     );
-    let shift = |mut p: Placed, dy: i32| {
-        p.y += dy;
-        p
-    };
     // best of several candidates (each a placed piece variant), offsets in GUI px
-    let best_of = |cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
-        let mut top: Option<(Placed, f64)> = None;
-        for c in cands {
-            let t = piece_template(tex, &c, shape_cache);
+    let best_of = |mut cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
+        let mut top: Option<(usize, i32, f64)> = None;
+        for (index, c) in cands.iter().enumerate() {
+            let t = piece_template(tex, c, shape_cache);
             for &dy in dys {
-                let p = shift(c.clone(), dy);
-                let (x, y) = at(&p);
+                let x = fit.origin_x + c.x as f64 * fit.scale;
+                let y = fit.origin_y + (c.y + dy) as f64 * fit.scale;
                 if let Some(v) = score(&lum, w, h, &t, x, y, fit.scale, 1) {
-                    if top.as_ref().is_none_or(|b| v > b.1) {
-                        top = Some((p, v));
+                    if top.as_ref().is_none_or(|b| v > b.2) {
+                        top = Some((index, dy, v));
                     }
                 }
             }
         }
-        top.filter(|b| b.1 >= opts.piece_min_score)
+        top.filter(|b| b.2 >= opts.piece_min_score)
+            .map(|(index, dy, v)| {
+                let mut p = cands.swap_remove(index);
+                p.y += dy;
+                (p, v)
+            })
     };
     let (c, sh_) = (sw / 2, sh);
     // selected slot: 9 places
@@ -3786,6 +3900,70 @@ fn detect_captions(
 #[cfg(test)]
 mod correlation_parity {
     use super::*;
+    #[test]
+    fn compiled_grid_preserves_ordered_score_bits_and_clipping() {
+        let (w, h) = (180, 120);
+        let frame: Vec<_> = (0..w * h * 3)
+            .map(|i| ((i * 37 + i / 17) % 256) as u8)
+            .collect();
+        let lum = LumaRows::new(&frame, w, h);
+        let mut compiled = corners(&Template::new(
+            (0..14)
+                .flat_map(|v| {
+                    (0..32).filter_map(move |u| {
+                        (u % 5 != 0).then_some((
+                            u as f64 + 0.5,
+                            v as f64 + 0.5,
+                            ((u * 19 + v * 31) % 255) as f64,
+                        ))
+                    })
+                })
+                .collect(),
+        ));
+        assert!(compiled.grid.is_some());
+        let grid = compiled.grid.take();
+        for (x, y, s) in [
+            (0., 0., 1.),
+            (1.125, 2.875, 2.5),
+            (3.9, 4.1, 0.375),
+            (-2., 1., 1.5),
+            (170., 110., 1.),
+        ] {
+            for step in [1, 3] {
+                let expected = score(&lum, w, h, &compiled, x, y, s, step).map(f64::to_bits);
+                compiled.grid = grid.as_ref().map(|g| SampleGrid {
+                    columns: g.columns.clone(),
+                    rows: g.rows.clone(),
+                    points: g.points.clone(),
+                });
+                assert_eq!(
+                    score(&lum, w, h, &compiled, x, y, s, step).map(f64::to_bits),
+                    expected
+                );
+                compiled.grid = None;
+            }
+        }
+        assert!(
+            SampleGrid::new(&(0..1100).map(|i| (i as f64, 0., 1.)).collect::<Vec<_>>()).is_none()
+        );
+        assert!(
+            SampleGrid::new(&(0..1100).map(|i| (0., i as f64, 1.)).collect::<Vec<_>>()).is_none()
+        );
+    }
+
+    #[test]
+    fn inline_shape_keys_preserve_layer_identity_and_order() {
+        let a = lay(Sheet::Widgets, 0, 0, 16, 16);
+        let b = lay(Sheet::Widgets, 16, 0, 16, 16);
+        for layers in [vec![], vec![a], vec![a, b], vec![a, b, a]] {
+            assert!(
+                ShapeLayers::from(layers.as_slice())
+                    == ShapeLayers::from(layers.clone().as_slice())
+            );
+        }
+        assert!(ShapeLayers::from([a, b].as_slice()) != ShapeLayers::from([b, a].as_slice()));
+    }
+
     #[test]
     fn cached_and_in_frame_paths_match_dense_reference_bits() {
         let (w, h) = (40, 32);
