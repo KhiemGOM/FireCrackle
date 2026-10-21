@@ -106,16 +106,16 @@ fn video_tool_check(exe: &std::ffi::OsStr) -> Result<(), String> {
         )),
     }
 }
+fn lists_dav1d(decoders: &str) -> bool {
+    decoders
+        .lines()
+        .any(|line| line.split_whitespace().nth(1) == Some("libdav1d"))
+}
 fn has_dav1d(exe: &std::ffi::OsStr) -> bool {
     command(exe)
         .args(["-hide_banner", "-decoders"])
         .output()
-        .is_ok_and(|o| {
-            o.status.success()
-                && String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .any(|line| line.split_whitespace().nth(1) == Some("libdav1d"))
-        })
+        .is_ok_and(|o| o.status.success() && lists_dav1d(&String::from_utf8_lossy(&o.stdout)))
 }
 fn verify(path: &Path, expected: &str) -> Result<(), String> {
     let mut input = File::open(path).map_err(|e| e.to_string())?;
@@ -387,6 +387,10 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
     // Older portable Windows builds carry essentials beside the app. Do not
     // let that valid-but-slow AV1 decoder bypass the upgraded runtime cache.
     if checks.iter().all(Result::is_ok) && (!cfg!(windows) || has_dav1d(&tools.ffmpeg)) {
+        // Linux uses the distribution's FFmpeg, which we cannot replace: only say so.
+        if !cfg!(windows) && !has_dav1d(&tools.ffmpeg) {
+            eprintln!("FireCrackle: this FFmpeg has no libdav1d, so AV1 videos decode with a slower decoder. Install an FFmpeg build with libdav1d for faster AV1 scans.");
+        }
         let _ = VIDEO.set(tools.clone());
         return Ok(tools);
     }
@@ -461,6 +465,20 @@ pub fn link_tools(cancel: Option<&AtomicBool>) -> Result<(PathBuf, PathBuf), Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn decoder_list_with_dav1d_is_recognised() {
+        let list = "Decoders:\n V....D av1                  Alliance for Open Media AV1\n V....D libdav1d             dav1d AV1 decoder by VideoLAN (codec av1)\n V....D libaom-av1           libaom AV1 (codec av1)\n";
+        assert!(lists_dav1d(list));
+    }
+    #[test]
+    fn decoder_list_without_dav1d_is_rejected() {
+        // essentials-style: libaom only, and a description that merely mentions dav1d.
+        let list = "Decoders:\n V....D libaom-av1           libaom AV1 (codec av1)\n V....D av1                  slower than libdav1d without it\n";
+        assert!(!lists_dav1d(list));
+        assert!(!lists_dav1d(""));
+        assert!(!lists_dav1d("libdav1d"));
+        assert!(!lists_dav1d(" V....D libdav1d_extra   something else\n"));
+    }
     #[test]
     fn manifest_has_verified_https_downloads() {
         let manifest: BTreeMap<String, BTreeMap<String, Asset>> =
