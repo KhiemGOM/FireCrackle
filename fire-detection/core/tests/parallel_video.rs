@@ -94,3 +94,34 @@ fn cancellation_stops_without_processing_or_publishing_more_frames() {
     .unwrap();
     assert_eq!(out.len(), 1);
 }
+/// Scan workers must yield to the UI: they run below normal priority, and the
+/// caller's own thread keeps its priority.
+#[cfg(windows)]
+#[test]
+fn scan_workers_run_below_normal_priority_and_leave_the_caller_unchanged() {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentThread() -> isize;
+        fn GetThreadPriority(thread: isize) -> i32;
+    }
+    const THREAD_PRIORITY_BELOW_NORMAL: i32 = -1;
+    let priority = || unsafe { GetThreadPriority(GetCurrentThread()) };
+    let before = priority();
+    let mut seen = Vec::new();
+    fire_core::video::parallel_frames_indexed(
+        Cursor::new(vec![0u8; 24]),
+        3,
+        8,
+        4,
+        &AtomicBool::new(false),
+        |_, _| Ok(priority()),
+        |_, p| seen.push(p),
+    )
+    .unwrap();
+    assert_eq!(seen.len(), 8);
+    assert!(
+        seen.iter().all(|&p| p == THREAD_PRIORITY_BELOW_NORMAL),
+        "{seen:?}"
+    );
+    assert_eq!(priority(), before);
+}

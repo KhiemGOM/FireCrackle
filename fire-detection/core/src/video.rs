@@ -154,6 +154,7 @@ where
             let process = &process;
             let initialize = &initialize;
             scope.spawn(move || {
+                background_priority();
                 let mut state = initialize();
                 loop {
                     let received = match input.lock() {
@@ -209,6 +210,23 @@ where
             Ok(())
         }
     })
+}
+
+/// Scan workers yield to the UI and to whatever else the user is running: they
+/// only take CPU time that normal-priority threads leave idle. Only the worker
+/// threads are lowered; the caller's thread is unchanged.
+fn background_priority() {
+    #[cfg(windows)]
+    {
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetCurrentThread() -> isize;
+            fn SetThreadPriority(thread: isize, priority: i32) -> i32;
+        }
+        const THREAD_PRIORITY_BELOW_NORMAL: i32 = -1;
+        // SAFETY: documented Win32 call on the current thread's pseudo-handle.
+        unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) };
+    }
 }
 
 /// Leave room for decoding/UI and cap the recycled RGB frame pool to about 256 MiB.
