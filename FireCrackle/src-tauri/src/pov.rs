@@ -44,6 +44,10 @@ struct Job {
 pub struct Jobs {
     current: Arc<Mutex<Option<Job>>>,
     next: Arc<AtomicU64>,
+    /// The last project status polling found no usable journal for. Checking
+    /// hashes the whole project and reads the journal file; on a long video
+    /// with a stale cache that is far too slow to repeat on every poll.
+    missing: Arc<Mutex<Option<Project>>>,
 }
 
 impl Jobs {
@@ -58,10 +62,18 @@ impl Jobs {
                 return Ok(None);
             }
         }
-        let Some(cache) = Journal::load(project, no_fire) else {
+        let mut missing = self.missing.lock().map_err(|_| "Scan state unavailable")?;
+        if missing.as_ref() == Some(project) {
             *state = None;
             return Ok(None);
+        }
+        let Some(cache) = Journal::load(project, no_fire) else {
+            *state = None;
+            *missing = Some(project.clone());
+            return Ok(None);
         };
+        *missing = None;
+        drop(missing);
         let rows = cache.rows();
         let status = Status {
             id: self.next.fetch_add(1, Ordering::Relaxed) + 1,
@@ -171,6 +183,7 @@ impl Jobs {
             cache.close()?;
         }
         let cache = Journal::open(&project, no_fire)?;
+        *self.missing.lock().map_err(|_| "Scan state unavailable")? = None;
         let already_finished = cache.finished;
         let decisions = cache.decisions.clone();
         let rows = cache.rows();
@@ -1247,6 +1260,43 @@ mod tests {
                 "frame {n}"
             );
         }
+    }
+    #[test]
+    fn status_polling_remembers_a_missing_journal_until_the_project_changes() {
+        let f = crate::scan_cache::tests::fixture(3);
+        let jobs = Jobs::default();
+        assert!(jobs.restore(&f.project, false).unwrap().is_none());
+        // A journal that appears afterwards is not re-read on every poll for the
+        // same project (each read hashes the whole project and reads the file).
+        let mut cache = Journal::open(&f.project, false).unwrap();
+        cache.record(0, None).unwrap();
+        drop(cache);
+        assert!(jobs.restore(&f.project, false).unwrap().is_none());
+        // Opening another video and coming back checks again.
+        let mut other = f.project.clone();
+        other.fingerprint = "other".into();
+        assert!(jobs.restore(&other, false).unwrap().is_none());
+        let back = jobs.restore(&f.project, false).unwrap().unwrap();
+        assert_eq!((back.state.as_str(), back.processed), ("cancelled", 1));
+    }
+    #[test]
+    fn starting_a_scan_forgets_a_remembered_missing_journal() {
+        let f = crate::scan_cache::tests::fixture(3);
+        let jobs = Jobs::default();
+        assert!(jobs.restore(&f.project, false).unwrap().is_none());
+        let mut cache = Journal::open(&f.project, false).unwrap();
+        for frame in 0..3 {
+            cache.record(frame, None).unwrap();
+        }
+        cache.finish(0).unwrap();
+        drop(cache);
+        // A completed journal makes start report "done" without decoding.
+        let started = jobs.start(f.project.clone(), Tools::default()).unwrap();
+        assert_eq!(started.state, "done");
+        assert_eq!(
+            jobs.restore(&f.project, false).unwrap().unwrap().state,
+            "done"
+        );
     }
     #[test]
     fn recovers_partial_and_completed_jobs_with_stable_candidate_frames() {
