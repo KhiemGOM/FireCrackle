@@ -106,19 +106,21 @@ pub(crate) fn scan_resuming(
         "AI no-fire: {}",
         engine.lock().map_err(|_| "AI state unavailable")?.provider
     );
-    let result = crate::pov::scan_with_workers_resuming(
+    let result = crate::pov::scan_with_worker_state_resuming(
         project,
         tools,
         cancel,
         slot,
         fire_core::video::scan_workers(project.meta.width * project.meta.height * 3),
         completed,
-        |rgb| {
-            let clear = policy::candidate_prepared(
+        fire_core::gui_mask::GuiFitHint::default,
+        |hint, rgb| {
+            let clear = policy::candidate_prepared_with_hint(
                 rgb,
                 project.meta.width,
                 project.meta.height,
                 &detector,
+                hint,
                 |raw, auto| Engine::clear_frame_shared(&engine, &runtime, MODEL, raw, auto, cancel),
             )?;
             Ok(clear.then_some(0))

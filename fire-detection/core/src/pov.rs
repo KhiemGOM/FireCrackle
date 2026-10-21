@@ -1,7 +1,8 @@
 //! Production first-person acceptance, frozen from the GUI/dual-veil experiment.
-//! GUI exclusions are neutral; every decision uses one frame and no clock.
+//! GUI exclusions are neutral; every score uses current pixels and no clock.
+//! Scans may propose prior GUI geometry, rechecked on the current frame.
 use crate::{
-    gui_mask::{add_screen_masks, GuiDetector, GuiOptions, GuiTextures},
+    gui_mask::{add_screen_masks, GuiDetector, GuiFitHint, GuiOptions, GuiTextures},
     overlay::{MatchDiagnostics, SilhouetteMatcher, SilhouetteResult},
     veil::{detect_pixels, Options},
 };
@@ -103,6 +104,23 @@ impl PovMatcher {
     }
 
     pub fn match_frame(&self, frame: &[u8]) -> Result<PovResult, String> {
+        self.match_frame_inner(frame, None)
+    }
+
+    pub fn match_frame_with_hint(
+        &self,
+        frame: &[u8],
+        hint: &mut GuiFitHint,
+    ) -> Result<PovResult, String> {
+        hint.begin_frame();
+        self.match_frame_inner(frame, Some(hint))
+    }
+
+    fn match_frame_inner(
+        &self,
+        frame: &[u8],
+        hint: Option<&mut GuiFitHint>,
+    ) -> Result<PovResult, String> {
         let (auto, share) = detect_pixels(
             frame,
             self.width,
@@ -131,7 +149,12 @@ impl PovMatcher {
         {
             return Ok(result(Some(possible[0].row), false));
         }
-        let mut gui = self.gui.detect(frame, self.width, self.height)?;
+        let mut gui = match hint {
+            Some(hint) => self
+                .gui
+                .detect_with_hint(frame, self.width, self.height, hint)?,
+            None => self.gui.detect(frame, self.width, self.height)?,
+        };
         if !gui.reliable
             && !gui.hits.iter().any(|hit| {
                 matches!(

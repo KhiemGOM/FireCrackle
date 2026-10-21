@@ -45,12 +45,45 @@ pub fn parallel_frames_indexed<R, T, F, U>(
     workers: usize,
     cancel: &std::sync::atomic::AtomicBool,
     process: F,
-    mut update: U,
+    update: U,
 ) -> Result<(), String>
 where
     R: Read + Send,
     T: Send,
     F: Fn(u32, &[u8]) -> Result<T, String> + Sync,
+    U: FnMut(u32, T),
+{
+    parallel_frames_indexed_with_state(
+        reader,
+        frame_bytes,
+        total,
+        workers,
+        cancel,
+        || (),
+        |_, n, frame| process(n, frame),
+        update,
+    )
+}
+
+/// Each worker owns its state and receives frames in increasing source order.
+/// State never crosses workers, scans or resume sessions. Output order remains
+/// independent of source order, as in `parallel_frames_indexed`.
+#[allow(clippy::too_many_arguments)] // Explicit pipeline inputs plus worker-local state factory.
+pub fn parallel_frames_indexed_with_state<R, S, T, I, F, U>(
+    reader: R,
+    frame_bytes: usize,
+    total: u32,
+    workers: usize,
+    cancel: &std::sync::atomic::AtomicBool,
+    initialize: I,
+    process: F,
+    mut update: U,
+) -> Result<(), String>
+where
+    R: Read + Send,
+    T: Send,
+    I: Fn() -> S + Sync,
+    F: Fn(&mut S, u32, &[u8]) -> Result<T, String> + Sync,
     U: FnMut(u32, T),
 {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -119,30 +152,34 @@ where
             let output = result_tx.clone();
             let recycle = free_tx.clone();
             let process = &process;
-            scope.spawn(move || loop {
-                let received = match input.lock() {
-                    Ok(rx) => rx.recv(),
-                    Err(_) => {
-                        let _ = output.send(Err("Frame queue unavailable".into()));
+            let initialize = &initialize;
+            scope.spawn(move || {
+                let mut state = initialize();
+                loop {
+                    let received = match input.lock() {
+                        Ok(rx) => rx.recv(),
+                        Err(_) => {
+                            let _ = output.send(Err("Frame queue unavailable".into()));
+                            break;
+                        }
+                    };
+                    let Ok((n, frame)) = received else {
+                        break;
+                    };
+                    if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
+                        let _ = recycle.send(frame);
                         break;
                     }
-                };
-                let Ok((n, frame)) = received else {
-                    break;
-                };
-                if stopped.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) {
+                    let result = process(&mut state, n, &frame).map(|value| (n, value));
+                    if result.is_err() {
+                        stopped.store(true, Ordering::Relaxed);
+                    }
+                    let failed = result.is_err();
+                    let _ = output.send(result);
                     let _ = recycle.send(frame);
-                    break;
-                }
-                let result = process(n, &frame).map(|value| (n, value));
-                if result.is_err() {
-                    stopped.store(true, Ordering::Relaxed);
-                }
-                let failed = result.is_err();
-                let _ = output.send(result);
-                let _ = recycle.send(frame);
-                if failed {
-                    break;
+                    if failed {
+                        break;
+                    }
                 }
             });
         }

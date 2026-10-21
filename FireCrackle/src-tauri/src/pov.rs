@@ -1,8 +1,9 @@
 //! Optional, cancellable scan with canonical GUI-neutral first-person matching.
 use crate::scan_cache::Journal;
 use fire_core::{
+    gui_mask::GuiFitHint,
     pov::PovMatcher,
-    video::{parallel_frames_indexed, scan_workers},
+    video::{parallel_frames_indexed_with_state, scan_workers},
 };
 use serde::Serialize;
 use std::{
@@ -401,14 +402,15 @@ fn scan_resuming(
 ) -> Result<(), String> {
     let (w, h) = (project.meta.width, project.meta.height);
     let matcher = PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?;
-    scan_with_workers_resuming(
+    scan_with_worker_state_resuming(
         project,
         tools,
         cancel,
         slot,
         scan_workers(w * h * 3),
         completed,
-        |frame| Ok(matcher.match_frame(frame)?.row),
+        GuiFitHint::default,
+        |hint, frame| Ok(matcher.match_frame_with_hint(frame, hint)?.row),
         update,
     )
 }
@@ -603,6 +605,31 @@ pub(crate) fn scan_with_workers_resuming(
     workers: usize,
     completed: &[Option<i16>],
     process: impl Fn(&[u8]) -> Result<Option<u8>, String> + Sync,
+    update: impl FnMut(u32, Option<u8>),
+) -> Result<(), String> {
+    scan_with_worker_state_resuming(
+        project,
+        tools,
+        cancel,
+        slot,
+        workers,
+        completed,
+        || (),
+        |_, rgb| process(rgb),
+        update,
+    )
+}
+
+#[allow(clippy::too_many_arguments)] // Decoder/resume ownership and private worker state factory.
+pub(crate) fn scan_with_worker_state_resuming<S>(
+    project: &Project,
+    tools: &Tools,
+    cancel: &AtomicBool,
+    slot: &Mutex<Option<Child>>,
+    workers: usize,
+    completed: &[Option<i16>],
+    initialize: impl Fn() -> S + Sync,
+    process: impl Fn(&mut S, &[u8]) -> Result<Option<u8>, String> + Sync,
     mut update: impl FnMut(u32, Option<u8>),
 ) -> Result<(), String> {
     if !completed.is_empty() && completed.len() != project.frames.len() {
@@ -625,15 +652,16 @@ pub(crate) fn scan_with_workers_resuming(
         .and_then(|n| n.checked_mul(3))
         .ok_or("Video dimensions overflow")?;
     let (pipe, errors) = open_scan_decoder(project, tools, start, slot)?;
-    parallel_frames_indexed(
+    parallel_frames_indexed_with_state(
         pipe,
         frame_bytes,
         (project.frames.len() - start) as u32,
         workers.clamp(1, 12),
         cancel,
-        |n, rgb| match completed.get(start + n as usize).copied().flatten() {
+        initialize,
+        |state, n, rgb| match completed.get(start + n as usize).copied().flatten() {
             Some(row) => Ok((row >= 0).then_some(row as u8)),
-            None => process(rgb),
+            None => process(state, rgb),
         },
         |n, row| update(n + start as u32, row),
     )?;

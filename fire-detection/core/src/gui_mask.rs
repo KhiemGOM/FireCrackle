@@ -726,6 +726,32 @@ pub struct GuiFit {
     pub scaled_height: u32,
 }
 
+/// Last checked geometry for one ordered stream/worker. Never stores a mask,
+/// selected slot, item contents or panel decision. Do not share between workers.
+#[derive(Debug, Default)]
+pub struct GuiFitHint {
+    previous: Option<(usize, usize, GuiFit, f64, f64)>,
+    reused: bool,
+}
+impl GuiFitHint {
+    /// Reset only the per-frame diagnostic, retaining checked geometry.
+    pub fn begin_frame(&mut self) {
+        self.reused = false;
+    }
+    pub fn reset(&mut self) {
+        self.previous = None;
+        self.reused = false;
+    }
+    pub fn reused(&self) -> bool {
+        self.reused
+    }
+    fn at_size(&self, width: usize, height: usize) -> Option<(GuiFit, f64, f64)> {
+        self.previous
+            .filter(|&(w, h, _, _, _)| w == width && h == height)
+            .map(|(_, _, fit, centre, edges)| (fit, centre, edges))
+    }
+}
+
 impl GuiFit {
     /// The mapping of a `fb_w x fb_h` window at `gui_scale`, recorded and resized uniformly by `k`.
     pub fn framebuffer(fb_w: u32, fb_h: u32, gui_scale: u32, k: f64) -> GuiFit {
@@ -1313,8 +1339,8 @@ impl HotbarTemplates {
     }
 }
 
-/// Immutable, reusable GUI templates. Frames and their masks stay independent;
-/// no previous-frame fit or screen state is reused.
+/// Reusable GUI templates. `detect` is stateless; `detect_with_hint` accepts
+/// explicitly owned prior geometry, verified against the current frame.
 pub struct GuiDetector {
     textures: GuiTextures,
     options: GuiOptions,
@@ -1385,9 +1411,51 @@ impl GuiDetector {
             Some(&plan),
             Some(&self.shapes),
             None,
+            None,
         )?;
         self.merge_interactions(frame, width, height, &mut mask)?;
         Ok(mask)
+    }
+    /// Verify the last successful fit on this frame before using it. If its
+    /// current opaque hotbar evidence is weak, run the original full search.
+    pub fn detect_with_hint(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+        hint: &mut GuiFitHint,
+    ) -> Result<GuiMask, String> {
+        hint.begin_frame();
+        if width == 0
+            || height == 0
+            || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        {
+            hint.reset();
+            return Err("invalid GUI frame dimensions".into());
+        }
+        let plan = self.plan(width, height);
+        let result = detect_prepared(
+            frame,
+            width,
+            height,
+            &self.textures,
+            &self.options,
+            &self.hotbar,
+            Some(&plan),
+            Some(&self.shapes),
+            None,
+            Some(hint),
+        )
+        .and_then(|mut mask| {
+            self.merge_interactions(frame, width, height, &mut mask)?;
+            Ok(mask)
+        });
+        match &result {
+            Ok(mask) if mask.fit.is_none() => hint.reset(),
+            Ok(_) => {}
+            Err(_) => hint.reset(),
+        }
+        result
     }
     fn merge_interactions(
         &self,
@@ -1428,6 +1496,7 @@ impl GuiDetector {
             Some(&plan),
             Some(&self.shapes),
             Some(&mut times),
+            None,
         )?;
         if !mask.reliable {
             times.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
@@ -1671,7 +1740,7 @@ pub fn detect_gui(
     opts: &GuiOptions,
 ) -> Result<GuiMask, String> {
     let prepared = HotbarTemplates::new(tex);
-    detect_prepared(frame, w, h, tex, opts, &prepared, None, None, None)
+    detect_prepared(frame, w, h, tex, opts, &prepared, None, None, None, None)
 }
 
 #[allow(clippy::too_many_arguments)] // Explicit frame geometry and independent detector inputs.
@@ -1685,6 +1754,7 @@ fn detect_prepared(
     coarse_plan: Option<&CoarsePlan>,
     shape_cache: Option<&ShapeCache>,
     mut times: Option<&mut GuiTimings>,
+    mut hint: Option<&mut GuiFitHint>,
 ) -> Result<GuiMask, String> {
     let begin = std::time::Instant::now();
     if w == 0 || h == 0 || frame.len() != w * h * 3 {
@@ -1729,35 +1799,7 @@ fn detect_prepared(
         let (sw, sh) = (f.scaled_width as i32, f.scaled_height as i32);
         ((sw / 2 - 91) as f64 * s, (sh - 22) as f64 * s, f)
     };
-    // coarse: 0.5% steps of scale, every 3rd template point
-    let mut coarse: Vec<(f64, f64)> = Vec::new();
-    if let Some(plan) = coarse_plan {
-        for (s, templates) in &plan.scales {
-            if let Some(v) = templates
-                .iter()
-                .filter_map(|t| t.score(&lum))
-                .reduce(f64::max)
-            {
-                coarse.push((v, *s));
-            }
-        }
-    } else {
-        let mut s = opts.min_scale;
-        while s <= max_scale {
-            let (x, y, _) = anchor(s);
-            if let Some(v) = best_slot(flat_t, x, y, s, 3) {
-                coarse.push((v, s));
-            }
-            s *= 1.005;
-        }
-    }
-    coarse.sort_by(|a, b| b.0.total_cmp(&a.0));
-    // fine: every opaque hotbar pixel sampled near its corners (edge-sensitive, so the peak is sharp). The footage is
-    // uncropped (user-confirmed), so the anchor is exact up to the rounding of the video size: the offset stays 0 unless
-    // a shift is clearly better. Plateaus of equal correlation are resolved to their centre.
     const TIE: f64 = 1e-3;
-    let mut best: Option<(f64, f64, f64, f64, f64)> = None; // score, edge score, s, x, y
-                                                            // how far a scale is from dividing the video evenly (0: both sides do; -1: a whole scale, a native recording)
     let misfit_of = |se: f64| {
         let frac = |d: f64| (d / se - (d / se).round()).abs();
         if (se - se.round()).abs() < 1e-9 {
@@ -1766,108 +1808,200 @@ fn detect_prepared(
             frac(w as f64).max(frac(h as f64))
         }
     };
-    for &(_, s0) in coarse.iter().take(5) {
-        let (x0, y0, _) = anchor(s0);
-        let Some((slot, _)) = flat_t
-            .iter()
-            .enumerate()
-            .map(|(i, t)| {
-                (
-                    i,
-                    score(&lum, w, h, t, x0 - s0, y0 - s0, s0, 1).unwrap_or(-1.0),
-                )
-            })
-            .max_by(|a, b| a.1.total_cmp(&b.1))
-        else {
-            continue;
-        };
-        let t = &all_t[slot];
-        let at_s = |s: f64, dx: f64, dy: f64| -> Option<f64> {
-            let (x, y, _) = anchor(s);
-            score(&lum, w, h, t, x + dx - s, y + dy - s, s, 1)
-        };
-        let centre_scale = |dx: f64, dy: f64, lo: f64, hi: f64, step: f64| -> Option<f64> {
-            let mut all: Vec<(f64, f64)> = Vec::new();
-            let mut s = lo;
-            while s <= hi {
-                if let Some(v) = at_s(s, dx, dy) {
-                    all.push((v, s));
-                }
-                s *= step;
+    // A hint is only a proposed geometry. Re-check all current selection variants
+    // against opaque centre and edge samples; weak or missing evidence falls back.
+    let checked_hint = hint.as_ref().and_then(|hint| hint.at_size(w, h)).and_then(
+        |(fit, reference_centre, reference_edges)| {
+            if !fit.scale.is_finite() || fit.scale < opts.min_scale || fit.scale > max_scale {
+                return None;
             }
-            let top = all.iter().map(|a| a.0).reduce(f64::max)?;
-            let tied: Vec<f64> = all
+            let x = fit.origin_x + (fit.scaled_width as i32 / 2 - 91) as f64 * fit.scale;
+            let y = fit.origin_y + (fit.scaled_height as i32 - 22) as f64 * fit.scale;
+            if fit.origin_x != 0. || fit.origin_y != 0. {
+                return None;
+            }
+            let (fit, centre, edges, x, y, slot) = flat_t
                 .iter()
-                .filter(|a| a.0 >= top - TIE)
-                .map(|a| a.1)
-                .collect();
-            Some(tied.iter().sum::<f64>() / tied.len() as f64)
-        };
-        let Some(s1) = centre_scale(0.0, 0.0, s0 * 0.985, s0 * 1.015, 1.0005) else {
-            continue;
-        };
-        let at0 = at_s(s1, 0.0, 0.0).unwrap_or(-1.0);
-        let mut offs: Vec<(f64, f64, f64)> = Vec::new();
-        for dy in -4..=4 {
-            for dx in -4..=4 {
-                let (dx, dy) = (dx as f64 * 0.25, dy as f64 * 0.25);
-                if let Some(v) = at_s(s1, dx, dy) {
-                    offs.push((v, dx, dy));
+                .zip(all_t)
+                .enumerate()
+                .filter_map(|(slot, (flat, edge))| {
+                    let centre =
+                        score(&lum, w, h, flat, x - fit.scale, y - fit.scale, fit.scale, 1)?;
+                    if centre < opts.hotbar_min_score.max(reference_centre - TIE) {
+                        return None;
+                    }
+                    let edges =
+                        score(&lum, w, h, edge, x - fit.scale, y - fit.scale, fit.scale, 1)?;
+                    (edges >= reference_edges - TIE && reference_edges > 0.)
+                        .then_some((fit, centre, edges, x, y, slot))
+                })
+                .max_by(|a, b| a.1.total_cmp(&b.1))?;
+            // The same exact-scale candidates and tie preference as full fitting.
+            // A high score alone can hide a slightly wrong cached scale.
+            for dim in [w as f64, h as f64] {
+                let lo = (dim / (fit.scale * 1.01)).floor().max(1.) as u32;
+                let hi = (dim / (fit.scale * 0.99)).ceil() as u32;
+                for n in lo..=hi {
+                    let se = dim / n as f64;
+                    if se == fit.scale {
+                        continue;
+                    }
+                    let (cx, cy, _) = anchor(se);
+                    let c = best_slot(flat_t, cx, cy, se, 1)?;
+                    if c > centre + 3e-3 {
+                        return None;
+                    }
+                    let v = score(&lum, w, h, &all_t[slot], cx - se, cy - se, se, 1)?;
+                    if c >= centre - 3e-3
+                        && (v > edges + TIE
+                            || (v >= edges - TIE && misfit_of(se) < misfit_of(fit.scale)))
+                    {
+                        return None;
+                    }
                 }
             }
+            Some((fit, centre, edges, x, y))
+        },
+    );
+    let best = if let Some((fit, centre, edges, x, y)) = checked_hint {
+        if let Some(hint) = hint.as_deref_mut() {
+            hint.reused = true;
         }
-        let top = offs.iter().map(|o| o.0).fold(at0, f64::max);
-        let (odx, ody) = if top <= at0 + TIE {
-            (0.0, 0.0)
+        Some((centre, edges, fit.scale, x, y))
+    } else {
+        // coarse: 0.5% steps of scale, every 3rd template point
+        let mut coarse: Vec<(f64, f64)> = Vec::new();
+        if let Some(plan) = coarse_plan {
+            for (s, templates) in &plan.scales {
+                if let Some(v) = templates
+                    .iter()
+                    .filter_map(|t| t.score(&lum))
+                    .reduce(f64::max)
+                {
+                    coarse.push((v, *s));
+                }
+            }
         } else {
-            let tied: Vec<&(f64, f64, f64)> = offs.iter().filter(|o| o.0 >= top - TIE).collect();
-            let n = tied.len() as f64;
-            (
-                tied.iter().map(|o| o.1).sum::<f64>() / n,
-                tied.iter().map(|o| o.2).sum::<f64>() / n,
-            )
-        };
-        let s2 = centre_scale(odx, ody, s1 * 0.997, s1 * 1.003, 1.0001).unwrap_or(s1);
-        // exact candidates: an uncropped video of a W-wide scaled window has scale exactly videoW / W (and videoH / H),
-        // so near-ties are resolved towards a scale where both divide evenly instead of averaging two of them
-        // (the scaled size is ceil(framebuffer / scale), so often only one of them divides: 1280x720 at scale 3 is
-        // 426.67 x 240). A whole scale is preferred among near-ties: a native-resolution recording has exactly the
-        // GUI scale.
-        let mut exact: Option<(f64, f64, f64)> = None; // score, misfit, s
-        let (wf, hf) = (w as f64, h as f64);
-        let mut cands: Vec<f64> = Vec::new();
-        for dim in [wf, hf] {
-            let lo = (dim / (s2 * 1.01)).floor().max(1.0) as u32;
-            let hi = (dim / (s2 * 0.99)).ceil() as u32;
-            cands.extend((lo..=hi).map(|n| dim / n as f64));
+            let mut s = opts.min_scale;
+            while s <= max_scale {
+                let (x, y, _) = anchor(s);
+                if let Some(v) = best_slot(flat_t, x, y, s, 3) {
+                    coarse.push((v, s));
+                }
+                s *= 1.005;
+            }
         }
-        for se in cands {
-            let Some(v) = at_s(se, 0.0, 0.0) else {
+        coarse.sort_by(|a, b| b.0.total_cmp(&a.0));
+        // fine: every opaque hotbar pixel sampled near its corners (edge-sensitive, so the peak is sharp). The footage is
+        // uncropped (user-confirmed), so the anchor is exact up to the rounding of the video size: the offset stays 0 unless
+        // a shift is clearly better. Plateaus of equal correlation are resolved to their centre.
+        let mut best: Option<(f64, f64, f64, f64, f64)> = None; // score, edge score, s, x, y
+        for &(_, s0) in coarse.iter().take(5) {
+            let (x0, y0, _) = anchor(s0);
+            let Some((slot, _)) = flat_t
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    (
+                        i,
+                        score(&lum, w, h, t, x0 - s0, y0 - s0, s0, 1).unwrap_or(-1.0),
+                    )
+                })
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+            else {
                 continue;
             };
-            let misfit = misfit_of(se);
-            if exact.is_none_or(|e| v > e.0 + TIE || (v >= e.0 - TIE && misfit < e.1)) {
-                exact = Some((v, misfit, se));
+            let t = &all_t[slot];
+            let at_s = |s: f64, dx: f64, dy: f64| -> Option<f64> {
+                let (x, y, _) = anchor(s);
+                score(&lum, w, h, t, x + dx - s, y + dy - s, s, 1)
+            };
+            let centre_scale = |dx: f64, dy: f64, lo: f64, hi: f64, step: f64| -> Option<f64> {
+                let mut all: Vec<(f64, f64)> = Vec::new();
+                let mut s = lo;
+                while s <= hi {
+                    if let Some(v) = at_s(s, dx, dy) {
+                        all.push((v, s));
+                    }
+                    s *= step;
+                }
+                let top = all.iter().map(|a| a.0).reduce(f64::max)?;
+                let tied: Vec<f64> = all
+                    .iter()
+                    .filter(|a| a.0 >= top - TIE)
+                    .map(|a| a.1)
+                    .collect();
+                Some(tied.iter().sum::<f64>() / tied.len() as f64)
+            };
+            let Some(s1) = centre_scale(0.0, 0.0, s0 * 0.985, s0 * 1.015, 1.0005) else {
+                continue;
+            };
+            let at0 = at_s(s1, 0.0, 0.0).unwrap_or(-1.0);
+            let mut offs: Vec<(f64, f64, f64)> = Vec::new();
+            for dy in -4..=4 {
+                for dx in -4..=4 {
+                    let (dx, dy) = (dx as f64 * 0.25, dy as f64 * 0.25);
+                    if let Some(v) = at_s(s1, dx, dy) {
+                        offs.push((v, dx, dy));
+                    }
+                }
+            }
+            let top = offs.iter().map(|o| o.0).fold(at0, f64::max);
+            let (odx, ody) = if top <= at0 + TIE {
+                (0.0, 0.0)
+            } else {
+                let tied: Vec<&(f64, f64, f64)> =
+                    offs.iter().filter(|o| o.0 >= top - TIE).collect();
+                let n = tied.len() as f64;
+                (
+                    tied.iter().map(|o| o.1).sum::<f64>() / n,
+                    tied.iter().map(|o| o.2).sum::<f64>() / n,
+                )
+            };
+            let s2 = centre_scale(odx, ody, s1 * 0.997, s1 * 1.003, 1.0001).unwrap_or(s1);
+            // exact candidates: an uncropped video of a W-wide scaled window has scale exactly videoW / W (and videoH / H),
+            // so near-ties are resolved towards a scale where both divide evenly instead of averaging two of them
+            // (the scaled size is ceil(framebuffer / scale), so often only one of them divides: 1280x720 at scale 3 is
+            // 426.67 x 240). A whole scale is preferred among near-ties: a native-resolution recording has exactly the
+            // GUI scale.
+            let mut exact: Option<(f64, f64, f64)> = None; // score, misfit, s
+            let (wf, hf) = (w as f64, h as f64);
+            let mut cands: Vec<f64> = Vec::new();
+            for dim in [wf, hf] {
+                let lo = (dim / (s2 * 1.01)).floor().max(1.0) as u32;
+                let hi = (dim / (s2 * 0.99)).ceil() as u32;
+                cands.extend((lo..=hi).map(|n| dim / n as f64));
+            }
+            for se in cands {
+                let Some(v) = at_s(se, 0.0, 0.0) else {
+                    continue;
+                };
+                let misfit = misfit_of(se);
+                if exact.is_none_or(|e| v > e.0 + TIE || (v >= e.0 - TIE && misfit < e.1)) {
+                    exact = Some((v, misfit, se));
+                }
+            }
+            let cont = at_s(s2, odx, ody).unwrap_or(-1.0);
+            let (s2, odx, ody, edge) = match exact {
+                Some((v, _, se)) if v >= cont - TIE => (se, 0.0, 0.0, v),
+                _ => (s2, odx, ody, cont),
+            };
+            let (x, y, _) = anchor(s2);
+            // accept on the centre-sampled correlation (robust to resampling), not on the edge-sensitive one
+            if let Some(v) = best_slot(flat_t, x + odx, y + ody, s2, 1) {
+                // seeds can end on neighbouring scales that score alike here (a scale 0.4 % off moves the hotbar's edges
+                // by under a pixel): among near-ties the edge-sensitive score, which does see it, decides
+                const NEAR: f64 = 3e-3;
+                let better = best.is_none_or(|b| v > b.0 + NEAR || (v >= b.0 - NEAR && edge > b.1));
+                if better {
+                    best = Some((v, edge, s2, x + odx, y + ody));
+                }
             }
         }
-        let cont = at_s(s2, odx, ody).unwrap_or(-1.0);
-        let (s2, odx, ody, edge) = match exact {
-            Some((v, _, se)) if v >= cont - TIE => (se, 0.0, 0.0, v),
-            _ => (s2, odx, ody, cont),
-        };
-        let (x, y, _) = anchor(s2);
-        // accept on the centre-sampled correlation (robust to resampling), not on the edge-sensitive one
-        if let Some(v) = best_slot(flat_t, x + odx, y + ody, s2, 1) {
-            // seeds can end on neighbouring scales that score alike here (a scale 0.4 % off moves the hotbar's edges
-            // by under a pixel): among near-ties the edge-sensitive score, which does see it, decides
-            const NEAR: f64 = 3e-3;
-            let better = best.is_none_or(|b| v > b.0 + NEAR || (v >= b.0 - NEAR && edge > b.1));
-            if better {
-                best = Some((v, edge, s2, x + odx, y + ody));
-            }
-        }
-    }
-    let Some((hot_score, _, s, hx, hy)) = best.filter(|b| b.0 >= opts.hotbar_min_score) else {
+        best
+    };
+    let Some((hot_score, hot_edges, s, hx, hy)) = best.filter(|b| b.0 >= opts.hotbar_min_score)
+    else {
         mask.notes.push(format!(
             "no vanilla hotbar found at any scale between {:.2} and {:.2} video px per GUI px (best correlation {:.2})",
             opts.min_scale,
@@ -1878,14 +2012,24 @@ fn detect_prepared(
     };
     let (_, _, f) = anchor(s);
     let (sw, sh) = (f.scaled_width as i32, f.scaled_height as i32);
-    let fit = GuiFit::for_video(
-        s,
-        w,
-        h,
-        hx - (sw / 2 - 91) as f64 * s,
-        hy - (sh - 22) as f64 * s,
+    let fit = checked_hint.map_or_else(
+        || {
+            GuiFit::for_video(
+                s,
+                w,
+                h,
+                hx - (sw / 2 - 91) as f64 * s,
+                hy - (sh - 22) as f64 * s,
+            )
+        },
+        |(fit, _, _, _, _)| fit,
     );
     mask.fit = Some(fit);
+    if let Some(hint) = hint {
+        if !hint.reused {
+            hint.previous = Some((w, h, fit, hot_score, hot_edges));
+        }
+    }
     mask.reliable = true;
     if let Some(t) = times.as_deref_mut() {
         t.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
@@ -3900,6 +4044,36 @@ fn detect_captions(
 #[cfg(test)]
 mod correlation_parity {
     use super::*;
+    #[test]
+    fn plausible_nearby_wrong_hint_does_not_override_the_current_peak() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui");
+        let detector =
+            GuiDetector::new(GuiTextures::load(&dir).unwrap(), GuiOptions::default()).unwrap();
+        let (w, h) = (640, 480);
+        let mut rgb: Vec<u8> = (0..w * h * 3)
+            .map(|i| ((i * 17 + i / 73) % 256) as u8)
+            .collect();
+        compose_hud(
+            &mut rgb,
+            w,
+            h,
+            detector.textures(),
+            &HudState::default(),
+            &GuiFit::framebuffer(640, 480, 2, 1.),
+        );
+        let expected = detector.detect(&rgb, w, h).unwrap();
+        let wrong = GuiFit::for_video(2.00313, w, h, 0., 0.);
+        let mut hint = GuiFitHint {
+            previous: Some((w, h, wrong, 0.8, 0.1)),
+            reused: false,
+        };
+        let result = detector.detect_with_hint(&rgb, w, h, &mut hint).unwrap();
+        assert!(!hint.reused());
+        assert_eq!(result.fit, expected.fit);
+        assert_eq!(result.class, expected.class);
+        assert_eq!(result.piece, expected.piece);
+    }
+
     #[test]
     fn compiled_grid_preserves_ordered_score_bits_and_clipping() {
         let (w, h) = (180, 120);

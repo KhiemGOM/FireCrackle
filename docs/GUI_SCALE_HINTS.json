@@ -1,0 +1,799 @@
+{
+  "date": "2026-10-21",
+  "baseline_revision": "d1a191b",
+  "scope": "Engineering optimization of fixed production paths; no AI training, calibration, model selection or new TP/FP estimate.",
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "source_sha256": {
+    "fire-detection/core/src/gui_mask.rs": "d311ea9f2d9d46fae2eea650d958262a57b57260ec62f6f9286d3c307076502a",
+    "fire-detection/core/src/pov.rs": "4747fd73c312721282d3a69fd38954003828e99b0f500891c136153876ceab33",
+    "fire-detection/core/src/video.rs": "8d4e55c20d626f12319d20b0986f4adb06cacab84392ff3b1950ae194caf2d8c",
+    "fire-detection/core/tests/gui_fit_hint.rs": "98f820ed65f0278cd3dce871913cd48bfb283c41ad7db0974fdd5db8697153d4",
+    "FireCrackle/crates/no_fire_cnn/src/policy.rs": "7045c7bd1d9bf6431e293ce0d78fff92b4787a06cf135bbfda5c01387acee681",
+    "FireCrackle/src-tauri/src/pov.rs": "a4d48e57e35de41a2907bdd04d719ab19f78dffc25790f1b280edb711a7023ec",
+    "FireCrackle/src-tauri/src/no_fire.rs": "84f601eb046d919d4e351f890d19832146c28f186827eaca306baa5e3b012721",
+    "fire-detection/core/src/veil.rs": "439a3d43c023389640ebbed2044e6559feadacd09d6d6435f6f79d258390c4ce",
+    "FireCrackle/src-tauri/src/scan_cache.rs": "9e969bafd1b93710f4c9600db95e2b829ea5b16ec7fc011bf85d17c546facc60"
+  },
+  "model_sha256": "1c74f08c7f8680244e20731fbb02eda71f4726b34746660d05b0b0e48a41a097",
+  "minecraft_evidence": {
+    "version": "1.16.5, Yarn 1.16.5+build.10-v2",
+    "class": "net/minecraft/client/util/Window.java",
+    "methods": [
+      "calculateScaleFactor",
+      "setScaleFactor"
+    ],
+    "class_sha256": "c41fd3c7c2e76ceb7feeb05623d87174fd0c00acf8de13f4bd5b7b5cab6047e2"
+  },
+  "benchmarks": {
+    "pov": {
+      "order": "full,hint,hint,full",
+      "start_seconds": 20,
+      "source": "fire-detection/data/video/2026-10-15 18-18-16.mkv",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "weighted_fps": {
+        "full": 171.52482626035942,
+        "hint": 174.41687400311068
+      },
+      "speedup_percent": 1.6860811381096408,
+      "records": [
+        {
+          "changed_decisions": [],
+          "kind": "cached_quality",
+          "tool": "pov",
+          "unique_frames": 32
+        },
+        {
+          "accepted": 110,
+          "changed_decisions": [],
+          "fps": 176.92363763491312,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": null,
+          "reused": 0,
+          "seconds": 10.1738808,
+          "tool": "pov",
+          "use_hint": false,
+          "workers": 12
+        },
+        {
+          "accepted": 110,
+          "changed_decisions": [],
+          "fps": 177.07322919466534,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": null,
+          "reused": 40,
+          "seconds": 10.1652859,
+          "tool": "pov",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 110,
+          "changed_decisions": [],
+          "fps": 171.83903925022273,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": null,
+          "reused": 41,
+          "seconds": 10.4749189,
+          "tool": "pov",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 110,
+          "changed_decisions": [],
+          "fps": 166.44574692556674,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": null,
+          "reused": 0,
+          "seconds": 10.8143346,
+          "tool": "pov",
+          "use_hint": false,
+          "workers": 12
+        }
+      ],
+      "decision_vectors_sha256": {
+        "full": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c",
+        "hint": "2be48c889d7985d7a81dacabdb0afff00eeee297a311525ee447ddf0d8b13d7c"
+      }
+    },
+    "no_fire": {
+      "order": "full,hint,hint,full",
+      "start_seconds": 20,
+      "source": "fire-detection/data/video/2026-10-15 18-18-16.mkv",
+      "dimensions": [
+        1920,
+        1080
+      ],
+      "weighted_fps": {
+        "full": 134.52509413169253,
+        "hint": 160.9135570404857
+      },
+      "speedup_percent": 19.61601519710541,
+      "records": [
+        {
+          "changed_decisions": [],
+          "kind": "cached_quality",
+          "tool": "no_fire",
+          "unique_frames": 32
+        },
+        {
+          "accepted": 308,
+          "changed_decisions": [],
+          "fps": 133.58264009880128,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": "GPU (DirectML 0)",
+          "reused": 0,
+          "seconds": 13.4748048,
+          "tool": "no_fire",
+          "use_hint": false,
+          "workers": 12
+        },
+        {
+          "accepted": 308,
+          "changed_decisions": [],
+          "fps": 162.89935954487802,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": "GPU (DirectML 0)",
+          "reused": 268,
+          "seconds": 11.0497672,
+          "tool": "no_fire",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 308,
+          "changed_decisions": [],
+          "fps": 158.97558675504436,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": "GPU (DirectML 0)",
+          "reused": 269,
+          "seconds": 11.3224932,
+          "tool": "no_fire",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 308,
+          "changed_decisions": [],
+          "fps": 135.4809410831322,
+          "kind": "scan",
+          "processed": 1800,
+          "provider": "GPU (DirectML 0)",
+          "reused": 0,
+          "seconds": 13.2860016,
+          "tool": "no_fire",
+          "use_hint": false,
+          "workers": 12
+        }
+      ],
+      "decision_vectors_sha256": {
+        "full": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118",
+        "hint": "2583e129735e6bfa940952645d8d9d14bbe16310fa79ad8aea134f99f1f67118"
+      }
+    },
+    "pov1440": {
+      "order": "full,hint,hint,full",
+      "start_seconds": 20,
+      "source": "misc/dream/recovered-video.mkv",
+      "dimensions": [
+        2560,
+        1440
+      ],
+      "weighted_fps": {
+        "full": 52.50223899079566,
+        "hint": 61.212545229567084
+      },
+      "speedup_percent": 16.59035196631986,
+      "records": [
+        {
+          "accepted": 0,
+          "changed_decisions": [],
+          "fps": 50.962724945645704,
+          "kind": "scan",
+          "processed": 600,
+          "provider": null,
+          "reused": 0,
+          "seconds": 11.7733108,
+          "tool": "pov1440",
+          "use_hint": false,
+          "workers": 12
+        },
+        {
+          "accepted": 0,
+          "changed_decisions": [],
+          "fps": 61.27360872144037,
+          "kind": "scan",
+          "processed": 600,
+          "provider": null,
+          "reused": 361,
+          "seconds": 9.792144,
+          "tool": "pov1440",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 0,
+          "changed_decisions": [],
+          "fps": 61.15160332471483,
+          "kind": "scan",
+          "processed": 600,
+          "provider": null,
+          "reused": 358,
+          "seconds": 9.8116806,
+          "tool": "pov1440",
+          "use_hint": true,
+          "workers": 12
+        },
+        {
+          "accepted": 0,
+          "changed_decisions": [],
+          "fps": 54.13766357886788,
+          "kind": "scan",
+          "processed": 600,
+          "provider": null,
+          "reused": 0,
+          "seconds": 11.0828573,
+          "tool": "pov1440",
+          "use_hint": false,
+          "workers": 12
+        }
+      ],
+      "decision_vectors_sha256": {
+        "full": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9",
+        "hint": "5386ab08821bdbcbad243a8a8e097e805532e0767c1b824606615b47330942c9"
+      }
+    }
+  },
+  "checks": {
+    "targeted_tests_passed": 82,
+    "fixture_tests_ignored": 4,
+    "core_clippy": "passed",
+    "native_clippy": "passed",
+    "frozen_stateless_gui_masks": "32/32 exact class and piece byte parity",
+    "app_relaunched": false
+  },
+  "limitations": [
+    "Local short clips with other owner processes left running; no cross-machine or Linux speed guarantee.",
+    "Hint verification is not a mathematical guarantee of matching every global-search heuristic.",
+    "32 time-spread GUI cases include one differing hinted mask; source geometry supports the stabilized scale but is not per-pixel ground truth.",
+    "Historical no-fire predictions are not ground truth.",
+    "Hints are private to workers and reset across scans/resumes; masks and selected slot are always reconstructed from current pixels."
+  ],
+  "gui_stream": [
+    {
+      "changed_masks": [],
+      "fps": 76.25615040803777,
+      "kind": "stream",
+      "processed": 600,
+      "reliable": 600,
+      "reused": 0,
+      "seconds": 7.8682178,
+      "use_hint": false
+    },
+    {
+      "changed_masks": [],
+      "fps": 97.90307921501311,
+      "kind": "stream",
+      "processed": 600,
+      "reliable": 600,
+      "reused": 506,
+      "seconds": 6.12851,
+      "use_hint": true
+    }
+  ],
+  "gui_time_spread": [
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-0",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-2970",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-5940",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-8910",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-11880",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-14850",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-17730",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-20700",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-23670",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-26640",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-29610",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 4.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 427, scaled_height: 240 })",
+      "id": "clip1-32580",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5088112767064616, origin_x: 1.0, origin_y: 0.0, scaled_width: 1273, scaled_height: 716 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5088112767064616, origin_x: 1.0, origin_y: 0.0, scaled_width: 1273, scaled_height: 716 })",
+      "id": "clip2-0",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-1800",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-3510",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-5310",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-7110",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-8910",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-10620",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-12420",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "None",
+      "changed_pixels": 0,
+      "hint_fit": "None",
+      "id": "clip2-14220",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "id": "clip2-16020",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "id": "clip2-17730",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "id": "clip2-19530",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-127",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-2045",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-4147",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-7658",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5023474178403755, origin_x: 0.0, origin_y: 0.0, scaled_width: 1278, scaled_height: 719 })",
+      "changed_pixels": 1446,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-9032",
+      "kind": "quality",
+      "reused": true,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 1.5, origin_x: 0.0, origin_y: 0.0, scaled_width: 1280, scaled_height: 720 })",
+      "id": "clip2-clear-11598",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "id": "clip2-clear-16329",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "baseline_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "changed_pixels": 0,
+      "hint_fit": "Some(GuiFit { scale: 3.75, origin_x: 0.0, origin_y: 0.0, scaled_width: 512, scaled_height: 288 })",
+      "id": "clip2-clear-18943",
+      "kind": "quality",
+      "reused": false,
+      "same_reliable": true
+    },
+    {
+      "fps": 107.98187692917426,
+      "kind": "timing",
+      "pass": 0,
+      "processed": 512,
+      "reliable": 496,
+      "reused": 0,
+      "seconds": 4.7415364,
+      "use_hint": false
+    },
+    {
+      "fps": 103.83883029127136,
+      "kind": "timing",
+      "pass": 1,
+      "processed": 512,
+      "reliable": 496,
+      "reused": 16,
+      "seconds": 4.9307181,
+      "use_hint": true
+    },
+    {
+      "fps": 108.58514217199,
+      "kind": "timing",
+      "pass": 2,
+      "processed": 512,
+      "reliable": 496,
+      "reused": 19,
+      "seconds": 4.7151939,
+      "use_hint": true
+    },
+    {
+      "fps": 105.4335618544009,
+      "kind": "timing",
+      "pass": 3,
+      "processed": 512,
+      "reliable": 496,
+      "reused": 0,
+      "seconds": 4.8561387,
+      "use_hint": false
+    }
+  ],
+  "input_sha256": {
+    "fire-detection/data/video/2026-10-15 18-18-16.mkv": "91e6fa9db3202e005b351b1f2db28b81a6050ad0f4435bc613049fe25045845d",
+    "misc/dream/recovered-video.mkv": "cfd239c247a6dc94ae10b27da4b86c6d38de98b2386f8f7f4acebfdace99c6f3"
+  },
+  "cached_inputs": [
+    {
+      "id": "clip1-0",
+      "sha256": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c"
+    },
+    {
+      "id": "clip1-2970",
+      "sha256": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6"
+    },
+    {
+      "id": "clip1-5940",
+      "sha256": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c"
+    },
+    {
+      "id": "clip1-8910",
+      "sha256": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592"
+    },
+    {
+      "id": "clip1-11880",
+      "sha256": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65"
+    },
+    {
+      "id": "clip1-14850",
+      "sha256": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50"
+    },
+    {
+      "id": "clip1-17730",
+      "sha256": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe"
+    },
+    {
+      "id": "clip1-20700",
+      "sha256": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2"
+    },
+    {
+      "id": "clip1-23670",
+      "sha256": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e"
+    },
+    {
+      "id": "clip1-26640",
+      "sha256": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080"
+    },
+    {
+      "id": "clip1-29610",
+      "sha256": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97"
+    },
+    {
+      "id": "clip1-32580",
+      "sha256": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c"
+    },
+    {
+      "id": "clip2-0",
+      "sha256": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7"
+    },
+    {
+      "id": "clip2-1800",
+      "sha256": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba"
+    },
+    {
+      "id": "clip2-3510",
+      "sha256": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e"
+    },
+    {
+      "id": "clip2-5310",
+      "sha256": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba"
+    },
+    {
+      "id": "clip2-7110",
+      "sha256": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2"
+    },
+    {
+      "id": "clip2-8910",
+      "sha256": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0"
+    },
+    {
+      "id": "clip2-10620",
+      "sha256": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44"
+    },
+    {
+      "id": "clip2-12420",
+      "sha256": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69"
+    },
+    {
+      "id": "clip2-14220",
+      "sha256": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0"
+    },
+    {
+      "id": "clip2-16020",
+      "sha256": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b"
+    },
+    {
+      "id": "clip2-17730",
+      "sha256": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70"
+    },
+    {
+      "id": "clip2-19530",
+      "sha256": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0"
+    },
+    {
+      "id": "clip2-clear-127",
+      "sha256": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77"
+    },
+    {
+      "id": "clip2-clear-2045",
+      "sha256": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892"
+    },
+    {
+      "id": "clip2-clear-4147",
+      "sha256": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5"
+    },
+    {
+      "id": "clip2-clear-7658",
+      "sha256": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a"
+    },
+    {
+      "id": "clip2-clear-9032",
+      "sha256": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7"
+    },
+    {
+      "id": "clip2-clear-11598",
+      "sha256": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633"
+    },
+    {
+      "id": "clip2-clear-16329",
+      "sha256": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3"
+    },
+    {
+      "id": "clip2-clear-18943",
+      "sha256": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+    }
+  ],
+  "artifact_sha256": {
+    "absolute-guard.rs": "1d9451706c1f87aeb9ff17936f9563bb51e26da08c17e6b15af2aa9312e60578",
+    "benchmark-build.log": "0b70a12afa789f761075b974198e15000f9e7d694646efe70962d49cbc21bdc1",
+    "Cargo.lock": "afb71812ff0f989ebde6a361733331141704ba99118f4b83500e2ee5895c9741",
+    "Cargo.toml": "a13fa2b8ce37787e97ebaa421a480b9e11911dc200f54fe4b8e9f5e85dfd8553",
+    "core-clippy.log": "3270fe6adb7a0e33876667599acdad5d3a16ae1acd56a4de4b95a762fd2beeca",
+    "core-integration-tests.log": "7ff95da7d173015e6f357c9163c99b7e3550921ca5ae35bd8eddbc0df5e01b05",
+    "core-unit-tests.log": "ed3d1f956bd8f640af70281a3dfefa6d29801bd103c0a476142db5fe693d2930",
+    "final-gui.jsonl": "37ac0a3dc5578af8f46556fa15315d343a9e96c7daa1890322b78caf10d20680",
+    "guard-080-stream.jsonl": "4b16a26cf55ad05417a1a92b6da10ed1c6697ab662384fbb1fa58d9d441fb4f0",
+    "guard-080.jsonl": "454647478ea23b6d8c3547ca52c0e7a9cd29ba587759631b567ad64cafaa09d5",
+    "guard-stream.jsonl": "dba2316ed10a3c27b8194518768bf8c9cedde7a5c096ec9500aea0e40d0be2dc",
+    "main.rs": "f49f67aeae0fda13e0fcc09dd8ff616fd2b82fc8211134583f37f9b4c2fd61a2",
+    "native-build.log": "81b661f79225fe4fc6ebe3e1037abcbedf53502f9862c7c3fd8734dc7ed22555",
+    "native-clippy.log": "7fca6005f91ac0854750dc04c51a81e0229c2cdd4f77c1a1148e3388738af84c",
+    "native-no-fire-tests.log": "fdfbdb7b0456a7da493f19fba8b5066cceeb39faf95f14694ad233e707994980",
+    "native-pov-tests.log": "8c9787ae11bbc73c01efc423ea45896ae90f9489618cf22bda1aa7560db92759",
+    "no-fire-tests.log": "42fee2ee54dc6803dc93589db69cb984dedd4f88563e1b7e1ddb35014693d5c0",
+    "no_fire-final.jsonl": "8ff6788f837c61e711dd53fb1d37700ebcdf77326ef2693b8c694cd1debd25b7",
+    "pov-final.jsonl": "9cd97e7a919d2dc7d9321e9cacdca84b6387633e0bf2af76af2d1d364965d9aa",
+    "pov1440-final.jsonl": "5af16a16feac7b35e6aa2880cca9eb40641b623829663eb61e3bd59f44bba1e5",
+    "prototype.jsonl": "a0abb564db7fcedbf526fecb5bd43377fd466f013a01180858fa96b1f1322656",
+    "relative-guard-stream.jsonl": "f0a2cb4f035546fceadeb26fa5f4e4c1f2aeaa6d2232a089d29299ce345d41a9",
+    "relative-guard.jsonl": "6660b6ce6c4cf12282d1e8bde2080aa78120739bd87da0396a0272da2209efdb",
+    "scans.rs": "1e1085f49f4d6188d60a80e4b3fc2abafeb9d3fd778598029413f022310acf9a"
+  },
+  "build": {
+    "result": "passed",
+    "command": "cargo build --manifest-path FireCrackle/src-tauri/Cargo.toml --release --offline",
+    "seconds": 243.8010417,
+    "executable": "FireCrackle/src-tauri/target/release/firecrackle.exe",
+    "bytes": 24839168,
+    "sha256": "95b3f56ff2da9a260e425e3f5917dbf1d01cc293a07ee79442f06ac87574b290",
+    "app_relaunched": false
+  }
+}

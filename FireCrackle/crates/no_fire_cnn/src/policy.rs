@@ -6,7 +6,7 @@ mod fragments;
 #[allow(dead_code)]
 mod retention;
 use fire_core::{
-    gui_mask::{GuiDetector, GuiOptions, GuiTextures},
+    gui_mask::{GuiDetector, GuiFitHint, GuiOptions, GuiTextures},
     veil::{Options, detect_pixels, unveil_rgb},
 };
 use std::borrow::Cow;
@@ -30,6 +30,29 @@ pub fn candidate_prepared(
     w: usize,
     h: usize,
     detector: &GuiDetector,
+    infer: impl FnMut(&[u8], Option<&[u8]>) -> Result<bool, String>,
+) -> Result<bool, String> {
+    candidate_prepared_inner(rgb, w, h, detector, None, infer)
+}
+
+pub fn candidate_prepared_with_hint(
+    rgb: &[u8],
+    w: usize,
+    h: usize,
+    detector: &GuiDetector,
+    hint: &mut GuiFitHint,
+    infer: impl FnMut(&[u8], Option<&[u8]>) -> Result<bool, String>,
+) -> Result<bool, String> {
+    hint.begin_frame();
+    candidate_prepared_inner(rgb, w, h, detector, Some(hint), infer)
+}
+
+fn candidate_prepared_inner(
+    rgb: &[u8],
+    w: usize,
+    h: usize,
+    detector: &GuiDetector,
+    hint: Option<&mut GuiFitHint>,
     mut infer: impl FnMut(&[u8], Option<&[u8]>) -> Result<bool, String>,
 ) -> Result<bool, String> {
     if w != 1920 || h != 1080 || rgb.len() != w * h * 3 {
@@ -55,7 +78,10 @@ pub fn candidate_prepared(
     if fire_core::veil::portal::guard(rgb, w, h, None, None)?.abstain {
         return Ok(false);
     }
-    let gui = detector.detect(rgb, w, h)?;
+    let gui = match hint {
+        Some(hint) => detector.detect_with_hint(rgb, w, h, hint)?,
+        None => detector.detect(rgb, w, h)?,
+    };
     if !gui.reliable {
         return Ok(false);
     }
