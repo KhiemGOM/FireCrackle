@@ -355,6 +355,19 @@ Expected views per consulted frame: 1440p fire segment 6.67 → 3.17 (veiled fra
 clear all nine raw views and then fail on the unveiled top-right tile); 1080p V03 1.04 →
 1.04; 1440p 20 s 1.22 → 1.28; 1440p 7230 s 1.07 → 1.02. Measured in E17.
 
+### E17. Round 11 (`results/round11`): planned view order measured
+
+| No-fire, 1440p fire segment, NVDEC yuv420p, pruning on | fps | views scored | clears / diffs |
+|---|---:|---:|---|
+| default order (run A / B) | 106 / 106.2 | 11,011 | 237 / 0 |
+| **planned order** (run A / B) | **153.8 / 140.1** | 5,194 | 237 / 0 |
+| planned order + uint8 input | 152.8 | 5,194 | 237 / 0 |
+| 1080p V03, planned order (app decoder, decode-bound) | 114.9 | — | 308 / 0 |
+
+Model calls per frame 6.3 → 3.0 on the fire segment; the GPU session is no longer saturated.
+Combined with everything before: **no-fire 37 → ~150 fps, first-person 33.8 → ~130 fps**
+on the 1440p fire segment, app load present, with every decision vector unchanged.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on

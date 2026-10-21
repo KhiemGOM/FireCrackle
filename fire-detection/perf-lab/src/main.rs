@@ -83,6 +83,7 @@ fn run() -> Result<(), String> {
         "yuvcheck" => yuvcheck(&args),
         "micro" => micro(&args),
         "resize" => resize_bench(&args),
+        "veilbench" => veil_bench(&args),
         "views" => views(&args),
         _ => Err(USAGE.into()),
     }
@@ -648,6 +649,43 @@ fn resize_bench(args: &Args) -> Result<(), String> {
             "reference_mcycles": cycles[0] as f64 / 1e6 / n, "fast_mcycles": cycles[1] as f64 / 1e6 / n}));
     }
     println!("{}", serde_json::Value::Object(report));
+    Ok(())
+}
+
+/// Time `veil::detect_pixels` against the four-pass reference on real frames.
+fn veil_bench(args: &Args) -> Result<(), String> {
+    use std::io::Read;
+    let setup = Setup::new(args)?;
+    let start: f64 = args.num("start", 0.0)?;
+    let frames: u32 = args.num("frames", 24)?;
+    let repeat: u32 = args.num("repeat", 5)?;
+    let stride: u32 = args.num("stride", 15)?;
+    let (w, h) = setup.scan_size();
+    let (mut pipe, mut child, drain) = setup.spawn(start, stride, frames)?;
+    let mut data = vec![0u8; w * h * 3 * frames as usize];
+    pipe.read_exact(&mut data).map_err(|e| e.to_string())?;
+    if !child.wait().map_err(|e| e.to_string())?.success() {
+        return Err(drain.join().unwrap_or_default());
+    }
+    let o = fire_core::veil::Options::default();
+    let (mut mismatches, mut cycles) = (0usize, [0u64; 2]);
+    for frame in data.chunks_exact(w * h * 3) {
+        let reference = fire_core::veil::detect_pixels_reference(frame, w, h, 3, 16, o)?;
+        let fast = fire_core::veil::detect_pixels(frame, w, h, 3, 16, o)?;
+        mismatches += usize::from(reference != fast);
+        for _ in 0..repeat {
+            let c0 = fire_core::profile::thread_cycles();
+            std::hint::black_box(fire_core::veil::detect_pixels_reference(frame, w, h, 3, 16, o)?);
+            let c1 = fire_core::profile::thread_cycles();
+            std::hint::black_box(fire_core::veil::detect_pixels(frame, w, h, 3, 16, o)?);
+            let c2 = fire_core::profile::thread_cycles();
+            cycles[0] += c1 - c0;
+            cycles[1] += c2 - c1;
+        }
+    }
+    let n = (frames * repeat) as f64;
+    println!("{}", serde_json::json!({"scan": [w, h], "mismatching_frames": mismatches,
+        "reference_mcycles": cycles[0] as f64 / 1e6 / n, "fast_mcycles": cycles[1] as f64 / 1e6 / n}));
     Ok(())
 }
 

@@ -160,6 +160,30 @@ fn judge(
         share,
     )
 }
+/// Perf-lab reference: the four judgments evaluated separately, as before the
+/// single-pass `judge_all`. Same results; kept for A/B timing only.
+#[doc(hidden)]
+pub fn detect_pixels_reference(
+    data: &[u8],
+    w: usize,
+    h: usize,
+    channels: usize,
+    y0: usize,
+    o: Options,
+) -> Result<(bool, f64), String> {
+    validate(data, w, h, channels)?;
+    let mut best = 0.0_f64;
+    for margin in [o.margin, o.margin.min(0.1)] {
+        for mode in [Judgment::Background, Judgment::GuiNeutral] {
+            let (yes, share) = judge(data, w, h, channels, y0, Options { margin, ..o }, mode);
+            best = best.max(share);
+            if yes {
+                return Ok((true, share));
+            }
+        }
+    }
+    Ok((false, best))
+}
 /// The single production detector for native Rust, Python and browser WASM.
 pub fn detect_pixels(
     data: &[u8],
