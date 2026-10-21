@@ -10,25 +10,36 @@ the no-fire scan on the owner's 1440p60 AV1 recording, on this laptop (i9-13900H
 Laptop), with recall / false positives within ~10 % of current main — to be judged from
 this report. Separate experiment; nothing integrated into the app.
 
-**Outcome:** both scans exceed the target by about 2×, with **no change in any decision on
-every check run** (eight 1,800-frame decision vectors across 1080p and 1440p, two labelled
-recordings scored against ground truth, all core and model-crate unit tests). Measurements
-were taken while the FireCrackle app itself was running a scan in the background
-(≈ 6–10 cores busy), so they are conservative.
+**Outcome:** both scans exceed the target at every resolution tested, 2–3× over at 1440p,
+with **no change in any decision on the real recordings** (decision vectors at 1080p and
+1440p, two labelled recordings scored against ground truth, all core and model-crate unit
+tests). The 1440p file was the wall-clock target; the owner asked for the speed-up to
+generalise, so 720p and 4K were tested on clips resized from the 1440p segment (speed only —
+they are not real captures, see below).
 
-| 1440p60 recording, 1,800 frames, 12 workers | app today | lab | decisions |
+Final before/after, same machine, same hour, 1,800 frames each, 12 workers, light
+background load (the FireCrackle app open, ≈ 3–5 cores): `app` = the app's exact FFmpeg
+command on current main code; `lab` = this branch's configuration.
+
+| Recording | first-person app → lab | no-fire (→1080p) app → lab | decisions (lab vs app) |
 |---|---:|---:|---|
-| first-person, fire-rich segment (5490 s, GUI path on 81 % of frames) | 33.8 fps | **130–135 fps** | 347 accepted, unchanged |
-| first-person, 20 s segment (no fire) | 40.5 fps | 127 fps | unchanged |
-| first-person, 7230 s segment (1,234 accepted) | — | 164 fps | — |
-| no-fire (→ 1080p), fire-rich segment | 37.0 fps | **140–154 fps** | 237 clears, unchanged |
-| no-fire, 20 s segment | 40.5–45 fps | 255 fps | — |
-| no-fire, 7230 s segment | — | 286 fps | — |
-| first-person / no-fire, 1080p V03 (app decoder, decode-bound) | 131 / 128 fps | 131 / 128 fps | 110 accepted / 308 clears, unchanged |
+| **2560×1440 AV1**, fire-rich segment (real) | 41.9 → **125.2** | 30.9 → **140.7** | 8 / 4 of 1,800 differ, all from NVDEC decoding ~2 % of this recovered file's frames differently; libdav1d gives 0 at the same speed |
+| **1920×1080 H.264** `later` (real, fire-rich, GUI path on 70 % of frames) | 90.7 → **124.6** | 157.4 → **201.5** | 0 / 0 |
+| **1920×1080 H.264** V03 (real, mixed) | 105.0 → **258.6** | 125.2 → **239.4** | 0 / 0 |
+| 1280×720 H.264 (synthetic, downscaled) | 99.5 → 196.8 | 49.9 → 128.1 | speed only |
+| 3840×2160 H.264 (synthetic, upscaled) | 38.6 → **64.6** | 28.2 → 130.6 | speed only |
 
-Ground truth (lab build, exact changes): `later` 338/344 accepted-and-correct, 0/309 false
-positives; `early` 5/5, 0/1,875 FP — identical to the production regression
-(`docs/GUI_PRODUCTION_CHECK.md`). With pose pruning on: see "Measured, not exact" below.
+Earlier rounds, taken while the app and another agent's scan were running (≈ 10–15 cores
+busy), are in `LOG.md`; they are lower in absolute terms but show the same ratios.
+
+Ground truth (lab build, every change on): `later` 338/344 accepted-and-correct, 0/309 false
+positives, 0 wrong rows; `early` 5/5, 0/1,875 FP — identical to the production regression
+(`docs/GUI_PRODUCTION_CHECK.md`).
+
+The synthetic clips: 31 s of the fire-rich 1440p segment, resized and re-encoded with libx264.
+Pixel counts, decode resolution and GUI geometry are those of real 720p/4K footage, so the
+throughput is representative; the encodes are "easier" than real captures (upscaled detail),
+so software-decode numbers at 4K are optimistic, and no accuracy claim is made for them.
 
 ## What made the difference (in order of effect)
 
@@ -63,8 +74,24 @@ positives; `early` 5/5, 0/1,875 FP — identical to the production regression
    the frame's reliable hotbar scale (±0.26): 91 % fewer poses, interactions 41 → 13 ms per
    GUI frame. Not provably output-identical (a wrong hotbar fit could hide a panel) — see
    below for what was measured.
-6. Smaller exact items: `target-cpu=native` build (+10–15 %), probe-address prefetch,
+6. **Hotbar geometry hint at small GUI scales (measured).** Rejection-reason counters showed
+   that at 720p the per-worker hint was rejected on 96 of 97 GUI frames although the full
+   search then found the same geometry 80 % of the time: the hint's "neighbouring exact scale
+   better?" test compares centre scores with a 3e-3 margin, while the full fit decides its
+   candidates by edge score, TIE and misfit. `HINT_MIRROR` makes the hint apply the full
+   fit's own rule and order: hint reuse 24 → 1,252 of 1,472 GUI frames on the 720p clip,
+   first-person 113 → 167 fps there; 0 decision changes at 1080p and 1440p, ground truth
+   unchanged. (1080p `later` still refits 269 frames, mostly fits with a non-zero origin that
+   the hint never covers — a further lever.)
+7. Smaller exact items: `target-cpu=native` build (+10–15 %), probe-address prefetch,
    uint8-input model variant (+7 %, Cast inside the graph).
+
+Resolution notes: at 1080p the app is bound by its capped H.264 software decode (the same
+caps as at 1440p), so the decoder change alone is the main lever there; at 4K the first-person
+scan is CPU-bound in the per-pixel passes (veil margins, tooltip scan, GUI templates scale
+with pixel count) and scales with worker count (6/8/12 workers: 39.5/49/67 fps under load) —
+note the app would use 8 workers at 4K under its 256 MiB RGB pool budget, which the yuv420p
+pipe halves. No-fire runs on a 1080p downscale at every resolution and is unaffected.
 
 ## Measured, not exact
 
@@ -79,10 +106,13 @@ positives; `early` 5/5, 0/1,875 FP — identical to the production regression
   libaom and, through the YUV pipe, gave **135.9 fps with 0 decision differences** — the
   same speed as NVDEC. It needs the "full" FFmpeg package instead of "essentials"
   (`FireCrackle/release/runtime-lock.json`), same licence and source.
-- **No-fire at 1440p** has no app precedent (the policy is 1920×1080-only); the lab feeds
-  it a 1920×1080 downscale. Three resamplers (swscale on RGB, swscale on YUV, NVDEC's own)
-  give three different decision sets and cannot be scored (no 1440p labels). Pick one when
-  integrating; the YUV-domain swscale is the fastest.
+- **No-fire at non-1080p resolutions** has no app precedent (the policy is 1920×1080-only);
+  the lab feeds it a 1920×1080 downscale. The rgb24 pipe with FFmpeg's fused `scale` is the
+  app's own would-be path and gave **0 decision differences** against it at 720p, 1440p and
+  4K (differing only by decoder); the yuv420p pipe + separate conversion is a different
+  resampler (20–36 of 1,800 decisions move) and is only used when no scaling is needed.
+- **Hint mirror** (item 6) is measured, not exact, like pose pruning: 0 changes on every
+  real-recording check so far; both stay behind switches.
 
 ## Rejected (all measured, see LOG for numbers)
 
@@ -106,9 +136,10 @@ the TensorRT runtime); a smaller/lower-resolution model (would need an approved 
 CARGO_TARGET_DIR=D:/Coding/Minecraft/FireCracking/.board/scan-perf-lab/target cargo build --release --manifest-path fire-detection/perf-lab/Cargo.toml
 # app-faithful baseline
 perf-lab bench tool=pov video=misc/dream/recovered-video.mkv w=2560 h=1440 start=5490 frames=1800 decoder=app
-# lab configuration
-perf-lab bench tool=pov video=... w=2560 h=1440 start=5490 frames=1800 decoder=cuvid pixfmt=yuv420p scale_prune=1 out=rows.jsonl
-perf-lab bench tool=nofire video=... w=2560 h=1440 scale=1920x1080 start=5490 frames=1800 decoder=cuvid pixfmt=yuv420p scale_prune=1 view_order=0:0,0:5,1:4,0:2,0:4,0:6,0:8,0:3,0:1,0:7,1:0,1:1,1:2,1:3,1:5,1:6,1:7,1:8
+# lab configuration (H.264 sources: add cuvid=h264_cuvid)
+perf-lab bench tool=pov video=... w=2560 h=1440 start=5490 frames=1800 decoder=cuvid pixfmt=yuv420p scale_prune=1 hint_mirror=1 out=rows.jsonl
+perf-lab bench tool=nofire video=... w=2560 h=1440 scale=1920x1080 start=5490 frames=1800 decoder=cuvid pixfmt=rgb24 scale_prune=1 hint_mirror=1 view_order=0:0,0:5,1:4,0:2,0:4,0:6,0:8,0:3,0:1,0:7,1:0,1:1,1:2,1:3,1:5,1:6,1:7,1:8
+# (no-fire at native 1080p: pixfmt=yuv420p and no scale=)
 # exact-parity decoder alternative
 perf-lab bench ... decoder=fast ffmpeg=<full ffmpeg build> pixfmt=yuv420p
 # accuracy on labelled recordings

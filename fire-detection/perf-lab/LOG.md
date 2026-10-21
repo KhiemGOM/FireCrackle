@@ -460,6 +460,19 @@ with a non-zero origin, which the hint never covers (245 of 269 refits found the
 geometry) — a further lever, not pursued. Machine load during this round was ≈ 15 cores
 (app + another agent's full-FFmpeg scan), so absolute fps here are well below E8–E17.
 
+### E23. Final clean measurement (`results/final`), light load (≈ 3–5 cores), every switch on
+
+Hint mirror + rolling reference together (`results/hint3`): rolling lowered hint reuse again
+(720p 957/515, 1440p 1,353/106 vs 1,252/220 and 1,441/18 with mirror alone) — rolling rejected.
+
+| Recording | first-person app → lab | no-fire app → lab | lab vs app decisions |
+|---|---:|---:|---|
+| 1440p AV1 fire segment | 41.9 → 125.2 | 30.9 → 140.7 (rgb24 pipe) | 8 / 4 (NVDEC frame-level) |
+| 1080p `later` | 90.7 → 124.6 | 157.4 → 201.5 | 0 / 0 |
+| 1080p V03 | 105.0 → 258.6 | 125.2 → 239.4 | 0 / 0 |
+| 720p clip | 99.5 → 196.8 | 49.9 → 128.1 | speed only |
+| 2160p clip | 38.6 → 64.6 | 28.2 → 130.6 | speed only |
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on
