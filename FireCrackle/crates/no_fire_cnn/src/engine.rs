@@ -238,7 +238,11 @@ impl Engine {
                 .with_device_id(0)
                 .with_fp16(provider == "tensorrt-fp16")
                 .with_engine_cache(true)
-                .with_engine_cache_path(std::env::temp_dir().join("firecrackle-trt").to_string_lossy())
+                .with_engine_cache_path(
+                    std::env::temp_dir()
+                        .join("firecrackle-trt")
+                        .to_string_lossy(),
+                )
                 .with_timing_cache(true)
                 .build(),
             other => return Err(format!("unknown provider {other}")),
@@ -313,7 +317,8 @@ impl Engine {
         if rgb.len() != 224 * 224 * 3 {
             return Err("Invalid AI image view".into());
         }
-        let tensor = Tensor::from_array(([1usize, 224, 224, 3], rgb.to_vec())).map_err(|e| e.to_string())?;
+        let tensor =
+            Tensor::from_array(([1usize, 224, 224, 3], rgb.to_vec())).map_err(|e| e.to_string())?;
         let outputs = self
             .session
             .run(ort::inputs![tensor])

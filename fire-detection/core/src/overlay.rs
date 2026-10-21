@@ -611,7 +611,12 @@ impl SilhouetteMatcher {
             return Err("exclusion mask dimensions do not match frame".into());
         }
         match excluded {
-            Some(mask) => self.match_sampled::<true, true, false>(frame, veiled, Some(&|p| mask[p] != 0), None),
+            Some(mask) => self.match_sampled::<true, true, false>(
+                frame,
+                veiled,
+                Some(&|p| mask[p] != 0),
+                None,
+            ),
             None => self.match_sampled::<false, true, false>(frame, veiled, None, None),
         }
     }
@@ -640,7 +645,12 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h || row >= 32 {
             return Err("invalid exclusion dimensions or candidate row".into());
         }
-        self.match_sampled::<true, true, true>(frame, veiled, Some(&|p| excluded[p] != 0), Some(row))
+        self.match_sampled::<true, true, true>(
+            frame,
+            veiled,
+            Some(&|p| excluded[p] != 0),
+            Some(row),
+        )
     }
 
     /// `inspect_candidate` with a predicate exclusion (see `inspect_scores_excluding`).

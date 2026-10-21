@@ -68,7 +68,13 @@ pub fn thread_cycles() -> u64 {
 pub fn cycles() -> Vec<(&'static str, u64, f64)> {
     (0..STAGES.len())
         .filter(|&i| CALLS[i].load(Relaxed) > 0)
-        .map(|i| (STAGES[i], CALLS[i].load(Relaxed), CYCLES[i].load(Relaxed) as f64 / 1e9))
+        .map(|i| {
+            (
+                STAGES[i],
+                CALLS[i].load(Relaxed),
+                CYCLES[i].load(Relaxed) as f64 / 1e9,
+            )
+        })
         .collect()
 }
 /// Record an already measured duration and cycle count for `stage`.
@@ -81,13 +87,32 @@ pub const COUNTERS: [&str; 29] = [
     "panel.poses_visited",
     "gui.hint_reused",
     "panel.poses_planned",
-    "nf.reject_view00", "nf.reject_view01", "nf.reject_view02", "nf.reject_view03", "nf.reject_view04",
-    "nf.reject_view05", "nf.reject_view06", "nf.reject_view07", "nf.reject_view08", "nf.reject_view09",
-    "nf.reject_view10", "nf.reject_view11", "nf.reject_view12", "nf.reject_view13", "nf.reject_view14",
-    "nf.reject_view15", "nf.reject_view16", "nf.reject_view17",
+    "nf.reject_view00",
+    "nf.reject_view01",
+    "nf.reject_view02",
+    "nf.reject_view03",
+    "nf.reject_view04",
+    "nf.reject_view05",
+    "nf.reject_view06",
+    "nf.reject_view07",
+    "nf.reject_view08",
+    "nf.reject_view09",
+    "nf.reject_view10",
+    "nf.reject_view11",
+    "nf.reject_view12",
+    "nf.reject_view13",
+    "nf.reject_view14",
+    "nf.reject_view15",
+    "nf.reject_view16",
+    "nf.reject_view17",
     "gui.hint_missed",
-    "hint.reject_scale_or_origin", "hint.reject_slot_scores", "hint.reject_alt_centre_better",
-    "hint.reject_alt_edges_better", "hint.reject_alt_misfit", "hint.refit_same_geometry", "hint.refit_different_geometry",
+    "hint.reject_scale_or_origin",
+    "hint.reject_slot_scores",
+    "hint.reject_alt_centre_better",
+    "hint.reject_alt_edges_better",
+    "hint.reject_alt_misfit",
+    "hint.refit_same_geometry",
+    "hint.refit_different_geometry",
 ];
 /// First counter of the per-view no-fire rejection histogram (views 0–8 raw, 9–17 unveiled).
 pub const NF_REJECT_BASE: usize = 3;
@@ -116,6 +141,12 @@ pub fn reset() {
 pub fn snapshot() -> Vec<(&'static str, u64, f64)> {
     (0..STAGES.len())
         .filter(|&i| CALLS[i].load(Relaxed) > 0)
-        .map(|i| (STAGES[i], CALLS[i].load(Relaxed), NANOS[i].load(Relaxed) as f64 / 1e6))
+        .map(|i| {
+            (
+                STAGES[i],
+                CALLS[i].load(Relaxed),
+                NANOS[i].load(Relaxed) as f64 / 1e6,
+            )
+        })
         .collect()
 }

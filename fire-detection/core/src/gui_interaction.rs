@@ -9,8 +9,8 @@ use std::path::Path;
 
 #[path = "gui_interaction_fast.rs"]
 mod fast;
-pub use fast::SCALE_PRUNE;
 pub use fast::InteractionDetector;
+pub use fast::SCALE_PRUNE;
 
 #[derive(Clone, Debug)]
 pub struct PanelTemplate {

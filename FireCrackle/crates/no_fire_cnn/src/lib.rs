@@ -63,7 +63,10 @@ pub fn resize(rgb: &[u8], width: usize, rect: (usize, usize, usize, usize)) -> V
     let mut acc = [0i64; 224 * 3];
     for (out_row, (first, weights)) in out.chunks_exact_mut(224 * 3).zip(ys.iter()) {
         acc.fill(1i64 << 21);
-        for (a, temp_row) in weights.iter().zip(temp[first * 224 * 3..].chunks_exact(224 * 3)) {
+        for (a, temp_row) in weights
+            .iter()
+            .zip(temp[first * 224 * 3..].chunks_exact(224 * 3))
+        {
             for (acc, &v) in acc.iter_mut().zip(temp_row) {
                 *acc += *a * v as i64;
             }
@@ -132,7 +135,10 @@ pub fn resize_reference(rgb: &[u8], width: usize, rect: (usize, usize, usize, us
     let mut acc = [0i64; 224 * 3];
     for (out_row, (first, weights)) in out.chunks_exact_mut(224 * 3).zip(ys.iter()) {
         acc.fill(1i64 << 21);
-        for (a, temp_row) in weights.iter().zip(temp[first * 224 * 3..].chunks_exact(224 * 3)) {
+        for (a, temp_row) in weights
+            .iter()
+            .zip(temp[first * 224 * 3..].chunks_exact(224 * 3))
+        {
             for (acc, &v) in acc.iter_mut().zip(temp_row) {
                 *acc += *a * v as i64;
             }

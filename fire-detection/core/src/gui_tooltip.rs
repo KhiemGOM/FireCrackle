@@ -43,7 +43,10 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
         // `b - r >= 12` on bytes is `b.saturating_sub(r) >= 12` (a negative
         // difference saturates to 0, which also fails), so the whole predicate
         // is unsigned byte arithmetic the compiler can vectorise.
-        for (flag, p) in rim_row.iter_mut().zip(rgb[y * w * 3..(y + 1) * w * 3].chunks_exact(3)) {
+        for (flag, p) in rim_row
+            .iter_mut()
+            .zip(rgb[y * w * 3..(y + 1) * w * 3].chunks_exact(3))
+        {
             let (r, g, b) = (p[0], p[1], p[2]);
             *flag = (g <= 35) as u8
                 & (b >= 35) as u8
@@ -169,8 +172,7 @@ mod tests {
             for x in 40..240 {
                 let rim = x < 42 || x >= 238 || y < 32 || y >= 128;
                 let colour = if rim { [80, 16, 128] } else { [16, 0, 16] };
-                rgb[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3]
-                    .copy_from_slice(&colour);
+                rgb[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3].copy_from_slice(&colour);
             }
         }
         rgb

@@ -48,7 +48,10 @@ fn refill_stays_bounded_for_long_gops_short_windows_and_backward_work() {
     let config = DecodeConfig::default();
     for (first, last, want) in [(1, 900, 0), (1, 20, 0), (0, 900, 950)] {
         let job = job_for(&index, first, last, &config);
-        assert_eq!(fill_job(&index, job, want, &config), cap_job(&index, job, want, MAX_FILL_FRAMES, &config));
+        assert_eq!(
+            fill_job(&index, job, want, &config),
+            cap_job(&index, job, want, MAX_FILL_FRAMES, &config)
+        );
     }
     let index = index_of(400, 330);
     let job = job_for(&index, 331, 399, &config);
@@ -56,7 +59,10 @@ fn refill_stays_bounded_for_long_gops_short_windows_and_backward_work() {
     for key_every in [1, 8, 30] {
         let index = index_of(1000, key_every);
         let job = job_for(&index, 1, 600, &config);
-        assert_eq!(fill_job(&index, job, 0, &config), cap_job(&index, job, 0, MAX_FILL_FRAMES, &config));
+        assert_eq!(
+            fill_job(&index, job, 0, &config),
+            cap_job(&index, job, 0, MAX_FILL_FRAMES, &config)
+        );
     }
 }
 

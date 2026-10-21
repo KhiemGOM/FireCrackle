@@ -1,7 +1,7 @@
 # Releasing FireCrackle
 
-Current target: **0.4.2**. See [release notes](notes-v0.4.2.md) and
-[0.4.2 readiness](READINESS-0.4.2.md) for model integration and publication gates.
+Current target: **0.5.0**. See [release notes](notes-v0.5.0.md); the scan changes are
+verified in `fire-detection/perf-lab/REPORT.md`. Previous: 0.4.2 ([readiness](READINESS-0.4.2.md)).
 Freeze the release commit before building either platform. The `prepare_release.py` command below pushes a release
 branch and requests publication; it is not a preparation-only command.
 

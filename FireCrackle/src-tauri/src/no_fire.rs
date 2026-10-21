@@ -118,14 +118,10 @@ pub(crate) fn scan_resuming(
         completed,
         fire_core::gui_mask::GuiFitHint::default,
         |hint, rgb| {
-            let clear = policy::candidate_prepared_with_hint(
-                rgb,
-                w,
-                h,
-                &detector,
-                hint,
-                |raw, auto| Engine::clear_frame_shared(&engine, &runtime, MODEL, raw, auto, cancel),
-            )?;
+            let clear =
+                policy::candidate_prepared_with_hint(rgb, w, h, &detector, hint, |raw, auto| {
+                    Engine::clear_frame_shared(&engine, &runtime, MODEL, raw, auto, cancel)
+                })?;
             Ok(clear.then_some(0))
         },
         update,

@@ -1628,7 +1628,9 @@ impl PatchSampler {
                 .coords
                 .iter()
                 .zip(&t.pts)
-                .all(|(&(cu, cv), &(u, v, _))| cu.to_bits() == u.to_bits() && cv.to_bits() == v.to_bits());
+                .all(|(&(cu, cv), &(u, v, _))| {
+                    cu.to_bits() == u.to_bits() && cv.to_bits() == v.to_bits()
+                });
         if !same_coords {
             self.key = Some(key);
             self.coords.clear();
@@ -2199,7 +2201,10 @@ fn detect_prepared(
     };
     // `templates[i]` is candidate i's template; piece variants are the same at
     // every cell, so loops resolve them once and pass them to every cell.
-    let best_of_with = |mut cands: Vec<Placed>, templates: &[Arc<Template>], dys: &[i32]| -> Option<(Placed, f64)> {
+    let best_of_with = |mut cands: Vec<Placed>,
+                        templates: &[Arc<Template>],
+                        dys: &[i32]|
+     -> Option<(Placed, f64)> {
         debug_assert_eq!(templates.len(), cands.len());
         let mut scores = vec![vec![None; dys.len()]; cands.len()];
         let mut sampler = PatchSampler::default();
@@ -3239,7 +3244,8 @@ fn scan_text(
             if gx >= x1 {
                 break;
             }
-            let (Some(a), Some(b)) = (samples[j * stride + i], samples[(j + 1) * stride + i + 1]) else {
+            let (Some(a), Some(b)) = (samples[j * stride + i], samples[(j + 1) * stride + i + 1])
+            else {
                 continue;
             };
             if is_text(a, b, o) {

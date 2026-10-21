@@ -90,7 +90,13 @@ pub fn frame_bytes(w: usize, h: usize) -> usize {
 
 /// Convert `w`×`h` yuv420p (`src.len() == frame_bytes(w, h)`, even dimensions)
 /// into `dst` (`w*h*3`).
-pub fn yuv420p_to_rgb24(src: &[u8], w: usize, h: usize, matrix: Matrix, dst: &mut [u8]) -> Result<(), String> {
+pub fn yuv420p_to_rgb24(
+    src: &[u8],
+    w: usize,
+    h: usize,
+    matrix: Matrix,
+    dst: &mut [u8],
+) -> Result<(), String> {
     if w % 2 != 0 || h % 2 != 0 || src.len() != frame_bytes(w, h) || dst.len() != w * h * 3 {
         return Err(format!(
             "yuv420p frame must be even-sized, {} + {} bytes for {w}x{h}; got {} and {}",
@@ -138,7 +144,11 @@ mod tests {
     fn reference(y: u8, u: u8, v: u8, matrix: Matrix) -> [u8; 3] {
         let (vr, ub, ug, vg) = matrix.coefficients();
         let hi = |a: i32, c: i32| (a * c) >> 16;
-        let (y, u, v) = ((y as i32) * 8 - 128, (u as i32) * 8 - 1024, (v as i32) * 8 - 1024);
+        let (y, u, v) = (
+            (y as i32) * 8 - 128,
+            (u as i32) * 8 - 1024,
+            (v as i32) * 8 - 1024,
+        );
         let luma = hi(y, Y_COEFF);
         [
             (luma + hi(v, vr)).clamp(0, 255) as u8,
@@ -151,7 +161,11 @@ mod tests {
         let src = [y, y, y, y, u, v];
         let mut dst = [0u8; 12];
         yuv420p_to_rgb24(&src, 2, 2, matrix, &mut dst).unwrap();
-        assert_eq!(&dst[..3], &dst[9..], "all four pixels share the block's chroma");
+        assert_eq!(
+            &dst[..3],
+            &dst[9..],
+            "all four pixels share the block's chroma"
+        );
         [dst[0], dst[1], dst[2]]
     }
 
@@ -171,7 +185,11 @@ mod tests {
             for y in (0..=255).step_by(5) {
                 for u in (0..=255).step_by(17) {
                     for v in (0..=255).step_by(13) {
-                        assert_eq!(convert(y, u, v, matrix), reference(y, u, v, matrix), "{matrix:?} {y} {u} {v}");
+                        assert_eq!(
+                            convert(y, u, v, matrix),
+                            reference(y, u, v, matrix),
+                            "{matrix:?} {y} {u} {v}"
+                        );
                     }
                 }
             }

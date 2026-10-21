@@ -389,7 +389,9 @@ pub fn video_tools_cancellable(cancel: Option<&AtomicBool>) -> Result<Tools, Str
     if checks.iter().all(Result::is_ok) && (!cfg!(windows) || has_dav1d(&tools.ffmpeg)) {
         // Linux uses the distribution's FFmpeg, which we cannot replace: only say so.
         if !cfg!(windows) && !has_dav1d(&tools.ffmpeg) {
-            eprintln!("FireCrackle: this FFmpeg has no libdav1d, so AV1 videos decode with a slower decoder. Install an FFmpeg build with libdav1d for faster AV1 scans.");
+            eprintln!(
+                "FireCrackle: this FFmpeg has no libdav1d, so AV1 videos decode with a slower decoder. Install an FFmpeg build with libdav1d for faster AV1 scans."
+            );
         }
         let _ = VIDEO.set(tools.clone());
         return Ok(tools);

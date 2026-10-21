@@ -530,108 +530,110 @@ fn find(
     let source = &t.source;
     let mut visited = 0u64;
     let result = (|| {
-    for pose in poses {
-        if let Some(scale) = near_scale {
-            if (pose.sx - scale).abs() > SCALE_PRUNE_TOLERANCE {
+        for pose in poses {
+            if let Some(scale) = near_scale {
+                if (pose.sx - scale).abs() > SCALE_PRUNE_TOLERANCE {
+                    continue;
+                }
+            }
+            visited += 1;
+            // Reuse only definite border rejection, within this frame and worker.
+            // With occlusion, group/support accounting also matters; use the
+            // original path. Never reuse results across frames or reorder winners.
+            if mask.is_none() && rejected[pose.border_id] {
                 continue;
             }
-        }
-        visited += 1;
-        // Reuse only definite border rejection, within this frame and worker.
-        // With occlusion, group/support accounting also matters; use the
-        // original path. Never reuse results across frames or reorder winners.
-        if mask.is_none() && rejected[pose.border_id] {
-            continue;
-        }
-        let border = evidence(
-            rgb,
-            plan,
-            pose,
-            &source.border,
-            &t.stages[0],
-            Some(&pose.border),
-            false,
-            mask,
-        );
-        if border.value.is_some_and(|v| v < BORDER_MIN) {
-            if mask.is_none() {
-                rejected[pose.border_id] = true;
-            }
-            continue;
-        }
-        let mut structure = evidence(
-            rgb,
-            plan,
-            pose,
-            &source.structure,
-            &t.stages[1],
-            None,
-            false,
-            mask,
-        );
-        if structure.value.is_some_and(|v| v < STRUCTURE_MIN) {
-            if !source.identity.is_empty() || source.presence_structure.is_empty() {
-                continue;
-            }
-            structure = evidence(
+            let border = evidence(
                 rgb,
                 plan,
                 pose,
-                &source.presence_structure,
-                &t.stages[2],
+                &source.border,
+                &t.stages[0],
+                Some(&pose.border),
+                false,
+                mask,
+            );
+            if border.value.is_some_and(|v| v < BORDER_MIN) {
+                if mask.is_none() {
+                    rejected[pose.border_id] = true;
+                }
+                continue;
+            }
+            let mut structure = evidence(
+                rgb,
+                plan,
+                pose,
+                &source.structure,
+                &t.stages[1],
                 None,
                 false,
                 mask,
             );
-            if structure.value.is_none_or(|v| v < STRUCTURE_MIN) {
+            if structure.value.is_some_and(|v| v < STRUCTURE_MIN) {
+                if !source.identity.is_empty() || source.presence_structure.is_empty() {
+                    continue;
+                }
+                structure = evidence(
+                    rgb,
+                    plan,
+                    pose,
+                    &source.presence_structure,
+                    &t.stages[2],
+                    None,
+                    false,
+                    mask,
+                );
+                if structure.value.is_none_or(|v| v < STRUCTURE_MIN) {
+                    continue;
+                }
+            }
+            let identity = if source.identity.is_empty() {
+                Evidence {
+                    value: None,
+                    probes: 0,
+                    groups: [0; 4],
+                }
+            } else {
+                evidence(
+                    rgb,
+                    plan,
+                    pose,
+                    &source.identity,
+                    &t.stages[3],
+                    None,
+                    true,
+                    mask,
+                )
+            };
+            if identity.value.is_some_and(|v| v < IDENTITY_MIN) {
                 continue;
             }
-        }
-        let identity = if source.identity.is_empty() {
-            Evidence {
-                value: None,
-                probes: 0,
-                groups: [0; 4],
+            if mask.is_some()
+                && (border.probes + structure.probes + identity.probes < 32
+                    || (0..4)
+                        .filter(|&g| {
+                            border.groups[g] + structure.groups[g] + identity.groups[g] > 0
+                        })
+                        .count()
+                        < 2)
+            {
+                continue;
             }
-        } else {
-            evidence(
-                rgb,
-                plan,
-                pose,
-                &source.identity,
-                &t.stages[3],
-                None,
-                true,
-                mask,
-            )
-        };
-        if identity.value.is_some_and(|v| v < IDENTITY_MIN) {
-            continue;
+            return Some(PanelMatch {
+                screen_type: source.screen_type.clone(),
+                version: source.version.clone(),
+                variant: source.variant.clone(),
+                bounds: pose.bounds,
+                scale_x: pose.sx,
+                scale_y: pose.sy,
+                score: border.value.unwrap_or(0.) * 0.3 + structure.value.unwrap_or(0.) * 0.7,
+                border_score: border.value.unwrap_or(0.),
+                structure_score: structure.value.unwrap_or(0.),
+                presence_only: true,
+                visible_probes: [border.probes, structure.probes, identity.probes],
+            });
         }
-        if mask.is_some()
-            && (border.probes + structure.probes + identity.probes < 32
-                || (0..4)
-                    .filter(|&g| border.groups[g] + structure.groups[g] + identity.groups[g] > 0)
-                    .count()
-                    < 2)
-        {
-            continue;
-        }
-        return Some(PanelMatch {
-            screen_type: source.screen_type.clone(),
-            version: source.version.clone(),
-            variant: source.variant.clone(),
-            bounds: pose.bounds,
-            scale_x: pose.sx,
-            scale_y: pose.sy,
-            score: border.value.unwrap_or(0.) * 0.3 + structure.value.unwrap_or(0.) * 0.7,
-            border_score: border.value.unwrap_or(0.),
-            structure_score: structure.value.unwrap_or(0.),
-            presence_only: true,
-            visible_probes: [border.probes, structure.probes, identity.probes],
-        });
-    }
-    None
+        None
     })();
     crate::profile::count(0, visited);
     crate::profile::count(2, poses.len() as u64);

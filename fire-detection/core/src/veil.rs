@@ -213,7 +213,14 @@ pub fn detect_pixels(
 /// judged as plain background then GUI-neutral — share one pass over the pixels.
 /// The narrow columns are a subset of the wide ones, so four counters per margin
 /// reproduce every `judge` result and the same first-yes / best-share order.
-fn judge_all(data: &[u8], w: usize, h: usize, channels: usize, y0: usize, o: Options) -> (bool, f64) {
+fn judge_all(
+    data: &[u8],
+    w: usize,
+    h: usize,
+    channels: usize,
+    y0: usize,
+    o: Options,
+) -> (bool, f64) {
     let margin_px = |m: f64| ((w as f64 * m).floor() as usize).max(1).min((w / 2).max(1));
     let wide = margin_px(o.margin);
     let narrow = margin_px(o.margin.min(0.1));
@@ -227,11 +234,13 @@ fn judge_all(data: &[u8], w: usize, h: usize, channels: usize, y0: usize, o: Opt
     // is evaluated only where its necessary condition holds (near-grey, or the
     // tooltip fill's red/blue window).
     let segment = |row: &[u8], hi: u8| -> (u32, u32, u32, u32) {
-        let (mut judged, mut inside_all, mut non_gui, mut inside_non_gui) = (0u32, 0u32, 0u32, 0u32);
+        let (mut judged, mut inside_all, mut non_gui, mut inside_non_gui) =
+            (0u32, 0u32, 0u32, 0u32);
         for c in row.chunks_exact(channels) {
             let (r, g, b) = (c[0], c[1], c[2]);
             // Non-short-circuit `&`/`|`: straight-line byte tests, no branch per pixel.
-            let inside = ((r >= lo) & (r <= hi) & (g >= lo) & (g <= hi) & (b >= lo) & (b <= hi)) as u32;
+            let inside =
+                ((r >= lo) & (r <= hi) & (g >= lo) & (g <= hi) & (b >= lo) & (b <= hi)) as u32;
             let spread = r.max(g).max(b) - r.min(g).min(b);
             let near = (spread <= 12) | ((r.abs_diff(16) <= 8) & (g <= 8) & (b.abs_diff(16) <= 8));
             let gui = near && gui_colour(c);
@@ -242,14 +251,15 @@ fn judge_all(data: &[u8], w: usize, h: usize, channels: usize, y0: usize, o: Opt
         }
         (judged, inside_all, non_gui, inside_non_gui)
     };
-    let mut add = |sets: &[usize], (judged, inside_all, non_gui, inside_non_gui): (u32, u32, u32, u32)| {
-        for &set in sets {
-            counts[set][0] += judged as usize;
-            counts[set][1] += inside_all as usize;
-            counts[set][2] += non_gui as usize;
-            counts[set][3] += inside_non_gui as usize;
-        }
-    };
+    let mut add =
+        |sets: &[usize], (judged, inside_all, non_gui, inside_non_gui): (u32, u32, u32, u32)| {
+            for &set in sets {
+                counts[set][0] += judged as usize;
+                counts[set][1] += inside_all as usize;
+                counts[set][2] += non_gui as usize;
+                counts[set][3] += inside_non_gui as usize;
+            }
+        };
     for y in y0..h {
         let (bias, inverse) = row_transform(y, h);
         let hi = (bias + 255.0 / inverse + o.slack).floor().min(255.0) as u8;

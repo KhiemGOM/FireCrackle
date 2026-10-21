@@ -468,7 +468,6 @@ impl<R: Read> Read for CheckedFrames<'_, R> {
     }
 }
 
-
 /// What the scan decoder's pipe carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PixelFormat {
@@ -519,7 +518,12 @@ impl ScanFeed {
         let matrix = colour_space(tools, &project.video_path)
             .and_then(|tag| fire_core::yuv::Matrix::for_colour_space(&tag));
         let decoder = nvdec_decoder(&project.meta.codec)
-            .filter(|_| prefer_nvdec(&project.meta.codec, crate::external_tools::has_dav1d(&tools.ffmpeg)))
+            .filter(|_| {
+                prefer_nvdec(
+                    &project.meta.codec,
+                    crate::external_tools::has_dav1d(&tools.ffmpeg),
+                )
+            })
             .filter(|name| nvdec_available(tools, &project.video_path, name))
             .map(str::to_string);
         Self::plan(&project.meta, target, matrix, decoder)
@@ -1021,15 +1025,40 @@ mod tests {
         use fire_core::yuv::Matrix;
         let native = ScanFeed::plan(&meta(1920, 1080, "h264"), None, Some(Matrix::Bt709), None);
         assert_eq!(
-            (native.width, native.height, native.pixel_format, native.frame_bytes()),
-            (1920, 1080, PixelFormat::Yuv420p(Matrix::Bt709), 1920 * 1080 * 3 / 2)
+            (
+                native.width,
+                native.height,
+                native.pixel_format,
+                native.frame_bytes()
+            ),
+            (
+                1920,
+                1080,
+                PixelFormat::Yuv420p(Matrix::Bt709),
+                1920 * 1080 * 3 / 2
+            )
         );
         assert_eq!(native.ffmpeg_pix_fmt(), "yuv420p");
-        let same = ScanFeed::plan(&meta(1920, 1080, "h264"), Some((1920, 1080)), Some(Matrix::Bt601), None);
+        let same = ScanFeed::plan(
+            &meta(1920, 1080, "h264"),
+            Some((1920, 1080)),
+            Some(Matrix::Bt601),
+            None,
+        );
         assert_eq!(same.pixel_format, PixelFormat::Yuv420p(Matrix::Bt601));
-        let scaled = ScanFeed::plan(&meta(2560, 1440, "av1"), Some((1920, 1080)), Some(Matrix::Bt709), None);
+        let scaled = ScanFeed::plan(
+            &meta(2560, 1440, "av1"),
+            Some((1920, 1080)),
+            Some(Matrix::Bt709),
+            None,
+        );
         assert_eq!(
-            (scaled.width, scaled.height, scaled.pixel_format, scaled.frame_bytes()),
+            (
+                scaled.width,
+                scaled.height,
+                scaled.pixel_format,
+                scaled.frame_bytes()
+            ),
             (1920, 1080, PixelFormat::Rgb24, 1920 * 1080 * 3)
         );
         assert_eq!(scaled.ffmpeg_pix_fmt(), "rgb24");
@@ -1037,7 +1066,12 @@ mod tests {
         assert_eq!(odd.pixel_format, PixelFormat::Rgb24);
         let unknown = ScanFeed::plan(&meta(1920, 1080, "h264"), None, None, None);
         assert_eq!(unknown.pixel_format, PixelFormat::Rgb24);
-        let nvdec = ScanFeed::plan(&meta(1920, 1080, "h264"), None, Some(Matrix::Bt709), Some("h264_cuvid".into()));
+        let nvdec = ScanFeed::plan(
+            &meta(1920, 1080, "h264"),
+            None,
+            Some(Matrix::Bt709),
+            Some("h264_cuvid".into()),
+        );
         assert_eq!(nvdec.decoder.as_deref(), Some("h264_cuvid"));
     }
     #[test]
@@ -1045,7 +1079,9 @@ mod tests {
         use fire_core::yuv::Matrix;
         let feed = ScanFeed::plan(&meta(2, 2, "h264"), None, Some(Matrix::Bt709), None);
         let mut buffer = Vec::new();
-        let rgb = feed.rgb(&[128, 128, 128, 128, 128, 128], &mut buffer).unwrap();
+        let rgb = feed
+            .rgb(&[128, 128, 128, 128, 128, 128], &mut buffer)
+            .unwrap();
         assert_eq!(rgb, &[130; 12]);
         let feed = ScanFeed::plan(&meta(2, 2, "h264"), None, None, None);
         let frame = [7u8; 12];
@@ -1102,9 +1138,15 @@ mod tests {
         let input = args.iter().position(|a| a == "-i").unwrap();
         let codec = args.iter().position(|a| a == "-c:v").unwrap();
         assert!(codec < input && args[codec + 1] == "h264_cuvid", "{args:?}");
-        assert!(args.windows(2).any(|w| w == ["-pix_fmt", "yuv420p"]), "{args:?}");
+        assert!(
+            args.windows(2).any(|w| w == ["-pix_fmt", "yuv420p"]),
+            "{args:?}"
+        );
         let filters = &args[args.iter().position(|a| a == "-vf").unwrap() + 1];
-        assert!(filters.starts_with("trim=start_frame=0,showinfo") && !filters.contains("scale="), "{filters}");
+        assert!(
+            filters.starts_with("trim=start_frame=0,showinfo") && !filters.contains("scale="),
+            "{filters}"
+        );
         let feed = ScanFeed {
             width: 8,
             height: 8,
@@ -1113,7 +1155,10 @@ mod tests {
         };
         let args = args_of(&feed);
         assert!(!args.iter().any(|a| a == "-c:v"), "{args:?}");
-        assert!(args.windows(2).any(|w| w == ["-pix_fmt", "rgb24"]), "{args:?}");
+        assert!(
+            args.windows(2).any(|w| w == ["-pix_fmt", "rgb24"]),
+            "{args:?}"
+        );
         let filters = &args[args.iter().position(|a| a == "-vf").unwrap() + 1];
         assert!(filters.ends_with("showinfo,scale=8:8"), "{filters}");
     }
@@ -1128,40 +1173,94 @@ mod tests {
         };
         let raw = f.root.join("frames.rgb");
         let data: Vec<u8> = (0..48u32)
-            .flat_map(|n| (0..32 * 32).flat_map(move |i| [(n * 5 + i as u32) as u8, (i as u32 * 7 + n) as u8, (255 - n * 3) as u8]))
+            .flat_map(|n| {
+                (0..32 * 32).flat_map(move |i| {
+                    [
+                        (n * 5 + i as u32) as u8,
+                        (i as u32 * 7 + n) as u8,
+                        (255 - n * 3) as u8,
+                    ]
+                })
+            })
             .collect();
         std::fs::write(&raw, &data).unwrap();
         let output = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
-            .args(["-y", "-v", "error", "-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", "32x32", "-framerate", "20", "-i"])
+            .args([
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pixel_format",
+                "rgb24",
+                "-video_size",
+                "32x32",
+                "-framerate",
+                "20",
+                "-i",
+            ])
             .arg(&raw)
-            .args(["-c:v", "libx264", "-g", "12", "-bf", "2", "-pix_fmt", "yuv420p"])
+            .args([
+                "-c:v", "libx264", "-g", "12", "-bf", "2", "-pix_fmt", "yuv420p",
+            ])
             .arg(&f.project.video_path)
             .output()
             .unwrap();
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-        let project = studio_core::import::import_video(&tools, std::path::Path::new(&f.project.video_path), &Default::default()).unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let project = studio_core::import::import_video(
+            &tools,
+            std::path::Path::new(&f.project.video_path),
+            &Default::default(),
+        )
+        .unwrap();
         let baseline = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
             .args(["-v", "error", "-i"])
             .arg(&project.video_path)
-            .args(["-map", "0:v:0", "-fps_mode", "passthrough", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+            .args([
+                "-map",
+                "0:v:0",
+                "-fps_mode",
+                "passthrough",
+                "-pix_fmt",
+                "rgb24",
+                "-f",
+                "rawvideo",
+                "-",
+            ])
             .output()
             .unwrap();
         assert!(baseline.status.success());
         // Untagged stream: swscale (and therefore the feed) uses BT.601.
         let feed = ScanFeed::for_scan(&project, &tools, None);
-        assert_eq!(feed.pixel_format, PixelFormat::Yuv420p(fire_core::yuv::Matrix::Bt601));
+        assert_eq!(
+            feed.pixel_format,
+            PixelFormat::Yuv420p(fire_core::yuv::Matrix::Bt601)
+        );
         let slot = Mutex::new(None);
-        let (mut reader, diagnostics) = open_scan_decoder(&project, &tools, 0, &slot, &feed).unwrap();
+        let (mut reader, diagnostics) =
+            open_scan_decoder(&project, &tools, 0, &slot, &feed).unwrap();
         let mut decoded = Vec::new();
         reader.read_to_end(&mut decoded).unwrap();
         drop(reader);
         let mut child = slot.lock().unwrap().take().unwrap();
-        assert!(child.wait().unwrap().success(), "{}", diagnostics.join().unwrap());
+        assert!(
+            child.wait().unwrap().success(),
+            "{}",
+            diagnostics.join().unwrap()
+        );
         assert_eq!(decoded.len(), 48 * feed.frame_bytes());
         let mut buffer = Vec::new();
         for (n, frame) in decoded.chunks_exact(feed.frame_bytes()).enumerate() {
             let rgb = feed.rgb(frame, &mut buffer).unwrap();
-            assert_eq!(rgb, &baseline.stdout[n * 32 * 32 * 3..(n + 1) * 32 * 32 * 3], "frame {n}");
+            assert_eq!(
+                rgb,
+                &baseline.stdout[n * 32 * 32 * 3..(n + 1) * 32 * 32 * 3],
+                "frame {n}"
+            );
         }
     }
     #[test]
@@ -1578,7 +1677,10 @@ mod tests {
                 })
                 .collect()
         };
-        for (name, no_fire) in [("SCAN_PARITY_POV_ROWS", false), ("SCAN_PARITY_NOFIRE_ROWS", true)] {
+        for (name, no_fire) in [
+            ("SCAN_PARITY_POV_ROWS", false),
+            ("SCAN_PARITY_NOFIRE_ROWS", true),
+        ] {
             let expected = recorded(name);
             if expected.is_empty() {
                 continue;
@@ -1602,13 +1704,20 @@ mod tests {
             }
             let (status, rows) = wait(&jobs);
             let seconds = started.elapsed().as_secs_f64();
-            let expected_accepted: Vec<(u32, u8)> =
-                expected.iter().filter_map(|&(n, r)| r.map(|r| (n, r))).collect();
+            let expected_accepted: Vec<(u32, u8)> = expected
+                .iter()
+                .filter_map(|&(n, r)| r.map(|r| (n, r)))
+                .collect();
             let mut got = rows.clone();
             got.sort();
             assert_eq!(expected.len() as u32, status.total, "frame count");
             assert_eq!(got, expected_accepted, "{name}: decisions differ");
-            eprintln!("{name}: {} frames in {seconds:.1}s = {:.1} fps, {} accepted, identical", status.total, status.total as f64 / seconds, got.len());
+            eprintln!(
+                "{name}: {} frames in {seconds:.1}s = {:.1} fps, {} accepted, identical",
+                status.total,
+                status.total as f64 / seconds,
+                got.len()
+            );
         }
     }
     #[test]

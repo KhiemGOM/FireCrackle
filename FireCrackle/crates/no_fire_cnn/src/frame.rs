@@ -88,11 +88,29 @@ fn view_order() -> &'static [(u8, u8)] {
 /// (`fire-detection/perf-lab/plan_view_order.py`). The frame decision is the same
 /// for every order; only how soon a rejected frame stops differs.
 pub const DEFAULT_VIEW_ORDER: [(u8, u8); 18] = [
-    (0, 0), (0, 5), (1, 4), (0, 2), (0, 4), (0, 6), (0, 8), (0, 3), (0, 1), (0, 7),
-    (1, 0), (1, 1), (1, 2), (1, 3), (1, 5), (1, 6), (1, 7), (1, 8),
+    (0, 0),
+    (0, 5),
+    (1, 4),
+    (0, 2),
+    (0, 4),
+    (0, 6),
+    (0, 8),
+    (0, 3),
+    (0, 1),
+    (0, 7),
+    (1, 0),
+    (1, 1),
+    (1, 2),
+    (1, 3),
+    (1, 5),
+    (1, 6),
+    (1, 7),
+    (1, 8),
 ];
 fn every_view() -> Vec<(u8, u8)> {
-    (0..2u8).flat_map(|pass| (0..9u8).map(move |tile| (pass, tile))).collect()
+    (0..2u8)
+        .flat_map(|pass| (0..9u8).map(move |tile| (pass, tile)))
+        .collect()
 }
 /// Install another view order for this process (perf lab). Must contain every
 /// (pass, tile) pair exactly once; returns false if the order was already fixed.
@@ -165,7 +183,10 @@ mod tests {
     }
     /// The first byte of each view in scoring order: raw views carry `raw`, unveiled `auto`.
     fn ordered_views(raw: u8, auto: u8) -> Vec<u8> {
-        view_order().iter().map(|&(pass, _)| if pass == 0 { raw } else { auto }).collect()
+        view_order()
+            .iter()
+            .map(|&(pass, _)| if pass == 0 { raw } else { auto })
+            .collect()
     }
     #[test]
     fn default_order_covers_every_view_once_and_starts_with_the_full_raw_view() {
@@ -190,11 +211,13 @@ mod tests {
             assert_eq!(calls, stop + 1);
         }
         let mut calls = 0;
-        assert!(clear_frame_with(&raw, Some(&auto), &AtomicBool::new(false), |_| {
-            calls += 1;
-            Ok(-2.0)
-        })
-        .unwrap());
+        assert!(
+            clear_frame_with(&raw, Some(&auto), &AtomicBool::new(false), |_| {
+                calls += 1;
+                Ok(-2.0)
+            })
+            .unwrap()
+        );
         assert_eq!(calls, 18);
     }
     fn model(gpu: bool) -> Mock {

@@ -178,9 +178,12 @@ pub const MAX_FILL_FRAMES: u32 = 240;
 /// or twice the ordinary refill budget; long GOPs keep the existing bounded plan.
 pub fn fill_job(index: &FrameIndex, job: DecodeJob, want: u32, cfg: &DecodeConfig) -> DecodeJob {
     if job.first > want {
-        let end = job.last.saturating_add(1).min(job.first.saturating_add(MAX_FILL_FRAMES * 2));
-        if let Some(next_key) = ((job.first + 1)..=end)
-            .find(|&n| index.frames.get(n as usize).is_some_and(|f| f.key))
+        let end = job
+            .last
+            .saturating_add(1)
+            .min(job.first.saturating_add(MAX_FILL_FRAMES * 2));
+        if let Some(next_key) =
+            ((job.first + 1)..=end).find(|&n| index.frames.get(n as usize).is_some_and(|f| f.key))
         {
             // Frequent keyframes already make seeking cheap. Do not turn an
             // intra-only video into one decoder process per picture.
