@@ -1,0 +1,626 @@
+{
+  "date": "2026-10-21",
+  "baseline_revision": "2011c3e",
+  "scope": "Exact duplicate detector-profile folding at construction; no similarity clustering, threshold change, fitting, calibration or new accuracy estimate.",
+  "input_profiles": 94,
+  "unique_profiles": 68,
+  "families": [
+    [
+      "1.16.5:inventory.anvil_screen:anvil"
+    ],
+    [
+      "1.16.5:inventory.beacon_screen:beacon",
+      "1.21.11:inventory.beacon_screen:beacon"
+    ],
+    [
+      "1.16.5:inventory.blast_furnace_screen:blast_furnace",
+      "1.16.5:inventory.furnace_screen:furnace",
+      "1.16.5:inventory.smoker_screen:smoker",
+      "1.21.11:inventory.blast_furnace_screen:blast_furnace",
+      "1.21.11:inventory.furnace_screen:furnace",
+      "1.21.11:inventory.smoker_screen:smoker"
+    ],
+    [
+      "1.16.5:inventory.brewing_stand_screen:brewing_stand"
+    ],
+    [
+      "1.16.5:inventory.cartography_table_screen:cartography_table",
+      "1.21.11:inventory.cartography_table_screen:cartography_table"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x1",
+      "1.21.11:inventory.container_screen:generic_9x1"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x2",
+      "1.21.11:inventory.container_screen:generic_9x2"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x3",
+      "1.21.11:inventory.container_screen:generic_9x3"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x4",
+      "1.21.11:inventory.container_screen:generic_9x4"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x5",
+      "1.21.11:inventory.container_screen:generic_9x5"
+    ],
+    [
+      "1.16.5:inventory.container_screen:generic_9x6",
+      "1.21.11:inventory.container_screen:generic_9x6"
+    ],
+    [
+      "1.16.5:inventory.crafting_screen:crafting_table",
+      "1.21.11:inventory.crafting_screen:crafting_table"
+    ],
+    [
+      "1.16.5:inventory.creative_mode_inventory_screen:creative_inventory/tab_inventory",
+      "1.21.11:inventory.creative_mode_inventory_screen:creative_inventory/tab_inventory"
+    ],
+    [
+      "1.16.5:inventory.creative_mode_inventory_screen:creative_inventory/tab_item_search",
+      "1.21.11:inventory.creative_mode_inventory_screen:creative_inventory/tab_item_search"
+    ],
+    [
+      "1.16.5:inventory.creative_mode_inventory_screen:creative_inventory/tab_items",
+      "1.21.11:inventory.creative_mode_inventory_screen:creative_inventory/tab_items"
+    ],
+    [
+      "1.16.5:inventory.dispenser_screen:dispenser",
+      "1.21.11:inventory.dispenser_screen:dispenser"
+    ],
+    [
+      "1.16.5:inventory.enchantment_screen:enchanting_table"
+    ],
+    [
+      "1.16.5:inventory.grindstone_screen:grindstone"
+    ],
+    [
+      "1.16.5:inventory.hopper_screen:hopper",
+      "1.21.11:inventory.hopper_screen:hopper"
+    ],
+    [
+      "1.16.5:inventory.horse_inventory_screen:horse",
+      "1.21.11:inventory.horse_inventory_screen:horse"
+    ],
+    [
+      "1.16.5:inventory.inventory_screen:inventory",
+      "1.21.11:inventory.inventory_screen:inventory"
+    ],
+    [
+      "1.16.5:inventory.loom_screen:loom",
+      "1.21.11:inventory.loom_screen:loom"
+    ],
+    [
+      "1.16.5:inventory.shulker_box_screen:shulker_box",
+      "1.21.11:inventory.shulker_box_screen:shulker_box"
+    ],
+    [
+      "1.16.5:inventory.smithing_screen:smithing"
+    ],
+    [
+      "1.16.5:inventory.stonecutter_screen:stonecutter",
+      "1.21.11:inventory.stonecutter_screen:stonecutter"
+    ],
+    [
+      "1.17:inventory.brewing_stand_screen:brewing_stand"
+    ],
+    [
+      "1.18:inventory.anvil_screen:anvil",
+      "1.21.11:inventory.anvil_screen:anvil"
+    ],
+    [
+      "1.18:inventory.enchantment_screen:enchanting_table"
+    ],
+    [
+      "1.18:inventory.grindstone_screen:grindstone",
+      "1.21.11:inventory.grindstone_screen:grindstone"
+    ],
+    [
+      "1.21.11:inventory.book_edit_screen:book_en_us"
+    ],
+    [
+      "1.21.11:inventory.book_sign_screen:book_en_us"
+    ],
+    [
+      "1.21.11:inventory.book_view_screen:book_en_us"
+    ],
+    [
+      "1.21.11:inventory.brewing_stand_screen:brewing_stand"
+    ],
+    [
+      "1.21.11:inventory.crafter_screen:crafter"
+    ],
+    [
+      "1.21.11:inventory.enchantment_screen:enchanting_table"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/acacia"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/bamboo"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/birch"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/cherry"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/crimson"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/dark_oak"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/jungle"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/mangrove"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/oak"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/pale_oak"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/spruce"
+    ],
+    [
+      "1.21.11:inventory.hanging_sign_edit_screen:hanging_sign/warped"
+    ],
+    [
+      "1.21.11:inventory.lectern_screen:book_en_us"
+    ],
+    [
+      "1.21.11:inventory.merchant_screen:villager"
+    ],
+    [
+      "1.21.11:inventory.sign_edit_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:inventory.sign_edit_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:inventory.smithing_screen:smithing"
+    ],
+    [
+      "1.21.11:options.accessibility_options_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.accessibility_options_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:options.chat_options_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.chat_options_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:options.controls.controls_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.controls.controls_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:options.options_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.options_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:options.skin_customization_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.skin_customization_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:options.sound_options_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:options.sound_options_screen:fixed_controls_en_us_button_highlighted"
+    ],
+    [
+      "1.21.11:pause_screen:fixed_controls_en_us_button"
+    ],
+    [
+      "1.21.11:pause_screen:fixed_controls_en_us_button_highlighted"
+    ]
+  ],
+  "proof": {
+    "equal_key_inputs": [
+      "dimensions",
+      "recipe_shift",
+      "exact horizontal/vertical/viewport placement bits",
+      "ordered border/structure/presence_structure/identity probes",
+      "exact probe x/y/viewport bits",
+      "RGB and optional blended RGB",
+      "occlusion regional group"
+    ],
+    "first_source_retained": true,
+    "metadata_excluded_only_after_extraction": true,
+    "hash_collision_handling": "full derived Eq comparison",
+    "per_frame_hashing": false,
+    "all_original_source_packs_preserved": true,
+    "scope": "Behavioral equivalence to existing first-supported-source detector; existing recognition limitations remain."
+  },
+  "source_sha256": {
+    "fire-detection/core/src/gui_interaction_fast.rs": "a5a5f582828d591eb36b156c02bbcc0347ab67bd62fbd40f0f8c6d8da706a7a8",
+    "fire-detection/core/src/gui_interaction.rs": "64d13ca6677967bcc476f78b18303e234be8e5eef659c014b72dc4b368b782a4",
+    "fire-detection/core/src/gui_tooltip.rs": "2536c2f566186ea9b6f5b1cab5f0709da1b5262e111220983d669a61ddb5b95e",
+    "fire-detection/core/src/gui_mask.rs": "d82d7b21fd6d52f6e83039a501d8e180a4fc989b42b4e681aed445809f1eb60d"
+  },
+  "baseline_detector_sha256": "0657a0190db7f39ff4eea6bb419e8ce6215be39123f6ac32a047572f77d2c5a1",
+  "bundle_sha256": "e64f1a86986b7434d23b0a2efc4c06ae7aa3a63bd8a59e636d90d1c3b69b724b",
+  "source_evidence": {
+    "bundle_source_manifests": [],
+    "evidence": {
+      "1.16.5": {
+        "jar_sha256": "00b5ebbc33e95ea88c1ab80601599c9827e9aa861d93ccc2cfcbbfd996e86263",
+        "textures": {
+          "furnace": "a8f780d91a075b886b80507b1c511ee78e50ee638b3dee98ace9ed837294ff0b",
+          "blast_furnace": "8a2b4786cb3d222dd4cd18c2fda3202ccac132b93dc476578b6121c48ea3d3be",
+          "smoker": "8a2b4786cb3d222dd4cd18c2fda3202ccac132b93dc476578b6121c48ea3d3be",
+          "generic_54": "bb476e2ac2a891627ad9b97aa15faf069e10102cb71bfe8b41a29bc8ec8f1722",
+          "shulker_box": "e457c3b07d89a55dfed9a9c57e45ac0c319958583abad65a31c9eb3cee17f032",
+          "crafting_table": "1202a7044f06b221cdc3e2e059a8e83417f6afa6640038548022dc3b0d165394",
+          "inventory": "16f1ae4f5213ea55372ec06aee09b616c3d900c94c99b9e1f64ff17dfc3c5d17"
+        }
+      },
+      "1.21.11": {
+        "jar_sha256": "1473c9489ac50fda3c435049a76a70d61a10b8610db27f5ba9d8756b686cd3bd",
+        "textures": {
+          "furnace": "d700c1af4175a204e9e403c31dea2afdee575dac2bb23493f208b9f0bf3b2dc8",
+          "blast_furnace": "d700c1af4175a204e9e403c31dea2afdee575dac2bb23493f208b9f0bf3b2dc8",
+          "smoker": "d700c1af4175a204e9e403c31dea2afdee575dac2bb23493f208b9f0bf3b2dc8",
+          "generic_54": "1ca0500b1be97ba0dda9290bc16b554829b63de691cefe7dcbfd3078cae8c268",
+          "shulker_box": "55f7474b17b6944bb213a5b73ebd2b47e34a31207363c358d1c7f9207cd15887",
+          "crafting_table": "baf65a599d8bb380b1b03efa1862c20fd29e936b43110d7438b9fe00086075b0",
+          "inventory": "c2f850076ad7ebd7a1b27d017fe5f66ac388f54de374de988cb79f86b1d59a65"
+        }
+      },
+      "source_classes": {
+        "net/minecraft/client/gui/screen/ingame/GenericContainerScreen.java": "ad5f4091491ae05d4a408099099e05c4d613dda8facc0757815ba4e5e27ec6c3",
+        "net/minecraft/client/gui/screen/ingame/AbstractFurnaceScreen.java": "48f02a0b8a0de0edc7e940459e866452dfd9b9f276fe7016244983b0859520a0",
+        "net/minecraft/client/gui/screen/ingame/ShulkerBoxScreen.java": "44fbf531c5ccb327b527e3ffd0af98b76ded7eba44b85e04d5b7bb467219ad50",
+        "net/minecraft/client/gui/screen/ingame/HandledScreen.java": "b04f82a15e9c1dd9663d924a1e55cd00d4e6485a44b879736bd1338c0d5cd078"
+      }
+    }
+  },
+  "base_pack_provenance": {
+    "manifest": ".board\\gui-soft-guard-check\\assets-v10\\manifest.json",
+    "manifest_sha256": "5e9d96980473352ee22c0b1410c3568b7732fea3f76aa2e161156ca1aec6ab3b",
+    "base_packs": 90,
+    "exact_pack_matches": 90,
+    "extra_intermediate_packs": 4
+  },
+  "verified_furnace_crops": {
+    "1.16.5": {
+      "furnace": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde",
+      "blast_furnace": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde",
+      "smoker": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde"
+    },
+    "1.21.11": {
+      "furnace": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde",
+      "blast_furnace": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde",
+      "smoker": "373e453a2ae516d7cf5384512c24ee23152b76887f31910c1bdce9e297c41dde"
+    }
+  },
+  "source_code_version": "Minecraft1.16.5,Yarn1.16.5+build.10-v2; client assets1.16.5 and1.21.11",
+  "panel_bench": [
+    {
+      "exact_metadata": true,
+      "folded": false,
+      "fps": 61.865957012584765,
+      "kind": "panel_bench",
+      "pass": 0,
+      "processed": 512,
+      "seconds": 8.275957
+    },
+    {
+      "exact_metadata": true,
+      "folded": true,
+      "fps": 70.28390951885599,
+      "kind": "panel_bench",
+      "pass": 1,
+      "processed": 512,
+      "seconds": 7.2847399
+    },
+    {
+      "exact_metadata": true,
+      "folded": true,
+      "fps": 72.67785591467438,
+      "kind": "panel_bench",
+      "pass": 2,
+      "processed": 512,
+      "seconds": 7.0447868
+    },
+    {
+      "exact_metadata": true,
+      "folded": false,
+      "fps": 52.01108266777602,
+      "kind": "panel_bench",
+      "pass": 3,
+      "processed": 512,
+      "seconds": 9.8440558
+    }
+  ],
+  "gui_bench": [
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1096,
+      "seconds": 8.7590396,
+      "workers": 12,
+      "folded": false,
+      "pass_index": 0
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1103,
+      "seconds": 7.8395481,
+      "workers": 12,
+      "folded": true,
+      "pass_index": 1
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1102,
+      "seconds": 9.5177608,
+      "workers": 12,
+      "folded": true,
+      "pass_index": 2
+    },
+    {
+      "processed": 1200,
+      "reliable": 1200,
+      "reused": 1100,
+      "seconds": 10.8103806,
+      "workers": 12,
+      "folded": false,
+      "pass_index": 3
+    }
+  ],
+  "bench_notes": [
+    "Before/after/after/before, initialization and plan preparation outside timing.",
+    "Panel-only: one worker,512 frames/pass from32 real time-spread gameplay/control images; exact full detection metadata verified.",
+    "GUI:1200consecutive1920x1080V03frames,20\u201340sec,12workers; decode and fullmaskhashing inside timing.",
+    "Other owner apps remain running; visible within-run drift prevents broad cross-machine guarantees.",
+    "These are panel/GUI rates, not whole Auto scanner FPS."
+  ],
+  "checks": {
+    "folding_unit_tests": 2,
+    "interaction_integration_tests": 20,
+    "tests_passed": 22,
+    "core_clippy": "passed",
+    "app_relaunched": false,
+    "native_clippy": "passed"
+  },
+  "recordings": [
+    {
+      "path": "fire-detection/data/video/2026-10-20 14-09-57.mkv",
+      "sha256": "80c065719c141ac0b28a7c1f6f4ce0aa626d6bcf13b52fb44641778a8cdf8d0b",
+      "selected_frames": 587,
+      "detected_unchanged": 278,
+      "frame_index_sha256": "80ddfad95f870ea564160a471aa2b35722189eccc5b980df213f436840a2e2a3"
+    },
+    {
+      "path": "fire-detection/data/video/2026-10-20 14-22-45.mkv",
+      "sha256": "109ff2561f9cb41b788fd529f420a6f4d20e3124540520a36712f42763cd93b9",
+      "selected_frames": 49,
+      "detected_unchanged": 24,
+      "frame_index_sha256": "607d75b8f456dfce9c7b3a2f8bb937ac42b96ceadbfeb5f63ba955e6f8e639da"
+    }
+  ],
+  "panel_weighted_fps": {
+    "baseline": 56.51210136010501,
+    "folded": 71.46083896825428
+  },
+  "panel_speedup_percent": 26.45227703159241,
+  "gui_weighted_fps": {
+    "baseline": 122.64032227178606,
+    "folded": 138.27028220947315
+  },
+  "gui_speedup_percent": 12.74455223874018,
+  "gui_mask_vector_sha256": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+  "real_panel_frames": 636,
+  "real_panel_screen_states": 44,
+  "gui_workload_source": {
+    "path": "fire-detection/data/video/2026-10-15 18-18-16.mkv",
+    "sha256": "91e6fa9db3202e005b351b1f2db28b81a6050ad0f4435bc613049fe25045845d"
+  },
+  "cached_gameplay_inputs": [
+    {
+      "id": "clip1-0",
+      "sha256": "28635372590b8d173da52766b95d9b5ddf5d5152ce43644b0480a8869418935c"
+    },
+    {
+      "id": "clip1-2970",
+      "sha256": "94b0205e4b49e3c4ed240a80b8f2bd66e8ca027d41ce69c30f8aeb9fb17d34a6"
+    },
+    {
+      "id": "clip1-5940",
+      "sha256": "b448001a26fa94e7f2f41194b96ef6eba3d319546dea79574bfe3be0124d403c"
+    },
+    {
+      "id": "clip1-8910",
+      "sha256": "bbe5505dfe6de17b595c66d5b5ad77aa9e45167cd0b404074056e1ded8f9f592"
+    },
+    {
+      "id": "clip1-11880",
+      "sha256": "db7c47b9687e7d5793f8fe728f48405a613c40ee920a7edd1b35dc40cd9acf65"
+    },
+    {
+      "id": "clip1-14850",
+      "sha256": "7c70bcf37bf95cec4119b6d4c3ea0108245e1c196f2de00bd0e3ff7baeab0c50"
+    },
+    {
+      "id": "clip1-17730",
+      "sha256": "d77614518b3a8d3b5c5959de33d092b91bcdc1ef386adce2404e0b435e3ed6fe"
+    },
+    {
+      "id": "clip1-20700",
+      "sha256": "346532534af1d8590d96484361c40f189ecb7c4229aadccb5027d4a9389fc8e2"
+    },
+    {
+      "id": "clip1-23670",
+      "sha256": "4612f4757deef647404975339efa4c76cc3fbbd7d9e02830022e1ef1a8a3560e"
+    },
+    {
+      "id": "clip1-26640",
+      "sha256": "414d1b9a2e9b2681ea42e9956d0da5bee359e242afbb1b62614825861846c080"
+    },
+    {
+      "id": "clip1-29610",
+      "sha256": "aa6859b69c63243572e54bcce95373a9c5d539c185c3e34fd4aa9a8526adba97"
+    },
+    {
+      "id": "clip1-32580",
+      "sha256": "62a530b459a65e45eacb6a7e8f7b15c375e464b3c043c13d3627d56adb605f2c"
+    },
+    {
+      "id": "clip2-0",
+      "sha256": "80865183217d890394d5231490c69be51fc9180ffa17e3a716bf2714e66ddef7"
+    },
+    {
+      "id": "clip2-1800",
+      "sha256": "ffa0ec0dece6ec12d0c256773013b3dd8ca587829875353079dcd0b19bb2b6ba"
+    },
+    {
+      "id": "clip2-3510",
+      "sha256": "cdf422c58dad6d97bc9faef7df3b6f8a80eb8c4bbc4ea54db45bb78253526b3e"
+    },
+    {
+      "id": "clip2-5310",
+      "sha256": "a7ebf8fddf7bd31cb219587f977e050c0e5e72cd70231aec4b384806fe9628ba"
+    },
+    {
+      "id": "clip2-7110",
+      "sha256": "7c9ddbeb5757d848ecd970f701adf6bfdd048bb7513cf8ec3cf7b12419beaed2"
+    },
+    {
+      "id": "clip2-8910",
+      "sha256": "5a9147bb19d277d64baeb0fcf2784879264e99d2173da68354032ec731dbd0c0"
+    },
+    {
+      "id": "clip2-10620",
+      "sha256": "2e8b701db734e75cbd0f589004720db5c25c83e696688e35f8aadc6608cb0b44"
+    },
+    {
+      "id": "clip2-12420",
+      "sha256": "88dfc6c56b105ccf943e5e30a69e9ebd32e60bca133e5056fcb3bbe257212c69"
+    },
+    {
+      "id": "clip2-14220",
+      "sha256": "e70f1a458cab17e811f5c85e4bfbd1aecd8001b0ee461a75096a4e73455c78d0"
+    },
+    {
+      "id": "clip2-16020",
+      "sha256": "6b5734f1300ce6a6e9e839940235d594f34938a23751f86ca681c6dddcbc750b"
+    },
+    {
+      "id": "clip2-17730",
+      "sha256": "a0845f9a25e08ea6969b8c0b69df2167774030ebce0495fb82f401d3b89eae70"
+    },
+    {
+      "id": "clip2-19530",
+      "sha256": "d1652b3c4394ed71e7c00bcec74cb4f4940e34894ea7ff4a25762597d17217a0"
+    },
+    {
+      "id": "clip2-clear-127",
+      "sha256": "d6fdf8daa38d77ced218f4248c28344d132013425b6dfb342161eedcd686ec77"
+    },
+    {
+      "id": "clip2-clear-2045",
+      "sha256": "c10d56e58a2cc5ce124b87e57cfbb731687a6c5590e44890328b8fca98f19892"
+    },
+    {
+      "id": "clip2-clear-4147",
+      "sha256": "721fe2948f7c633f2ffb2dbd5401dc94412ae1487e7248c84c9272d0dca7b3f5"
+    },
+    {
+      "id": "clip2-clear-7658",
+      "sha256": "1dc3102d080c905f316313bfef3161183bae7aa088696a3349caff0a9e77ed0a"
+    },
+    {
+      "id": "clip2-clear-9032",
+      "sha256": "69599913e4857ebfad8bc4afd1243ed0a3d9f89fb5817575a25ae576dc710ff7"
+    },
+    {
+      "id": "clip2-clear-11598",
+      "sha256": "32cb6b75d45d22b3bbee9a7cd1afa26df6768487833c99298204ef20afa95633"
+    },
+    {
+      "id": "clip2-clear-16329",
+      "sha256": "6295fb89c1124cf41153becbf4d99797b5877dce20e56a7c94238e368fcdd5e3"
+    },
+    {
+      "id": "clip2-clear-18943",
+      "sha256": "eeeaba8cc1869e04b5effcb037c494f2928914b928cd2252326c3a527e96a24e"
+    }
+  ],
+  "hardware": {
+    "cpu": "Intel Core i9-13900HX",
+    "logical_cpus": 32,
+    "gpu_present": "NVIDIA GeForce RTX4060 Laptop GPU",
+    "selected_inference_provider": "GPU (DirectML 0)",
+    "note": "DirectML adapter number recorded as reported; GPU selection policy and models unchanged. Other owner apps/scans stayed running; timings are local and workload dependent."
+  },
+  "artifact_sha256": {
+    "base-pack-provenance.json": "7915c7f5e140583f483ca9f4331502efc351409930c7605c021206bf113f061f",
+    "baseline-build.log": "ccdac919bdc62fbfe86fb4a8868848a798ae994fe64234079d5208893b75b061",
+    "baseline.exe": "f316f36f8f51b986e7c4ce425f9592ee9fa3d141028c3b162ee85b85cefbdba3",
+    "baseline.pdb": "b8b642ccaad12b993dbaaa88244fbb8eae3ff1cebf5664345cff535c711ad169",
+    "cases.json": "ed165ec5293f44df8f32e8f819be5b5efcd4dba6f7c7229785808738fb2aaaeb",
+    "clippy.log": "1393a2806c59c7fe2cc937599a61811af7c3074a77a7a9ed02033574da128619",
+    "fast-baseline.rs": "0657a0190db7f39ff4eea6bb419e8ce6215be39123f6ac32a047572f77d2c5a1",
+    "final-bench-build.log": "c6d3eeb3c8a1e39c560d5a9303e6316cefd249cacd558f0bc9a248c55c4de366",
+    "folded-build.log": "e397f753c3ef613f6eea50e4796d1d8493dee4fc6fd8df6eeb6ab1000868e1c0",
+    "folding-tests.log": "8e31e7c5ab1c12c2b9701fa76fa2f31a38997ffe872abb241ed3acc6c349db2d",
+    "gui-abba-0-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "gui-abba-0.jsonl": "93d85c5aea3112b91b619b40fad0c4837048259bd35f4ce4ec382cce8be0bf71",
+    "gui-abba-1-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "gui-abba-1.jsonl": "b6d43073823bec1ef5811de29cf4f8596b0dbc83418c3ea96f0cb0159aac1e53",
+    "gui-abba-2-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "gui-abba-2.jsonl": "99aff1251966bc5adf139954ca22ad7b8b923bb591572b031db764e0a6bdbcf6",
+    "gui-abba-3-hashes.json": "c15a7d8aebf6e763e6d7506da7aa6089566f1c5ab7eb105e6a51c9de90f185a4",
+    "gui-abba-3.jsonl": "ba3b01797abe7c6420935856ed6ff63b55d1fb35a93c7fd1e5ef82efeb32498f",
+    "gui-abba.json": "2922d36e5321de52ab0581bcf381358b6574d8fef31891bb628c4d3bcac6bd7d",
+    "interaction-tests.log": "6d25674ba7843d6b31c8beb78bbd8519e9aa25550b4b1d9aba2e1ff318f7b7ba",
+    "main.rs": "6d980d7088cbc98dce72426c6bd44077ed24cb0d76d5a14195b78a88fa226db2",
+    "panel-bench.jsonl": "f08beb8f3e787c5c680982bb5e05f3912ae9316d68695742103cc87053de791b",
+    "panels.rs": "db4676b370d58dc5a9fe3d099d831345a4a268059ffa28e1d8db6e5b2f71fbaa",
+    "parity-build.log": "be1ca9909d6c04acd48325ecab6a04cf32b0355515001688d8889e72d131579b",
+    "prepared-audit.log": "1a75aa39052173a58390fb1475045f8d249f38e670fb227151383fa0186d1350",
+    "profile.rs": "6d4dfff16fc1593653ee6e3ba9a9b0a92e18d9d590c8394fbfeea2ab0ea94177",
+    "raw-audit.json": "59891130d8fad18dec1e72d6bf4663334bbd657bbdd09b4d0f5b9c67809eda0d",
+    "real-panel-parity.json": "254c2ea29c87efff1f65da9152c2b2e930f43d144748b1fcc15a5054133a56eb",
+    "real-panel-parity.jsonl": "b33433559784a4b72b34c9199162d2be91922aea19d7287e0bf6eda9d673d790",
+    "scans.rs": "1e1085f49f4d6188d60a80e4b3fc2abafeb9d3fd778598029413f022310acf9a",
+    "source-evidence.json": "091f45919b5f86c8a4bf9db58051bf314517e47bb11b198cfb09be1fac7689fd",
+    "verified-furnace-crops.json": "c17dae51b20a85a0238e4d03d8e3fbb460e2697fb590787cb558a1a5f4e56a71",
+    "native-clippy.log": "51c4a840663dbe034dbb762d0a67551bcebe8258068cb7e0d564b3ef15318cc6",
+    "native-build.log": "a7e60357c357fc1e4c7b24b797e1b7990414c4fdfe93869fd651ce00284286bb",
+    "native-build-seconds.txt": "1be7458882156c252179bbfc4582c9f19027c3147469650a5086498ea3dc86b4"
+  },
+  "build": {
+    "result": "passed",
+    "command": "cargo build --manifest-path FireCrackle/src-tauri/Cargo.toml --release --offline",
+    "seconds": 246.0987083,
+    "executable": "FireCrackle/src-tauri/target/release/firecrackle.exe",
+    "bytes": 24859136,
+    "sha256": "6c3369dff465fdc20c30929b166f5b5d849f167978ff99cab725db8613abc968",
+    "app_relaunched": false
+  }
+}

@@ -48,6 +48,47 @@ impl Stage {
         }
     }
 }
+// Exact semantic keys for the inputs consumed by poses/find/evidence.
+// Metadata is deliberately excluded: detect returns the first supported source
+// in stable order, so a later equivalent source can never be the winner.
+#[derive(Hash, PartialEq, Eq)]
+struct ProbeKey {
+    position: [u64; 3],
+    rgb: [u8; 3],
+    blended: Option<[u8; 3]>,
+    group: usize,
+}
+impl From<&Probe> for ProbeKey {
+    fn from(p: &Probe) -> Self {
+        Self {
+            position: [p.x.to_bits(), p.y.to_bits(), p.viewport_y.to_bits()],
+            rgb: p.rgb,
+            blended: p.blended,
+            group: p.group,
+        }
+    }
+}
+#[derive(Hash, PartialEq, Eq)]
+struct PanelKey {
+    dimensions: [usize; 2],
+    recipe_shift: bool,
+    placement: [u64; 2],
+    top_y: Option<u64>,
+    probes: [Vec<ProbeKey>; 4],
+}
+impl From<&PanelTemplate> for PanelKey {
+    fn from(t: &PanelTemplate) -> Self {
+        Self {
+            dimensions: [t.width, t.height],
+            recipe_shift: t.recipe_shift,
+            placement: [t.offset_x.to_bits(), t.viewport_y.to_bits()],
+            top_y: t.top_y.map(f64::to_bits),
+            probes: [&t.border, &t.structure, &t.presence_structure, &t.identity]
+                .map(|points| points.iter().map(ProbeKey::from).collect()),
+        }
+    }
+}
+
 struct PreparedTemplate {
     source: PanelTemplate,
     stages: [Stage; 4],
@@ -97,9 +138,11 @@ impl InteractionDetector {
         if templates.is_empty() || workers == 0 || workers > 32 {
             return Err("invalid interaction detector configuration".into());
         }
+        let mut seen = std::collections::HashSet::new();
         Ok(Self {
             templates: templates
                 .into_iter()
+                .filter(|source| seen.insert(PanelKey::from(source)))
                 .map(|source| {
                     let stages = [
                         (&source.border, 0.8),
@@ -479,4 +522,117 @@ fn find(
         });
     }
     None
+}
+
+#[cfg(test)]
+mod folding {
+    use super::*;
+    fn base() -> PanelTemplate {
+        let p = Probe {
+            x: 1.5,
+            y: 2.5,
+            rgb: [180; 3],
+            blended: Some([179; 3]),
+            group: 0,
+            viewport_y: 0.,
+        };
+        PanelTemplate {
+            screen_type: "inventory.first".into(),
+            version: "first".into(),
+            variant: "base".into(),
+            width: 80,
+            height: 80,
+            recipe_shift: false,
+            offset_x: 0.,
+            top_y: None,
+            viewport_y: 0.,
+            border: vec![p; 16],
+            structure: vec![p; 16],
+            presence_structure: vec![p; 16],
+            identity: vec![p; 16],
+        }
+    }
+    #[test]
+    fn exact_aliases_keep_first_source_and_every_decision_input_matters() {
+        let a = base();
+        let mut alias = a.clone();
+        alias.screen_type = "options.other".into();
+        alias.version = "later".into();
+        alias.variant = "fixed_controls_later".into();
+        let bank = InteractionDetector::with_workers(vec![a.clone(), alias], 4).unwrap();
+        assert_eq!(bank.templates.len(), 1);
+        assert_eq!(bank.templates[0].source.screen_type, "inventory.first");
+        assert_eq!(bank.templates[0].source.version, "first");
+        let hit = bank.detect(&vec![180; 400 * 240 * 3], 400, 240).unwrap();
+        assert_eq!(hit.alternatives[0].screen_type, "inventory.first");
+        assert_eq!(hit.alternatives[0].variant, "base");
+        let mut ordered = a.clone();
+        ordered.border[1].x += 0.5;
+        let mut reordered = ordered.clone();
+        reordered.border.swap(0, 1);
+        assert!(PanelKey::from(&ordered) != PanelKey::from(&reordered));
+
+        let changes: &[fn(&mut PanelTemplate)] = &[
+            |t| t.width += 1,
+            |t| t.height += 1,
+            |t| t.recipe_shift = true,
+            |t| t.offset_x = 0.5,
+            |t| t.top_y = Some(0.),
+            |t| t.viewport_y = 0.25,
+            |t| t.border[0].x += 0.5,
+            |t| t.border[0].y += 0.5,
+            |t| t.border[0].rgb[0] += 1,
+            |t| t.border[0].blended = None,
+            |t| t.border[0].group = 1,
+            |t| t.border[0].viewport_y = 0.5,
+            |t| t.border.push(t.border[0]),
+            |t| t.structure[0].rgb[0] += 1,
+            |t| t.presence_structure.clear(),
+            |t| t.identity.clear(),
+        ];
+        for change in changes {
+            let mut b = a.clone();
+            change(&mut b);
+            assert!(PanelKey::from(&a) != PanelKey::from(&b));
+            assert_eq!(
+                InteractionDetector::with_workers(vec![a.clone(), b], 1)
+                    .unwrap()
+                    .templates
+                    .len(),
+                2
+            );
+        }
+    }
+    #[test]
+    fn installed_source_bank_equivalence_audit() {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../data/assets/gui/interaction.bundle"),
+        )
+        .unwrap();
+        let mut source = Vec::new();
+        let mut cursor = 0;
+        while cursor < bytes.len() {
+            let n = u32::from_le_bytes(bytes[cursor..cursor + 4].try_into().unwrap()) as usize;
+            cursor += 4;
+            source.push(PanelTemplate::from_bytes(&bytes[cursor..cursor + n]).unwrap());
+            cursor += n;
+        }
+        let original_count = source.len();
+        let mut groups: std::collections::HashMap<PanelKey, Vec<String>> = Default::default();
+        for t in &source {
+            groups
+                .entry(PanelKey::from(t))
+                .or_default()
+                .push(format!("{}:{}:{}", t.version, t.screen_type, t.variant));
+        }
+        let bank = InteractionDetector::with_workers(source, 1).unwrap();
+        assert_eq!(bank.templates.len(), groups.len());
+        eprintln!("PANEL_GROUP_COUNT {} {}", original_count, groups.len());
+        let mut groups: Vec<_> = groups.into_values().collect();
+        groups.sort_by(|a, b| a[0].cmp(&b[0]));
+        for group in groups {
+            eprintln!("PANEL_GROUP {}", group.join("|"));
+        }
+    }
 }
