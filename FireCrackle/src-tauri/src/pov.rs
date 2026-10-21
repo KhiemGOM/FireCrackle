@@ -916,12 +916,7 @@ mod tests {
     #[test]
     fn seeked_scan_rgb_matches_full_decode_with_vfr_nonzero_start_and_b_frames() {
         let f = crate::scan_cache::tests::fixture(96);
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
-        let suffix = std::env::consts::EXE_SUFFIX;
-        let tools = Tools {
-            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
-            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
-        };
+        let tools = test_tools();
         let raw = f.root.join("frames.rgb");
         let data: Vec<u8> = (0..96u8).flat_map(|n| vec![n * 2; 16 * 16 * 3]).collect();
         std::fs::write(&raw, &data).unwrap();
@@ -1008,6 +1003,24 @@ mod tests {
                     &baseline.stdout[start * bytes..],
                     "{codec} start{start}"
                 );
+            }
+        }
+    }
+    /// The bundled FFmpeg on Windows (`runtime/`), otherwise FFmpeg from PATH
+    /// (Linux builds use the system FFmpeg).
+    fn test_tools() -> Tools {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        let suffix = std::env::consts::EXE_SUFFIX;
+        let bundled = root.join(format!("ffmpeg{suffix}"));
+        if bundled.is_file() {
+            Tools {
+                ffmpeg: bundled.into_os_string(),
+                ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
+            }
+        } else {
+            Tools {
+                ffmpeg: "ffmpeg".into(),
+                ffprobe: "ffprobe".into(),
             }
         }
     }
@@ -1165,12 +1178,7 @@ mod tests {
     #[test]
     fn yuv_pipe_reproduces_ffmpeg_rgb24_exactly() {
         let f = crate::scan_cache::tests::fixture(48);
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
-        let suffix = std::env::consts::EXE_SUFFIX;
-        let tools = Tools {
-            ffmpeg: root.join(format!("ffmpeg{suffix}")).into_os_string(),
-            ffprobe: root.join(format!("ffprobe{suffix}")).into_os_string(),
-        };
+        let tools = test_tools();
         let raw = f.root.join("frames.rgb");
         let data: Vec<u8> = (0..48u32)
             .flat_map(|n| {
