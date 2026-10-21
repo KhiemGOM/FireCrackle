@@ -31,6 +31,8 @@ export async function previewPixelChange(before:string,after:string):Promise<num
   context.drawImage(b,0,0,canvas.width,canvas.height);const right=context.getImageData(0,0,canvas.width,canvas.height);
   return meanPixelChange(left.data,right.data);
 }
+/** Only sealed ranges have a stable `first-last` key, so only they are scored and cached. */
+export const scorableRanges=(ranges:GuiRange[])=>ranges.filter(range=>range.sealed!==false);
 export function rankGuiRanges(ranges:GuiRange[],scores:ReadonlyMap<string,number|null>):GuiRange[]{
   return [...ranges].sort((a,b)=>(scores.get(guiRangeKey(b))??-1)-(scores.get(guiRangeKey(a))??-1)||a.first-b.first||a.last-b.last);
 }

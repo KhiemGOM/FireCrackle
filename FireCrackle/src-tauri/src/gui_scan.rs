@@ -24,6 +24,9 @@ pub struct Range {
     pub first: u32,
     pub last: u32,
     pub menu: bool,
+    /// Both neighbouring frames are already scanned (or the range touches a video edge), so the range can no longer
+    /// grow, split or merge and anything computed from it stays valid.
+    pub sealed: bool,
 }
 #[derive(Clone, Serialize)]
 pub struct Status {
@@ -178,9 +181,16 @@ impl Job {
                         first: frame as u32,
                         last: frame as u32,
                         menu: hit.menu,
+                        sealed: false,
                     });
                 }
             }
+        }
+        let scanned = |frame: Option<usize>| frame.is_none_or(|i| cache.frames.get(i).is_none_or(|f| f.is_some()));
+        for range in &mut ranges {
+            let before = (range.first as usize).checked_sub(1);
+            let after = range.last as usize + 1;
+            range.sealed = scanned(before) && scanned(Some(after));
         }
         Ok(Status {
             video_path: self.project.video_path.clone(),
@@ -612,6 +622,45 @@ mod tests {
         assert_eq!(status.ranges.len(), 3);
         assert_eq!((status.ranges[1].first, status.ranges[1].last), (2, 3));
         assert!(status.ranges[2].menu);
+    }
+    #[test]
+    fn a_range_is_sealed_only_when_both_neighbours_are_scanned() {
+        let f = crate::scan_cache::tests::fixture(8);
+        let mut cache = Cache::load(&f.project);
+        let hit = |menu| {
+            Some(Some(Surface {
+                bounds: [1., 2., 3., 4.],
+                menu,
+            }))
+        };
+        cache.frames = vec![
+            hit(false),   // 0 ┐ range 0..=1 starts at the video start
+            hit(false),   // 1 ┘
+            hit(true),    // 2   menu range, both neighbours scanned
+            Some(None),   // 3   scanned, no GUI
+            hit(false),   // 4   range 4..=4, frame 5 not scanned yet
+            None,         // 5
+            hit(false),   // 6 ┐ range 6..=7, frame 5 not scanned yet
+            hit(false),   // 7 ┘
+        ];
+        let job = Job {
+            project: f.project.clone(),
+            cache: Mutex::new(cache),
+            state: Mutex::new(("running".into(), None)),
+            cancel: AtomicBool::new(false),
+            child: Mutex::new(None),
+        };
+        let sealed: Vec<(u32, u32, bool)> = job
+            .status()
+            .unwrap()
+            .ranges
+            .iter()
+            .map(|r| (r.first, r.last, r.sealed))
+            .collect();
+        assert_eq!(
+            sealed,
+            vec![(0, 1, true), (2, 2, true), (4, 4, false), (6, 7, false)]
+        );
     }
     #[test]
     #[ignore = "Requires GUI_SMOKE_VIDEO, GUI_SMOKE_FFMPEG, GUI_SMOKE_FFPROBE and frozen GUI_SMOKE_REFERENCE"]

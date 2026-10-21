@@ -5,7 +5,7 @@ import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
-import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges} from '../lib/guiAimReview';
+import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges} from '../lib/guiAimReview';
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
   guiThumbnails(backend,videoKey,total);
@@ -38,7 +38,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(()=>readPreferences().miscGuiMenus),[busy,setBusy]=useState(false);
   const [mode,setMode]=useState(()=>readPreferences().miscGuiMode),[display,setDisplay]=useState(()=>readPreferences().miscGuiDisplay);
   const [order,setOrder]=useState(()=>readPreferences().miscGuiOrder);
-  const [ranking,setRanking]=useState<{key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({key:'',scores:new Map(),processed:0,done:false});
+  const [ranking,setRanking]=useState<{video:string|undefined;key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({video:undefined,key:'',scores:new Map(),processed:0,done:false});
   useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order}),[menus,mode,display,order]);
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
@@ -56,7 +56,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     catch(e){setError(String(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
-  const rangeKey=JSON.stringify([videoKey,status?.total,ranges.map(guiRangeKey)]);
+  const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,scorable.map(guiRangeKey)]);
   if(status?.total){
     guiThumbnails(backend,videoKey,status.total);
     previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiReviewFrames(range,status.total);return [frames.before,frames.after];}));
@@ -67,11 +67,11 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     const cache=previewFrames(backend,512);
     const scores=guiMotionScores(cache),total=status.total;
     let cancelled=false,next=0,processed=0;
-    const publish=(done=false)=>{if(!cancelled)setRanking({key:rangeKey,scores:new Map(scores),processed,done});};
+    const publish=(done=false)=>{if(!cancelled)setRanking({video:videoKey,key:scoreKey,scores:new Map(scores),processed,done});};
     publish();
     const worker=async()=>{
-      while(!cancelled&&next<ranges.length){
-        const range=ranges[next++],key=guiRangeKey(range);
+      while(!cancelled&&next<scorable.length){
+        const range=scorable[next++],key=guiRangeKey(range);
         if(scores.get(key)==null){
           try{
             const frames=guiReviewFrames(range,total),wanted=()=>!cancelled;
@@ -85,8 +85,9 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     };
     void Promise.all([worker(),worker()]).then(()=>publish(true));
     return()=>{cancelled=true;};
-  },[backend,videoKey,mode,order,rangeKey]);
-  const sorted=mode==='aim'&&order==='motion'&&ranking.key===rangeKey&&ranking.done?rankGuiRanges(ranges,ranking.scores):ranges;
+  },[backend,videoKey,mode,order,scoreKey]);
+  // Order from every score known so far; unscored (new or growing) ranges wait at the end in video order.
+  const sorted=mode==='aim'&&order==='motion'&&ranking.video===videoKey?rankGuiRanges(ranges,ranking.scores):ranges;
   return <section className="misc-gui-tool" aria-label="GUI interactions">
     <div className="misc-panel misc-gui-controls">
     <div className="misc-compare-toolbar">
@@ -107,7 +108,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
         {(['blink','before','after'] as const).map(value=><button key={value} aria-pressed={display===value} onClick={()=>setDisplay(value)}>{value==='blink'?'Blink':value==='before'?'Before':'After'}</button>)}
       </div>
       <label>Order <select value={order} onChange={e=>setOrder(e.target.value as typeof order)} title="Average RGB change in small before/after previews. Lighting and animation also contribute; this is not an aim detector."><option value="motion">Most movement first</option><option value="time">Video order</option></select></label>
-      <span className="dim">Click an image to inspect{order==='motion'&&ranking.key===rangeKey&&!ranking.done?` · Ranking ${ranking.processed}/${ranges.length}`:''}</span>
+      <span className="dim">Click an image to inspect{order==='motion'&&ranking.key===scoreKey&&!ranking.done?` · Ranking ${ranking.processed}/${scorable.length}`:''}</span>
     </div>}
     {(error||status?.error)&&<p role="alert">{error||status?.error}</p>}
     {!backend.guiScanStart&&<p className="dim">Video scanning is available in the desktop app.</p>}
