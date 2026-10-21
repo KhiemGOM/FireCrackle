@@ -649,3 +649,64 @@ fn a_file_ffmpeg_cannot_read_is_an_ffmpeg_error_not_a_panic() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn av1_thumbnails_only_include_planned_keyframes_even_when_decoder_emits_inter_frames() {
+    if !have_tools() {
+        return;
+    }
+    let encoders = Command::new("ffmpeg")
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .unwrap();
+    if !String::from_utf8_lossy(&encoders.stdout).contains("libaom-av1") {
+        return;
+    }
+    let dir = scratch("av1_keyframes");
+    let video = dir.join("av1.mkv");
+    let result = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=128x72:rate=30",
+            "-frames:v",
+            "90",
+            "-an",
+            "-c:v",
+            "libaom-av1",
+            "-cpu-used",
+            "8",
+            "-threads",
+            "2",
+            "-g",
+            "30",
+            "-crf",
+            "45",
+        ])
+        .arg(&video)
+        .status()
+        .unwrap();
+    assert!(result.success());
+    let (_, idx) = probe(&Tools::default(), &video, &IndexConfig::default()).unwrap();
+    assert!(keyframes(&idx).len() > 1);
+    // Cover both direct keyframe selection and thinning AFTER keyframe selection.
+    for cap in [600, 2] {
+        let cfg = TimelineConfig {
+            thumb_max_count: cap,
+            ..TimelineConfig::default()
+        };
+        let plan = ThumbPlan::new(&idx, &cfg);
+        let thumbs = gen(&video, &idx, &cfg).unwrap();
+        assert_eq!(
+            thumbs.iter().map(|t| t.frame).collect::<Vec<_>>(),
+            plan.frames
+        );
+        assert!(thumbs.len() <= cap as usize);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -319,7 +319,9 @@ pub fn generate(
     if index.frames.is_empty() {
         return Err(ThumbError::NoPictures);
     }
-    let mut filter = String::new();
+    // skip_frame is only a decoder hint: libdav1d can still emit inter frames.
+    // Explicitly filter keyframes BEFORE counting them for stride selection.
+    let mut filter = String::from("select=key,");
     if plan.stride > 1 {
         filter.push_str(&format!("select=not(mod(n\\,{})),", plan.stride));
     }
@@ -345,7 +347,14 @@ pub fn generate(
     .arg("-");
     let (status, bytes, stderr) = run(cmd, &tools.ffmpeg, cancel)?;
     if !status.success() {
-        let tail: Vec<&str> = stderr.lines().rev().take(3).collect();
+        // showinfo is timing evidence, not an error. Its per-picture chatter
+        // must not hide the decoder's actual failure or termination message.
+        let tail: Vec<&str> = stderr
+            .lines()
+            .filter(|line| !line.contains("showinfo") && !line.trim().is_empty())
+            .rev()
+            .take(8)
+            .collect();
         return Err(ThumbError::FfmpegFailed(format!(
             "{status}: {}",
             tail.into_iter().rev().collect::<Vec<_>>().join(" | ")
@@ -371,6 +380,13 @@ pub fn generate(
         .map(|t| base + t)
         .collect();
     let frames = assign(index, &absolute, align_tolerance)?;
+    if frames != plan.frames {
+        return Err(ThumbError::BadStream(format!(
+            "thumbnail keyframes differ from the index: expected {} pictures, got {}",
+            plan.frames.len(),
+            frames.len()
+        )));
+    }
     Ok(frames
         .into_iter()
         .zip(split.frames)
