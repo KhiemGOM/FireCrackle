@@ -29,10 +29,24 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             && i16::from(p[2]) - i16::from(p[1]) >= 4
     };
     let mut lines = Vec::new();
+    // The rim predicate for a whole row at once: a straight pass the compiler
+    // can vectorise, instead of a bounds-checked closure call per pixel. Same
+    // comparisons as `rim`; the run scan below reads the row's flags.
+    let mut rim_row = vec![0u8; w];
     for y in 0..h {
+        for (flag, p) in rim_row.iter_mut().zip(rgb[y * w * 3..(y + 1) * w * 3].chunks_exact(3)) {
+            *flag = u8::from(
+                p[1] <= 35
+                    && p[2] >= 35
+                    && p[2] <= 150
+                    && i16::from(p[2]) - i16::from(p[0]) >= 12
+                    && i16::from(p[2]) - i16::from(p[1]) >= 24
+                    && i16::from(p[0]) - i16::from(p[1]) >= 5,
+            );
+        }
         let mut x = 0;
         while x < w {
-            if !rim(x, y) {
+            if rim_row[x] == 0 {
                 x += 1;
                 continue;
             }
@@ -40,7 +54,7 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             let mut last = x;
             let mut good = 0;
             while x < w && x <= last + 2 {
-                if rim(x, y) {
+                if rim_row[x] != 0 {
                     last = x;
                     good += 1;
                 }

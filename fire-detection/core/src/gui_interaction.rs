@@ -9,6 +9,7 @@ use std::path::Path;
 
 #[path = "gui_interaction_fast.rs"]
 mod fast;
+pub use fast::SCALE_PRUNE;
 pub use fast::InteractionDetector;
 
 #[derive(Clone, Debug)]

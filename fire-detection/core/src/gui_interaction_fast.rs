@@ -209,9 +209,21 @@ impl InteractionDetector {
         Ok(())
     }
     pub fn detect(&self, rgb: &[u8], width: usize, height: usize) -> Result<Detection, String> {
+        self.detect_with_scale(rgb, width, height, None)
+    }
+    /// `hud_scale`: the frame's reliable HUD scale; used to restrict the pose
+    /// search only while the `SCALE_PRUNE` experiment switch is on.
+    pub fn detect_with_scale(
+        &self,
+        rgb: &[u8],
+        width: usize,
+        height: usize,
+        hud_scale: Option<f64>,
+    ) -> Result<Detection, String> {
         if width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(rgb.len()) {
             return Err("invalid interaction RGB dimensions".into());
         }
+        let near_scale = hud_scale.filter(|_| SCALE_PRUNE.load(Ordering::Relaxed));
         self.prepare(width, height)?;
         let plan = self.plan(width, height);
         let timer = crate::profile::start(16);
@@ -226,7 +238,7 @@ impl InteractionDetector {
                 .iter()
                 .enumerate()
                 .find_map(|(i, t)| {
-                    find(rgb, &plan, t, &plan.poses[i], mask.as_deref()).map(|hit| {
+                    find(rgb, &plan, t, &plan.poses[i], mask.as_deref(), near_scale).map(|hit| {
                         first.store(i, Ordering::Relaxed);
                         (i, hit)
                     })
@@ -246,7 +258,7 @@ impl InteractionDetector {
                                     break;
                                 }
                                 if let Some(hit) =
-                                    find(rgb, plan, &self.templates[i], &plan.poses[i], mask)
+                                    find(rgb, plan, &self.templates[i], &plan.poses[i], mask, near_scale)
                                 {
                                     first.fetch_min(i, Ordering::Relaxed);
                                     return Some((i, hit));
@@ -374,6 +386,21 @@ fn evidence(
     let (mut good, mut visible, mut groups) = (0usize, 0usize, [[0usize; 2]; 4]);
     for (i, p) in points.iter().enumerate() {
         let at = cached.map_or_else(|| offset(p, pose, plan.width, plan.height), |v| v[i]);
+        // Probe addresses are scattered over an 11 MB frame; fetch a few ahead so
+        // the loop is not one cache miss per probe (exact: a hint only).
+        #[cfg(target_arch = "x86_64")]
+        if let Some(v) = cached {
+            if let Some(&next) = v.get(i + PREFETCH_DISTANCE) {
+                if next != u32::MAX && (next as usize) < rgb.len() {
+                    // SAFETY: prefetch has no architectural effect; the address is in bounds.
+                    unsafe {
+                        std::arch::x86_64::_mm_prefetch::<{ std::arch::x86_64::_MM_HINT_T0 }>(
+                            rgb.as_ptr().add(next as usize) as *const i8,
+                        )
+                    };
+                }
+            }
+        }
         if at == u32::MAX {
             return Evidence {
                 value: Some(0.),
@@ -430,15 +457,33 @@ fn evidence(
     }
 }
 
+const PREFETCH_DISTANCE: usize = 6;
+
+/// Perf-lab experiment switch: when set, `find` only visits poses whose
+/// horizontal scale is within `SCALE_PRUNE_TOLERANCE` of the HUD fit scale.
+/// Vanilla draws every screen with the window's single GUI scale factor, so a
+/// panel at another scale than the hotbar does not occur in unmodified footage.
+pub static SCALE_PRUNE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub const SCALE_PRUNE_TOLERANCE: f64 = 0.26;
+
 fn find(
     rgb: &[u8],
     plan: &Plan,
     t: &PreparedTemplate,
     poses: &[Pose],
     mask: Option<&[u8]>,
+    near_scale: Option<f64>,
 ) -> Option<PanelMatch> {
     let source = &t.source;
+    let mut visited = 0u64;
+    let result = (|| {
     for pose in poses {
+        if let Some(scale) = near_scale {
+            if (pose.sx - scale).abs() > SCALE_PRUNE_TOLERANCE {
+                continue;
+            }
+        }
+        visited += 1;
         let border = evidence(
             rgb,
             plan,
@@ -525,6 +570,10 @@ fn find(
         });
     }
     None
+    })();
+    crate::profile::count(0, visited);
+    crate::profile::count(2, poses.len() as u64);
+    result
 }
 
 #[cfg(test)]
