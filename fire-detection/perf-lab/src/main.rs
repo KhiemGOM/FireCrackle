@@ -408,6 +408,25 @@ fn pass(
             ENGINE.with(|e| e.set(engine.into_inner().ok()));
             result?;
         }
+        "gui" => {
+            // The app's GUI-interaction scan: the shared process-wide detector,
+            // the same instance the first-person and no-fire scans use.
+            let detector = studio_core::gui::interaction_detector()?;
+            detector.prepare(w, h)?;
+            parallel_frames_indexed_with_state(
+                pipe,
+                frame_bytes,
+                frames,
+                setup.workers,
+                cancel,
+                state,
+                |(_, buffer), _, frame| {
+                    let rgb = as_rgb(yuv, frame, buffer, w, h);
+                    Ok(detector.detect(rgb, w, h)?.gui_detected.then_some(0))
+                },
+                push,
+            )?;
+        }
         other => return Err(format!("unknown tool {other}")),
     }
     let status = child.wait().map_err(|e| e.to_string())?;
@@ -465,10 +484,42 @@ fn bench(args: &Args) -> Result<(), String> {
     let repeat: u32 = args.num("repeat", 1)?;
     let cancel = AtomicBool::new(false);
     let mut reference: Option<Vec<(u32, Option<u8>)>> = None;
+    // `with=gui|pov|nofire`: run a second scan of the same video concurrently in
+    // this process, at its own native size and pipe, as the app does when two
+    // scans run at once.
+    let companion = match args.get("with") {
+        Some(tool) => {
+            let mut map = args.0.clone();
+            map.insert("tool".into(), tool.into());
+            map.remove("out");
+            if tool != "nofire" {
+                map.remove("scale");
+            }
+            if let Some(pixfmt) = args.get("with_pixfmt") {
+                map.insert("pixfmt".into(), pixfmt.into());
+            }
+            Some(Setup::new(&Args(map))?)
+        }
+        None => None,
+    };
     for repeat in 0..repeat {
         GUI_FRAMES.store(0, std::sync::atomic::Ordering::Relaxed);
         fire_core::profile::reset();
-        let (seconds, rows) = pass(&setup, start, 1, frames, &cancel)?;
+        let (seconds, rows) = match &companion {
+            None => pass(&setup, start, 1, frames, &cancel)?,
+            Some(other) => std::thread::scope(|scope| -> Result<_, String> {
+                let second = scope.spawn(|| pass(other, start, 1, frames, &cancel));
+                let first = pass(&setup, start, 1, frames, &cancel);
+                let second = second.join().map_err(|_| "companion scan panicked")??;
+                println!(
+                    "{}",
+                    serde_json::json!({"companion": other.tool, "scan": [other.scan_size().0, other.scan_size().1],
+                        "pixfmt": other.pixfmt, "seconds": second.0, "fps": frames as f64 / second.0,
+                        "accepted": second.1.iter().filter(|r| r.1.is_some()).count()})
+                );
+                first
+            })?,
+        };
         let cycles: std::collections::HashMap<_, _> =
             fire_core::profile::cycles().into_iter().map(|(s, _, g)| (s, g)).collect();
         let profile: Vec<_> = fire_core::profile::snapshot()
