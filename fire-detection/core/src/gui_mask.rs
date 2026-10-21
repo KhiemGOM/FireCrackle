@@ -728,6 +728,9 @@ pub struct GuiFit {
 
 /// Last checked geometry for one ordered stream/worker. Never stores a mask,
 /// selected slot, item contents or panel decision. Do not share between workers.
+/// Perf-lab experiment switches, see `detect_prepared`'s hint check.
+pub static HINT_ROLLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static HINT_MIRROR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[derive(Debug, Default)]
 pub struct GuiFitHint {
     previous: Option<(usize, usize, GuiFit, f64, f64)>,
@@ -1894,11 +1897,13 @@ fn detect_prepared(
     let checked_hint = hint.as_ref().and_then(|hint| hint.at_size(w, h)).and_then(
         |(fit, reference_centre, reference_edges)| {
             if !fit.scale.is_finite() || fit.scale < opts.min_scale || fit.scale > max_scale {
+                crate::profile::count(22, 1);
                 return None;
             }
             let x = fit.origin_x + (fit.scaled_width as i32 / 2 - 91) as f64 * fit.scale;
             let y = fit.origin_y + (fit.scaled_height as i32 - 22) as f64 * fit.scale;
             if fit.origin_x != 0. || fit.origin_y != 0. {
+                crate::profile::count(22, 1);
                 return None;
             }
             let (fit, centre, edges, x, y, slot) = flat_t
@@ -1916,7 +1921,39 @@ fn detect_prepared(
                     (edges >= reference_edges - TIE && reference_edges > 0.)
                         .then_some((fit, centre, edges, x, y, slot))
                 })
-                .max_by(|a, b| a.1.total_cmp(&b.1))?;
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+                .or_else(|| {
+                    crate::profile::count(23, 1);
+                    None
+                })?;
+            if HINT_MIRROR.load(std::sync::atomic::Ordering::Relaxed) {
+                // Perf-lab: decide among the exact-scale candidates with the same
+                // rule, order and tie-breaks the full fit applies to its own
+                // candidate list (edge-sensitive score with TIE, then misfit),
+                // and keep the hint only when that rule picks the hinted scale.
+                let mut exact: Option<(f64, f64, f64)> = None; // score, misfit, s
+                let mut cands: Vec<f64> = Vec::new();
+                for dim in [w as f64, h as f64] {
+                    let lo = (dim / (fit.scale * 1.01)).floor().max(1.) as u32;
+                    let hi = (dim / (fit.scale * 0.99)).ceil() as u32;
+                    cands.extend((lo..=hi).map(|n| dim / n as f64));
+                }
+                for se in cands {
+                    let (cx, cy, _) = anchor(se);
+                    let Some(v) = score(&lum, w, h, &all_t[slot], cx - se, cy - se, se, 1) else {
+                        continue;
+                    };
+                    let misfit = misfit_of(se);
+                    if exact.is_none_or(|e| v > e.0 + TIE || (v >= e.0 - TIE && misfit < e.1)) {
+                        exact = Some((v, misfit, se));
+                    }
+                }
+                if exact.is_none_or(|e| e.2 != fit.scale) {
+                    crate::profile::count(25, 1);
+                    return None;
+                }
+                return Some((fit, centre, edges, x, y));
+            }
             // The same exact-scale candidates and tie preference as full fitting.
             // A high score alone can hide a slightly wrong cached scale.
             for dim in [w as f64, h as f64] {
@@ -1930,6 +1967,7 @@ fn detect_prepared(
                     let (cx, cy, _) = anchor(se);
                     let c = best_slot(flat_t, cx, cy, se, 1)?;
                     if c > centre + 3e-3 {
+                        crate::profile::count(24, 1);
                         return None;
                     }
                     let v = score(&lum, w, h, &all_t[slot], cx - se, cy - se, se, 1)?;
@@ -1937,6 +1975,7 @@ fn detect_prepared(
                         && (v > edges + TIE
                             || (v >= edges - TIE && misfit_of(se) < misfit_of(fit.scale)))
                     {
+                        crate::profile::count(if v > edges + TIE { 25 } else { 26 }, 1);
                         return None;
                     }
                 }
@@ -1945,11 +1984,19 @@ fn detect_prepared(
         },
     );
     let best = if let Some((fit, centre, edges, x, y)) = checked_hint {
+        crate::profile::count(1, 1);
         if let Some(hint) = hint.as_deref_mut() {
             hint.reused = true;
+            // Perf-lab switch: compare the next frame against this frame's
+            // scores rather than against the last full fit's, so a slowly
+            // changing scene keeps its verified geometry.
+            if HINT_ROLLING.load(std::sync::atomic::Ordering::Relaxed) {
+                hint.previous = Some((w, h, fit, centre, edges));
+            }
         }
         Some((centre, edges, fit.scale, x, y))
     } else {
+        crate::profile::count(21, 1);
         // coarse: 0.5% steps of scale, every 3rd template point
         let mut coarse: Vec<(f64, f64)> = Vec::new();
         if let Some(plan) = coarse_plan {
@@ -2108,6 +2155,9 @@ fn detect_prepared(
     mask.fit = Some(fit);
     if let Some(hint) = hint {
         if !hint.reused {
+            if let Some((_, _, previous, _, _)) = hint.previous {
+                crate::profile::count(if previous == fit { 27 } else { 28 }, 1);
+            }
             hint.previous = Some((w, h, fit, hot_score, hot_edges));
         }
     }

@@ -77,18 +77,21 @@ pub fn record(stage: usize, ms: f64, cycles: u64) {
     CYCLES[stage].fetch_add(cycles, Relaxed);
     CALLS[stage].fetch_add(1, Relaxed);
 }
-pub const COUNTERS: [&str; 21] = [
+pub const COUNTERS: [&str; 29] = [
     "panel.poses_visited",
-    "unused",
+    "gui.hint_reused",
     "panel.poses_planned",
     "nf.reject_view00", "nf.reject_view01", "nf.reject_view02", "nf.reject_view03", "nf.reject_view04",
     "nf.reject_view05", "nf.reject_view06", "nf.reject_view07", "nf.reject_view08", "nf.reject_view09",
     "nf.reject_view10", "nf.reject_view11", "nf.reject_view12", "nf.reject_view13", "nf.reject_view14",
     "nf.reject_view15", "nf.reject_view16", "nf.reject_view17",
+    "gui.hint_missed",
+    "hint.reject_scale_or_origin", "hint.reject_slot_scores", "hint.reject_alt_centre_better",
+    "hint.reject_alt_edges_better", "hint.reject_alt_misfit", "hint.refit_same_geometry", "hint.refit_different_geometry",
 ];
 /// First counter of the per-view no-fire rejection histogram (views 0–8 raw, 9–17 unveiled).
 pub const NF_REJECT_BASE: usize = 3;
-static COUNTS: [AtomicU64; 21] = [const { AtomicU64::new(0) }; 21];
+static COUNTS: [AtomicU64; 29] = [const { AtomicU64::new(0) }; 29];
 /// Add to a plain event counter (an index into [`COUNTERS`]).
 pub fn count(counter: usize, by: u64) {
     COUNTS[counter].fetch_add(by, Relaxed);

@@ -460,6 +460,8 @@ fn bench(args: &Args) -> Result<(), String> {
         no_fire_cnn::set_view_order(pairs)?;
     }
     fire_core::gui_interaction::SCALE_PRUNE.store(scale_prune, std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_ROLLING.store(args.get("hint_rolling") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") == Some("1"), std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 600)?;
     let repeat: u32 = args.num("repeat", 1)?;
@@ -491,6 +493,7 @@ fn bench(args: &Args) -> Result<(), String> {
                 "ffmpeg": setup.ffmpeg.display().to_string(), "resize_in_decoder": setup.resize_in_decoder,
                 "checksum": setup.checksum, "provider": setup.provider, "batch": setup.batch,
                 "pixfmt": setup.pixfmt, "scale_prune": scale_prune, "sessions": setup.sessions,
+                "hint_rolling": args.get("hint_rolling") == Some("1"), "hint_mirror": args.get("hint_mirror") == Some("1"),
                 "cpu_sessions": setup.cpu_sessions, "input_u8": setup.input_u8, "view_order": args.get("view_order"),
                 "model": args.get("model"),
                 "native": [setup.w, setup.h], "scan": [w, h], "workers": setup.workers,
@@ -540,6 +543,8 @@ fn micro(args: &Args) -> Result<(), String> {
     use std::io::Read;
     let setup = Setup::new(args)?;
     fire_core::gui_interaction::SCALE_PRUNE.store(args.get("scale_prune") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_ROLLING.store(args.get("hint_rolling") == Some("1"), std::sync::atomic::Ordering::Relaxed);
+    fire_core::gui_mask::HINT_MIRROR.store(args.get("hint_mirror") == Some("1"), std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 24)?;
     let repeat: u32 = args.num("repeat", 3)?;

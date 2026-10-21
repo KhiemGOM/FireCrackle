@@ -392,6 +392,74 @@ Ground truth with pose pruning on (`results/prune-check/pov-report.json`): `late
 accepted-and-correct, 0/309 FP, 0 wrong rows; `early` 5/5, 0/1,875 FP — identical to the
 pruning-off and production numbers.
 
+### E20. All common resolutions (`results/res1080`, `results/resall`)
+
+Owner: the 1440p file was the wall-clock target, not the only resolution that matters.
+Test material: the 1080p H.264 recordings (`later` = fire-rich, 580 accepts and the GUI
+path on 1,246 of 1,800 frames; V03 = mixed) and three 31 s H.264 clips transcoded from the
+fire-rich 1440p segment at 1280×720, 2560×1440 and 3840×2160 (`.board/scan-perf-lab/clips`,
+libx264 crf 18, bt709 tags). "App" = the app's exact decoder command on current main code;
+"lab" = NVDEC (`h264_cuvid`) + yuv420p pipe + all lab changes. App load present throughout.
+
+| Clip | first-person app → lab | no-fire (→1080p) app → lab | first-person decisions |
+|---|---:|---:|---|
+| 720p | 89.8 → 98.8 | 52.2 → 173.0 | 347 / 347, 0 diffs |
+| 1080p `later` | 96.4 → 127.7 | 104.3 → 189.4 (V03: 104.8 → 179.6) | 580 / 580, 0 diffs |
+| 1080p V03 | 88.5 → 242.9 | 104.8 → 179.6 | 110 / 110, 0 diffs |
+| 1440p H.264 | 99.1 → 126.4 | 35.3 → 148.0 | 347 / 347, 0 diffs |
+| 2160p | 37.7 → 63.1 | 32.1 → 147.2 | 347 / 347, 0 diffs |
+
+Software H.264 (uncapped, dav1d-style "fast") + yuv pipe at 1080p: first-person 228 fps
+(V03), no-fire 173 fps — NVDEC is not required at 1080p.
+
+Findings: (1) no-fire clears the target everywhere; its decisions at scaled resolutions
+differ from the app's would-be path by 20–36 of 1,800 because the yuv-domain `scale` +
+exact conversion is a different resampler from swscale's fused scale-to-RGB (E21 measures
+the app-identical rgb24 pipe instead). (2) First-person at **720p barely improves** and at
+**4K only just clears 60** — the per-pixel passes (veil margins, tooltip scan, GUI
+templates) scale with pixel count, and at 720p something else dominates; E21 profiles both.
+
+### E21. Scaled no-fire parity, and why 720p / 4K first-person lag
+
+No-fire at non-1080p resolutions with an **rgb24 pipe** (FFmpeg's fused `scale` → rgb24,
+exactly the app's would-be path; only the decoder differs): 720p 148.7 fps, 1440p 159.5,
+2160p 138.7 — **0 decision differences** against the app path at all three. So: yuv420p pipe
++ exact conversion when no scaling is needed; rgb24 pipe when FFmpeg scales.
+
+Single-thread first-person profiles (`results/micro/pov720.json`, `pov2160.json`):
+
+- **720p: 189 Mcyc per frame, of which `gui.hotbar_fit` 123 Mcyc per GUI frame** — the
+  geometry hint is not being reused at this resolution, so the coarse hotbar search (~470
+  scales × 9 slots) runs on almost every GUI frame. At 1440p/4K the same stage is 6–8 Mcyc.
+- 4K: 117 Mcyc per frame; per-pixel passes dominate (veil margins 36, tooltips 22, pieces
+  24, text 12) — 4× the pixels of 1080p — and the scan measured 63 fps.
+
+### E22. The hotbar hint at small GUI scales (`results/hint2`, `results/micro/mirror720-*.json`)
+
+Counters on every hint-rejection reason showed the 720p problem: on 97 GUI frames the hint
+was rejected 96 times, and the full search then found **the same geometry 77 times**. The
+dominant reason (57) was the "is a neighbouring exact scale better?" test: it compares
+*centre* scores with a 3e-3 margin, while the full fit decides its exact-scale candidates by
+the *edge-sensitive* score with TIE and misfit tie-breaks — at scale 2 the candidates
+1280/641 … 1280/639 sample almost the same pixels, so the centre test fires on noise.
+
+`HINT_MIRROR` (opt-in): the hint evaluates the same candidate list with the full fit's own
+rule and order and keeps the hint only when that rule picks the hinted scale.
+
+| First-person | mirror off | mirror on | decisions |
+|---|---:|---:|---|
+| 720p clip (synthetic): hint reused / missed | 24 / 1,448 | **1,252 / 220** | — |
+| 720p clip fps | 112.9 | **166.7** | (synthetic; speed only) |
+| 1080p `later`: reused / missed, fps | 977 / 269, 109.8 | 977 / 269, 107.8 | 0 diffs of 1,800 |
+| 1440p fire segment | — | 107.6 (heavy load) | 0 diffs of 1,800 |
+| 1080p V03 | — | 107.6 | 0 diffs of 1,800 |
+| ground truth `later` / `early` | — | 338/344, 5/5, 0 FP | unchanged |
+
+720p single-thread: 137 → 103 Mcyc per frame. The remaining 1080p misses are mostly fits
+with a non-zero origin, which the hint never covers (245 of 269 refits found the same
+geometry) — a further lever, not pursued. Machine load during this round was ≈ 15 cores
+(app + another agent's full-FFmpeg scan), so absolute fps here are well below E8–E17.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on
