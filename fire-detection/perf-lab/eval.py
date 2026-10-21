@@ -85,7 +85,7 @@ def main():
     p.add_argument('--decoder', default='app')
     p.add_argument('--stride', type=int)
     p.add_argument('--workers', type=int)
-    p.add_argument('extra', nargs='*', help='further key=value arguments for perf-lab')
+    p.add_argument('--extra', action='append', default=[], help='further key=value argument for perf-lab (repeatable)')
     args = p.parse_args()
     names = args.names.split(',') if args.names else (list(VIDEOS) if args.tool == 'pov' else ['clip2'])
     out_dir = LAB / 'results' / args.tag

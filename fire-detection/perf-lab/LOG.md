@@ -368,6 +368,30 @@ Model calls per frame 6.3 → 3.0 on the fire segment; the GPU session is no lon
 Combined with everything before: **no-fire 37 → ~150 fps, first-person 33.8 → ~130 fps**
 on the 1440p fire segment, app load present, with every decision vector unchanged.
 
+### E18. Veil A/B and first ground-truth check
+
+`perf-lab veilbench` on real 1440p frames: four-pass reference 35.0 Mcyc, single-pass
+`judge_all` **20.7 / 19.1 Mcyc**, 0 mismatching results (two segments, 24 frames each).
+
+`eval.py pov` on the two short labelled recordings with the lab build (all exact changes,
+pruning off): `later` 338/344 accepted-and-correct, 0/309 false positives, 0 wrong rows;
+`early` 5/5, 0/1,875 FP — identical to the production regression numbers in
+`docs/GUI_PRODUCTION_CHECK.md` (338/344, 5/5). Pruning on: see E19.
+
+### E19. Round 12 (`results/round12`): parity alternative, other segments, pruning accuracy
+
+| Run | fps | decisions |
+|---|---:|---|
+| first-person 1440p fire segment, **libdav1d** (full FFmpeg) + yuv420p pipe | 135.9 | 347, **0 diffs vs the app's libaom run** |
+| first-person 1440p 20 s segment, NVDEC yuv420p | 127.1 | 0 accepted (as before) |
+| first-person 1440p 7230 s segment | 164.2 | 1,234 accepted (GUI on 718 frames) |
+| no-fire 1440p 20 s segment, planned order | 254.8 | 9 clears |
+| no-fire 1440p 7230 s segment | 286.2 | 0 clears |
+
+Ground truth with pose pruning on (`results/prune-check/pov-report.json`): `later` 338/344
+accepted-and-correct, 0/309 FP, 0 wrong rows; `early` 5/5, 0/1,875 FP — identical to the
+pruning-off and production numbers.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on
