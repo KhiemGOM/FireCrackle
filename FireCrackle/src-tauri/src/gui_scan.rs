@@ -186,7 +186,9 @@ impl Job {
                 }
             }
         }
-        let scanned = |frame: Option<usize>| frame.is_none_or(|i| cache.frames.get(i).is_none_or(|f| f.is_some()));
+        let scanned = |frame: Option<usize>| {
+            frame.is_none_or(|i| cache.frames.get(i).is_none_or(|f| f.is_some()))
+        };
         for range in &mut ranges {
             let before = (range.first as usize).checked_sub(1);
             let after = range.last as usize + 1;
@@ -634,14 +636,14 @@ mod tests {
             }))
         };
         cache.frames = vec![
-            hit(false),   // 0 ┐ range 0..=1 starts at the video start
-            hit(false),   // 1 ┘
-            hit(true),    // 2   menu range, both neighbours scanned
-            Some(None),   // 3   scanned, no GUI
-            hit(false),   // 4   range 4..=4, frame 5 not scanned yet
-            None,         // 5
-            hit(false),   // 6 ┐ range 6..=7, frame 5 not scanned yet
-            hit(false),   // 7 ┘
+            hit(false), // 0 ┐ range 0..=1 starts at the video start
+            hit(false), // 1 ┘
+            hit(true),  // 2   menu range, both neighbours scanned
+            Some(None), // 3   scanned, no GUI
+            hit(false), // 4   range 4..=4, frame 5 not scanned yet
+            None,       // 5
+            hit(false), // 6 ┐ range 6..=7, frame 5 not scanned yet
+            hit(false), // 7 ┘
         ];
         let job = Job {
             project: f.project.clone(),
