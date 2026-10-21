@@ -61,13 +61,17 @@ fn candidate_prepared_inner(
     use fire_core::profile::start as stage;
     let timer = stage(10);
     let raw = fragments::mask(rgb, w, h);
+    drop(timer);
+    let timer = stage(23);
     let mut rules = !fragments::reaches(&raw, w, h, 4, 2198);
     drop(timer);
     let timer = stage(11);
     let (used, share) = detect_pixels(rgb, w, h, 3, 12, Options::default())?;
+    drop(timer);
     if !used && share >= 0.80 {
         return Ok(false);
     }
+    let timer = stage(22);
     let fixed = if used {
         Cow::Owned(unveil_rgb(rgb, w, h)?)
     } else {

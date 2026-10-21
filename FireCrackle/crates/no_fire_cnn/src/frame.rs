@@ -56,8 +56,13 @@ pub fn clear_frame_with(
             if cancel.load(Ordering::Relaxed) {
                 return Ok(false);
             }
+            let timer = fire_core::profile::start(20);
             let view = crate::resize(cropped, 1920, rect);
-            if !crate::clear_score(score(&view)?) {
+            drop(timer);
+            let timer = fire_core::profile::start(21);
+            let clear = crate::clear_score(score(&view)?);
+            drop(timer);
+            if !clear {
                 return Ok(false);
             }
         }

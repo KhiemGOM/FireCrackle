@@ -223,6 +223,65 @@ Sub-stage profile (default build, run B), per GUI frame: `gui.panel_find` 31.3 m
 pure overhead), `pov.screen_confirm` 6.9 ms, `gui.pieces` 27.4 ms, `gui.text` 15.2 ms,
 `pov.veil` 21.1 ms.
 
+### E9. Exact CPU savings in the first-person chain (`results/round4`, commit "Exact first-person CPU savings")
+
+All three keep every value bit-identical (same expressions, same order); core unit tests pass
+and the 1,800-frame decision vectors for 1080p V03 and the 1440p fire segment are unchanged.
+
+| Stage (per GUI frame, 12 workers, 1440p) | before | after |
+|---|---:|---:|
+| `pov.veil` — four passes → one pass with four counter sets | 21.1 ms | 8.4 ms |
+| `gui.pieces` — sample the patch once per place, dot product per variant | 27.4 ms | 18.3 ms |
+| `pov.opaque_broad` — lookup tables instead of per-pixel `contains` | 21.2 ms | 7.4 ms |
+| `pov.screen_masks` (contains the above) | 28.1 ms | 12.2 ms |
+
+The pieces search is ~20,000 template correlations per frame (52 heart variants × 4 offsets ×
+100 cells over four row hypotheses, 184 XP + 184 jump-bar fills, up to 6 × 1,288 boss-bar
+variants); the image side of each correlation was being resampled per variant.
+
+Panel detector counters: **104,000 poses and ~1.9 M probe reads per GUI frame**; the border
+stage rejects a pose after ~18 reads on average, which is already its early-exit floor
+(allowed mismatches + 1), so reordering probes cannot help — only visiting fewer poses can.
+
+### E10. Panel search: prefetch (exact) and HUD-scale pose pruning (`results/round5`)
+
+| First-person, 1440p fire segment, NVDEC yuv420p | fps | `gui.interactions` / frame | poses visited |
+|---|---:|---:|---:|
+| + software prefetch of upcoming probe addresses | 94.9 | 40.7 ms | 151.6 M |
+| + **pose pruning to the HUD scale** (±0.26) | **115.7 / 109.5** | 13.0 ms | 13.1 M (−91 %) |
+
+Pruning rationale: vanilla sets one scale factor per window (`Window.calculateScaleFactor`
+via `MinecraftClient.onResolutionChanged`, PLAN-GUI-MASK.md §1.1) and renders HUD and
+screens with it, so a panel cannot be drawn at a different pixel scale than the hotbar the
+same frame fits. The restriction applies only when the hotbar fit is reliable; otherwise
+the full search runs. It is not provably output-identical (a wrong hotbar fit could hide a
+panel), so it is measured: **0 decision changes** on the 1440p fire segment, the 1440p 20 s
+segment and 1080p V03 (1,800 frames each). It stays an opt-in switch (`scale_prune=1`) and
+is reported as a measured, not exact, change.
+
+### E11. Rounds 6–7: tooltip scan, predicate masks, text grid; no-fire profile and session pool
+
+Exact changes, all with 0 decision differences on the three first-person checks and the two
+no-fire checks (1440p fire segment, 1080p V03): tooltip rim predicate as a per-row pass;
+the silhouette matcher takes its exclusion as a predicate over (class, piece) instead of two
+materialised frame-sized masks (`pov.screen_masks` drops out of the top stages); the text
+scanner samples its 9×W cell grid once and pairs neighbours (`gui.text` 14 → 11 ms).
+First-person, 1440p fire segment, NVDEC yuv420p, pruning on: **107.5 / 113.1 fps**.
+
+No-fire stage profile, 1440p fire segment →1080p (`results/round7`, per frame or call):
+
+| Stage | calls | wall per call |
+|---|---:|---:|
+| `nf.cnn` (resize + inference, early exit) | 1,737 | 71.5 ms |
+| └ `nf.resize` — Pillow-exact triangle filter, i64 scalar | 11,011 | **7.7 ms** (84 s total) |
+| └ `nf.infer` — DirectML session call | 11,011 | 3.4 ms (37 s total) |
+| `nf.veil` (detect + unveil + second fragment pass) | 1,800 | 23.8 ms |
+| `nf.fragments` (orange mask + dilation + BFS) | 1,800 | 17.9 ms |
+| `nf.gui` (only on candidate frames) | 237 | 72 ms |
+
+**The CNN's cost is the CPU resize, not the GPU**: 6.3 views per frame × 7.7 ms. A pool of
+2/4/12 DirectML sessions changed nothing (91 → 87–89 fps; identical decisions) — rejected.
+
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its
 built-in resize is a different filter from swscale bicubic. Impact must be quantified on

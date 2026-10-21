@@ -182,30 +182,18 @@ impl PovMatcher {
         )?;
         drop(inner);
         let inner = crate::profile::start(18);
-        // Per-pixel masks from (class, piece): table lookups keep this a plain
-        // vectorisable pass instead of two small linear searches per pixel.
-        let mut screen_of = [0u8; 256];
-        let mut broad_of = [0u8; 256];
-        for piece in [24usize, 25, 26] {
-            screen_of[piece] = 1;
-            broad_of[piece] = 1;
-        }
-        for piece in [4usize, 5, 11] {
-            broad_of[piece] = 1;
-        }
-        let n = self.width * self.height;
-        let mut opaque = vec![0u8; n];
-        let mut broad = vec![0u8; n];
-        for (((o, b), &class), &piece) in opaque
-            .iter_mut()
-            .zip(broad.iter_mut())
-            .zip(&gui.class)
-            .zip(&gui.piece)
-        {
-            let screen = screen_of[piece as usize];
-            *o = u8::from(class == 1) | screen;
-            *b = u8::from(class == 1 || class == 2) | broad_of[piece as usize];
-        }
+        // The silhouette matcher reads the exclusions only at its sparse probe
+        // pixels, so they are predicates over (class, piece) rather than two
+        // frame-sized masks. Same rules as the former `opaque`/`broad` vectors.
+        let (class, piece) = (&gui.class, &gui.piece);
+        let opaque = |p: usize| {
+            let (c, id) = (class[p], piece[p]);
+            c == 1 || [24, 25, 26].contains(&id)
+        };
+        let broad = |p: usize| {
+            let (c, id) = (class[p], piece[p]);
+            c == 1 || c == 2 || [4, 5, 11].contains(&id) || [24, 25, 26].contains(&id)
+        };
         drop(inner);
         drop(timer);
         let viable = branches.iter().filter(|b| b.possible).count();
@@ -213,7 +201,7 @@ impl PovMatcher {
             let matcher = &self.matchers[b.fov];
             let row = b.row as usize;
             let timer = crate::profile::start(4);
-            let hard = matcher.inspect_scores(frame, Some(&opaque), b.veiled)?;
+            let hard = matcher.inspect_scores_excluding(frame, &opaque, b.veiled)?;
             drop(timer);
             let hard = evidence(hard.diagnostics.as_ref().expect("opaque diagnostics"), row);
             b.evidence = b.evidence.max(hard);
@@ -223,7 +211,7 @@ impl PovMatcher {
             }
             let timer = crate::profile::start(5);
             let soft: SilhouetteResult =
-                matcher.inspect_candidate(frame, &broad, b.veiled, b.row)?;
+                matcher.inspect_candidate_excluding(frame, &broad, b.veiled, b.row)?;
             drop(timer);
             let d = soft.diagnostics.as_ref().expect("broad diagnostics");
             let score = |r: usize| d.silhouette_z[r] + d.colour_weight * d.colour_z[r];

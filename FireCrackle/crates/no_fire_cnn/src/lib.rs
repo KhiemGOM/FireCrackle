@@ -37,29 +37,39 @@ fn coefficients(input: usize, output: usize) -> Vec<(usize, Vec<i64>)> {
         .collect()
 }
 pub fn resize(rgb: &[u8], width: usize, rect: (usize, usize, usize, usize)) -> Vec<u8> {
+    // Same separable filter, taps and 22-bit rounding as before; the sums are
+    // exact integers, so accumulating the three channels of a tap together and
+    // walking contiguous spans changes nothing but speed.
     let (left, top, w, h) = rect;
     let xs = cached_coefficients(w);
     let ys = cached_coefficients(h);
     let mut temp = vec![0u8; 224 * h * 3];
-    for y in 0..h {
-        for (x, (first, weights)) in xs.iter().enumerate() {
+    for (y, temp_row) in temp.chunks_exact_mut(224 * 3).enumerate() {
+        let row = &rgb[((top + y) * width + left) * 3..((top + y) * width + left + w) * 3];
+        for (out, (first, weights)) in temp_row.chunks_exact_mut(3).zip(xs.iter()) {
+            let span = &row[first * 3..(first + weights.len()) * 3];
+            let mut acc = [1i64 << 21; 3];
+            for (a, px) in weights.iter().zip(span.chunks_exact(3)) {
+                acc[0] += *a * px[0] as i64;
+                acc[1] += *a * px[1] as i64;
+                acc[2] += *a * px[2] as i64;
+            }
             for c in 0..3 {
-                let sum = weights.iter().enumerate().fold(1i64 << 21, |s, (k, a)| {
-                    s + *a * rgb[((top + y) * width + left + first + k) * 3 + c] as i64
-                });
-                temp[(y * 224 + x) * 3 + c] = (sum >> 22).clamp(0, 255) as u8;
+                out[c] = (acc[c] >> 22).clamp(0, 255) as u8;
             }
         }
     }
     let mut out = vec![0u8; 224 * 224 * 3];
-    for (y, (first, weights)) in ys.iter().enumerate() {
-        for x in 0..224 {
-            for c in 0..3 {
-                let sum = weights.iter().enumerate().fold(1i64 << 21, |s, (k, a)| {
-                    s + *a * temp[((first + k) * 224 + x) * 3 + c] as i64
-                });
-                out[(y * 224 + x) * 3 + c] = (sum >> 22).clamp(0, 255) as u8;
+    let mut acc = [0i64; 224 * 3];
+    for (out_row, (first, weights)) in out.chunks_exact_mut(224 * 3).zip(ys.iter()) {
+        acc.fill(1i64 << 21);
+        for (a, temp_row) in weights.iter().zip(temp[first * 224 * 3..].chunks_exact(224 * 3)) {
+            for (acc, &v) in acc.iter_mut().zip(temp_row) {
+                *acc += *a * v as i64;
             }
+        }
+        for (o, &acc) in out_row.iter_mut().zip(&acc) {
+            *o = (acc >> 22).clamp(0, 255) as u8;
         }
     }
     out

@@ -119,6 +119,8 @@ struct Setup {
     provider: Option<String>,
     /// `batch=1`: score the nine views per frame in one model run (needs the batched model).
     batch: bool,
+    /// `sessions=K`: number of model sessions shared by the workers (default 1, as in the app).
+    sessions: usize,
     ffmpeg: PathBuf,
     runtime: PathBuf,
     model: Vec<u8>,
@@ -172,6 +174,7 @@ impl Setup {
             pixfmt: args.get("pixfmt").unwrap_or("rgb24").to_string(),
             provider: args.get("provider").map(str::to_string),
             batch: args.get("batch") == Some("1"),
+            sessions: args.num("sessions", 1)?,
             ffmpeg,
             runtime,
             model,
@@ -332,6 +335,12 @@ fn pass(
                 }
                 engine
             })?);
+            // `sessions=K`: K-1 additional DirectML sessions so views from different
+            // workers can be in flight at once instead of queueing on one lock.
+            let extra: Vec<Mutex<Engine>> = (1..setup.sessions)
+                .map(|_| Engine::load_provider(&setup.runtime, &setup.model, setup.provider.as_deref().unwrap_or("dml"), 2).map(Mutex::new))
+                .collect::<Result<_, _>>()?;
+            let pool: Vec<&Mutex<Engine>> = std::iter::once(&engine).chain(extra.iter()).collect();
             // Provider selection is a one-time cost the app also pays once per process.
             started = Instant::now();
             let batched = setup.batch;
@@ -348,6 +357,15 @@ fn pass(
                         if batched {
                             no_fire_cnn::clear_frame_batched(raw, auto, cancel, |views, count| {
                                 engine.lock().map_err(|_| "AI state unavailable")?.score_batch(views, count)
+                            })
+                        } else if pool.len() > 1 {
+                            no_fire_cnn::clear_frame_with(raw, auto, cancel, |view| {
+                                for session in &pool {
+                                    if let Ok(mut session) = session.try_lock() {
+                                        return session.score_view(view);
+                                    }
+                                }
+                                pool[0].lock().map_err(|_| "AI state unavailable")?.score_view(view)
                             })
                         } else {
                             Engine::clear_frame_shared(&engine, &setup.runtime, &setup.model, raw, auto, cancel)
@@ -396,6 +414,9 @@ fn write_rows(path: &str, tool: &str, rows: &[(u32, Option<u8>)], stride: u32) -
 
 fn bench(args: &Args) -> Result<(), String> {
     let setup = Setup::new(args)?;
+    // Experiment switches that live inside fire_core.
+    let scale_prune = args.get("scale_prune") == Some("1");
+    fire_core::gui_interaction::SCALE_PRUNE.store(scale_prune, std::sync::atomic::Ordering::Relaxed);
     let start: f64 = args.num("start", 0.0)?;
     let frames: u32 = args.num("frames", 600)?;
     let repeat: u32 = args.num("repeat", 1)?;
@@ -405,9 +426,15 @@ fn bench(args: &Args) -> Result<(), String> {
         GUI_FRAMES.store(0, std::sync::atomic::Ordering::Relaxed);
         fire_core::profile::reset();
         let (seconds, rows) = pass(&setup, start, 1, frames, &cancel)?;
+        let cycles: std::collections::HashMap<_, _> =
+            fire_core::profile::cycles().into_iter().map(|(s, _, g)| (s, g)).collect();
         let profile: Vec<_> = fire_core::profile::snapshot()
             .into_iter()
-            .map(|(stage, calls, ms)| serde_json::json!({"stage": stage, "calls": calls, "ms": ms, "ms_per_call": ms / calls as f64}))
+            .map(|(stage, calls, ms)| {
+                let gcycles = cycles.get(stage).copied().unwrap_or(0.0);
+                serde_json::json!({"stage": stage, "calls": calls, "ms": ms, "ms_per_call": ms / calls as f64,
+                    "gcycles": gcycles, "mcycles_per_call": gcycles * 1e3 / calls as f64})
+            })
             .collect();
         let parity = reference.as_ref().map(|r| r == &rows);
         if reference.is_none() {
@@ -420,7 +447,7 @@ fn bench(args: &Args) -> Result<(), String> {
                 "tool": setup.tool, "decoder": setup.decoder, "video": setup.video,
                 "ffmpeg": setup.ffmpeg.display().to_string(), "resize_in_decoder": setup.resize_in_decoder,
                 "checksum": setup.checksum, "provider": setup.provider, "batch": setup.batch,
-                "pixfmt": setup.pixfmt,
+                "pixfmt": setup.pixfmt, "scale_prune": scale_prune, "sessions": setup.sessions,
                 "model": args.get("model"),
                 "native": [setup.w, setup.h], "scan": [w, h], "workers": setup.workers,
                 "start": start, "frames": frames, "repeat": repeat,
@@ -429,6 +456,7 @@ fn bench(args: &Args) -> Result<(), String> {
                 "gui_frames": GUI_FRAMES.load(std::sync::atomic::Ordering::Relaxed),
                 "parity_with_first": parity,
                 "profile": profile,
+                "counters": fire_core::profile::counters().into_iter().collect::<std::collections::BTreeMap<_, _>>(),
             })
         );
         if let Some(out) = args.get("out") {

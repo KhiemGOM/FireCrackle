@@ -579,7 +579,7 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h {
             return Err("exclusion mask dimensions do not match frame".into());
         }
-        self.match_sampled::<true, false, false>(frame, veiled, Some(excluded), None)
+        self.match_sampled::<true, false, false>(frame, veiled, Some(&|p| excluded[p] != 0), None)
     }
 
     /// Same canonical arithmetic, with per-row components for offline stage ablations.
@@ -594,7 +594,7 @@ impl SilhouetteMatcher {
                 if mask.len() != self.w * self.h {
                     return Err("exclusion mask dimensions do not match frame".into());
                 }
-                self.match_sampled::<true, true, true>(frame, veiled, Some(mask), None)
+                self.match_sampled::<true, true, true>(frame, veiled, Some(&|p| mask[p] != 0), None)
             }
             None => self.match_sampled::<false, true, true>(frame, veiled, None, None),
         }
@@ -611,9 +611,21 @@ impl SilhouetteMatcher {
             return Err("exclusion mask dimensions do not match frame".into());
         }
         match excluded {
-            Some(mask) => self.match_sampled::<true, true, false>(frame, veiled, Some(mask), None),
+            Some(mask) => self.match_sampled::<true, true, false>(frame, veiled, Some(&|p| mask[p] != 0), None),
             None => self.match_sampled::<false, true, false>(frame, veiled, None, None),
         }
+    }
+
+    /// `inspect_scores` with the exclusion given as a predicate over pixel
+    /// indices instead of a materialised mask: the matcher only ever reads it
+    /// at its sparse probe pixels, so callers need not build a frame-sized mask.
+    pub fn inspect_scores_excluding(
+        &self,
+        frame: &[u8],
+        excluded: &dyn Fn(usize) -> bool,
+        veiled: bool,
+    ) -> Result<SilhouetteResult, String> {
+        self.match_sampled::<true, true, false>(frame, veiled, Some(excluded), None)
     }
 
     /// Identical masked scores; spatial evidence is needed only for the already
@@ -628,6 +640,20 @@ impl SilhouetteMatcher {
         if excluded.len() != self.w * self.h || row >= 32 {
             return Err("invalid exclusion dimensions or candidate row".into());
         }
+        self.match_sampled::<true, true, true>(frame, veiled, Some(&|p| excluded[p] != 0), Some(row))
+    }
+
+    /// `inspect_candidate` with a predicate exclusion (see `inspect_scores_excluding`).
+    pub fn inspect_candidate_excluding(
+        &self,
+        frame: &[u8],
+        excluded: &dyn Fn(usize) -> bool,
+        veiled: bool,
+        row: u8,
+    ) -> Result<SilhouetteResult, String> {
+        if row >= 32 {
+            return Err("invalid candidate row".into());
+        }
         self.match_sampled::<true, true, true>(frame, veiled, Some(excluded), Some(row))
     }
 
@@ -635,7 +661,7 @@ impl SilhouetteMatcher {
         &self,
         frame: &[u8],
         veiled: bool,
-        excluded: Option<&[u8]>,
+        excluded: Option<&dyn Fn(usize) -> bool>,
         spatial_row: Option<u8>,
     ) -> Result<SilhouetteResult, String> {
         if frame.len() != self.w * self.h * 3 {
@@ -649,10 +675,8 @@ impl SilhouetteMatcher {
         }
         // Compile the existing unmasked entry points without mask allocation or filtering.
         let active: Vec<bool> = if MASKED {
-            self.offsets
-                .iter()
-                .map(|&o| excluded.unwrap()[o / 3] == 0)
-                .collect()
+            let excluded = excluded.unwrap();
+            self.offsets.iter().map(|&o| !excluded(o / 3)).collect()
         } else {
             Vec::new()
         };

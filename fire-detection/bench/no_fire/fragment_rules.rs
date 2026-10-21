@@ -9,12 +9,65 @@ fn orange(c: &[u8]) -> bool {
     let (r, g, b) = (c[0] as f64, c[1] as f64, c[2] as f64);
     r >= 64. && g >= r * 0.23 && g <= r * 0.88 && b <= r * 0.5 && r - b >= 24.
 }
+/// Integer bounds equivalent to `orange` for every byte value: `g >= r*0.23`
+/// with integer `g` is `g >= ceil(r*0.23)` where the product is the same f64
+/// product `orange` forms, and likewise for the floors. Built once.
+struct OrangeBounds {
+    g_lo: [i32; 256],
+    g_hi: [i32; 256],
+    b_hi: [i32; 256],
+}
+fn orange_bounds() -> &'static OrangeBounds {
+    static BOUNDS: std::sync::OnceLock<OrangeBounds> = std::sync::OnceLock::new();
+    BOUNDS.get_or_init(|| {
+        let mut bounds = OrangeBounds {
+            g_lo: [0; 256],
+            g_hi: [0; 256],
+            b_hi: [0; 256],
+        };
+        for r in 0..256 {
+            let rf = r as f64;
+            bounds.g_lo[r] = (rf * 0.23).ceil() as i32;
+            bounds.g_hi[r] = (rf * 0.88).floor() as i32;
+            bounds.b_hi[r] = (rf * 0.5).floor() as i32;
+        }
+        bounds
+    })
+}
 pub(crate) fn mask(rgb: &[u8], w: usize, h: usize) -> Vec<u8> {
+    let bounds = orange_bounds();
     let mut m = vec![0; w * h];
-    for p in 12 * w..w * h {
-        m[p] = orange(&rgb[3 * p..3 * p + 3]) as u8;
+    let start = 12 * w;
+    for (flag, c) in m[start..].iter_mut().zip(rgb[3 * start..3 * w * h].chunks_exact(3)) {
+        let (r, g, b) = (c[0] as i32, c[1] as i32, c[2] as i32);
+        *flag = (r >= 64
+            && g >= bounds.g_lo[r as usize]
+            && g <= bounds.g_hi[r as usize]
+            && b <= bounds.b_hi[r as usize]
+            && r - b >= 24) as u8;
     }
     m
+}
+#[cfg(test)]
+mod orange_bounds_tests {
+    use super::*;
+    #[test]
+    fn integer_bounds_match_the_float_rule_for_every_colour() {
+        let bounds = orange_bounds();
+        for r in 0..256i32 {
+            for g in 0..256i32 {
+                for b in [0i32, 1, 2, 23, 24, 31, 32, 33, 63, 64, 65, 100, 127, 128, 129, 200, 255] {
+                    let c = [r as u8, g as u8, b as u8];
+                    let fast = r >= 64
+                        && g >= bounds.g_lo[r as usize]
+                        && g <= bounds.g_hi[r as usize]
+                        && b <= bounds.b_hi[r as usize]
+                        && r - b >= 24;
+                    assert_eq!(fast, orange(&c), "{c:?}");
+                }
+            }
+        }
+    }
 }
 fn hud(m: &mut [u8], w: usize, h: usize) {
     for y in 0..h {

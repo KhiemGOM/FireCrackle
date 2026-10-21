@@ -2134,11 +2134,16 @@ fn detect_prepared(
     // best of several candidates (each a placed piece variant), offsets in GUI px.
     // Variants of one piece sit at the same place and sample the same pixels; the
     // patch is sampled once per place and only the template side changes.
-    let best_of = |mut cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
-        let templates: Vec<Arc<Template>> = cands
+    let resolve = |cands: &[Placed]| -> Vec<Arc<Template>> {
+        cands
             .iter()
             .map(|c| piece_template(tex, c, shape_cache))
-            .collect();
+            .collect()
+    };
+    // `templates[i]` is candidate i's template; piece variants are the same at
+    // every cell, so loops resolve them once and pass them to every cell.
+    let best_of_with = |mut cands: Vec<Placed>, templates: &[Arc<Template>], dys: &[i32]| -> Option<(Placed, f64)> {
+        debug_assert_eq!(templates.len(), cands.len());
         let mut scores = vec![vec![None; dys.len()]; cands.len()];
         let mut sampler = PatchSampler::default();
         for (k, &dy) in dys.iter().enumerate() {
@@ -2165,6 +2170,10 @@ fn detect_prepared(
                 p.y += dy;
                 (p, v)
             })
+    };
+    let best_of = |cands: Vec<Placed>, dys: &[i32]| -> Option<(Placed, f64)> {
+        let templates = resolve(&cands);
+        best_of_with(cands, &templates, dys)
     };
     let (c, sh_) = (sw / 2, sh);
     // selected slot: 9 places
@@ -2289,16 +2298,24 @@ fn detect_prepared(
         v
     };
     let mut best_rows: (usize, i32, Vec<(Placed, f64)>) = (0, 1, Vec::new());
+    let heart_templates = resolve(&heart_variants(0, 0, 0));
+    // A cell's result depends only on its place and index; the bottom row is
+    // the same cell for every row-count hypothesis, so remember it.
+    let mut heart_cells: HashMap<(i32, i32, u8), Option<(Placed, f64)>> = HashMap::new();
     for q in 1..=4 {
         let r = (10 - (q - 2)).max(3);
         let mut found = Vec::new();
         for row in 0..q {
             for col in 0..10 {
                 let idx = (row * 10 + col) as u8;
-                if let Some(x) = best_of(
-                    heart_variants(m + col * 8, o - row * r, idx),
-                    &[-2, -1, 0, 1],
-                ) {
+                let (x, y) = (m + col * 8, o - row * r);
+                let cell = heart_cells
+                    .entry((x, y, idx))
+                    .or_insert_with(|| {
+                        best_of_with(heart_variants(x, y, idx), &heart_templates, &[-2, -1, 0, 1])
+                    })
+                    .clone();
+                if let Some(x) = cell {
                     found.push(x);
                 }
             }
@@ -2313,8 +2330,9 @@ fn detect_prepared(
     if heart_count > 0 {
         let r = (10 - (q - 2)).max(3);
         let armor_y = o - (q - 1) * r - 10;
+        let mut armor_templates = None;
         for i in 0..10 {
-            let cands = [16u32, 25, 34]
+            let cands: Vec<Placed> = [16u32, 25, 34]
                 .iter()
                 .map(|&u| {
                     place(
@@ -2328,11 +2346,13 @@ fn detect_prepared(
                     )
                 })
                 .collect();
-            if let Some(x) = best_of(cands, &[0]) {
+            let templates = armor_templates.get_or_insert_with(|| resolve(&cands));
+            if let Some(x) = best_of_with(cands, templates, &[0]) {
                 accepted.push(x);
             }
         }
         let mut food_found = 0;
+        let mut food_templates = None;
         for zx in 0..10 {
             let x = n - zx * 8 - 9;
             let mut cands = Vec::new();
@@ -2363,13 +2383,15 @@ fn detect_prepared(
                     }
                 }
             }
-            if let Some(x) = best_of(cands, &[-1, 0, 1]) {
+            let templates = food_templates.get_or_insert_with(|| resolve(&cands));
+            if let Some(x) = best_of_with(cands, templates, &[-1, 0, 1]) {
                 accepted.push(x);
                 food_found += 1;
             }
         }
         if food_found == 0 {
             // riding a living mount: its hearts replace the food row, rows of 10 upward (881-915)
+            let mut mount_templates = None;
             'rows: for row in 0..4 {
                 let mut in_row = 0;
                 for pp in 0..10 {
@@ -2398,7 +2420,8 @@ fn detect_prepared(
                             ],
                         ));
                     }
-                    if let Some(x) = best_of(cands, &[0]) {
+                    let templates = mount_templates.get_or_insert_with(|| resolve(&cands));
+                    if let Some(x) = best_of_with(cands, templates, &[0]) {
                         accepted.push(x);
                         in_row += 1;
                     }
@@ -2409,9 +2432,10 @@ fn detect_prepared(
             }
         }
         if food_found > 0 {
+            let mut air_templates = None;
             for ae in 0..10 {
                 let x = n - ae * 8 - 9;
-                let cands = [16u32, 25]
+                let cands: Vec<Placed> = [16u32, 25]
                     .iter()
                     .map(|&u| {
                         place(
@@ -2425,7 +2449,8 @@ fn detect_prepared(
                         )
                     })
                     .collect();
-                if let Some(x) = best_of(cands, &[0]) {
+                let templates = air_templates.get_or_insert_with(|| resolve(&cands));
+                if let Some(x) = best_of_with(cands, templates, &[0]) {
                     accepted.push(x);
                 }
             }
@@ -2434,10 +2459,11 @@ fn detect_prepared(
 
     // status effect backgrounds: beneficial row y = 1, harmful row y = 27, from the right edge
     let mut effect_idx = 0u8;
+    let mut effect_templates = None;
     for y in [1, 27] {
         for i in 1..=8 {
             let x = sw - 25 * i;
-            let cands = [141u32, 165]
+            let cands: Vec<Placed> = [141u32, 165]
                 .iter()
                 .map(|&u| {
                     let mut p = place(
@@ -2453,7 +2479,8 @@ fn detect_prepared(
                     p
                 })
                 .collect();
-            match best_of(cands, &[0]) {
+            let templates = effect_templates.get_or_insert_with(|| resolve(&cands));
+            match best_of_with(cands, templates, &[0]) {
                 Some(x) => {
                     accepted.push(x);
                     effect_idx += 1;
@@ -3137,12 +3164,22 @@ fn scan_text(
     unit: i32,
 ) -> Vec<TextHit> {
     let mut hits = Vec::new();
-    for gy in (y0..y0 + 8 * unit).step_by(unit as usize) {
-        for gx in (x0..x1).step_by(unit as usize) {
-            let (Some(a), Some(b)) = (
-                gui_px(frame, w, h, fit, gx, gy, unit),
-                gui_px(frame, w, h, fit, gx + unit, gy + unit, unit),
-            ) else {
+    // The shadow sample of cell (gx, gy) is the text sample of cell (gx+1, gy+1):
+    // sample the 9-row grid once and pair neighbouring cells. Same `gui_px` values.
+    let columns: Vec<i32> = (x0..x1 + unit).step_by(unit as usize).collect();
+    let rows: Vec<i32> = (y0..y0 + 9 * unit).step_by(unit as usize).collect();
+    let samples: Vec<Option<[f64; 3]>> = rows
+        .iter()
+        .flat_map(|&gy| columns.iter().map(move |&gx| (gx, gy)))
+        .map(|(gx, gy)| gui_px(frame, w, h, fit, gx, gy, unit))
+        .collect();
+    let stride = columns.len();
+    for (j, &gy) in rows.iter().enumerate().take(8) {
+        for (i, &gx) in columns.iter().enumerate() {
+            if gx >= x1 {
+                break;
+            }
+            let (Some(a), Some(b)) = (samples[j * stride + i], samples[(j + 1) * stride + i + 1]) else {
                 continue;
             };
             if is_text(a, b, o) {

@@ -278,13 +278,22 @@ pub fn unveil_in_place(
     {
         return Err("invalid veil alpha".into());
     }
+    // The restored value depends only on (row, channel, byte): tabulate the 256
+    // values of `restore_channel` per row and channel instead of evaluating it
+    // per pixel. Same expression, same rounding.
+    let mut lut = [[0u8; 256]; 3];
     for y in 0..h {
         let a = a_top + (a_bottom - a_top) * (y as f64 + 0.5) / h as f64;
         let inverse = 1.0 / (1.0 - a);
-        for x in 0..w {
-            let p = (y * w + x) * channels;
+        for k in 0..3 {
+            let bias = colour[k] as f64 * a;
+            for (v, out) in lut[k].iter_mut().enumerate() {
+                *out = restore_channel(v as u8, bias, inverse);
+            }
+        }
+        for px in data[y * w * channels..(y + 1) * w * channels].chunks_exact_mut(channels) {
             for k in 0..3 {
-                data[p + k] = restore_channel(data[p + k], colour[k] as f64 * a, inverse);
+                px[k] = lut[k][px[k] as usize];
             }
         }
     }
