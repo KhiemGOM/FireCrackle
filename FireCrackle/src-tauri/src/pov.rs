@@ -938,16 +938,9 @@ mod tests {
                     "-i",
                 ])
                 .arg(&raw)
-                .args([
-                    "-vf",
-                    "setpts=PTS+2/TB+floor(N/7)*0.02/TB",
-                    "-fps_mode",
-                    "passthrough",
-                    "-c:v",
-                    codec,
-                    "-g",
-                    "12",
-                ]);
+                .args(["-vf", "setpts=PTS+2/TB+floor(N/7)*0.02/TB"])
+                .args(studio_core::import::passthrough_args(&tools.ffmpeg))
+                .args(["-c:v", codec, "-g", "12"]);
             if codec == "libx264" {
                 command.args(["-bf", "2", "-pix_fmt", "yuv420p"]);
             }
@@ -967,17 +960,9 @@ mod tests {
             let baseline = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
                 .args(["-v", "error", "-i"])
                 .arg(&project.video_path)
-                .args([
-                    "-map",
-                    "0:v:0",
-                    "-fps_mode",
-                    "passthrough",
-                    "-pix_fmt",
-                    "rgb24",
-                    "-f",
-                    "rawvideo",
-                    "-",
-                ])
+                .args(["-map", "0:v:0"])
+                .args(studio_core::import::passthrough_args(&tools.ffmpeg))
+                .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
                 .output()
                 .unwrap();
             assert!(baseline.status.success());
@@ -1228,17 +1213,9 @@ mod tests {
         let baseline = studio_core::proc::ffmpeg_command(&tools.ffmpeg)
             .args(["-v", "error", "-i"])
             .arg(&project.video_path)
-            .args([
-                "-map",
-                "0:v:0",
-                "-fps_mode",
-                "passthrough",
-                "-pix_fmt",
-                "rgb24",
-                "-f",
-                "rawvideo",
-                "-",
-            ])
+            .args(["-map", "0:v:0"])
+            .args(studio_core::import::passthrough_args(&tools.ffmpeg))
+            .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
             .output()
             .unwrap();
         assert!(baseline.status.success());
