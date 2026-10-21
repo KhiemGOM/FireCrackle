@@ -743,6 +743,7 @@ mod folding {
                             t,
                             std::slice::from_ref(pose),
                             None,
+                            None,
                             &mut vec![false; plan.border_count],
                         )
                     })

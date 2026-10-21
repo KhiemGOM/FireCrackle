@@ -493,7 +493,19 @@ Hint mirror + rolling reference together (`results/hint3`): rolling lowered hint
   no-fire size, and an end-to-end test that decodes a libx264 fixture through the YUV feed
   and matches FFmpeg's own rgb24 output byte for byte (untagged → BT.601). All app, core and
   model-crate tests pass. `full_scan_matches_recorded_decisions` (ignored, needs env) runs
-  the real `Jobs` scan on a clip and compares every decision with the lab's old-path vectors.
+  the real `Jobs` scan on a clip and compares every decision with the lab's old-path vectors:
+  1440p H.264 clip — feed `Yuv420p(Bt709)` + `h264_cuvid`, first-person 347 accepted and
+  no-fire 269 clears, **identical**; whole 1080p `later` recording (3,263 frames) —
+  first-person 1,692 accepted at 191.5 fps and no-fire 0 clears at 246.7 fps, **identical**
+  (`results/parity`). The no-fire clip figure (71.9 fps) includes the one-time ONNX provider
+  probe that the app also pays once per process.
+- Main moved by 11 commits during the lab (another agent pinned the **full FFmpeg build with
+  libdav1d**, added per-frame border-rejection reuse and relaxed GUI presence guards); merged
+  into this branch with both sides kept. The decoder choice honours it: AV1 stays on dav1d
+  (bit-exact), NVDEC is used for H.264/HEVC/VP9. On the merged code every test passes and the
+  in-app parity test again reproduces every decision of the old path: 1440p H.264 clip 347
+  accepted (162.7 fps) / 269 clears (119.0 fps incl. provider probe); whole 1080p `later`
+  1,692 accepted (142.8 fps) / 0 clears (239.5 fps).
 
 Software decoders agree bit-for-bit, so their decision vectors are identical. NVDEC changes
 decisions: it decoded 6 of 300 inspected frames as visibly different pictures (F2), and its

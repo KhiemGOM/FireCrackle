@@ -111,7 +111,7 @@ fn lists_dav1d(decoders: &str) -> bool {
         .lines()
         .any(|line| line.split_whitespace().nth(1) == Some("libdav1d"))
 }
-fn has_dav1d(exe: &std::ffi::OsStr) -> bool {
+pub(crate) fn has_dav1d(exe: &std::ffi::OsStr) -> bool {
     command(exe)
         .args(["-hide_banner", "-decoders"])
         .output()

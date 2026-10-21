@@ -129,6 +129,24 @@ In-process decoding (libavcodec/NVDEC directly, no pipe: the yuv420p pipe tops o
 resize (each ~10–20 Mcyc per frame, all memory/ALU bound scalar code today); TensorRT (needs
 the TensorRT runtime); a smaller/lower-resolution model (would need an approved training run).
 
+## Integration (done on this branch, after the owner's go-ahead)
+
+- `fire_core::yuv` is the single yuv420p→rgb24 converter (BT.709 and BT.601, chosen from the
+  stream's `color_space` tag the way swscale chooses it; untagged streams are BT.601 at any
+  size). `no_fire_cnn::DEFAULT_VIEW_ORDER` holds the measured view order. Pose pruning and
+  the hint mirror default to on.
+- The app's three scans share `ScanFeed` (`src-tauri/src/pov.rs`): yuv420p pipe at native
+  even size with a reproducible matrix, otherwise rgb24 with FFmpeg's fused `scale`; the
+  decoder is probed once per codec — NVDEC for H.264/HEVC/VP9, software for AV1 while the
+  bundled FFmpeg has libdav1d (main now pins the full build) — with no decoder thread caps,
+  still at below-normal priority; `showinfo` timestamp validation is unchanged; workers are
+  budgeted on the pipe's bytes. The no-fire scan accepts any resolution (1080p view).
+- Verified: unit tests for every new rule plus an end-to-end YUV-feed-vs-FFmpeg byte match;
+  the real `Jobs` scan on a 1440p H.264 clip and on the whole 1080p `later` recording
+  reproduces every decision of the previous path (first-person 347 and 1,692 accepted,
+  no-fire 269 and 0 clears) — see the "Integration" entry in `LOG.md` for the numbers after
+  merging main's own changes.
+
 ## Reproduce
 
 ```bash

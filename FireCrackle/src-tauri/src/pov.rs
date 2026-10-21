@@ -519,6 +519,7 @@ impl ScanFeed {
         let matrix = colour_space(tools, &project.video_path)
             .and_then(|tag| fire_core::yuv::Matrix::for_colour_space(&tag));
         let decoder = nvdec_decoder(&project.meta.codec)
+            .filter(|_| prefer_nvdec(&project.meta.codec, crate::external_tools::has_dav1d(&tools.ffmpeg)))
             .filter(|name| nvdec_available(tools, &project.video_path, name))
             .map(str::to_string);
         Self::plan(&project.meta, target, matrix, decoder)
@@ -565,6 +566,13 @@ pub(crate) fn nvdec_decoder(codec: &str) -> Option<&'static str> {
         "vp9" => Some("vp9_cuvid"),
         _ => None,
     }
+}
+
+/// NVDEC decodes H.264/HEVC/VP9 exactly, and AV1 about as fast as libdav1d; but on
+/// one recovered AV1 recording it produced ~2 % of frames differently, while dav1d
+/// matches the reference decoder bit for bit. With dav1d bundled, AV1 stays in software.
+pub(crate) fn prefer_nvdec(codec: &str, has_dav1d: bool) -> bool {
+    !(codec == "av1" && has_dav1d)
 }
 
 /// The no-fire policy and model are 1920×1080-only; every recording is scanned
@@ -1053,6 +1061,13 @@ mod tests {
         assert_eq!(nvdec_decoder("vp9"), Some("vp9_cuvid"));
         assert_eq!(nvdec_decoder("ffv1"), None);
         assert_eq!(nvdec_decoder(""), None);
+    }
+    #[test]
+    fn av1_stays_in_software_when_dav1d_is_bundled() {
+        assert!(!prefer_nvdec("av1", true));
+        assert!(prefer_nvdec("av1", false));
+        assert!(prefer_nvdec("h264", true));
+        assert!(prefer_nvdec("hevc", true));
     }
     #[test]
     fn no_fire_scans_every_resolution_at_1080p() {
