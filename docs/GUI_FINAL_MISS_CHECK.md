@@ -3,7 +3,13 @@
 Automatic interaction-GUI presence is **258/261 (98.9%)**, with **0 false
 detections in 289 closed-GUI samples**. The same 636 segment midpoints were
 rerun. One previous miss is recovered and no previous detections are lost.
-This remains same-session development evidence, not independent accuracy.The separate full supplied-mask rerun remains **260/261 (99.6%)**, with noregressions and **0/289 closed false detections**. The tiny creative sample atframe 22380 remains missed. This uses independently logged renderer slot/mousegeometry, not an automatic video-only occlusion estimator; the same caveats in[the mask protocol](GUI_OCCLUSION_MASK_CHECK.md) apply.
+This remains same-session development evidence, not independent accuracy.
+
+The separate full supplied-mask rerun remains **260/261 (99.6%)**, with no
+regressions and **0/289 closed false detections**. The tiny creative sample at
+frame 22380 remains missed. This uses independently logged renderer slot/mouse
+geometry, not an automatic video-only occlusion estimator; the same caveats in
+[the mask protocol](GUI_OCCLUSION_MASK_CHECK.md) apply.
 
 ## What was wrong and what changed
 
@@ -65,4 +71,6 @@ validation, rather than weakening all GUI gates to clear one observed tooltip.
 - `check-v12/{report.json,predictions.jsonl,coverage.json}` records the final
   full automatic check, all decisions, source/binary hashes and coverage.
 - `window-bytecode.txt` and `fyk.class` preserve local source-rule evidence.
-- Recorded clips, textures, snapshots and scratch outputs remain private/ignored.- `mask/check_visits.py` and `mask/supplied-mask-visits.json` preserve the final  636-sample supplied-mask check, source/binary hashes and individual decisions.
+- Recorded clips, textures, snapshots and scratch outputs remain private/ignored.
+- `mask/check_visits.py` and `mask/supplied-mask-visits.json` preserve the final
+  636-sample supplied-mask check, source/binary hashes and individual decisions.
