@@ -564,19 +564,8 @@ fn io_err(e: std::io::Error) -> WorkspaceError {
     WorkspaceError::Io(e.to_string())
 }
 
-/// Write a file atomically (temp file in the same folder, then rename).
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), WorkspaceError> {
-    let mut name = path
-        .file_name()
-        .ok_or_else(|| WorkspaceError::Io("no file name".into()))?
-        .to_os_string();
-    name.push(".tmp");
-    let tmp = path.with_file_name(name);
-    let result = std::fs::write(&tmp, bytes).and_then(|_| std::fs::rename(&tmp, path));
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    result.map_err(io_err)
+    crate::fsutil::write_atomic(path, bytes).map_err(io_err)
 }
 
 impl Workspace {

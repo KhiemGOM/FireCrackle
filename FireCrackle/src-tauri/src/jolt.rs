@@ -23,9 +23,7 @@ pub fn write(video: &Path, data: &str) -> Result<(), String> {
     }
     let _: serde_json::Value = serde_json::from_str(data).map_err(|e| e.to_string())?;
     let target = path(video);
-    let temporary = target.with_extension("json.part");
-    std::fs::write(&temporary, data).map_err(|e| e.to_string())?;
-    std::fs::rename(temporary, target).map_err(|e| e.to_string())
+    studio_core::fsutil::write_atomic(&target, data.as_bytes()).map_err(|e| e.to_string())
 }
 #[cfg(test)]
 mod tests {

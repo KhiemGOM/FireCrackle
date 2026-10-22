@@ -35,16 +35,6 @@ fn io(e: std::io::Error) -> AutosaveError {
     AutosaveError::Io(e.to_string())
 }
 
-/// `<file name>.tmp` next to `path`.
-fn temp_path(path: &Path) -> Result<PathBuf, AutosaveError> {
-    let mut name = path
-        .file_name()
-        .ok_or_else(|| AutosaveError::Io("the log path has no file name".into()))?
-        .to_os_string();
-    name.push(".tmp");
-    Ok(path.with_file_name(name))
-}
-
 impl AutosaveLog {
     /// Open (or create) the log and replay it into a store of `frame_count` frames.
     /// A torn last line is removed from the file *before* anything is appended, so the next append cannot glue
@@ -151,18 +141,7 @@ impl AutosaveLog {
             text.push_str(&store.log_line(*frame));
             text.push('\n');
         }
-        let tmp = temp_path(&self.path)?;
-        let written = (|| -> std::io::Result<()> {
-            let mut f = std::fs::File::create(&tmp)?;
-            f.write_all(text.as_bytes())?;
-            f.sync_all()?;
-            drop(f);
-            std::fs::rename(&tmp, &self.path)
-        })();
-        if let Err(e) = written {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(io(e));
-        }
+        crate::fsutil::write_atomic(&self.path, text.as_bytes()).map_err(io)?;
         self.lines = labelled.len();
         Ok(true)
     }

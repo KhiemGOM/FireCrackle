@@ -37,12 +37,7 @@ pub fn read_answer(project_dir: &Path) -> Option<GuiAnswer> {
 pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String> {
     let json = serde_json::to_vec_pretty(&AnswerFile { answer }).map_err(|e| e.to_string())?;
     let path = project_dir.join(ANSWER_FILE);
-    let tmp = project_dir.join(format!("{ANSWER_FILE}.tmp"));
-    let r = std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, &path));
-    if r.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    r.map_err(|e| {
+    crate::fsutil::write_atomic(&path, &json).map_err(|e| {
         format!(
             "could not save the GUI answer in {}: {e}",
             project_dir.display()

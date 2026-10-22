@@ -3,10 +3,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, OnceLock, Weak,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+    sync::{Arc, Mutex, OnceLock, Weak, atomic::AtomicBool},
 };
 use studio_core::{
     config::DecodeConfig, decode_plan::job_for, frames::decode_preview, import::Tools,
@@ -165,25 +162,17 @@ pub fn get_with_targets(
 
 fn persist(path: &Path, jpeg: &[u8]) {
     // Disk caching is best effort, including on read-only project folders.
-    if let Some(parent) = path.parent() {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        if std::fs::create_dir_all(parent).is_ok() {
-            let temporary = path.with_extension(format!(
-                "{}-{}.tmp",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            if std::fs::write(&temporary, jpeg).is_ok() {
-                let _ = std::fs::rename(&temporary, path);
-            }
-            let _ = std::fs::remove_file(temporary);
-        }
+    if let Some(parent) = path.parent()
+        && std::fs::create_dir_all(parent).is_ok()
+    {
+        let _ = studio_core::fsutil::write_atomic(path, jpeg);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::Ordering;
     use studio_core::{decode_plan::job_for, frames::decode_job};
     #[test]
     fn batches_only_valid_targets_in_the_same_bounded_keyframe_window() {

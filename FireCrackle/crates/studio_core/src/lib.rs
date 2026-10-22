@@ -10,6 +10,7 @@ pub mod config;
 pub mod decode_gate;
 pub mod decode_plan;
 pub mod frames;
+pub mod fsutil;
 pub mod gui;
 pub mod import;
 pub mod index;

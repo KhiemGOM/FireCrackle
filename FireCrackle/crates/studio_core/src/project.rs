@@ -2,7 +2,7 @@
 
 use crate::index::{FrameEntry, FrameIndex, IndexSummary};
 use serde::{Deserialize, Serialize};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 pub const PROJECT_VERSION: u32 = 1;
@@ -128,23 +128,7 @@ impl Project {
     pub fn save(&self, path: &Path) -> Result<(), ProjectError> {
         let io = |e: std::io::Error| ProjectError::Io(e.to_string());
         let bytes = serde_json::to_vec(self).map_err(|e| ProjectError::Io(e.to_string()))?;
-        let mut tmp_name = path
-            .file_name()
-            .ok_or_else(|| ProjectError::Io("no file name".into()))?
-            .to_os_string();
-        tmp_name.push(".tmp");
-        let tmp = path.with_file_name(tmp_name);
-        let written = (|| -> std::io::Result<()> {
-            let mut f = std::fs::File::create(&tmp)?;
-            f.write_all(&bytes)?;
-            f.sync_all()?;
-            std::fs::rename(&tmp, path)
-        })();
-        if let Err(e) = written {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(io(e));
-        }
-        Ok(())
+        crate::fsutil::write_atomic(path, &bytes).map_err(io)
     }
 
     pub fn load(path: &Path) -> Result<Project, ProjectError> {
