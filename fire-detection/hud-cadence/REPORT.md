@@ -158,3 +158,23 @@ or by a visible seam (3:25:54); 0:07:39 rests on Jolt plus the GUI-close seam. T
 1:56–2:15 are the signature seen for real cuts (one short interval amid exact 60s) and Jolt's tick residual steps by
 2–3 frames across the three it has readings for; they are below Jolt's own break threshold and happen while the
 player is stationary or in a GUI, so the XYZ grid cannot place them inside the second. 2:07:44 is not trusted.
+
+## Speed: what was tried (2026-10-23)
+
+`find` runs at ~750–1,000 frames/s on 1440p60 AV1 with one ffmpeg (dav1d, `-threads 0`), decode-bound. Before
+that it was 109 frames/s on stretches without the overlay (the anchor search ran at every position, twice); a
+summed-area prefilter that only scores windows whose lit-pixel count can pass made those frames cheap, with results
+identical to the brute-force search (unit-tested) and to the previous build on five reference windows.
+
+Tried and rejected:
+
+- **Parallel chunks** (keyframe-cut `-ss <keyframe> -frames:v n` per worker): joins are byte-exact (verified on both
+  reference videos), but 2–6 workers gave 744–890 vs 744–817 frames/s single, within noise: one dav1d decode already
+  uses the cores. Not worth the frame-count risk.
+- **NVDEC** (`av1_cuvid`, crop on the GPU): 824 frames/s alone, ~1,435 combined with three CPU workers, but on the
+  Dream file 7 of 1,800 frames read completely different values (the decoder returns a different picture for some
+  frames of that damaged file). A decoder that substitutes frames can create or hide exactly the one-frame events
+  this tool measures, so software decode stays the reference.
+- **`extractplanes=y`** instead of the grey conversion: as fast as the pinned `format=yuv420p,format=gray`, but it
+  skips the tv→full range expansion and lost 34–36 dimmed-overlay readings per 30 s window.
+- **A pipe-reader thread**: no consistent gain.
