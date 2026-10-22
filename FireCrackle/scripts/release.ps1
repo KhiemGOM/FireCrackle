@@ -84,7 +84,9 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'THIRD_PARTY_NOTICES.md') -Destination (Join-Path $stage 'THIRD_PARTY_NOTICES.txt')
     $commit = (& git -c "safe.directory=$($repo.Replace('\','/'))" rev-parse HEAD | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot record release commit.' }
-    $dirty = @(& git -c "safe.directory=$($repo.Replace('\','/'))" status --porcelain).Count -gt 0
+    $changes = @(& git -c "safe.directory=$($repo.Replace('\','/'))" status --porcelain)
+    $dirty = $changes.Count -gt 0
+    if ($dirty) { Write-Warning "Build tree is dirty:`n$($changes -join "`n")" }
     $runtime = Get-Content -LiteralPath (Join-Path $project 'release/runtime-lock.json') -Raw | ConvertFrom-Json
     [ordered]@{ product = 'FireCrackle'; version = $version; target = 'windows-x64'; builtUtc = $stamp;
         commit = $commit; workingTreeDirty = $dirty; checksRun = !$SkipChecks; externalTools = 'download-on-demand'; ffmpeg = $runtime } |
