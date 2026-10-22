@@ -83,7 +83,7 @@ fn a_frame_without_the_overlay_reads_none_and_a_tracked_anchor_is_retried_from_s
 #[test]
 fn soft_compressed_edges_still_read_the_same_digits() {
     let f = font();
-    let (mut g, w, h) = strip(&f, "FPS: 146", 500, 3, true);
+    let (mut g, w, h) = strip(&f, "FPS: 146", 501, 3, true);
     // dim every other glyph pixel to a mid-grey ramp as a video encoder would
     for (i, p) in g.iter_mut().enumerate() {
         if *p == 220 && i % 2 == 0 {
@@ -96,7 +96,7 @@ fn soft_compressed_edges_still_read_the_same_digits() {
 #[test]
 fn reading_is_exposed_with_per_digit_mismatch_counts() {
     let f = font();
-    let (g, w, h) = strip(&f, "FPS: 90", 10, 3, false);
+    let (g, w, h) = strip(&f, "FPS: 90", 12, 3, false);
     let Reading { value, mismatches, .. } = read_strip(&f, &g, w, h, 3, None).unwrap();
     assert_eq!(value, "90");
     assert_eq!(mismatches, vec![0, 0]);
