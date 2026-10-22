@@ -170,7 +170,7 @@ mod tests {
         let mut rgb = vec![100; 320 * 180 * 3];
         for y in 30..130 {
             for x in 40..240 {
-                let rim = x < 42 || x >= 238 || y < 32 || y >= 128;
+                let rim = !(42..238).contains(&x) || !(32..128).contains(&y);
                 let colour = if rim { [80, 16, 128] } else { [16, 0, 16] };
                 rgb[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3].copy_from_slice(&colour);
             }

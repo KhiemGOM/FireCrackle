@@ -1,4 +1,5 @@
 //! Frozen preprocessing: RGB strip removal and Pillow-compatible bilinear image views.
+#![allow(clippy::chunks_exact_to_as_chunks)] // slice chunking by 3 over runtime-length buffers; as_chunks would not be clearer
 pub const THRESHOLD: f32 = -1.757_097_2;
 pub fn clear_score(score: f32) -> bool {
     score.is_finite() && score < THRESHOLD - 0.0001

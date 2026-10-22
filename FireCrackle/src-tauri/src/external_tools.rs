@@ -250,17 +250,15 @@ fn selected_archive_members(
             continue;
         };
         let upper = name.to_ascii_uppercase();
-        if executables.contains(&name)
+        if (executables.contains(&name)
             || upper.starts_with("LICENSE")
             || upper.starts_with("COPYING")
-            || upper.starts_with("README")
-        {
-            if selected
+            || upper.starts_with("README"))
+            && selected
                 .insert(name.to_owned(), member.to_owned())
                 .is_some()
-            {
-                return Err(format!("Duplicate tool archive member: {name}"));
-            }
+        {
+            return Err(format!("Duplicate tool archive member: {name}"));
         }
     }
     if !executables.iter().all(|name| selected.contains_key(*name)) {

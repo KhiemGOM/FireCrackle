@@ -1,4 +1,5 @@
 //! Sync strip codec and the tools around it. See `sync/PLAN.md` for the exact formats.
+#![allow(clippy::chunks_exact_to_as_chunks)] // slice chunking by 3 over runtime-length buffers; as_chunks would not be clearer
 
 pub mod detect;
 pub mod eval;

@@ -97,7 +97,11 @@ pub fn yuv420p_to_rgb24(
     matrix: Matrix,
     dst: &mut [u8],
 ) -> Result<(), String> {
-    if w % 2 != 0 || h % 2 != 0 || src.len() != frame_bytes(w, h) || dst.len() != w * h * 3 {
+    if !w.is_multiple_of(2)
+        || !h.is_multiple_of(2)
+        || src.len() != frame_bytes(w, h)
+        || dst.len() != w * h * 3
+    {
         return Err(format!(
             "yuv420p frame must be even-sized, {} + {} bytes for {w}x{h}; got {} and {}",
             frame_bytes(w, h),

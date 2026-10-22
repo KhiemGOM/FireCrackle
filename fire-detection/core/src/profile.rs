@@ -42,6 +42,12 @@ static CALLS: [AtomicU64; 24] = [const { AtomicU64::new(0) }; 24];
 pub struct Timer(usize, Instant, u64);
 #[cfg(not(feature = "scan-profile"))]
 pub struct Timer;
+/// Without profiling the timer does nothing; the empty `Drop` keeps `drop(timer)` meaningful to clippy.
+#[cfg(not(feature = "scan-profile"))]
+impl Drop for Timer {
+    #[inline(always)]
+    fn drop(&mut self) {}
+}
 /// Start timing `stage` (an index into [`STAGES`]); dropping records it.
 #[cfg(feature = "scan-profile")]
 pub fn start(stage: usize) -> Timer {

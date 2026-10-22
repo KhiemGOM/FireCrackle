@@ -1603,6 +1603,7 @@ struct PatchSampler {
     sbb: f64,
 }
 impl PatchSampler {
+    #[allow(clippy::too_many_arguments)]
     fn score(
         &mut self,
         lum: &LumaRows<'_>,
@@ -1660,6 +1661,7 @@ impl PatchSampler {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn score(
     lum: &LumaRows<'_>,
     w: usize,
