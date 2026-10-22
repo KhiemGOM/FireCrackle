@@ -4,6 +4,7 @@ import wasmUrl from "./veil.wasm?url";
 import { settingValue, type SettingInfo } from "./api";
 export { A_TOP, A_BOTTOM, COLOUR, DEFAULT_VEIL_OPTIONS } from "./veil.generated";
 import { DEFAULT_VEIL_OPTIONS } from "./veil.generated";
+import { failureMessage } from "./appErrors";
 export type VeilMode = "off" | "auto" | "on";
 export const VEIL_MODES: VeilMode[] = ["off", "auto", "on"];
 export interface VeilOptions { minShare: number; margin: number; slack: number; }
@@ -55,5 +56,5 @@ export function applyVeil(img:{data:Pixels;width:number;height:number},mode:Veil
   if(mode==="off")return {data:img.data,applied:false};
   try {if(mode==="auto"&&!detectVeil(img.data,img.width,img.height,options))return {data:img.data,applied:false};
     return {data:unveilRgba(img.data,img.width,img.height),applied:true};
-  } catch(e){return {data:img.data,applied:false,error:String(e)};}
+  } catch(e){return {data:img.data,applied:false,error:failureMessage(e)};}
 }

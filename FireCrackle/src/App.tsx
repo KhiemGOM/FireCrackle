@@ -39,7 +39,7 @@ import { STOPPED, keyInfo, nextPlayback, playbackTick, toUiAction, type Playback
 import { framesDue, startClock } from "./lib/playbackClock";
 import { createBackend, settingValue, LABEL_SOURCE_NAMES, type Backend } from "./lib/api";
 import { veilOptionsFromSettings } from "./lib/veil";
-import { getFailures, reportError, reportVideoFailure, subscribeFailures, withErrorReporting } from "./lib/appErrors";
+import { failureMessage,  getFailures, reportError, reportVideoFailure, subscribeFailures, withErrorReporting } from "./lib/appErrors";
 import { wouldConsumeToolKey } from "./lib/toolKeys";
 import { actionFor, reservedGlobally } from "./lib/keymap";
 import { blocksVideoToolKeys } from "./lib/shortcutFocus";
@@ -80,7 +80,7 @@ export default function App() {
   const [backend, setBackend] = useState<Backend | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
   useEffect(() => {
-    createBackend().then(value => setBackend(withErrorReporting(value))).catch((e) => { setStartupError(String(e)); reportError("Start FireCrackle", e); });
+    createBackend().then(value => setBackend(withErrorReporting(value))).catch((e) => { setStartupError(failureMessage(e)); reportError("Start FireCrackle", e); });
   }, []);
 
   const [extraSources, setExtraSources] = useState(readExtraSources);

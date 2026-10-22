@@ -3,6 +3,7 @@ import type {ManualQuad} from "./quadMask";
 import type {EdgeFilter} from "./atlasFilter";
 import {phaseMatchInput} from "./quadPhaseInput";
 import {matchSoulQuad} from "./quadSoul";
+import { failureMessage } from "./appErrors";
 
 type Request={image:MatchImage;sheets:[Uint8ClampedArray,Uint8ClampedArray];quad:ManualQuad;options:{refineGeometry?:boolean;filter?:EdgeFilter;phaseEvidence?:boolean;material?:"normal"|"soul"}};
 const scope=self as unknown as {onmessage:(event:MessageEvent<Request>)=>void;postMessage:(response:{result?:QuadMatch;error?:string;rgb?:Uint8Array})=>void};
@@ -14,5 +15,5 @@ scope.onmessage=async({data})=>{
     if(input.error)result.ai={error:input.error};
     scope.postMessage({result,rgb:input.rgb});
   }
-  catch(error){scope.postMessage({error:String(error)});}
+  catch(error){scope.postMessage({error:failureMessage(error)});}
 };

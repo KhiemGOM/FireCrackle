@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {pickImageColor} from '../lib/eyedropper';
-import {reportError} from '../lib/appErrors';
+import { failureMessage, reportError} from '../lib/appErrors';
 import './WaterTintControl.css';
 import {NEUTRAL_WATER_TINT,waterColor} from '../lib/waterTint';
 import {hexToHsv,hsvToHex,saturationValueAt,type Hsv} from '../lib/colorPicker';
@@ -27,7 +27,7 @@ export function WaterTintControl({color,onChange}:{color:string;onChange:(color:
   if(sampling)return;setError(null);setPosition(null);setSampling(true);
   const controller=new AbortController();abort.current=controller;
   try{const next=await pickImageColor(controller.signal);if(next&&!controller.signal.aborted){setDraft(next);onChange(next);}}
-  catch(e){if(!controller.signal.aborted){setError(e instanceof Error?e.message:String(e));reportError('Pick water colour',e);}}
+  catch(e){if(!controller.signal.aborted){setError(failureMessage(e));reportError('Pick water colour',e);}}
   finally{if(!controller.signal.aborted)setSampling(false);abort.current=null;}
  };
  return <div ref={root} role="group" aria-label="Water color" onKeyDown={e=>e.stopPropagation()}>

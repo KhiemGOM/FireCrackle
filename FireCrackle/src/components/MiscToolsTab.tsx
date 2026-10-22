@@ -9,12 +9,13 @@ import {GuiInteractionTool} from './GuiInteractionTool';
 import {displayFrame} from '../lib/imagePreview';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import './MiscToolsTab.css';
+import { failureMessage } from '../lib/appErrors';
 
 function useReviewImage(backend:Backend,frame:number|null){
  const [image,setImage]=useState<{frame:number;url:string;full:boolean}|null>(null),[error,setError]=useState<{frame:number;text:string}|null>(null);
  useEffect(()=>{
   if(frame===null)return;
-  return displayFrame(backend,frame,(url,full)=>{setImage({frame,url,full});setError(null);},e=>setError({frame,text:e instanceof Error?e.message:String(e)}));
+  return displayFrame(backend,frame,(url,full)=>{setImage({frame,url,full});setError(null);},e=>setError({frame,text:failureMessage(e)}));
  },[backend,frame]);
  return {url:image?.frame===frame?image.url:undefined,full:image?.frame===frame&&image.full,error:error?.frame===frame?error.text:undefined};
 }
@@ -31,7 +32,7 @@ function DifferencePicture({before,after,gain}:{before:string;after:string;gain:
    ctx.drawImage(a,0,0);const pixels=ctx.getImageData(0,0,target.width,target.height);
    ctx.drawImage(b,0,0);const other=ctx.getImageData(0,0,target.width,target.height);
    pixels.data.set(frameDifference(pixels.data,other.data,gain));ctx.putImageData(pixels,0,0);
-  }).catch(e=>{if(!cancelled)setError(String(e));});
+  }).catch(e=>{if(!cancelled)setError(failureMessage(e));});
   return()=>{cancelled=true;};
  },[before,after,gain]);
  return error?<span role="alert">{error}</span>:<canvas ref={canvas} role="img" aria-label={`Absolute RGB difference between before and after, brightness ${gain} times`}/>;
@@ -86,7 +87,7 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame}:{backend:Backen
   if(exporting.current||frames.before===null||frames.after===null)return;
   exporting.current=true;setProofBusy(true);setProofFeedback(undefined);setProofError('');
   try{if(await exportFrameProof(backend,{before:frames.before,after:frames.after,first:range.first,last:range.last,fps,source:name??'Current video'},action))setProofFeedback(action.destination==='copy'?'Copied!':'Saved!');}
-  catch(e){setProofError(e instanceof Error?e.message:String(e));}
+  catch(e){setProofError(failureMessage(e));}
   finally{exporting.current=false;setProofBusy(false);}
  }
  return <main className="misc-tools" aria-label="Misc tools">

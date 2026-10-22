@@ -49,6 +49,7 @@ import { shouldShowLate } from "../lib/lateFrame";
 import { correctsNow } from "../lib/correctionGate";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
 import { blocksVideoToolKeys, focusVideoViewport, videoToolContextAvailable } from "../lib/shortcutFocus";
+import { failureMessage } from "../lib/appErrors";
 
 export interface VideoPreviewHandle {
   /** True when an enabled preview consumes the selection without a label write. */
@@ -239,7 +240,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
       if(controller.signal.aborted||refineLatest.current!==start)return;
       if(answer.changed)setManualQuad(answer.quad);
       setRefineStatus({key:alignmentKey(answer.quad),text:answer.changed?"Alignment refined":"Alignment unchanged"});
-    }catch(error){if(!controller.signal.aborted&&refineLatest.current===start)onError(`Refine alignment: ${String(error)}`);}
+    }catch(error){if(!controller.signal.aborted&&refineLatest.current===start)onError(`Refine alignment: ${failureMessage(error)}`);}
     finally{source?.dispose?.();if(refineAbort.current===controller)setRefineBusy(null);}
   }
   function toggleRuler() { setRuler(current => ({ ...current, enabled: !current.enabled })); }
@@ -417,7 +418,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           setUrl(next); setShown(frame); setVeilApplied(false); setEnhanceApplied(false);
           if (old && !oldFromBuffer) URL.revokeObjectURL(old);
           if (!late) upgrade(frame, false);
-        }).catch((e) => mine === token.current && onError(`Could not decode frame ${frame}: ${String(e)}`));
+        }).catch((e) => mine === token.current && onError(`Could not decode frame ${frame}: ${failureMessage(e)}`));
         return () => { ++token.current; cancel.abort(); };
       }
     }
@@ -463,7 +464,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         present(made, false);
         if (!stillImage) upgrade(view.current, true);
       })
-      .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
+      .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${failureMessage(e)}`));
     return () => { ++token.current; cancel.abort(); };
   }, [backend, buffer, view.current, stillImage?.url, veilMode, veilKey, portalMode, portalManualKey, enhanceKey, playing, guiMask.maskFrame, guiMask.reply, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -551,7 +552,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         await copyFormattedComparisonProof(picture, [mask], source, action.format);
         setProofCopied("Copied!");
       } else if (await downloadComparisonProof(picture, [mask], source, action.format)) setProofCopied("Saved!");
-    } catch (error) { onError(`Comparison proof: ${String(error)}`); }
+    } catch (error) { onError(`Comparison proof: ${failureMessage(error)}`); }
     finally { setProofBusy(false); }
   }
   const s = view.suggestion;

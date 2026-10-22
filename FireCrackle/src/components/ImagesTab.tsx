@@ -18,7 +18,7 @@ import { GalleryThumbnail } from "./GalleryThumbnail";
 import { Splitter } from "./Splitter";
 import { IconButton } from "./Icon";
 import "./ImagesTab.css";
-import { reportError } from "../lib/appErrors";
+import { failureMessage,  reportError } from "../lib/appErrors";
 
 /** Own files and selections; the viewer, fire tools and atlas are shared with video. */
 export function ImagesTab({ active, backend }: { active: boolean; backend: Backend }) {
@@ -49,7 +49,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
       setImages(saved.images); currentImages.current = saved.images;
       setIndex(saved.index); setChecks(saved.checks); galleryLoaded.current = true; setRestoring(false);
     }).catch(error => {
-      if (!cancelled) { setRestoring(false); setStorageError(`Could not restore saved photos: ${String(error)}. New photos will be temporary.`); }
+      if (!cancelled) { setRestoring(false); setStorageError(`Could not restore saved photos: ${failureMessage(error)}. New photos will be temporary.`); }
     });
     return () => { cancelled = true; };
   }, []);
@@ -57,7 +57,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
     if (!galleryLoaded.current || restoring) return;
     let cancelled = false;
     saveGallery(images, index, checks).then(() => { if (!cancelled) setStorageError(null); })
-      .catch(error => { if (!cancelled) setStorageError(`Photos could not be saved locally: ${String(error)}`); });
+      .catch(error => { if (!cancelled) setStorageError(`Photos could not be saved locally: ${failureMessage(error)}`); });
     return () => { cancelled = true; };
   }, [images, index, checks, restoring]);
   const input = useRef<HTMLInputElement>(null);
@@ -128,7 +128,7 @@ export function ImagesTab({ active, backend }: { active: boolean; backend: Backe
       setImages(result.images); currentImages.current = result.images;
       if (result.images.length > previousCount) setIndex(previousCount);
       setError(result.rejected ? `${result.rejected} unsupported file(s). Use PNG, JPEG, WebP, BMP or AVIF.` : null);
-    } catch (error) { setError(`Could not open photos: ${String(error)}`); }
+    } catch (error) { setError(`Could not open photos: ${failureMessage(error)}`); }
   }
   function remove() {
     if (!item) return;

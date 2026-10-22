@@ -4,6 +4,7 @@ import { initVeil, applyVeil, type VeilMode, type VeilOptions } from "./veil";
 import type {PortalImage,PortalResult} from './portal';
 import type {WorldCoverage} from './portalPreview';
 import { bmpFromRgba } from "./bmp";
+import { failureMessage } from "./appErrors";
 
 export interface FrameIo {
   /** RGBA pixels of an encoded picture. */
@@ -49,15 +50,15 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
       data=new Uint8ClampedArray(data);
       for(let i=0;i<coverage.world.length;i++)if(!coverage.world[i])data.set(img.data.subarray(i*4,i*4+4),i*4);
     }
-    if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=String(e);}}
+    if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=failureMessage(e);}}
     let enhanced = false;
     if (enhanceStage) {
-      try { const e = enhanceStage({ ...img, data }); if (e.applied) { data = e.data; enhanced = true; } } catch (e) { error = error ? `${error}; ${String(e)}` : String(e); }
+      try { const e = enhanceStage({ ...img, data }); if (e.applied) { data = e.data; enhanced = true; } } catch (e) { error = error ? `${error}; ${failureMessage(e)}` : failureMessage(e); }
     }
     if (!result.applied && !portalApplied && !enhanced) return { blob: original, applied: false, portalApplied, enhanced: false, error };
     return { blob: await io.encode(data, img.width, img.height), applied: result.applied, portalApplied, enhanced, error };
   } catch (e) {
-    return { blob: original, applied: false, error: e instanceof Error ? e.message : String(e) };
+    return { blob: original, applied: false, error: failureMessage(e) };
   }
 }
 

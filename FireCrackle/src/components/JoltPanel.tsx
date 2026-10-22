@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Backend } from "../lib/api";
 import { EMPTY_JOLT, localJoltKey, parseJolt, restoreJolt, sessionOf, type JoltState } from "../lib/jolt";
 import "./JoltPanel.css";
-import { reportError } from "../lib/appErrors";
+import { failureMessage,  reportError } from "../lib/appErrors";
 
 interface Props { backend:Backend; videoKey?:string; state:JoltState; onChange:(state:JoltState)=>void; matched:number|null; t0:number; t1:number; onFocus:(time:number,openVideo:boolean)=>void }
 export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
@@ -17,7 +17,7 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
       const text=backend.joltRead?await backend.joltRead(videoKey):localStorage.getItem(localJoltKey(videoKey));
       return restoreJolt(text);
     };
-    void load().then(value=>{if(live)changeRef.current(value);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setPending(false);});
+    void load().then(value=>{if(live)changeRef.current(value);}).catch(e=>{if(live)setError(failureMessage(e));}).finally(()=>{if(live)setPending(false);});
     return()=>{live=false;};
   },[backend,videoKey]);
   useEffect(() => { if (error) reportError("Jolt report", error); }, [error]);
@@ -25,14 +25,14 @@ export function JoltPanel({backend,videoKey,state,onChange,matched}:Props){
     if(!videoKey)return;setPending(true);setError(null);
     const target=videoKey;
     try{const text=JSON.stringify(next);if(backend.joltWrite)await backend.joltWrite(target,text);else localStorage.setItem(localJoltKey(target),text);if(activeVideo.current===target)changeRef.current(next);}
-    catch(e){if(activeVideo.current===target)setError(`Could not save Jolt data: ${String(e)}`);}finally{if(activeVideo.current===target)setPending(false);}
+    catch(e){if(activeVideo.current===target)setError(`Could not save Jolt data: ${failureMessage(e)}`);}finally{if(activeVideo.current===target)setPending(false);}
   }
   async function importFile(file:File){
     try{
       if(file.size>32*1024*1024)throw Error("Jolt report is too large (32 MB maximum).");
       const data=parseJolt(await file.text(),file.name);
       await update({version:1,data,clock:"jolt",session:sessionOf(data.anchors[0])});
-    }catch(e){setError(String(e));}
+    }catch(e){setError(failureMessage(e));}
   }
   const anchors=useMemo(()=>(state.data?.anchors??[]).filter(a=>sessionOf(a)===state.session),[state.data,state.session]);
   const sessions=useMemo(()=>[...new Map((state.data?.anchors??[]).map(a=>[sessionOf(a),a])).entries()],[state.data]);

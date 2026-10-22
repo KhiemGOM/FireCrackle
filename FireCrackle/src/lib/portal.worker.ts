@@ -1,4 +1,5 @@
 import {initPortalRuntime,undoPortal,undoPortalManual,type PortalImage,type PortalManual} from './portal';
+import { failureMessage } from './appErrors';
 self.onmessage=async(e:MessageEvent<{image:PortalImage;world?:Uint8Array;manual?:PortalManual}>)=>{
   try{
     await initPortalRuntime();
@@ -14,5 +15,5 @@ self.onmessage=async(e:MessageEvent<{image:PortalImage;world?:Uint8Array;manual?
     }finally{bitmap.close();}
     const {image,world,manual}=e.data;
     self.postMessage(manual?undoPortalManual(image,atlas,side,manual.phase,manual.opacity,world):undoPortal(image,atlas,side,world));
-  }catch(e){self.postMessage({error:String(e)});}
+  }catch(e){self.postMessage({error:failureMessage(e)});}
 };

@@ -1,4 +1,5 @@
 /** Typed jumps in the video status bar: a frame number or a timecode in the bar's own `HH:MM:SS|FF` format. */
+import { failureMessage } from "./appErrors";
 
 export type JumpTarget = { kind: "frame"; frame: number } | { kind: "time"; seconds: number };
 export type JumpError = { error: string };
@@ -78,7 +79,7 @@ export async function resolveJump(
     try {
       return { frame: await locate(target.seconds) };
     } catch (e) {
-      return { error: `Could not find that time: ${e instanceof Error ? e.message : String(e)}` };
+      return { error: `Could not find that time: ${failureMessage(e)}` };
     }
   }
   const rate = Number.isFinite(ctx.fps) && ctx.fps > 0 ? ctx.fps : 1;

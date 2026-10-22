@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { clipCompressedFire, encodeFireCycle } from "../lib/ffmpegCompression";
 import type { ManualQuad } from "../lib/quadMask";
-import { reportError } from "../lib/appErrors";
+import { failureMessage,  reportError } from "../lib/appErrors";
 
 interface Props {
   rgba:Uint8ClampedArray; quad:ManualQuad; row:number; mirrored:boolean; width:number; height:number;
@@ -19,7 +19,7 @@ export function CompressedQuad(props:Props) {
     const timer=window.setTimeout(()=> {
       encodeFireCycle(rgba,quad,mirrored,width,height,quality,()=>cancelled)
         .then(frames=> {if(!cancelled)setCycle({request,frames});})
-        .catch(e=> {if(!cancelled)setCycle({request,error:String(e)});});
+        .catch(e=> {if(!cancelled)setCycle({request,error:failureMessage(e)});});
     },300);
     return ()=> {cancelled=true;window.clearTimeout(timer);};
   },[request]);
@@ -29,7 +29,7 @@ export function CompressedQuad(props:Props) {
     clipCompressedFire(cycle.frames[row],rgba,quad,row,mirrored,width,height).then(blob=> {
       if(cancelled)return;
       url=URL.createObjectURL(blob);setResult({request,row,url});
-    }).catch(e=> {if(!cancelled)setResult({request,row,error:String(e)});});
+    }).catch(e=> {if(!cancelled)setResult({request,row,error:failureMessage(e)});});
     return ()=> {cancelled=true;if(url)URL.revokeObjectURL(url);};
   },[cycle,request,row]);
   const current=result?.request===request && result.row===row?result:null;

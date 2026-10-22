@@ -9,6 +9,7 @@ import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
 import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges} from '../lib/guiAimReview';
+import { failureMessage } from '../lib/appErrors';
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
   guiThumbnails(backend,videoKey,total);
@@ -48,7 +49,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     let stopped=false, timer:ReturnType<typeof setTimeout>;
     const poll=async()=>{
       try {const value=await backend.guiScanStatus!();if(!stopped){setStatus(value);setError('');}}
-      catch(e){if(!stopped)setError(String(e));}
+      catch(e){if(!stopped)setError(failureMessage(e));}
       if(!stopped)timer=setTimeout(()=>void poll(),1000);
     };
     setStatus(null);void poll();return()=>{stopped=true;clearTimeout(timer);};
@@ -56,7 +57,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   async function action(start:boolean){
     setBusy(true);setError('');
     try {if(start)setStatus(await backend.guiScanStart!());else await backend.guiScanCancel!();}
-    catch(e){setError(String(e));}finally{setBusy(false);}
+    catch(e){setError(failureMessage(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
   const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,scorable.map(guiRangeKey)]);

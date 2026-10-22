@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Backend } from "../lib/api";
 import { GUI_ASSUMPTION, maskStatus, overlayRgba, type GuiMaskReply } from "../lib/guiMask";
 import "./GuiMaskControls.css";
+import { failureMessage } from "../lib/appErrors";
 
 export interface GuiMaskState {
   supported: boolean;
@@ -44,7 +45,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
         setMaskFrame(frame);
         setPixels(raw ? overlayRgba(raw, r.width, r.height) : null);
       } catch (e) {
-        if (mine === token.current) setError(String(e));
+        if (mine === token.current) setError(failureMessage(e));
       } finally {
         if (mine === token.current) setBusy(false);
       }

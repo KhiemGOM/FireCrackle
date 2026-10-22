@@ -4,7 +4,7 @@ import type { ManualQuad } from "../lib/quadMask";
 import { Icon } from "./Icon";
 import type { EdgeFilter } from "../lib/atlasFilter";
 import { readPreferences, writePreferences } from "../lib/preferences";
-import { reportError } from "../lib/appErrors";
+import { failureMessage,  reportError } from "../lib/appErrors";
 import {invoke,isTauri} from "@tauri-apps/api/core";
 import {fuseQuadPhases} from "../lib/quadPhase";
 import {phaseMatchInput} from "../lib/quadPhaseInput";
@@ -101,22 +101,22 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
           const answer=await invoke<{logits:number[];provider:string}>("quad_phase",{rgb:Array.from(reply.rgb),material});
           data=fuseQuadPhases(data,answer.logits,answer.provider,material);
         }catch(error){
-          data={...data,ai:{error:String(error)}};
-          if(mine===token.current&&latest.current.key===start&&!latest.current.disabled)reportError("Quad AI unavailable — colour matcher used",String(error));
+          data={...data,ai:{error:failureMessage(error)}};
+          if(mine===token.current&&latest.current.key===start&&!latest.current.disabled)reportError("Quad AI unavailable — colour matcher used",failureMessage(error));
         }
       }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       if(adjustQuad&&data.candidates.length){
         const controller=new AbortController(),stop=()=>controller.abort();cancel.current=stop;
         try{data={...data,candidates:await refineMatchCandidates(source.url,data.candidates,material,controller.signal)};}
-        catch(error){if(controller.signal.aborted)return;reportError("Refine alignment — original match kept",String(error));}
+        catch(error){if(controller.signal.aborted)return;reportError("Refine alignment — original match kept",failureMessage(error));}
         finally{if(cancel.current===stop)cancel.current=null;}
       }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;
       const best=data.status==="clear"?data.candidates[0]:undefined;
       setResult({key:best?identity(frameUrl,best.quad,adjustQuad,activeFilter,material):start,data,selected:best});
       if(best)latest.current.onPreview(best);
-    }catch(e){if(mine===token.current&&latest.current.key===start)setResult({key:start,error:String(e)});}
+    }catch(e){if(mine===token.current&&latest.current.key===start)setResult({key:start,error:failureMessage(e)});}
     finally{dispose?.();if(mine===token.current)setBusy(null);}
   }
   function preview(candidate:QuadCandidate) {
