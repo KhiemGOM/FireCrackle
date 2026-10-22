@@ -1,0 +1,16 @@
+[package]
+name = "hud-cadence"
+version = "0.0.0"
+edition = "2021"
+description = "Reads a once-per-second HUD counter (the F3 FPS value) from video frames and checks that its update moments keep a constant phase modulo one second"
+
+[dependencies]
+png = "0.17"
+serde_json = "1"
+
+[[bin]]
+name = "hud-cadence"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
