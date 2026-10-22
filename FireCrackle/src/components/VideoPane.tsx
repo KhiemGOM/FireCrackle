@@ -31,8 +31,9 @@ import { copyFormattedComparisonProof, downloadComparisonProof, type ProofMask, 
 import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
-import { canvasFrameIo, processFrame } from "../lib/veilFrame";
-import { portalPreview, guiWorldCoverage } from "../lib/portalPreview";
+import { exactFrameBytes, pngSize, showsExactFrame } from "../lib/exactFrame";
+import { canvasFrameIo, losslessFrameIo, processFrame } from "../lib/veilFrame";
+import { portalPreview, guiWorldCoverage, fitCoverage, sameShape } from "../lib/portalPreview";
 import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
@@ -111,6 +112,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   const [shown, setShown] = useState<number | null>(null);
   const token = useRef(0);
   const urlRef = useRef<string | null>(null);
+  // the object URL of the lossless full-resolution frame, while it is the picture shown
+  const exactRef = useRef<string | null>(null);
   // true while `url` is an object URL of the frame buffer (the buffer revokes it, not this component)
   const urlFromBuffer = useRef(false);
   // the frame on screen and the playhead as the loaders see them (a load that finishes late asks whether it still counts)
@@ -334,6 +337,19 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   useEffect(() => {
     const mine = ++token.current;
     const cancel = new AbortController();
+    // a paused, uncorrected picture is then replaced by the lossless full-resolution frame
+    // a paused video frame is then replaced by the lossless full-resolution frame; corrections run again on it
+    const upgrade = (frame: number, correcting: boolean) => {
+      if (!backend.exactFrame || !showsExactFrame({ playing, stillImage: !!stillImage, corrected: false })) return;
+      void exactFrameBytes({ frame, load: backend.exactFrame, signal: cancel.signal, isCurrent: () => mine === token.current && shownRef.current === frame }).then(async bytes => {
+        const size = bytes && pngSize(bytes);
+        if (!bytes || !size) return;
+        const png = new Blob([bytes], { type: "image/png" });
+        const made = correcting ? await correct(bytes, png, losslessFrameIo, size) : null;
+        if (mine !== token.current || shownRef.current !== frame) return;
+        present(made ?? { blob: png, applied: false }, true);
+      });
+    };
     const guiCoverage = stillImage ? undefined : guiWorldCoverage(guiMask, view.current), guiReady = !!guiCoverage;
     const correcting = correctsNow({ playing, veilMode, portalMode, enhance: enhanceOn });
     const runPortal = portalMode !== "off" && correcting;
@@ -386,9 +402,40 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           shownRef.current = frame;
           setUrl(next); setShown(frame); setVeilApplied(false); setEnhanceApplied(false);
           if (old && !oldFromBuffer) URL.revokeObjectURL(old);
+          if (!late) upgrade(frame, false);
         }).catch((e) => mine === token.current && onError(`Could not decode frame ${frame}: ${String(e)}`));
         return () => { ++token.current; cancel.abort(); };
       }
+    }
+    // Undo veil and portal and enhance one picture. `size` is a full-resolution picture's: the GUI mask and screen
+    // evidence, made from the scaled display frame, are stretched to it (another shape gets none).
+    function correct(bytes: ArrayBuffer, original: Blob, io: typeof canvasFrameIo, size?: { width: number; height: number }) {
+      const coverage = size ? fitCoverage(guiCoverage, size.width, size.height) : guiCoverage;
+      const evidence = guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined;
+      const screen = evidence && size ? (sameShape(evidence, size) ? size : undefined) : evidence;
+      return processFrame(bytes, original, veilMode, veilOptions, io, runPortal ? async image => {
+        let world: Uint8Array | undefined;
+        if (portalMode === "auto" && coverage && image.width === coverage.width && image.height === coverage.height) {
+          world = coverage.world;
+          guiProtected = true;
+        }
+        const fit = await portalPreview(image, cancel.signal, world, manualPortal);
+        if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
+        return fit;
+      } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, screen, coverage);
+    }
+    function present(made: Awaited<ReturnType<typeof processFrame>>, exact: boolean) {
+      if (made.error) onError(`Picture correction: ${made.error}`);
+      if (runPortal) reportPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
+      const next = URL.createObjectURL(made.blob);
+      const old = urlRef.current, oldFromBuffer = urlFromBuffer.current;
+      urlRef.current = next; urlFromBuffer.current = false; exactRef.current = exact ? next : null;
+      shownRef.current = view.current;
+      setUrl(next);
+      setShown(view.current);
+      setVeilApplied(made.applied);
+      setEnhanceApplied(!!made.enhanced);
+      if (old && !oldFromBuffer) URL.revokeObjectURL(old);
     }
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
     const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
@@ -397,28 +444,10 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         .then(({ bytes, fromBuffer }) => ({ bytes, original: new Blob([bytes], { type: "image/jpeg" }), fromBuffer }));
     source
       .then(async ({ bytes, original }) => {
-        const made = await processFrame(bytes, original, veilMode, veilOptions, canvasFrameIo, runPortal ? async image => {
-          let world: Uint8Array | undefined;
-          if (portalMode === "auto" && guiCoverage && image.width === guiCoverage.width && image.height === guiCoverage.height) {
-            world = guiCoverage.world;
-            guiProtected = true;
-          }
-          const fit = await portalPreview(image, cancel.signal, world, manualPortal);
-          if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
-          return fit;
-        } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined, guiCoverage);
+        const made = await correct(bytes, original, canvasFrameIo);
         if (mine !== token.current) return; // a newer frame was asked for meanwhile
-        if (made.error) onError(`Picture correction: ${made.error}`);
-        if (runPortal) reportPortalStatus(made.error ? "Could not undo portal" : made.portalApplied ? `Portal undone${guiProtected ? " · GUI protected" : " · entire frame"}` : "No confident portal fit");
-        const next = URL.createObjectURL(made.blob);
-        const old = urlRef.current, oldFromBuffer = urlFromBuffer.current;
-        urlRef.current = next; urlFromBuffer.current = false;
-        shownRef.current = view.current;
-        setUrl(next);
-        setShown(view.current);
-        setVeilApplied(made.applied);
-        setEnhanceApplied(!!made.enhanced);
-        if (old && !oldFromBuffer) URL.revokeObjectURL(old);
+        present(made, false);
+        if (!stillImage) upgrade(view.current, true);
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${String(e)}`));
     return () => { ++token.current; cancel.abort(); };
@@ -522,7 +551,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           className="video-zoom"
           style={{ transform: `translate(${xf.x}px, ${xf.y}px) rotate(${xf.angle ?? 0}deg) scale(${xf.scale})` }}
         >
-          {url ? <img src={url} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => { setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight }); if (!stillImage && shown !== null && e.currentTarget.getAttribute("src") === urlRef.current) onFramePresented?.(shown); }} /> : <div className="placeholder">decoding…</div>}
+          {url ? <img src={url} className={playing ? undefined : "crisp"} alt={stillImage?.name ?? `frame ${shown ?? ""}`} onError={() => onError(stillImage ? `Could not open image: ${stillImage.name}` : "Could not display frame")} draggable={false} onLoad={(e) => { setImageSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight }); if (!stillImage && shown !== null && e.currentTarget.getAttribute("src") === urlRef.current) onFramePresented?.(shown); }} /> : <div className="placeholder">decoding…</div>}
           {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} zoom={xf.scale} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
           {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} atlas={manualAtlas} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
@@ -640,7 +669,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         <span>
           labelled <b>{view.labelled_count}</b>
         </span>
-        <span className={view.flag_count > 0 ? "warn" : ""}>flags {view.flag_count}</span></>}
+        <span className={view.flag_count > 0 ? "warn" : ""}>flags {view.flag_count}</span>
+        {url && url === exactRef.current && <span title="This paused frame is shown losslessly at the video's own resolution">full quality · {imageSize.width} × {imageSize.height}</span>}</>}
       </div>
     </div>
   );

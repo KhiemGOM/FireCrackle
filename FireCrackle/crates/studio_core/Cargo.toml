@@ -12,3 +12,4 @@ fire_core = { path = "../../../fire-detection/core" }
 jpeg-decoder = "0.3"
 
 [dev-dependencies]
+png = "0.17"

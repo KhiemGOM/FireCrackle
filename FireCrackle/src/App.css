@@ -363,6 +363,10 @@ input {
   pointer-events: none;
   -webkit-user-drag: none;
 }
+/* a paused frame is inspected pixel for pixel: no interpolation when zoomed */
+.video-zoom img.crisp {
+  image-rendering: pixelated;
+}
 .zoom-tag {
   position: absolute;
   top: 8px;

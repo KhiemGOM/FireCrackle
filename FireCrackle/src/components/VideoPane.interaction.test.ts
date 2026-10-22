@@ -696,3 +696,12 @@ it.each(['auto','manual'] as const)('passes the new HUD-independent GUI mask to 
  expect(processing.mock.calls[0][8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
  expect(portal.mock.calls[0][2]).toEqual(mode==='auto'?new Uint8Array([0,1]):undefined);
 });
+
+it("draws a paused frame pixel for pixel and leaves playback pictures as they are", async () => {
+  const all = (node: Element): Element[] => [node, ...[node.props.children].flat(Infinity).filter(n => n && typeof n === "object" && "props" in n).flatMap(all)];
+  await tree(); hooks.states[0] = "blob:frame"; hooks.states[1] = 0;
+  const paused = all(await tree()).find(n => n.type === "img")!;
+  expect(paused.props.className).toBe("crisp");
+  const playing = all(await tree({ motion: { dir: 1, speed: 1 } })).find(n => n.type === "img")!;
+  expect(playing.props.className).toBeUndefined();
+});

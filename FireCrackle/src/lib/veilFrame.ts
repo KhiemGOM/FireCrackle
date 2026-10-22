@@ -3,6 +3,7 @@
 import { initVeil, applyVeil, type VeilMode, type VeilOptions } from "./veil";
 import type {PortalImage,PortalResult} from './portal';
 import type {WorldCoverage} from './portalPreview';
+import { bmpFromRgba } from "./bmp";
 
 export interface FrameIo {
   /** RGBA pixels of an encoded picture. */
@@ -86,4 +87,10 @@ export const canvasFrameIo: FrameIo = {
     g.putImageData(new ImageData(new Uint8ClampedArray(data), width, height), 0, 0);
     return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("could not encode the picture"))), "image/jpeg", 0.95));
   },
+};
+
+/** Lossless output for corrected full-resolution frames: an uncompressed BMP, instead of the display JPEG encode. */
+export const losslessFrameIo: FrameIo = {
+  decode: bytes => canvasFrameIo.decode(bytes),
+  async encode(data, width, height) { return new Blob([bmpFromRgba(data, width, height)], { type: "image/bmp" }); },
 };

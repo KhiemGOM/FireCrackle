@@ -172,7 +172,7 @@ pub fn decode_job(
     cfg: &DecodeConfig,
     cancel: &AtomicBool,
 ) -> Result<Vec<DecodedFrame>, DecodeError> {
-    decode_selected(tools, video, index, job, cfg, cancel, false)
+    decode_selected(tools, video, index, job, cfg, cancel, Picture::Display)
 }
 
 /// Exact previews omit the unwanted keyframe prefix before scaling and JPEG encoding.
@@ -184,8 +184,69 @@ pub fn decode_preview(
     cfg: &DecodeConfig,
     cancel: &AtomicBool,
 ) -> Result<Vec<DecodedFrame>, DecodeError> {
-    decode_selected(tools, video, index, job, cfg, cancel, true)
+    decode_selected(tools, video, index, job, cfg, cancel, Picture::Preview)
 }
+
+/// One frame at the video's own resolution as a lossless RGB PNG: no scaling and no JPEG, for inspecting a paused
+/// picture pixel by pixel. Same seek and timestamp check as the display JPEGs, so it is never a neighbouring frame.
+pub fn decode_exact_png(
+    tools: &Tools,
+    video: &Path,
+    index: &FrameIndex,
+    frame: u32,
+    cfg: &DecodeConfig,
+    cancel: &AtomicBool,
+) -> Result<Vec<u8>, DecodeError> {
+    if frame as usize >= index.frames.len() {
+        return Err(DecodeError::BadJob(
+            "the frame is past the last frame of the index".into(),
+        ));
+    }
+    let job = crate::decode_plan::job_for(index, frame, frame, cfg);
+    let mut decoded = decode_selected(tools, video, index, &job, cfg, cancel, Picture::ExactPng)?;
+    let png = decoded.pop().map(|f| f.jpeg).unwrap_or_default();
+    without_colour_tags(&png)
+        .ok_or_else(|| DecodeError::BadStream("ffmpeg wrote an invalid PNG".into()))
+}
+
+/// The PNG without its colour-space chunks. FFmpeg copies the video's BT.709 tags into gAMA/cHRM/cICP, which makes a
+/// viewer colour-manage the picture; the display JPEGs carry none, so both show the decoded values unchanged.
+fn without_colour_tags(png: &[u8]) -> Option<Vec<u8>> {
+    const DROPPED: [&[u8; 4]; 5] = [b"gAMA", b"cHRM", b"cICP", b"iCCP", b"sRGB"];
+    let mut out = png.get(..8)?.to_vec();
+    let mut at = 8;
+    while at < png.len() {
+        let len = u32::from_be_bytes(png.get(at..at + 4)?.try_into().ok()?) as usize;
+        let chunk = png.get(at..at.checked_add(12 + len)?)?;
+        if !DROPPED.iter().any(|name| &chunk[4..8] == *name) {
+            out.extend_from_slice(chunk);
+        }
+        at += chunk.len();
+    }
+    Some(out)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Picture {
+    /// Scaled display JPEGs.
+    Display,
+    /// Scaled JPEGs on the small thumbnail thread budget.
+    Preview,
+    /// One unscaled lossless PNG.
+    ExactPng,
+}
+
+const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+const PNG_OUTPUT: [&str; 8] = [
+    "-f",
+    "image2pipe",
+    "-c:v",
+    "png",
+    "-pix_fmt",
+    "rgb24",
+    "-compression_level",
+    "1",
+];
 
 fn decode_selected(
     tools: &Tools,
@@ -194,7 +255,7 @@ fn decode_selected(
     job: &DecodeJob,
     cfg: &DecodeConfig,
     cancel: &AtomicBool,
-    preview: bool,
+    picture: Picture,
 ) -> Result<Vec<DecodedFrame>, DecodeError> {
     let n = index.frames.len() as u32;
     let bad = |why: &str| DecodeError::BadJob(why.to_string());
@@ -221,7 +282,10 @@ fn decode_selected(
     let _slot = gate.acquire(cancel).ok_or(DecodeError::Cancelled)?;
 
     let mut cmd = crate::proc::ffmpeg_command(&tools.ffmpeg);
-    if !preview {
+    if picture == Picture::ExactPng && job.first != job.last {
+        return Err(bad("an exact picture is one frame"));
+    }
+    if picture != Picture::Preview {
         // Interactive AV1 decoding needs more than the conservative thumbnail
         // budget. Bound total fanout across the configured simultaneous decodes.
         let cpus = std::thread::available_parallelism().map_or(2, usize::from);
@@ -246,22 +310,30 @@ fn decode_selected(
     let output_count = job.last - first_output + 1;
     // Decode the seek prefix, but do not scale, JPEG-encode or transfer frames
     // that the caller will discard. trim preserves their original timestamps.
-    let filter = format!(
-        "trim=start_frame={}:end_frame={},scale=w=min({}\\,iw):h=-2,showinfo",
+    let trim = format!(
+        "trim=start_frame={}:end_frame={}",
         job.first - job.keyframe,
-        job.last - job.keyframe + 1,
-        cfg.max_width
+        job.last - job.keyframe + 1
     );
+    let filter = match picture {
+        Picture::ExactPng => format!("{trim},showinfo"),
+        _ => format!("{trim},scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width),
+    };
     cmd.arg("-i")
         .arg(video)
         .args(crate::import::passthrough_args(&tools.ffmpeg))
         .arg("-frames:v")
         .arg(output_count.to_string())
         .arg("-vf")
-        .arg(filter)
-        .args(crate::proc::JPEG_OUTPUT)
-        .arg(cfg.jpeg_quality.to_string())
-        .arg("-")
+        .arg(filter);
+    match picture {
+        // zlib level 1: still lossless, in a fraction of the default encode time
+        Picture::ExactPng => cmd.args(PNG_OUTPUT),
+        _ => cmd
+            .args(crate::proc::JPEG_OUTPUT)
+            .arg(cfg.jpeg_quality.to_string()),
+    };
+    cmd.arg("-")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -275,7 +347,17 @@ fn decode_selected(
         })?;
     let (status, bytes) = (output.status, output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let split = split_jpegs(&bytes);
+    let split = match picture {
+        Picture::ExactPng => Split {
+            frames: if bytes.starts_with(&PNG_SIGNATURE) {
+                vec![0..bytes.len()]
+            } else {
+                vec![]
+            },
+            incomplete_tail: 0,
+        },
+        _ => split_jpegs(&bytes),
+    };
     let got = split.frames.len() as u32;
     if !status.success() {
         let tail: Vec<&str> = stderr.lines().rev().take(3).collect();

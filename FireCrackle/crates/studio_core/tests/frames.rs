@@ -820,3 +820,177 @@ fn the_jpeg_quality_setting_changes_the_size() {
     assert!(size(2) > size(31) * 2, "q2 {} vs q31 {}", size(2), size(31));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ============================================================ decode_exact_png
+
+/// A wide clip (wider than the 1280-pixel display JPEGs) with keyframes every 30 frames and B-frames.
+fn wide_video(name: &str, n: usize) -> (PathBuf, PathBuf, FrameIndex) {
+    let dir = scratch(name);
+    let v = dir.join("clip.mkv");
+    make_video(&v, n, 1600, 900, 30, GOP);
+    let (_, idx) = probe(&Tools::default(), &v, &IndexConfig::default()).unwrap();
+    (dir, v, idx)
+}
+
+/// RGB pixels and size of a PNG.
+fn png_rgb(bytes: &[u8]) -> (Vec<u8>, (u32, u32)) {
+    let mut reader = png::Decoder::new(bytes).read_info().expect("a PNG");
+    let mut px = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut px).unwrap();
+    assert_eq!(
+        info.color_type,
+        png::ColorType::Rgb,
+        "lossless RGB, no alpha or palette"
+    );
+    px.truncate(info.buffer_size());
+    (px, (info.width, info.height))
+}
+
+/// FFmpeg's own decode of picture `k`, straight from the start of the file: the reference for exactness.
+fn reference_rgb(v: &Path, k: u32) -> Vec<u8> {
+    let out = Command::new("ffmpeg")
+        .args(["-loglevel", "error", "-i"])
+        .arg(v)
+        .args([
+            "-vf",
+            &format!(r"select=eq(n\,{k})"),
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    out.stdout
+}
+
+fn exact(v: &Path, idx: &FrameIndex, frame: u32) -> Result<Vec<u8>, DecodeError> {
+    decode_exact_png(
+        &Tools::default(),
+        v,
+        idx,
+        frame,
+        &DecodeConfig::default(),
+        &AtomicBool::new(false),
+    )
+}
+
+#[test]
+fn an_exact_frame_is_native_size_and_pixel_identical_to_a_full_decode() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, idx) = wide_video("exact_native", 45);
+    // a keyframe, a mid-GOP frame (B-frames before it) and the last frame
+    for frame in [0, 37, 44] {
+        let (px, size) = png_rgb(&exact(&v, &idx, frame).unwrap());
+        assert_eq!(
+            size,
+            (1600, 900),
+            "frame {frame} keeps the video's own resolution"
+        );
+        assert!(
+            px == reference_rgb(&v, frame),
+            "frame {frame} differs from FFmpeg's decode of that frame"
+        );
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn exact_frames_are_not_neighbours() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, idx) = wide_video("exact_identity", 45);
+    let a = png_rgb(&exact(&v, &idx, 36).unwrap()).0;
+    let b = png_rgb(&exact(&v, &idx, 37).unwrap()).0;
+    assert!(a != b);
+    assert!(b == reference_rgb(&v, 37));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_exact_frame_rejects_a_shifted_index() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, mut idx) = wide_video("exact_wrong_index", 45);
+    idx.frames[37].pts += 1.;
+    assert!(matches!(
+        exact(&v, &idx, 37),
+        Err(DecodeError::Misaligned { .. })
+    ));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_exact_frame_outside_the_video_is_a_bad_job() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, idx) = wide_video("exact_outside", 10);
+    assert!(matches!(exact(&v, &idx, 10), Err(DecodeError::BadJob(_))));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_cancelled_exact_frame_never_decodes() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, idx) = wide_video("exact_cancel", 10);
+    let result = decode_exact_png(
+        &Tools::default(),
+        &v,
+        &idx,
+        3,
+        &DecodeConfig::default(),
+        &AtomicBool::new(true),
+    );
+    assert!(matches!(result, Err(DecodeError::Cancelled)));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Names of the chunks in a PNG, in order.
+fn png_chunks(bytes: &[u8]) -> Vec<String> {
+    let (mut at, mut names) = (8, vec![]);
+    while at + 8 <= bytes.len() {
+        let len = u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize;
+        names.push(String::from_utf8_lossy(&bytes[at + 4..at + 8]).into_owned());
+        at += 12 + len;
+    }
+    names
+}
+
+#[test]
+fn an_exact_frame_carries_no_colour_tags_so_it_shows_the_decoded_values() {
+    if !have_tools() {
+        return;
+    }
+    let dir = scratch("exact_untagged");
+    let v = dir.join("clip.mkv");
+    // BT.709 tags in the stream itself, as screen recorders write them
+    let tags = [
+        "-bsf:v",
+        "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1",
+    ];
+    make_video(&v, 10, 1600, 900, 30, &[GOP, &tags].concat());
+    let (_, idx) = probe(&Tools::default(), &v, &IndexConfig::default()).unwrap();
+    let png = exact(&v, &idx, 4).unwrap();
+    let chunks = png_chunks(&png);
+    for tag in ["gAMA", "cHRM", "cICP", "iCCP", "sRGB"] {
+        assert!(
+            !chunks.iter().any(|c| c == tag),
+            "{tag} would make the viewer colour-manage: {chunks:?}"
+        );
+    }
+    assert_eq!(chunks.first().map(String::as_str), Some("IHDR"));
+    assert_eq!(chunks.last().map(String::as_str), Some("IEND"));
+    assert!(png_rgb(&png).0 == reference_rgb(&v, 4));
+    let _ = std::fs::remove_dir_all(dir);
+}

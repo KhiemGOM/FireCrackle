@@ -11,6 +11,7 @@ use tauri::State;
 use tauri::ipc::Response;
 mod comparison_proof;
 mod compression;
+mod exact_frame;
 mod external_tools;
 mod gui;
 mod gui_scan;
@@ -328,6 +329,18 @@ async fn preview_thumbnail(
     .map_err(err)?
 }
 
+/// One paused frame at the video's own resolution as lossless PNG bytes, sent raw (no JSON).
+#[tauri::command]
+async fn exact_frame(state: State<'_, AppState>, frame: u32) -> Result<Response, String> {
+    let project = run(state.ws.clone(), |w| Ok(w.automation_project())).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        exact_frame::get(&project, frame, external_tools::video_tools)
+            .map(|png| Response::new((*png).clone()))
+    })
+    .await
+    .map_err(err)?
+}
+
 /// The JPEG bytes of one frame, sent raw (no JSON). A frame that is not cached decodes for up to a second, so the
 /// workspace is locked only to take a handle on its frame cache: every other command keeps working meanwhile.
 #[tauri::command]
@@ -519,6 +532,7 @@ pub fn run_app() {
             import_labels,
             frame,
             preview_thumbnail,
+            exact_frame,
             timeline,
             flags,
             phase_chart,
