@@ -55,6 +55,32 @@ Jump at frame 3049 (50.82s): shift -24 frames
 3.4 s mod 1 s = 0.4 s = 24 frames, phase 13 → 49. Exactly the cut, nothing else flagged. (A cut of a whole number
 of seconds ±1 frame would be invisible to this check; that is the method's blind spot.)
 
+## Hidden cuts: how close to a whole second must a cut be to pass?
+
+Same control clip, a cut at 50.0 s of exactly 3.000 s and of 3 s plus 1, 2, 3 and 6 frames:
+
+| Cut | Result |
+|---|---|
+| 3.000 s | nothing flagged: the blind spot is real |
+| 3.000 s + 1 frame | `Drift −1` (a persistent one-frame shift, classed as recorder drift) |
+| 3.000 s + 2 frames | `Drift −2` |
+| 3.000 s + 3 frames | **`Jump −3`** |
+| 3.000 s + 6 frames | **`Jump −6`** |
+
+So an edit is flagged as a cut when it is at least 3 frames (50 ms) away from a whole number of seconds; within
+±2 frames (±33 ms) it is reported as drift, which the reference file also shows naturally, so it cannot be
+distinguished. An editor who trims on exact 1-second multiples at 60 fps is invisible to this check.
+
+## Could the FPS value itself expose a hidden cut?
+
+Second-to-second changes of the displayed value in the reference footage (6,515 changes across the scanned
+spans): |ΔFPS| p50 = 10, p90 = 93, p95 = 139, p99 = 268, p99.9 = 425, max = 510; relative to the previous
+value p90 = 0.40, p99 = 1.2 (the max, 173×, is a stall second at ~1–3 fps). A cut between two ordinary scenes
+produces a jump of the same order as natural variation, so a value threshold is not a detector: at |Δ| > 425
+it would still raise one false flag per ~1,000 s and miss most cuts. The stronger whole-second-cut check is
+continuity of the overlay's own XYZ and yaw fields (a position can only move so far in one frame); that is
+future work for the reader.
+
 ## Consequences for the reference footage
 
 - The reader and the phase maths are validated on identical geometry (3-px glyphs, 60 fps), including from a 1080p
