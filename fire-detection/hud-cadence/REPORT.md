@@ -89,3 +89,26 @@ future work for the reader.
   (1023.5 s, −19 frames; 2858.5 s, +13 frames in the 81-minute span) therefore have no recorder explanation yet.
   They are still not proven cuts: a longer control recording, and one under heavy load, are needed to see whether
   OBS ever shifts phase on its own.
+
+## Reference footage: full scan, cross-checked with two other methods (2026-10-22)
+
+`hud-cadence find` over the whole 2 h 36 min file (561,619 frames, overlay readable on 81.4 %):
+3 Jumps, 488 Drifts, value swings and gaps. Jumps:
+
+| Cadence Jump | Shift | Readings | JoltCracker 2.5 `removed` break | FireCrackle fire-phase flag |
+|---|---|---|---|---|
+| 0:12:21.85 (frame 44,511) | −4 frames | 92 → 113 | none (nearest 279 s away; Jolt's run 1:41–17:01 is continuous) | none (overlay fully readable, no flag) |
+| **0:17:03.47 (frame 61,408)** | **−19 frames** | 103 → 120 | **0:17:01.17–0:17:03.48, jump 0.284 s ≈ 17 frames** | none (no fire labels there) |
+| **0:47:38.53 (frame 171,512)** | **+13 frames** | 231 → 221 | **0:47:36.62–0:47:38.30, jump 0.767 s ≈ 46 frames ≡ +14 mod 60** | none (no fire labels there) |
+
+Two independent signals (hunger/heart-bar ticks in Jolt; the FPS counter's 1-second grid here) agree on the same
+two frames, and the sub-second amounts agree within 1–2 frames. Jolt's third break (0:01:37.83–0:01:41.38,
+0.25 s) is before the overlay appears (8:26), so the cadence cannot speak to it. The −4-frame jump at 0:12:21.85
+is cadence-only: a 67 ms removal may be below Jolt's resolution, or it is something else; unconfirmed.
+
+FireCrackle's 17 fire-phase flags (1:03–2:36, where fire labels exist) have **no cadence Jump within ±3 s**, and the
+overlay was fully readable around every flag before 2:34. In particular the soft `PhaseShift`s at 1:21:47,
+1:25:40, 1:48:01 and 2:00:05 are not video cuts by this measure: the FPS grid runs straight through them, so they
+are game-side (lag, reload, dimension change) rather than edits. Files: `results/find-recovered-video-2026-10-22.json`,
+`results/jolt-2.5-recovered-video-2026-10-22.json`, `results/firecrackle-flags-recovered-video-2026-10-22.json`,
+`results/crossmatch.js` (`node crossmatch.js find.json flags.json jolt.json`).

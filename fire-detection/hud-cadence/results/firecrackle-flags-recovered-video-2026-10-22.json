@@ -1,0 +1,155 @@
+[
+  {
+    "end_frame": 228413,
+    "end_time": 3806.8833333333328,
+    "frame": 228411,
+    "kind": "PhaseExcursion",
+    "phase_delta": -5.0,
+    "severity": "Soft",
+    "time": 3806.8499999999995
+  },
+  {
+    "end_frame": 229667,
+    "end_time": 3827.783333333333,
+    "frame": 229667,
+    "kind": "PhaseOutlier",
+    "phase_delta": -12.669999999998254,
+    "severity": "Hard",
+    "time": 3827.783333333333
+  },
+  {
+    "end_frame": 243887,
+    "end_time": 4064.783333333333,
+    "frame": 243885,
+    "kind": "PhaseExcursion",
+    "phase_delta": -11.169999999998254,
+    "severity": "Hard",
+    "time": 4064.7499999999995
+  },
+  {
+    "end_frame": 294421,
+    "end_time": 4907.016666666666,
+    "frame": 294421,
+    "kind": "PhaseShift",
+    "phase_delta": -15.660000000003492,
+    "severity": "Soft",
+    "time": 4907.016666666666
+  },
+  {
+    "end_frame": 308417,
+    "end_time": 5140.283333333333,
+    "frame": 308417,
+    "kind": "PhaseShift",
+    "phase_delta": 15.989999999997963,
+    "severity": "Soft",
+    "time": 5140.283333333333
+  },
+  {
+    "end_frame": 353218,
+    "end_time": 5886.966666666666,
+    "frame": 353218,
+    "kind": "PhaseOutlier",
+    "phase_delta": -5.3400000000037835,
+    "severity": "Soft",
+    "time": 5886.966666666666
+  },
+  {
+    "end_frame": 353219,
+    "end_time": 5886.983333333333,
+    "frame": 353219,
+    "kind": "PhaseOutlier",
+    "phase_delta": -5.3400000000037835,
+    "severity": "Soft",
+    "time": 5886.983333333333
+  },
+  {
+    "end_frame": 388882,
+    "end_time": 6481.366666666666,
+    "frame": 388882,
+    "kind": "PhaseShift",
+    "phase_delta": 8.160000000003492,
+    "severity": "Soft",
+    "time": 6481.366666666666
+  },
+  {
+    "end_frame": 432321,
+    "end_time": 7205.349999999999,
+    "frame": 432321,
+    "kind": "PhaseShift",
+    "phase_delta": -9.660000000018044,
+    "severity": "Soft",
+    "time": 7205.349999999999
+  },
+  {
+    "end_frame": 556311,
+    "end_time": 9271.849999999999,
+    "frame": 556310,
+    "kind": "PhaseExcursion",
+    "phase_delta": -7.509999999980209,
+    "severity": "Soft",
+    "time": 9271.833333333332
+  },
+  {
+    "end_frame": 558557,
+    "end_time": 9309.283333333333,
+    "frame": 558557,
+    "kind": "PhaseOutlier",
+    "phase_delta": -11.840000000025611,
+    "severity": "Hard",
+    "time": 9309.283333333333
+  },
+  {
+    "end_frame": 558558,
+    "end_time": 9309.3,
+    "frame": 558558,
+    "kind": "PhaseOutlier",
+    "phase_delta": -11.840000000025611,
+    "severity": "Hard",
+    "time": 9309.3
+  },
+  {
+    "end_frame": 561265,
+    "end_time": 9354.416666666666,
+    "frame": 561058,
+    "kind": "PhaseExcursion",
+    "phase_delta": 15.84000000001106,
+    "severity": "Hard",
+    "time": 9350.966666666665
+  },
+  {
+    "end_frame": 561363,
+    "end_time": 9356.05,
+    "frame": 561273,
+    "kind": "PhaseExcursion",
+    "phase_delta": -15.660000000003492,
+    "severity": "Hard",
+    "time": 9354.55
+  },
+  {
+    "end_frame": 561315,
+    "end_time": 9355.249999999998,
+    "frame": 561315,
+    "kind": "PhaseShift",
+    "phase_delta": 9.999999999999893,
+    "severity": "Hard",
+    "time": 9355.249999999998
+  },
+  {
+    "end_frame": 561461,
+    "end_time": 9357.683333333332,
+    "frame": 561371,
+    "kind": "PhaseExcursion",
+    "phase_delta": -15.679999999978463,
+    "severity": "Hard",
+    "time": 9356.183333333332
+  },
+  {
+    "end_frame": 561405,
+    "end_time": 9356.749999999998,
+    "frame": 561405,
+    "kind": "PhaseShift",
+    "phase_delta": 8.666661997308495,
+    "severity": "Hard",
+    "time": 9356.749999999998
+  }
+]
