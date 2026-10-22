@@ -51,39 +51,20 @@ struct Cache {
     frames: Vec<Option<Option<Surface>>>,
     finished: bool,
 }
+/// Results are reused only for the same project, video file and scan pipeline (detector, decoder, app version).
+fn cache_key(project: &Project, pipeline: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"gui-presence-v2");
+    hash.update(pipeline);
+    hash.update(serde_json::to_vec(project).unwrap_or_default());
+    crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
+    format!("{:x}", hash.finalize())
+}
 impl Cache {
     fn load(project: &Project) -> Self {
-        let mut hash = Sha256::new();
-        hash.update(b"gui-presence-source-bank-v1");
-        hash.update(include_bytes!(
-            "../../../fire-detection/core/src/gui_interaction_fast.rs"
-        ));
-        hash.update(include_bytes!(
-            "../../../fire-detection/core/src/gui_interaction.rs"
-        ));
-        hash.update(include_bytes!(
-            "../../../fire-detection/core/src/gui_tooltip.rs"
-        ));
-        hash.update(include_bytes!(
-            "../../../fire-detection/data/assets/gui/interaction.bundle"
-        ));
-        hash.update(serde_json::to_vec(project).unwrap_or_default());
-        if let Ok(meta) = std::fs::metadata(&project.video_path) {
-            hash.update(meta.len().to_le_bytes());
-            if let Ok(time) = meta.modified().and_then(|t| {
-                t.duration_since(std::time::UNIX_EPOCH)
-                    .map_err(std::io::Error::other)
-            }) {
-                hash.update(time.as_nanos().to_le_bytes());
-            }
-        }
-        let video = std::path::Path::new(&project.video_path);
-        let mut name = video.file_name().unwrap_or_default().to_os_string();
-        name.push(".firecrackle");
-        let path = video
-            .with_file_name(name)
-            .join("auto-cache/gui-interactions.jsonl");
-        let key = format!("{:x}", hash.finalize());
+        let path = crate::scan_cache::auto_cache_file(project, "gui-interactions.jsonl")
+            .unwrap_or_default();
+        let key = cache_key(project, crate::scan_cache::pipeline_version());
         let mut cache = Self {
             path,
             key,
@@ -650,6 +631,20 @@ mod tests {
         // Its worker has not noticed yet (still "running"), but it is stopping, so the new video may start.
         let status = jobs.status(&b.project).unwrap();
         assert_eq!(status.total, b.project.frames.len() as u32);
+    }
+    #[test]
+    fn the_gui_cache_key_follows_the_shared_pipeline_version() {
+        // Decoder, ffmpeg arguments, app version: anything that invalidates first-person/no-fire caches must
+        // invalidate GUI results too, not just the three detector sources.
+        let f = crate::scan_cache::tests::fixture(3);
+        assert_ne!(
+            cache_key(&f.project, "pipeline-a"),
+            cache_key(&f.project, "pipeline-b")
+        );
+        assert_eq!(
+            cache_key(&f.project, "pipeline-a"),
+            cache_key(&f.project, "pipeline-a")
+        );
     }
     #[test]
     fn a_range_is_sealed_only_when_both_neighbours_are_scanned() {

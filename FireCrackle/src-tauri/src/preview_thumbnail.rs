@@ -29,15 +29,7 @@ fn cache_path(project: &Project, dir: &Path, frame: u32, width: u32) -> PathBuf 
     hash.update(width.to_le_bytes());
     hash.update(project.fingerprint.as_bytes());
     hash.update((project.frames.len() as u64).to_le_bytes());
-    if let Ok(metadata) = std::fs::metadata(&project.video_path) {
-        hash.update(metadata.len().to_le_bytes());
-        if let Ok(time) = metadata.modified().and_then(|t| {
-            t.duration_since(std::time::UNIX_EPOCH)
-                .map_err(std::io::Error::other)
-        }) {
-            hash.update(time.as_nanos().to_le_bytes());
-        }
-    }
+    crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
     dir.join("preview-thumbs")
         .join(format!("{:x}", hash.finalize()))
         .join(format!("{frame:010}.jpg"))

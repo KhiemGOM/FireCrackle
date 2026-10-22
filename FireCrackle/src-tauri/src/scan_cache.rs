@@ -13,7 +13,7 @@ use studio_core::project::Project;
 
 pub type Decisions = Vec<Option<i16>>; // None pending, -1 abstained, 0..31 accepted row.
 
-fn pipeline_version() -> &'static str {
+pub(crate) fn pipeline_version() -> &'static str {
     static VERSION: OnceLock<String> = OnceLock::new();
     VERSION.get_or_init(|| {
         let mut hash = Sha256::new();
@@ -38,6 +38,31 @@ fn pipeline_version() -> &'static str {
             "../../../fire-detection/data/assets/gui/recipe_book.rgba");
         format!("{:x}", hash.finalize())
     })
+}
+
+/// The video file's length and modification time, so a file replaced in place invalidates caches even before
+/// its project is re-imported. A file that cannot be read adds nothing.
+pub(crate) fn hash_video_file(hash: &mut Sha256, video_path: &str) {
+    if let Ok(meta) = std::fs::metadata(video_path) {
+        hash.update(meta.len().to_le_bytes());
+        if let Ok(time) = meta.modified().and_then(|t| {
+            t.duration_since(std::time::UNIX_EPOCH)
+                .map_err(std::io::Error::other)
+        }) {
+            hash.update(time.as_nanos().to_le_bytes());
+        }
+    }
+}
+
+/// `<video>.firecrackle/auto-cache/<name>`: where every automatic scan keeps its resumable results.
+pub(crate) fn auto_cache_file(project: &Project, name: &str) -> Result<PathBuf, String> {
+    let video = std::path::Path::new(&project.video_path);
+    let mut dir = video
+        .file_name()
+        .ok_or("Video path has no file name")?
+        .to_os_string();
+    dir.push(".firecrackle");
+    Ok(video.with_file_name(dir).join("auto-cache").join(name))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -65,34 +90,14 @@ impl Journal {
         hash.update(pipeline_version());
         hash.update([u8::from(no_fire)]);
         hash.update(serde_json::to_vec(project).map_err(|e| e.to_string())?);
-        // Also reject in-place replacements even when the imported project has not yet been reopened.
-        if let Ok(meta) = std::fs::metadata(&project.video_path) {
-            hash.update(meta.len().to_le_bytes());
-            if let Ok(time) = meta.modified().and_then(|t| {
-                t.duration_since(std::time::UNIX_EPOCH)
-                    .map_err(std::io::Error::other)
-            }) {
-                hash.update(time.as_nanos().to_le_bytes());
-            }
-        }
+        hash_video_file(&mut hash, &project.video_path);
         let key = format!("{:x}", hash.finalize());
-        let video = std::path::Path::new(&project.video_path);
-        let mut name = video
-            .file_name()
-            .ok_or("Video path has no file name")?
-            .to_os_string();
-        name.push(".firecrackle");
-        Ok((
-            video
-                .with_file_name(name)
-                .join("auto-cache")
-                .join(if no_fire {
-                    "no-fire.jsonl"
-                } else {
-                    "first-person.jsonl"
-                }),
-            key,
-        ))
+        let name = if no_fire {
+            "no-fire.jsonl"
+        } else {
+            "first-person.jsonl"
+        };
+        Ok((auto_cache_file(project, name)?, key))
     }
     pub fn load(project: &Project, no_fire: bool) -> Option<Self> {
         let (path, key) = Self::location(project, no_fire).ok()?;
@@ -281,6 +286,36 @@ impl Journal {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    #[test]
+    fn the_video_file_fingerprint_changes_when_the_file_is_replaced_in_place() {
+        let f = fixture(2);
+        let digest = |path: &str| {
+            let mut h = Sha256::new();
+            hash_video_file(&mut h, path);
+            format!("{:x}", h.finalize())
+        };
+        let before = digest(&f.project.video_path);
+        assert_eq!(before, digest(&f.project.video_path));
+        std::fs::write(&f.project.video_path, b"a longer replacement video").unwrap();
+        assert_ne!(before, digest(&f.project.video_path));
+        // A missing file still hashes (to the no-metadata value) rather than failing.
+        let _ = digest("Z:/definitely/missing.mkv");
+    }
+    #[test]
+    fn auto_cache_files_live_in_the_videos_project_folder() {
+        let f = fixture(2);
+        let path = auto_cache_file(&f.project, "gui-interactions.jsonl").unwrap();
+        assert_eq!(
+            path,
+            f.root
+                .join("clip.mkv.firecrackle")
+                .join("auto-cache")
+                .join("gui-interactions.jsonl")
+        );
+        let mut nameless = f.project.clone();
+        nameless.video_path = "/".into();
+        assert!(auto_cache_file(&nameless, "x.jsonl").is_err());
+    }
     pub struct Fixture {
         pub root: PathBuf,
         pub project: Project,
