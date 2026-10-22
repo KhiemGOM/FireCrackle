@@ -32,7 +32,7 @@
 .jump-input.bad { border-color: var(--amber); }
 .jump-error {
   position: absolute;
-  top: calc(100% + 5px);
+  bottom: calc(100% + 5px); /* above the box: the video pane clips anything below its status row */
   left: 0;
   z-index: 20;
   width: max-content;

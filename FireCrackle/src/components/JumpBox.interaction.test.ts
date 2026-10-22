@@ -182,3 +182,32 @@ it("a lookup cancelled by switching fields cannot jump later", async () => {
   expect(onJump).not.toHaveBeenCalled();
   expect(input(render())!.props.value).toBe("1234");
 });
+it("a digit typed with the caret after the last digit shifts the time left instead of being ignored", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
+  const el = { selectionStart: 8, selectionEnd: 8, setSelectionRange: vi.fn() };
+  input(render())!.props.onKeyDown({ ...key("7"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("02:03|47");
+  expect(el.setSelectionRange).toHaveBeenCalledWith(8, 8);
+});
+it("typing 70 into the frame digits, then fixing it, works from the end of the box", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "00:20|34")!.props.onClick();
+  const el = { selectionStart: 8, selectionEnd: 8, setSelectionRange: vi.fn() };
+  input(render())!.props.onKeyDown({ ...key("Backspace"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("00:20|30");
+  el.selectionStart = el.selectionEnd = 8;
+  input(render())!.props.onKeyDown({ ...key("5"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("02:03|05");
+});
+it("shifting in a digit does nothing to the frame box and leaves Backspace at the start alone", () => {
+  find(render(), (e) => e.type === "button" && text(e) === "1234")!.props.onClick();
+  const el = { selectionStart: 4, selectionEnd: 4, setSelectionRange: vi.fn() };
+  input(render())!.props.onKeyDown({ ...key("9"), currentTarget: el });
+  expect(input(render())!.props.value).toBe("1234");
+  find(render(), (e) => e.type === "button")!; 
+});
+it("the error message is placed above the box, where the video pane does not clip it", async () => {
+  const css = (await import("node:fs")).readFileSync(new URL("./JumpBox.css", import.meta.url), "utf8");
+  const rule = /\.jump-error\s*\{([^}]*)\}/.exec(css)![1];
+  expect(rule).toMatch(/bottom:/);
+  expect(rule).not.toMatch(/top:/);
+});

@@ -94,7 +94,15 @@ export function JumpBox({ current, frameCount, pts, fps, onJump, locate }: Props
                 do { a--; } while (a >= 0 && !/\d/.test(chars[a]));
               }
               while (a < chars.length && a >= 0 && !/\d/.test(chars[a])) a++;
-              if (a >= 0 && a < chars.length) chars[a] = /^\d$/.test(e.key) ? e.key : "0";
+              if (/^\d$/.test(e.key) && a >= chars.length && b <= a) {
+                // Caret after the last digit: shift the digits left so typing never silently does nothing.
+                const digits = chars.filter((c) => /\d/.test(c));
+                digits.shift();
+                digits.push(e.key);
+                let i = 0;
+                for (let k = 0; k < chars.length; k++) if (/\d/.test(chars[k])) chars[k] = digits[i++];
+                a = chars.length - 1;
+              } else if (a >= 0 && a < chars.length) chars[a] = /^\d$/.test(e.key) ? e.key : "0";
               let next = /^\d$/.test(e.key) ? a + 1 : Math.max(a, 0);
               while (next < chars.length && !/\d/.test(chars[next])) next++;
               caret.current = next;
