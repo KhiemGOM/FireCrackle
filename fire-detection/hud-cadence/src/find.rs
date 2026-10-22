@@ -86,7 +86,7 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
     // Value swings: the largest 1 % of |Δ| at ordinary boundaries, so a hidden whole-second cut that joined very
     // different scenes still surfaces, ranked with everything else.
     let mut deltas: Vec<(u32, u32)> = changes.iter().map(|&c| (describe(c).2, c)).collect();
-    deltas.sort_unstable_by(|a, b| b.cmp(a));
+    deltas.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1))); // largest |Δ| first, earliest frame on ties
     let value_cutoff = deltas.get(deltas.len() / 100).map_or(u32::MAX, |d| d.0.max(1));
     for run in runs_split_at_gaps(&changes, max_gap) {
         let analysis = analyse(&run, Period::Frames(fps));
