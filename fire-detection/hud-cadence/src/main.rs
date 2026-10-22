@@ -77,22 +77,31 @@ fn crop(a: &Args) -> (usize, usize) {
     }
 }
 
+/// 8-bit grey of the cropped band. A bare `format=gray` after `crop` made ffmpeg insert the conversion *before* the
+/// crop (crop accepts gray), i.e. on the full frame, costing ~30 % of the pipeline. Pinning `format=yuv420p` first
+/// keeps the conversion on the cropped band; the output bytes are identical (including the tv→full range expansion
+/// the reader's thresholds were set on), which `extractplanes=y` is not.
+const GRAY: &str = "format=yuv420p,format=gray";
+
 /// ffmpeg filter producing the crop: the top band, plus (bottom-right strip) the bottom 3 GUI rows stacked under it.
+/// `showinfo` (per-frame timestamps on stderr) is only added for `sweep`, the one command that reads them.
 fn crop_filter(a: &Args) -> String {
+    let info = if a.cmd == "sweep" { ",showinfo" } else { "" };
     let (w, h) = crop(a);
     let pre = a.prescale.as_ref().map_or(String::new(), |wh| format!("scale={wh}:flags=lanczos,"));
     if a.strip == "bottom-right" {
         let sh = 3 * a.scale;
-        format!("{pre}split=2[t][b];[t]crop={w}:{STRIP_H}:0:0[t];[b]crop={w}:{sh}:0:ih-{sh}[b];[t][b]vstack,format=gray,showinfo")
+        format!("{pre}split=2[t][b];[t]crop={w}:{STRIP_H}:0:0[t];[b]crop={w}:{sh}:0:ih-{sh}[b];[t][b]vstack,{GRAY}{info}")
     } else {
-        format!("{pre}crop={w}:{h}:0:0,format=gray,showinfo")
+        format!("{pre}crop={w}:{h}:0:0,{GRAY}{info}")
     }
 }
 
 fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) -> String {
     let (w, h) = crop(a);
     let mut c = Command::new(&a.ffmpeg);
-    c.args(["-v", "info", "-nostats", "-threads", "8"]);
+    // `-threads 0` lets the decoder (dav1d for AV1) use every core; audio/subtitles/data are never decoded.
+    c.args(["-v", if a.cmd == "sweep" { "info" } else { "error" }, "-nostats", "-threads", "0"]);
     if keyframes_only {
         c.args(["-skip_frame", "nokey"]);
     }
@@ -100,7 +109,7 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
     c.arg("-i").arg(&a.video);
-    c.args(["-vf", &crop_filter(a), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
+    c.args(["-an", "-sn", "-dn", "-vf", &crop_filter(a), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
     c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = c.spawn().expect("start ffmpeg");
     let mut err = child.stderr.take().unwrap();

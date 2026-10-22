@@ -80,7 +80,7 @@ Two flags to read before trusting a Jump: **UNSTABLE READINGS** means the digits
 (something drawn over them, or a glyph at the edge of the template margin); phase findings there are not reliable.
 **PARTIAL READ** means one reading is a prefix/suffix of the other (`367` vs `36`): a covered digit, not a swing.
 
-Speed: about 300 frames/s on a 1440p60 AV1 file with dav1d (decode-bound), so an hour of video takes ~12 min.
+Speed: about 700–1,000 frames/s on a 1440p60 AV1 file with dav1d (decode-bound, overlay present or not), so an hour of video takes ~4–5 min.
 
 ## What it reads
 
