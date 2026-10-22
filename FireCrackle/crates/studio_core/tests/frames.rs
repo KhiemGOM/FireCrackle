@@ -284,6 +284,42 @@ fn showinfo_with_no_frame_lines_is_empty_and_unreadable_times_are_skipped() {
     assert_eq!(parse_showinfo(t), vec![0.5]);
 }
 
+#[test]
+fn showinfo_times_use_the_exact_integer_pts_not_the_rounded_pts_time() {
+    // Half an hour into a 90 kHz stream showinfo prints pts_time with 6 significant digits ("1800.02"),
+    // which is 3 ms off: a fifth of a 60 fps frame. The integer pts and the time base are exact.
+    let text = "[Parsed_showinfo_1 @ 0x1] config in time_base: 1/90000, frame_rate: 60/1
+        [Parsed_showinfo_1 @ 0x1] n:   0 pts:162001501 pts_time:1800.02 duration: 1500
+";
+    assert_eq!(parse_showinfo(text), vec![162001501.0 / 90000.0]);
+}
+
+#[test]
+fn showinfo_times_fall_back_to_pts_time_without_a_time_base_line() {
+    let text = "[Parsed_showinfo_1 @ 0x1] n: 0 pts: 77 pts_time:1.25 duration: 1
+";
+    assert_eq!(parse_showinfo(text), vec![1.25]);
+}
+
+#[test]
+fn the_streaming_parser_keeps_one_entry_per_frame_line_for_alignment() {
+    let mut parser = ShowinfoTimes::default();
+    assert_eq!(
+        parser.line("[Parsed_showinfo_1 @ 0x1] config in time_base: 1/1000, frame_rate: 60/1"),
+        None
+    );
+    assert_eq!(parser.line("frame=    2 fps=0.0"), None);
+    assert_eq!(
+        parser.line("[Parsed_showinfo_1 @ 0x1] n: 0 pts: 4017 pts_time:4.017 duration: 16"),
+        Some(4.017)
+    );
+    // An unreadable frame still counts as a frame (NaN), so later frames are not shifted.
+    assert!(parser
+        .line("[Parsed_showinfo_1 @ 0x1] n: 1 pts: N/A pts_time:N/A duration: 16")
+        .unwrap()
+        .is_nan());
+}
+
 // ============================================================ seek_arg
 
 #[test]

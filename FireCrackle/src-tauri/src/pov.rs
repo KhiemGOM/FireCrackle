@@ -748,34 +748,14 @@ pub(crate) fn open_scan_decoder<'a>(
     let errors = std::thread::spawn(move || {
         use std::io::BufRead;
         let mut saved = std::collections::VecDeque::new();
-        let mut tick = None;
+        let mut times = studio_core::frames::ShowinfoTimes::default();
         for line in std::io::BufReader::new(stderr)
             .lines()
             .map_while(Result::ok)
         {
             if line.contains("showinfo") {
-                if let Some(raw) = line
-                    .split_once("config in time_base:")
-                    .map(|(_, raw)| raw.trim())
-                {
-                    tick = raw
-                        .split_whitespace()
-                        .next()
-                        .and_then(|v| v.trim_end_matches(',').split_once('/'))
-                        .and_then(|(a, b)| Some(a.parse::<f64>().ok()? / b.parse::<f64>().ok()?));
-                }
-                if line.contains("] n:") {
-                    let pts = tick.and_then(|tick| {
-                        line.split_once(" pts:")?
-                            .1
-                            .split_whitespace()
-                            .next()?
-                            .parse::<f64>()
-                            .ok()
-                            .map(|n| n * tick)
-                    });
-                    // Integer pts + timebase avoids showinfo's rounded pts_time on long videos.
-                    let _ = time_tx.send(pts.unwrap_or(f64::NAN));
+                if let Some(time) = times.line(&line) {
+                    let _ = time_tx.send(time);
                 }
             } else {
                 saved.push_back(line.chars().take(1000).collect::<String>());

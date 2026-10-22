@@ -139,15 +139,54 @@ fn parse_picture(b: &[u8], start: usize) -> Parsed {
     }
 }
 
-/// The `pts_time` of every frame line in ffmpeg's `showinfo` output, in order (other lines are ignored).
+/// Frame times from ffmpeg's `showinfo` lines, read one line at a time (scans stream stderr while decoding).
+/// The integer `pts` times the filter's time base is exact; the printed `pts_time` has only six significant
+/// digits, which on long videos is a sizeable part of a frame. `pts_time` is used only when no time base was seen.
+#[derive(Default)]
+pub struct ShowinfoTimes {
+    time_base: Option<(f64, f64)>,
+}
+
+impl ShowinfoTimes {
+    /// `Some(seconds)` for a frame line (NaN when its time cannot be read, so frames stay aligned), else `None`.
+    pub fn line(&mut self, line: &str) -> Option<f64> {
+        if !line.contains("showinfo") {
+            return None;
+        }
+        if let Some((_, raw)) = line.split_once("config in time_base:") {
+            self.time_base = raw
+                .split_whitespace()
+                .next()
+                .and_then(|v| v.trim_end_matches(',').split_once('/'))
+                .and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)))
+                .filter(|&(_, den): &(f64, f64)| den != 0.0);
+            return None;
+        }
+        if !line.contains("] n:") {
+            return None;
+        }
+        let field = |name: &str| {
+            line.split_once(name)?
+                .1
+                .split_whitespace()
+                .next()?
+                .parse::<f64>()
+                .ok()
+        };
+        let exact = self
+            .time_base
+            .and_then(|(num, den)| field(" pts:").map(|pts| pts * num / den));
+        Some(exact.or_else(|| field("pts_time:")).unwrap_or(f64::NAN))
+    }
+}
+
+/// The time of every frame line in ffmpeg's `showinfo` output, in order (other lines and unreadable times are skipped).
 pub fn parse_showinfo(stderr: &str) -> Vec<f64> {
+    let mut times = ShowinfoTimes::default();
     stderr
         .lines()
-        .filter(|l| l.contains("showinfo") && l.contains("] n:"))
-        .filter_map(|l| {
-            let rest = l.split_once("pts_time:")?.1;
-            rest.split_whitespace().next()?.parse::<f64>().ok()
-        })
+        .filter_map(|l| times.line(l))
+        .filter(|t| t.is_finite())
         .collect()
 }
 
