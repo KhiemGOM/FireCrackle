@@ -8,6 +8,7 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.RenderTickCounter;
 import org.firecracking.hudinfo.HudInfoClient;
 import org.firecracking.hudinfo.HudText;
+import org.firecracking.hudinfo.Visibility;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -26,7 +27,9 @@ public class GameRendererMixin {
     private void hudinfo$draw(RenderTickCounter counter, boolean tick, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = client.player;
-        if (player == null || client.options.hudHidden || client.getDebugHud().shouldShowDebugHud()) {
+        boolean hudHidden = client.options.hudHidden, f3Open = client.debugHudEntryList.isF3Enabled();
+        if (!Visibility.shouldDraw(player != null, hudHidden, f3Open)) {
+            HudInfoClient.hidden(player != null, hudHidden, f3Open);
             return;
         }
         DrawContext context = new DrawContext(client, guiState, 0, 0);

@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 /** Draws the overlay line plus a frame-ID sync strip, and logs every rendered HUD frame with the process clock
  *  and the displayed FPS value, so a recording can be aligned frame-for-frame with what the game actually drew. */
 public final class HudInfoClient implements ClientModInitializer {
-    private static final Logger LOG = LoggerFactory.getLogger("hudinfo");
+    public static final Logger LOG = LoggerFactory.getLogger("hudinfo");
     /** The overlay line sits at GUI (2, 2) exactly like the reference footage; the strip goes to the BOTTOM right
      *  corner, away from the text and from the top-right toasts (advancements, recipes) that cover that corner. */
     public static final int STRIP_HEIGHT = 3;
@@ -44,6 +44,18 @@ public final class HudInfoClient implements ClientModInitializer {
             LOG.info("hud-info overlay active; frame log {}; sodium loaded: {}", path, FabricLoader.getInstance().isModLoaded("sodium"));
         } catch (Exception error) {
             throw new IllegalStateException("hud-info log could not initialize", error);
+        }
+    }
+
+    private static long lastHiddenLog;
+
+    /** Called on frames where nothing is drawn. In a world that is only legitimate for F1 or the F3 screen; it is
+     *  logged once a second so a silently hidden overlay is visible in the game log and in the frame log (a gap). */
+    public static void hidden(boolean playerPresent, boolean hudHidden, boolean f3Open) {
+        long now = System.nanoTime();
+        if (playerPresent && now - lastHiddenLog > 1_000_000_000L) {
+            lastHiddenLog = now;
+            LOG.warn("overlay hidden in world: hudHidden={} f3Open={}", hudHidden, f3Open);
         }
     }
 
