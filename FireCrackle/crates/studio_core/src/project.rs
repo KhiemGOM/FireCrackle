@@ -193,3 +193,11 @@ pub fn fingerprint(path: &Path, window_bytes: u64) -> std::io::Result<String> {
     feed(&buf);
     Ok(format!("{len}:{window_bytes}:{hash:016x}"))
 }
+
+/// `<video file name>.firecrackle` beside the video: the folder holding its project, labels and caches.
+/// `None` when the path has no file name.
+pub fn project_dir(video: &Path) -> Option<std::path::PathBuf> {
+    let mut name = video.file_name()?.to_os_string();
+    name.push(".firecrackle");
+    Some(video.with_file_name(name))
+}

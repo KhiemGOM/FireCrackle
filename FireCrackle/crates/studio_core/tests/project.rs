@@ -448,3 +448,18 @@ fn a_project_rebuilds_the_frame_index_it_was_made_from() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_project_folder_sits_beside_the_video() {
+    use std::path::Path;
+    use studio_core::project::project_dir;
+    assert_eq!(
+        project_dir(Path::new("D:/clips/fire.mkv")).unwrap(),
+        Path::new("D:/clips/fire.mkv.firecrackle")
+    );
+    assert_eq!(
+        project_dir(Path::new("fire.mp4")).unwrap(),
+        Path::new("fire.mp4.firecrackle")
+    );
+    assert!(project_dir(Path::new("/")).is_none());
+}

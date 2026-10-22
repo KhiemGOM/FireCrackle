@@ -577,12 +577,8 @@ impl Workspace {
         video: &Path,
         defaults: &Settings,
     ) -> Result<Workspace, WorkspaceError> {
-        let mut name = video
-            .file_name()
-            .ok_or_else(|| WorkspaceError::Io("the video path has no file name".into()))?
-            .to_os_string();
-        name.push(".firecrackle");
-        let dir = video.with_file_name(name);
+        let dir = crate::project::project_dir(video)
+            .ok_or_else(|| WorkspaceError::Io("the video path has no file name".into()))?;
         std::fs::create_dir_all(&dir).map_err(io_err)?;
         let project_path = dir.join("project.json");
 

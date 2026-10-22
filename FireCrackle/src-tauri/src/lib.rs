@@ -416,17 +416,10 @@ async fn jolt_frame(
         if project.video_path != video_path || !time.is_finite() || time < 0. {
             return Err("Invalid Jolt video timestamp".into());
         }
-        let i = project.frames.partition_point(|f| f.pts < time);
-        let index = if i == 0 {
-            0
-        } else if i >= project.frames.len()
-            || time - project.frames[i - 1].pts <= project.frames[i].pts - time
-        {
-            i - 1
-        } else {
-            i
-        };
-        u32::try_from(index).map_err(err)
+        u32::try_from(studio_core::index::nearest_by(&project.frames, time, |f| {
+            f.pts
+        }))
+        .map_err(err)
     })
     .await
 }

@@ -115,18 +115,7 @@ pub fn assign(index: &FrameIndex, times: &[f64], tolerance: f64) -> Result<Vec<u
             )));
         }
         prev = Some(t);
-        let after = index.frames.partition_point(|f| f.pts <= t);
-        let i = match after {
-            0 => 0,
-            k if k == n => n - 1,
-            k => {
-                if t - index.frames[k - 1].pts <= index.frames[k].pts - t {
-                    k - 1
-                } else {
-                    k
-                }
-            }
-        };
+        let i = crate::index::nearest_frame(&index.frames, t);
         let pts = index.frames[i].pts;
         let interval = if i + 1 < n {
             index.frames[i + 1].pts - pts

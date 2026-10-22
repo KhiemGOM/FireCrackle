@@ -177,3 +177,19 @@ impl FrameIndex {
         after.checked_sub(1).map(|i| self.frames[i].n)
     }
 }
+
+/// The frame shown closest to time `t` (seconds); on an exact tie, the earlier frame. 0 for an empty index.
+pub fn nearest_frame(frames: &[FrameEntry], t: f64) -> usize {
+    nearest_by(frames, t, |f| f.pts)
+}
+
+/// [`nearest_frame`] for any frame list sorted by presentation time (`pts` reads each entry's time).
+pub fn nearest_by<T>(frames: &[T], t: f64, pts: impl Fn(&T) -> f64) -> usize {
+    let after = frames.partition_point(|f| pts(f) <= t);
+    match after {
+        0 => 0,
+        k if k == frames.len() => k - 1,
+        k if t - pts(&frames[k - 1]) <= pts(&frames[k]) - t => k - 1,
+        k => k,
+    }
+}

@@ -2,9 +2,9 @@
 use std::path::{Path, PathBuf};
 
 fn path(video: &Path) -> PathBuf {
-    let mut name = video.as_os_str().to_os_string();
-    name.push(".firecrackle");
-    PathBuf::from(name).join("jolt.json")
+    studio_core::project::project_dir(video)
+        .unwrap_or_else(|| PathBuf::from(".firecrackle"))
+        .join("jolt.json")
 }
 pub fn read(video: &Path) -> Result<Option<String>, String> {
     let path = path(video);

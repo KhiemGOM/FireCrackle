@@ -56,13 +56,9 @@ pub(crate) fn hash_video_file(hash: &mut Sha256, video_path: &str) {
 
 /// `<video>.firecrackle/auto-cache/<name>`: where every automatic scan keeps its resumable results.
 pub(crate) fn auto_cache_file(project: &Project, name: &str) -> Result<PathBuf, String> {
-    let video = std::path::Path::new(&project.video_path);
-    let mut dir = video
-        .file_name()
-        .ok_or("Video path has no file name")?
-        .to_os_string();
-    dir.push(".firecrackle");
-    Ok(video.with_file_name(dir).join("auto-cache").join(name))
+    let dir = studio_core::project::project_dir(std::path::Path::new(&project.video_path))
+        .ok_or("Video path has no file name")?;
+    Ok(dir.join("auto-cache").join(name))
 }
 
 #[derive(Serialize, Deserialize)]

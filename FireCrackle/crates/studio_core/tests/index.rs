@@ -310,3 +310,28 @@ fn frame_at_time_is_the_last_frame_not_after_t() {
     assert_eq!(idx.frame_at_time(-1.0), None);
     assert_eq!(idx.frame_at_time(99.0), Some(9));
 }
+
+#[test]
+fn nearest_frame_picks_the_closest_presentation_time_and_the_earlier_frame_on_a_tie() {
+    use studio_core::index::{nearest_frame, FrameEntry};
+    let frames: Vec<FrameEntry> = [0.0, 0.1, 0.2, 0.4]
+        .iter()
+        .enumerate()
+        .map(|(n, &pts)| FrameEntry {
+            n: n as u32,
+            pts,
+            key: n == 0,
+        })
+        .collect();
+    assert_eq!(nearest_frame(&frames, 0.1), 1, "exact time");
+    assert_eq!(nearest_frame(&frames, 0.12), 1);
+    assert_eq!(nearest_frame(&frames, 0.18), 2);
+    assert_eq!(
+        nearest_frame(&frames, 0.3),
+        2,
+        "a tie goes to the earlier frame"
+    );
+    assert_eq!(nearest_frame(&frames, -5.0), 0);
+    assert_eq!(nearest_frame(&frames, 99.0), 3);
+    assert_eq!(nearest_frame(&[], 1.0), 0);
+}
