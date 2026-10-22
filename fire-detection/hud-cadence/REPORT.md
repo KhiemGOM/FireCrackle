@@ -123,10 +123,15 @@ and the per-tick position step pin it down:
   61389→61390 jumps 0.582 (Z 0.720), the tick grid shifts by one frame (ticks at 61387, 61390, **61391**, 61394…),
   and yaw moves −20.3→−18.9 across it. Food-bar jolt (food 17: every 17·3+1 = 52 ticks = 156 frames) at ticks
   149240 and 149292 lands 139 frames apart instead of 156: **17 frames (0.283 s) removed**, the cadence's −19 ±2.
-- **Cut 2:** between frames **171472 and 171495** (player standing still, mouse flick). The tick grid is ≡1 mod 3
-  before and ≡0 mod 3 after, a one-frame shift, exactly what removing 46 frames (46 ≡ 1 mod 3) does. Food-bar
-  jolt (food 16: every 49 ticks = 147 frames) at ticks 185955 and 186004 lands 101 frames apart instead of 147:
-  **46 frames (0.767 s) removed**, the cadence's +13 ≡ −47.
+- **Cut 2: at frames 171482 → 171483.** The barrel GUI closes on that frame pair, the FPS reading goes 144 → 231 on
+  the same frame, and frame-to-frame pixel difference spikes there (45 vs <1 on the frames before). The cadence
+  pattern explains it exactly: changes at 171439, 171483, 171512 (gaps 44 and 29). Removing 46 frames at 171483
+  swallows the 1-second boundary that was due at original frame 171499, so the splice itself shows the next
+  second's value (231) and the following boundary lands 46 frames early (171559 − 46 = 171513, observed 171512).
+  The tick grid is ≡1 mod 3 before and ≡0 mod 3 after, the one-frame shift that removing 46 frames (46 ≡ 1 mod 3)
+  produces. Food-bar jolt (food 16: every 49 ticks = 147 frames) at ticks 185955 and 186004 lands 101 frames apart
+  instead of 147: **46 frames (0.767 s) removed**, the cadence's +13 ≡ −47. The removed stretch is time spent in
+  the open barrel: the player is stationary before and after.
 
 So the earlier reading "clock discontinuities, not content cuts" was wrong: the first stacked frames (61397–61420)
 were after the cut. With the tick grid as a third clock, all three agree, and the position jump is visible at cut 1.
