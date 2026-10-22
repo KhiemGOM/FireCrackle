@@ -36,7 +36,7 @@ describe("the credits", () => {
 
   it("lists every name exactly once", () => {
     const names = creditNames();
-    expect(names).toEqual(["Dijakonal", "Lagios", "Jasper", "Dart", "Minecraft Forensics", "KhiemGOM", "yt-dlp contributors", "Deno contributors", "FFmpeg contributors and Gyan Doshi"]);
+    expect(names).toEqual(["Dijakonal", "Lagios", "Jasper", "Dart", "Minecraft Forensics", "KhiemGOM", "Splosh", "yt-dlp contributors", "Deno contributors", "FFmpeg contributors and Gyan Doshi"]);
     expect(new Set(names).size).toBe(names.length);
   });
 

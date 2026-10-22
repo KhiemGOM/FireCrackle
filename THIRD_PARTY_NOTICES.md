@@ -22,6 +22,10 @@ FFmpeg and FFprobe are separate executable programs, not linked into the app or 
 
 Linux packages use the system FFmpeg/FFprobe installed through the user's distribution; they do not redistribute the Windows runtime. The Debian package declares FFmpeg as a dependency. Distribution-provided libraries and tools retain their own license terms.
 
+## JoltCracker (Splosh)
+
+[JoltCracker](https://splosh.icu/jolt) is made by Splosh and is built into FireCrackle with his permission; jolt cracking by Dart and repeater64. It is not included in the installer or portable archive: when you run it from the Phase tab, FireCrackle uses a copy already on your PC (FireCrackle's tool folder, Downloads, Desktop or PATH) if it is the newest release, otherwise it downloads the latest release from splosh.icu, checks the Windows executable against the SHA-256 published on that page, and keeps it in app data. JoltCracker's source is at [gitlab.com/skippyznjiff/jolt](https://gitlab.com/skippyznjiff/jolt) under the MIT License; FireCrackle's MIT license does not replace it. Please credit Splosh (splosh.icu) when you use Jolt results in a video.
+
 ## yt-dlp and Deno
 
 Online video importing is powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and its contributors. [Deno](https://github.com/denoland/deno) provides the JavaScript runtime used for YouTube extraction. Neither executable is included in the installer or portable archive: the app downloads official releases pinned in `FireCrackle/release/download-tools.json`, verifies SHA-256, and caches them in app data on first use.

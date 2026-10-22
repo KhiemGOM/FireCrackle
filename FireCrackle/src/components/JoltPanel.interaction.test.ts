@@ -46,3 +46,24 @@ it("uses Jolt as a time reference without a separate plotted signal",()=>{
   expect(all(root,e=>e.type==="svg")).toHaveLength(0);
   expect(all(root,e=>e.type==="button"&&e.props.children==="Canonical time (Jolt ticks)")).toHaveLength(1);
 });
+
+it("runs JoltCracker from the panel with Splosh's mark and credit, and imports its result for this video",async()=>{
+  const status={id:9,video_path:"video.mp4",state:"done",message:"Finished",percent:100,version:"2.5",result:JSON.stringify({anchors:[{time:1,tick:10},{time:2,tick:30}]}),error:null};
+  const start=vi.fn().mockResolvedValue({...status,state:"preparing",result:null});
+  const write=vi.fn().mockResolvedValue(undefined);
+  const root=render({joltCrackStart:start,joltCrackStatus:vi.fn().mockResolvedValue(status),joltWrite:write},"video.mp4",EMPTY_JOLT);
+  const button=all(root,e=>e.type==="button"&&JSON.stringify(e.props.children).includes("Run JoltCracker"))[0];
+  expect(button).toBeTruthy();
+  expect(all(button,e=>typeof e.type==="function"&&e.type.name==="SploshMark")).toHaveLength(1);
+  expect(JSON.stringify(root)).toContain("Splosh");
+  await button.props.onClick();
+  expect(start).toHaveBeenCalledOnce();
+  for(const effect of hooks.effects)effect();
+  await vi.waitFor(()=>expect(write).toHaveBeenCalled());
+  expect(write.mock.calls[0][0]).toBe("video.mp4");
+  expect(JSON.parse(write.mock.calls[0][1]).data.anchors).toHaveLength(2);
+});
+it("without the desktop backend there is no JoltCracker button, only the import",()=>{
+  const root=render({},"video.mp4",EMPTY_JOLT);
+  expect(all(root,e=>e.type==="button"&&JSON.stringify(e.props.children).includes("Run JoltCracker"))).toHaveLength(0);
+});

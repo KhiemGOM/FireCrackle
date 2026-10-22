@@ -16,6 +16,7 @@ mod external_tools;
 mod gui;
 mod gui_scan;
 mod jolt;
+mod jolt_tool;
 mod no_fire;
 mod pov;
 mod preview_thumbnail;
@@ -51,11 +52,13 @@ struct AppState {
     no_fire: pov::Jobs,
     links: url_import::Jobs,
     gui_scan: gui_scan::Jobs,
+    jolt_crack: jolt_tool::Jobs,
 }
 
 impl AppState {
     fn stop_scans(&self) {
         stop_scans(&self.pov, &self.no_fire, &self.gui_scan);
+        self.jolt_crack.shutdown();
     }
 }
 
@@ -95,6 +98,25 @@ fn gui_scan_status(state: State<'_, AppState>) -> Result<gui_scan::Status, Strin
 fn gui_scan_cancel(state: State<'_, AppState>) -> Result<(), String> {
     let project = open_project(&state.ws)?;
     state.gui_scan.cancel(&project)
+}
+
+/// Run Splosh's JoltCracker on the open video (found on this PC or downloaded once from splosh.icu).
+#[tauri::command]
+fn jolt_crack_start(state: State<'_, AppState>) -> Result<jolt_tool::Status, String> {
+    let project = open_project(&state.ws)?;
+    let video = std::path::PathBuf::from(&project.video_path);
+    let dir = studio_core::project::project_dir(&video).ok_or("The video path has no file name")?;
+    state
+        .jolt_crack
+        .start(video, dir, external_tools::video_tools()?)
+}
+#[tauri::command]
+fn jolt_crack_status(state: State<'_, AppState>) -> Result<Option<jolt_tool::Status>, String> {
+    state.jolt_crack.status()
+}
+#[tauri::command]
+fn jolt_crack_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
+    state.jolt_crack.cancel(id)
 }
 
 #[tauri::command]
@@ -241,6 +263,7 @@ fn startup_video() -> Option<String> {
 #[tauri::command]
 async fn open_video(state: State<'_, AppState>, path: String) -> Result<View, String> {
     let ws = state.ws.clone();
+    let jolt_crack = state.jolt_crack.clone();
     let scans = (
         state.pov.clone(),
         state.no_fire.clone(),
@@ -258,6 +281,7 @@ async fn open_video(state: State<'_, AppState>, path: String) -> Result<View, St
             .lock()
             .map_err(|_| "internal error: the workspace lock was poisoned".to_string())?;
         stop_scans(&scans.0, &scans.1, &scans.2);
+        jolt_crack.shutdown();
         if let Some(old) = guard.take() {
             old.wait_idle(); // let the previous video's prefetch finish before it is dropped
         }
@@ -546,6 +570,9 @@ pub fn run_app() {
             gui_scan_start,
             gui_scan_status,
             gui_scan_cancel,
+            jolt_crack_start,
+            jolt_crack_status,
+            jolt_crack_cancel,
             settings_describe,
             settings_set
         ])

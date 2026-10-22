@@ -7,3 +7,8 @@
 .jolt-chart circle { cursor:pointer; }
 .jolt-chart circle:hover,.jolt-chart circle:focus { fill:#f08a24;stroke:#fff;stroke-width:1.5;outline:none; }
 .jolt-panel a { color:#50e1ff; }
+.jolt-crack { display:inline-flex;align-items:center;gap:6px;border-color:#2fc464; }
+.jolt-crack .splosh-mark { flex:none;border-radius:4px; }
+.jolt-panel p .splosh-mark { vertical-align:-3px;margin-right:4px; }
+.jolt-crack-status { display:flex;align-items:center;gap:8px;font-size:12px; }
+.jolt-crack-status progress { width:140px; }

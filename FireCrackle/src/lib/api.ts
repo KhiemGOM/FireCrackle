@@ -7,6 +7,7 @@ import type { Label } from "./grid";
 import type { ThumbStatus } from "./thumbs";
 import { readGuiMaskFrame, type GuiAnswer, type GuiMaskReply, type GuiMaskFrame } from "./guiMask";
 import type { GuiScanStatus } from "./guiScan";
+import type { JoltCrackStatus } from "./joltCrack";
 
 export interface PickState {
   sheet: number;
@@ -103,6 +104,10 @@ export interface Backend {
   joltRead?(videoPath:string): Promise<string|null>;
   joltWrite?(videoPath:string,data:string): Promise<void>;
   joltFrame?(videoPath:string,time:number): Promise<number>;
+  /** Run Splosh's JoltCracker on the open video (found on this PC or downloaded from splosh.icu). Desktop only. */
+  joltCrackStart?(): Promise<JoltCrackStatus>;
+  joltCrackStatus?(): Promise<JoltCrackStatus|null>;
+  joltCrackCancel?(id:number): Promise<void>;
   /** Start (or find already made) the timeline thumbnails; they are generated in the background. */
   thumbsStart(): Promise<ThumbStatus>;
   thumbsStatus(): Promise<ThumbStatus>;
@@ -212,6 +217,9 @@ export async function createBackend(): Promise<Backend> {
     joltRead: (videoPath) => invoke<string|null>("jolt_read",{videoPath}),
     joltWrite: (videoPath,data) => invoke<void>("jolt_write",{videoPath,data}),
     joltFrame: (videoPath,time) => invoke<number>("jolt_frame",{videoPath,time}),
+    joltCrackStart: () => invoke<JoltCrackStatus>("jolt_crack_start"),
+    joltCrackStatus: () => invoke<JoltCrackStatus|null>("jolt_crack_status"),
+    joltCrackCancel: (id) => invoke<void>("jolt_crack_cancel",{id}),
     thumbsStart: () => invoke<ThumbStatus>("thumbs_start"),
     thumbsStatus: () => invoke<ThumbStatus>("thumbs_status"),
     thumbNearest: (frames) => invoke<Array<number | null>>("thumb_nearest", { frames }),

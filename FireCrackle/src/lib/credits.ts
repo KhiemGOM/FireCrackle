@@ -36,6 +36,7 @@ export const CREDITS: CreditSection[] = [
   {
     title: "External tools · downloaded separately",
     entries: [
+      { name: "Splosh", note: "made JoltCracker, which FireCrackle runs on your videos with his permission · splosh.icu/jolt · source: gitlab.com/skippyznjiff/jolt (MIT)." },
       { name: "yt-dlp contributors", note: "provide online video downloads · github.com/yt-dlp/yt-dlp · source: Unlicense; standalone builds contain separately licensed components." },
       { name: "Deno contributors", note: "provide the JavaScript runtime for YouTube extraction · deno.com · MIT and third-party licenses." },
       { name: "FFmpeg contributors and Gyan Doshi", note: "provide video decoding, probing and compression · ffmpeg.org / gyan.dev · Windows full build (with dav1d): GPLv3." },

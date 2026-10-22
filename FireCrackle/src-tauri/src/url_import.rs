@@ -257,20 +257,7 @@ impl Jobs {
                     }
                 }
                 if cancel.load(Ordering::Relaxed) {
-                    #[cfg(windows)]
-                    {
-                        let _ = external_tools::command("taskkill.exe")
-                            .args(["/PID", &child.id().to_string(), "/T", "/F"])
-                            .output();
-                    }
-                    #[cfg(unix)]
-                    {
-                        let _ = external_tools::command("kill")
-                            .args(["-TERM", "--", &format!("-{}", child.id())])
-                            .output();
-                    }
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    external_tools::kill_tree(&mut child);
                     return Err("Cancelled".into());
                 }
                 if let Some(code) = child.try_wait().map_err(|e| e.to_string())? {

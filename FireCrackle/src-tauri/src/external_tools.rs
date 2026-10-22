@@ -45,7 +45,7 @@ struct Asset {
 pub fn configure(root: PathBuf) {
     let _ = ROOT.set(root.join("tools"));
 }
-fn root() -> Result<&'static Path, String> {
+pub(crate) fn root() -> Result<&'static Path, String> {
     ROOT.get()
         .map(PathBuf::as_path)
         .ok_or("Tool cache unavailable".into())
@@ -53,7 +53,7 @@ fn root() -> Result<&'static Path, String> {
 pub fn status() -> Option<Progress> {
     STATUS.lock().ok().and_then(|s| s.clone())
 }
-fn progress(name: &str, downloaded: u64, total: Option<u64>) {
+pub(crate) fn progress(name: &str, downloaded: u64, total: Option<u64>) {
     if let Ok(mut s) = STATUS.lock() {
         *s = Some(Progress {
             name: name.into(),
@@ -62,7 +62,7 @@ fn progress(name: &str, downloaded: u64, total: Option<u64>) {
         });
     }
 }
-struct ClearStatus;
+pub(crate) struct ClearStatus;
 impl Drop for ClearStatus {
     fn drop(&mut self) {
         if let Ok(mut s) = STATUS.lock() {
@@ -75,6 +75,23 @@ pub fn command(exe: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut c = studio_core::proc::hidden_command(exe);
     c.stdin(std::process::Stdio::null());
     c
+}
+/// Stop a tool and everything it started (yt-dlp's and Jolt's FFmpeg children too), then reap it.
+pub(crate) fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(windows)]
+    {
+        let _ = command("taskkill.exe")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .output();
+    }
+    #[cfg(unix)]
+    {
+        let _ = command("kill")
+            .args(["-TERM", "--", &format!("-{}", child.id())])
+            .output();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 fn runs(exe: &std::ffi::OsStr, arg: &str) -> bool {
     command(exe)
