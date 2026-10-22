@@ -37,7 +37,8 @@ pub fn white(frame: u32, cell: usize) -> bool {
     }
 }
 
-/// GUI row of mod-hud's strip (below the overlay box); mod-gui draws its strip at row 0.
+/// GUI row of an early mod-hud build's strip (below the overlay box); current mod-hud draws it at the bottom
+/// right, mod-gui at the top left (row 0).
 pub const HUD_STRIP_Y: usize = 11;
 
 /// Decodes the strip from a grey image of width `width`, with the strip's top-left at video (`x0`, `y0`)

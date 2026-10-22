@@ -39,3 +39,13 @@ fn a_change_before_the_first_captured_frame_is_dropped() {
     let e = expected_changes(&rows, &ids);
     assert_eq!(e.iter().map(|c| c.renderer_frame).collect::<Vec<_>>(), vec![50]);
 }
+
+#[test]
+fn a_change_inside_a_strip_gap_is_not_mapped_to_the_frame_after_the_gap() {
+    // ids unreadable for several frames (a toast covered the strip); the change at renderer frame 120 happened
+    // somewhere inside the gap, so its video frame is unknown and must be dropped rather than guessed as 7.
+    let rows = vec![LogRow { frame: 120, nanos: 0, fps: 1, changed: true }, LogRow { frame: 200, nanos: 0, fps: 2, changed: true }];
+    let ids = [Some(100), Some(101), None, None, None, None, None, Some(160), Some(199), Some(201)];
+    let e = expected_changes(&rows, &ids);
+    assert_eq!(e.iter().map(|c| (c.renderer_frame, c.video_frame)).collect::<Vec<_>>(), vec![(200, 9)]);
+}

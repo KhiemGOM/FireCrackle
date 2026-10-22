@@ -23,7 +23,7 @@ struct Args {
     start: f64,
     duration: f64,
     out: Option<String>,
-    /// "none" | "right" (mod-hud) | "left" (mod-gui): where the frame-ID strip is.
+    /// "none" | "bottom-right" (mod-hud) | "top-right" (early mod-hud) | "left" (mod-gui): where the strip is.
     strip: String,
     /// Video width in pixels, needed to place a right-aligned strip.
     width: usize,
@@ -60,9 +60,22 @@ fn args() -> Args {
 /// Crop (width, height) the scan decodes: the overlay area, widened/heightened to include the strip.
 fn crop(a: &Args) -> (usize, usize) {
     match a.strip.as_str() {
-        "right" => (a.width, STRIP_H.max((strip::HUD_STRIP_Y + 3) * a.scale)),
+        "bottom-right" => (a.width, STRIP_H + 3 * a.scale),
+        "top-right" => (a.width, STRIP_H.max((strip::HUD_STRIP_Y + 3) * a.scale)),
         "left" => (STRIP_W.max(strip::width(a.scale)), STRIP_H),
         _ => (STRIP_W, STRIP_H),
+    }
+}
+
+/// ffmpeg filter producing the crop: the top band, plus (bottom-right strip) the bottom 3 GUI rows stacked under it.
+fn crop_filter(a: &Args) -> String {
+    let (w, h) = crop(a);
+    let pre = a.prescale.as_ref().map_or(String::new(), |wh| format!("scale={wh}:flags=lanczos,"));
+    if a.strip == "bottom-right" {
+        let sh = 3 * a.scale;
+        format!("{pre}split=2[t][b];[t]crop={w}:{STRIP_H}:0:0[t];[b]crop={w}:{sh}:0:ih-{sh}[b];[t][b]vstack,format=gray,showinfo")
+    } else {
+        format!("{pre}crop={w}:{h}:0:0,format=gray,showinfo")
     }
 }
 
@@ -77,8 +90,7 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
     c.arg("-i").arg(&a.video);
-    let pre = a.prescale.as_ref().map_or(String::new(), |wh| format!("scale={wh}:flags=lanczos,"));
-    c.args(["-vf", &format!("{pre}crop={w}:{h}:0:0,format=gray,showinfo"), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
+    c.args(["-vf", &crop_filter(a), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
     c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = c.spawn().expect("start ffmpeg");
     let mut err = child.stderr.take().unwrap();
@@ -163,7 +175,8 @@ fn main() {
         "scan" => {
             let (w, h) = crop(&a);
             let strip_pos = match a.strip.as_str() {
-                "right" => Some((w - strip::width(a.scale), strip::HUD_STRIP_Y * a.scale)),
+                "bottom-right" => Some((w - strip::width(a.scale), STRIP_H)), // stacked under the top band
+                "top-right" => Some((w - strip::width(a.scale), strip::HUD_STRIP_Y * a.scale)),
                 "left" => Some((0, 0)),
                 _ => None,
             };
@@ -260,6 +273,6 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
+        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
     }
 }

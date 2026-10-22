@@ -15,10 +15,9 @@ import org.slf4j.LoggerFactory;
  *  and the displayed FPS value, so a recording can be aligned frame-for-frame with what the game actually drew. */
 public final class HudInfoClient implements ClientModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("hudinfo");
-    /** The overlay line sits at GUI (2, 2) exactly like the reference footage; the strip goes to the RIGHT, just
-     *  below the overlay box (which ends at y = 10), so it never covers the text however wide the line gets. */
+    /** The overlay line sits at GUI (2, 2) exactly like the reference footage; the strip goes to the BOTTOM right
+     *  corner, away from the text and from the top-right toasts (advancements, recipes) that cover that corner. */
     public static final int STRIP_HEIGHT = 3;
-    public static final int STRIP_Y = 11;
     public static final int STRIP_WIDTH = 2 * FrameStrip.CELLS;
     public static final int TEXT_Y = 2;
     private static AsyncJsonLog output;
@@ -48,7 +47,7 @@ public final class HudInfoClient implements ClientModInitializer {
         }
     }
 
-    /** Called once per HUD render, after the overlay text was drawn. */
+    /** Called once per rendered frame (after every screen), once the overlay text was drawn. */
     public static void frame(MinecraftClient client, DrawContext context, int fps) {
         long id = frame++;
         long nanos = System.nanoTime();
@@ -65,10 +64,11 @@ public final class HudInfoClient implements ClientModInitializer {
         // A new root layer keeps the strip above everything drawn so far.
         context.createNewRootLayer();
         int x0 = context.getScaledWindowWidth() - STRIP_WIDTH;
+        int y0 = context.getScaledWindowHeight() - STRIP_HEIGHT;
         for (int cell = 0; cell < FrameStrip.CELLS; cell++) {
             int color = FrameStrip.white(id, cell) ? 0xffffffff : 0xff000000;
-            context.fill(x0 + cell * 2, STRIP_Y, x0 + cell * 2 + 2, STRIP_Y + STRIP_HEIGHT, color);
+            context.fill(x0 + cell * 2, y0, x0 + cell * 2 + 2, y0 + STRIP_HEIGHT, color);
         }
-        if (!output.healthy()) context.fill(x0 - 64, STRIP_Y, x0, STRIP_Y + STRIP_HEIGHT, 0xffff0000);
+        if (!output.healthy()) context.fill(x0 - 64, y0, x0, y0 + STRIP_HEIGHT, 0xffff0000);
     }
 }

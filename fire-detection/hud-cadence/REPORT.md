@@ -33,12 +33,16 @@ back at 572. This is the `nextDebugInfoUpdateTime += 1000` behaviour read straig
 
 ## What the recorder does
 
-- Video phase (frame index mod 60) of the true change frames: **13** for 94 of 106, including straight through the
-  F3 gap and the late renders.
-- One stretch of six consecutive seconds sat at phase **8**, then returned to 13: OBS ran ~5 frames behind and
-  caught up. 68 duplicated frames (1.2 %) and no backwards IDs in the strip. So a shift of several frames that
-  **reverts** is the recorder, not an edit; the signature of an edit is a shift that persists.
-- At 745 fps the recorder captures one in ~12 renderer frames; `skipped renderer frames` is expected, not a loss.
+- Video phase (frame index mod 60) of the true change frames: **13 for 97 of 98**, including straight through the
+  F3 gap and the late renders. The one exception is the first change, rendered late while the recording started.
+- An earlier draft of this report described a six-second stretch at phase 8 as "OBS falling behind". That was an
+  artifact: an advancement toast covered the top-right strip for 368 frames, and the truth mapping guessed the
+  far edge of the gap. With gap-safe mapping (changes inside an unreadable strip stretch are dropped) the phase is
+  flat. The strip now lives at the bottom right, away from toasts.
+- 68 duplicated frames (1.2 %) and no backwards IDs in the strip. At 745 fps the recorder captures one in ~12
+  renderer frames; `skipped renderer frames` is expected, not a loss.
+- Reader vs truth with the corrected mapping: 96 of 98 exact, 0 off by one, 2 missed (F3 gap), 9 detected
+  changes without a usable truth frame (gap edges).
 
 ## Splice test
 
@@ -55,7 +59,7 @@ of seconds ±1 frame would be invisible to this check; that is the method's blin
 
 - The reader and the phase maths are validated on identical geometry (3-px glyphs, 60 fps), including from a 1080p
   downscale.
-- Shifts in the reference file that persist (at 1023.5 s, −19 frames, and 2858.5 s, +13 frames in the 81-minute
-  span) are not explained by the recorder behaviour seen here, which only produced temporary shifts that reverted.
+- In this control the recorder never shifted the phase at all. The persistent shifts in the reference file
+  (1023.5 s, −19 frames; 2858.5 s, +13 frames in the 81-minute span) therefore have no recorder explanation yet.
   They are still not proven cuts: a longer control recording, and one under heavy load, are needed to see whether
-  OBS ever shifts phase permanently on its own.
+  OBS ever shifts phase on its own.

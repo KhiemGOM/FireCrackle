@@ -63,8 +63,15 @@ pub fn expected_changes(rows: &[LogRow], ids: &[Option<u32>]) -> Vec<ExpectedCha
         if row.frame < first {
             continue;
         }
-        if let Some(&(video, _)) = readable.iter().find(|(_, id)| *id >= row.frame) {
-            out.push(ExpectedChange { renderer_frame: row.frame, nanos: row.nanos, fps: row.fps, video_frame: video as u32 });
+        // The first readable frame at or after the change, but only if the frame right before it was readable
+        // too: across an unreadable gap the change could sit anywhere inside, and guessing the far edge of the gap
+        // would invent a phase shift.
+        if let Some(k) = readable.iter().position(|(_, id)| *id >= row.frame) {
+            let (video, _) = readable[k];
+            let continuous = k == 0 || readable[k - 1].0 + 1 == video;
+            if continuous && k > 0 {
+                out.push(ExpectedChange { renderer_frame: row.frame, nanos: row.nanos, fps: row.fps, video_frame: video as u32 });
+            }
         }
     }
     out

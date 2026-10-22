@@ -18,12 +18,12 @@ pixels differing from the template (typically 0–3).
 
 ```
 cargo run --release -- sweep <video> --ffmpeg <ffmpeg.exe> [--scale 3] [--out sweep.json]
-cargo run --release -- scan  <video> --ffmpeg <ffmpeg.exe> --start S --duration S [--fps 60] [--strip right --width 2560] [--out scan.json]
+cargo run --release -- scan  <video> --ffmpeg <ffmpeg.exe> --start S --duration S [--fps 60] [--strip bottom-right --width 2560] [--prescale 2560:1440] [--out scan.json]
 cargo run --release -- replay scan.json
 cargo run --release -- truth  scan.json --log <run/hudinfo/session.jsonl>
 ```
 
-`--strip right` (mod-hud) or `left` (mod-gui) also decodes the frame-ID strip on every frame, which
+`--strip bottom-right` (mod-hud; `top-right` for the first build) or `left` (mod-gui) also decodes the frame-ID strip on every frame, which
 tells how the recorder sampled the game (new / duplicated / skipped renderer frames). `truth` then
 takes the mod's per-frame log and reports, for every logged FPS change, the video frame that first
 shows it versus the frame the reader detected, plus the game's own phase (nanoTime mod 1 s).
