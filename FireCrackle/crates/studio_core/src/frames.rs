@@ -350,7 +350,7 @@ fn decode_selected(
     let split = match picture {
         Picture::ExactPng => Split {
             frames: if bytes.starts_with(&PNG_SIGNATURE) {
-                vec![0..bytes.len()]
+                std::iter::once(0..bytes.len()).collect()
             } else {
                 vec![]
             },
