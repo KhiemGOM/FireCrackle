@@ -2,6 +2,7 @@
 //!     Keyframes only: where is the FPS overlay visible and what does it read.
 //! hud-cadence scan <video> --start SECONDS --duration SECONDS [--ffmpeg PATH] [--scale 3] [--fps 60] [--out scan.json]
 //!     Every frame: change frames of the FPS value and their phase modulo one second.
+use hud_cadence::find::{findings, Kind};
 use hud_cadence::font::Font;
 use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
@@ -35,7 +36,7 @@ struct Args {
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -89,7 +90,7 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
     if keyframes_only {
         c.args(["-skip_frame", "nokey"]);
     }
-    if a.cmd == "scan" {
+    if a.cmd == "scan" || (a.cmd == "find" && a.duration > 0.0) {
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
     c.arg("-i").arg(&a.video);
@@ -233,6 +234,70 @@ fn main() {
                 std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
             }
         }
+        "find" => {
+            // hud-cadence find <video> [--ffmpeg F] [--scale 3] [--fps 60] [--prescale W:H] [--start S --duration S] [--out report.json]
+            // Reads the whole video, lists every cadence jump / drift / unreadable gap and the largest value swings,
+            // ranked by |ΔFPS| so each item can be checked by other means.
+            let (w, h) = crop(&a);
+            let mut values: Vec<Option<String>> = Vec::new();
+            let mut near = None;
+            let mut last_report = std::time::Instant::now();
+            stream(&a, false, |n, g| {
+                let r = tpl.read(g, w, h, near);
+                near = r.as_ref().map(|r| r.anchor);
+                values.push(r.map(|r| r.value));
+                if last_report.elapsed().as_secs() >= 30 {
+                    last_report = std::time::Instant::now();
+                    eprintln!("  {n} frames ({:.0} s of video) in {:.0} s", n as f64 / a.fps as f64, t0.elapsed().as_secs_f64());
+                }
+            });
+            let total = values.len();
+            let readable = values.iter().filter(|v| v.is_some()).count();
+            let f = findings(&values, a.fps, 3 * a.fps, 20);
+            let time = |frame: u32| a.start + frame as f64 / a.fps as f64;
+            let hms = |t: f64| format!("{:02}:{:02}:{:06.3}", (t / 3600.0) as u32, ((t % 3600.0) / 60.0) as u32, t % 60.0);
+            eprintln!(
+                "{total} frames in {:.0} s; overlay readable on {readable} ({:.1} %); {} findings",
+                t0.elapsed().as_secs_f64(),
+                100.0 * readable as f64 / total.max(1) as f64,
+                f.len()
+            );
+            println!("{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  note", "rank", "kind", "time", "frame", "shift", "before", "after", "|d|");
+            for (i, x) in f.iter().enumerate() {
+                let mut note = match x.kind {
+                    Kind::Jump => format!("phase moved {:+} frames and stayed: not continuous here", x.shift),
+                    Kind::Drift => format!("phase moved {:+} frame(s): recorder drift or a cut within 2 frames of a whole second", x.shift),
+                    Kind::Value => "largest value swings (top 1 %): no phase change, listed for cross-checking".into(),
+                    Kind::Gap => format!("overlay unreadable for {} frames ({:.1} s)", x.length, x.length as f64 / a.fps as f64),
+                };
+                if x.partial {
+                    note = format!("POSSIBLE PARTIAL READ (one value is the tail of the other); {note}");
+                }
+                println!(
+                    "{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  {note}",
+                    i + 1,
+                    format!("{:?}", x.kind),
+                    hms(time(x.frame)),
+                    x.frame,
+                    if matches!(x.kind, Kind::Jump | Kind::Drift) { format!("{:+}", x.shift) } else { String::new() },
+                    x.before.clone().unwrap_or_default(),
+                    x.after.clone().unwrap_or_default(),
+                    if x.kind == Kind::Gap { String::new() } else { x.delta.to_string() }
+                );
+            }
+            if let Some(path) = &a.out {
+                let json = serde_json::json!({
+                    "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "start": a.start, "frames": total, "readable": readable,
+                    "findings": f.iter().map(|x| serde_json::json!({
+                        "kind": format!("{:?}", x.kind), "time": time(x.frame), "frame": x.frame, "shift": x.shift,
+                        "before": x.before, "after": x.after, "delta": x.delta, "gap_frames": x.length, "partial_read": x.partial
+                    })).collect::<Vec<_>>(),
+                    "values": values,
+                });
+                std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
+                eprintln!("wrote {path}");
+            }
+        }
         "truth" => {
             // hud-cadence truth <scan.json> --log <hudinfo.jsonl>: compare detected changes with the mod's log.
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
@@ -318,7 +383,7 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
+        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--out report.json]\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
        hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [--source <video> --ffmpeg F]"),
     }
 }
