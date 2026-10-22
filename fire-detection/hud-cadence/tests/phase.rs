@@ -4,7 +4,7 @@
 //! frame must be reported as drift, not a cut; a cut removes a non-integer number of seconds and shows as a
 //! sudden phase jump; wrap-around at 59→0 must be measured as a 1-frame difference, not 59; a cut of exactly
 //! N seconds is invisible (documented limitation, tested as "no jump").
-use hud_cadence::phase::{analyse, Event, Period};
+use hud_cadence::phase::{analyse, Event, Kind, Period};
 
 fn changes(frames: &[u32]) -> Vec<u32> {
     frames.to_vec()
@@ -48,4 +48,42 @@ fn fewer_than_three_boundaries_is_not_analysed() {
     let r = analyse(&changes(&[10, 70]), Period::Frames(60));
     assert!(r.events.is_empty());
     assert_eq!(r.samples, 2);
+}
+
+// Change-frame extraction from per-frame readings. Ways this breaks: a one-frame misread (occluded digit reads
+// "14" for "146") must not produce a change; unreadable frames (None) must be skipped, not treated as a value;
+// a value that genuinely persists only briefly at the end of the window is still a change if it lasts min_run.
+use hud_cadence::phase::change_frames;
+
+fn vals(spec: &[(Option<&str>, usize)]) -> Vec<Option<String>> {
+    spec.iter().flat_map(|(v, n)| std::iter::repeat(v.map(str::to_string)).take(*n)).collect()
+}
+
+#[test]
+fn a_change_counts_only_when_the_new_value_persists() {
+    let v = vals(&[(Some("146"), 60), (Some("14"), 1), (Some("146"), 59), (Some("150"), 60), (Some("151"), 5)]);
+    assert_eq!(change_frames(&v, 20), vec![120]);
+    assert_eq!(change_frames(&v, 5), vec![120, 180]);
+}
+
+#[test]
+fn unreadable_frames_are_skipped_and_an_isolated_jump_back_is_not_two_changes() {
+    let v = vals(&[(Some("9"), 30), (None, 10), (Some("9"), 20), (Some("10"), 40)]);
+    assert_eq!(change_frames(&v, 20), vec![60]);
+}
+
+#[test]
+fn a_single_outlier_phase_sample_is_not_a_jump() {
+    // one mis-timed change at 220 (phase 40) between a steady run at phase 10
+    let r = analyse(&[10, 70, 130, 190, 220, 310, 370, 430], Period::Frames(60));
+    assert!(r.events.is_empty(), "{:?}", r.events);
+    assert_eq!(r.outliers, 1);
+}
+
+#[test]
+fn a_confirmed_two_frame_shift_is_still_drift_not_a_cut() {
+    // jitter plus one dropped frame can read as +2 against the reference; it is capture drift, reported as such
+    let r = analyse(&[10, 70, 130, 192, 252, 312], Period::Frames(60));
+    assert_eq!(r.events.len(), 1);
+    assert_eq!((r.events[0].kind.clone(), r.events[0].shift), (Kind::Drift, 2));
 }

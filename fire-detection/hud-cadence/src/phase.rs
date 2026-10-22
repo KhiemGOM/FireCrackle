@@ -8,9 +8,9 @@ pub enum Period {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Kind {
-    /// The phase moved by one frame and stayed there (dropped or duplicated capture frame).
+    /// The phase moved by one or two frames and stayed there (dropped or duplicated capture frames).
     Drift,
-    /// The phase moved by more than one frame: the video does not run continuously across this boundary.
+    /// The phase moved by three frames or more: the video does not run continuously across this boundary.
     Jump,
 }
 
@@ -30,7 +30,34 @@ pub struct Analysis {
     pub phase: u32,
     /// Boundaries with no visible change (same value two seconds running), estimated from gaps.
     pub missing: usize,
+    /// Single samples off the run that the next sample did not confirm (a mis-timed read, not a shift).
+    pub outliers: usize,
     pub events: Vec<Event>,
+}
+
+/// Frames at which the displayed value changed to a value that then persists for `min_run` readable frames.
+/// Unreadable frames (`None`) are skipped. A brief misread that returns to the previous value is not a change.
+pub fn change_frames(values: &[Option<String>], min_run: usize) -> Vec<u32> {
+    let readable: Vec<(usize, &String)> = values.iter().enumerate().filter_map(|(i, v)| v.as_ref().map(|v| (i, v))).collect();
+    let mut out = Vec::new();
+    let mut current: Option<&String> = None;
+    let mut k = 0;
+    while k < readable.len() {
+        let (frame, v) = readable[k];
+        if current.is_some_and(|c| c == v) {
+            k += 1;
+            continue;
+        }
+        let run = readable[k..].iter().take_while(|(_, w)| *w == v).count();
+        if current.is_none() {
+            current = Some(v);
+        } else if run >= min_run {
+            out.push(frame as u32);
+            current = Some(v);
+        }
+        k += run.max(1);
+    }
+    out
 }
 
 fn wrapped(delta: i64, period: i64) -> i32 {
@@ -42,7 +69,7 @@ fn wrapped(delta: i64, period: i64) -> i32 {
 pub fn analyse(changes: &[u32], period: Period) -> Analysis {
     let Period::Frames(p) = period;
     let p64 = p as i64;
-    let mut out = Analysis { samples: changes.len(), phase: changes.first().map_or(0, |f| f % p), missing: 0, events: Vec::new() };
+    let mut out = Analysis { samples: changes.len(), phase: changes.first().map_or(0, |f| f % p), missing: 0, outliers: 0, events: Vec::new() };
     if changes.len() < 3 {
         return out;
     }
@@ -57,7 +84,7 @@ pub fn analyse(changes: &[u32], period: Period) -> Analysis {
     // samples is a one-frame drift (a dropped or duplicated capture frame) and moves the reference.
     let mut reference = changes[0] as i64 % p64;
     let mut pending: Option<(i32, u32)> = None; // (sign, first frame seen at reference+sign)
-    for &f in &changes[1..] {
+    for (k, &f) in changes.iter().enumerate().skip(1) {
         let shift = wrapped(f as i64 - reference, p64);
         match shift {
             0 => pending = None,
@@ -70,8 +97,16 @@ pub fn analyse(changes: &[u32], period: Period) -> Analysis {
                 _ => pending = Some((shift, f)),
             },
             _ => {
-                out.events.push(Event { kind: Kind::Jump, frame: f, shift });
-                reference = f as i64 % p64;
+                // A shift is real only if the next sample sits at the new phase (within one frame); otherwise it
+                // is one bad sample.
+                let confirmed = changes.get(k + 1).is_some_and(|&n| wrapped(n as i64 - f as i64, p64).abs() <= 1);
+                if confirmed {
+                    let kind = if shift.abs() <= 2 { Kind::Drift } else { Kind::Jump };
+                    out.events.push(Event { kind, frame: f, shift });
+                    reference = f as i64 % p64;
+                } else {
+                    out.outliers += 1;
+                }
                 pending = None;
             }
         }

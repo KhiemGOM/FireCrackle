@@ -3,7 +3,7 @@
 //! hud-cadence scan <video> --start SECONDS --duration SECONDS [--ffmpeg PATH] [--scale 3] [--fps 60] [--out scan.json]
 //!     Every frame: change frames of the FPS value and their phase modulo one second.
 use hud_cadence::font::Font;
-use hud_cadence::phase::{analyse, Period};
+use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -149,24 +149,15 @@ fn main() {
             });
             let total = values.len();
             let readable = values.iter().filter(|v| v.is_some()).count();
-            // Change frames: value differs from the previous readable value.
-            let mut changes: Vec<u32> = Vec::new();
-            let mut prev: Option<&String> = None;
-            for (i, v) in values.iter().enumerate() {
-                if let Some(v) = v {
-                    if prev.is_some_and(|p| p != v) {
-                        changes.push(i as u32);
-                    }
-                    prev = Some(v);
-                }
-            }
+            let changes = change_frames(&values, 20);
             let an = analyse(&changes, Period::Frames(a.fps));
             eprintln!(
-                "{total} frames in {:.0}s ({:.0} fps); readable {readable}; worst digit mismatch {worst} px; {} changes, {} missing boundaries",
+                "{total} frames in {:.0}s ({:.0} fps); readable {readable}; worst digit mismatch {worst} px; {} changes, {} missing boundaries, {} outlier samples",
                 t0.elapsed().as_secs_f64(),
                 total as f64 / t0.elapsed().as_secs_f64(),
                 changes.len(),
-                an.missing
+                an.missing,
+                an.outliers
             );
             let mut hist = vec![0u32; a.fps as usize];
             for &c in &changes {
@@ -183,6 +174,23 @@ fn main() {
                 let json = serde_json::json!({"start": a.start, "fps": a.fps, "frames": total, "readable": readable, "worst_mismatch": worst, "changes": changes, "values": values, "phase": an.phase, "missing": an.missing, "events": an.events.iter().map(|e| serde_json::json!({"kind": format!("{:?}", e.kind), "frame": e.frame, "shift": e.shift})).collect::<Vec<_>>()});
                 std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
             }
+        }
+        "replay" => {
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
+            let values: Vec<Option<String>> = json["values"].as_array().unwrap().iter().map(|v| v.as_str().map(str::to_string)).collect();
+            let fps = json["fps"].as_u64().unwrap() as u32;
+            let start = json["start"].as_f64().unwrap();
+            let changes = change_frames(&values, 20);
+            let an = analyse(&changes, Period::Frames(fps));
+            println!("{} frames, {} changes, {} missing, {} outliers, first phase {}", values.len(), changes.len(), an.missing, an.outliers, an.phase);
+            let per_min: Vec<String> = changes.chunks(60).map(|c| format!("{}", c[c.len() / 2] % fps)).collect();
+            println!("phase per minute: {}", per_min.join(" "));
+            for e in &an.events {
+                if e.kind == hud_cadence::phase::Kind::Jump {
+                    println!("  Jump at frame {} ({:.2}s): shift {:+}", e.frame, start + e.frame as f64 / fps as f64, e.shift);
+                }
+            }
+            println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
         _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--out FILE]"),
     }
