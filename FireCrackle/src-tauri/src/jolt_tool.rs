@@ -580,11 +580,19 @@ mod tests {
         let root = std::env::temp_dir().join(format!("fc-jolt-e2e-{}", std::process::id()));
         external_tools::configure(root.clone());
         let found = ensure_latest(&AtomicBool::new(false)).unwrap();
-        println!("using {} v{}.{}", found.path.display(), found.version.0, found.version.1);
+        println!(
+            "using {} v{}.{}",
+            found.path.display(),
+            found.version.0,
+            found.version.1
+        );
         let jobs = Jobs::default();
         let dir = root.join("project");
         let ffmpeg = std::env::var_os("JOLT_E2E_FFMPEG").unwrap_or_else(|| "ffmpeg".into());
-        let tools = Tools { ffmpeg, ffprobe: "ffprobe".into() };
+        let tools = Tools {
+            ffmpeg,
+            ffprobe: "ffprobe".into(),
+        };
         let status = jobs.start(video, dir, tools).unwrap();
         let done = loop {
             std::thread::sleep(Duration::from_millis(500));
