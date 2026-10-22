@@ -63,3 +63,12 @@ it('keeps video order when a preview failed to score (null) and when nothing is 
   hooks.values[7]={video:'video',key:'sealed',scores:new Map(),processed:0,done:false};
   root=render();expect(firsts(root)).toEqual([20,50]);
 });
+it('a running GUI scan shows the shared speed and ETA readout; a finished one does not',()=>{
+  hooks.values[0]={video_path:'video',state:'running',total:1000,processed:400,detected:0,ranges,error:null};
+  let stats=find(render(),n=>typeof n.type==='function'&&n.type.name==='ScanProgressStats');
+  expect(stats).toHaveLength(1);
+  expect(stats[0].props.progress).toEqual({identity:JSON.stringify(['gui','video',1000]),running:true,processed:400,total:1000});
+  hooks.values[0]={...hooks.values[0],state:'done',processed:1000};
+  stats=find(render(),n=>typeof n.type==='function'&&n.type.name==='ScanProgressStats');
+  expect(stats).toHaveLength(0);
+});

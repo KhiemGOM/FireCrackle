@@ -5,6 +5,7 @@ const hooks=vi.hoisted(()=>({values:[] as any[],cursor:0}));
 vi.mock("react",async original=>({...await original<typeof import("react")>(),useEffect:()=>{},useState:(initial:any)=>{const i=hooks.cursor++;if(!(i in hooks.values))hooks.values[i]=initial;return [hooks.values[i],(v:any)=>{hooks.values[i]=v;}];}}));
 import {AutomationTools} from "./AutomationTools";
 import {ScanProgressStats} from "./ScanProgressStats";
+import {povScanProgress} from "../lib/scanSpeed";
 type Element=ReactElement<Record<string,any>>;
 function find(node:any,text:string):Element|undefined{if(Array.isArray(node))return node.map(n=>find(n,text)).find(Boolean);if(!node||typeof node!=="object"||!node.props)return;if(node.type==="button"&&node.props.children===text)return node;return find(node.props.children,text);}
 const status:PovStatus={id:2,video_path:"v.mkv",state:"done",processed:100,total:100,accepted:4,applied:0,error:null};
@@ -65,7 +66,7 @@ it("shows independent live speed and ETA for running scans only",()=>{
   const first={...status,state:"running" as const,processed:40};
   const second={...first,id:3,processed:60};
   hooks.values=[first,null,false,second,null,false];
-  expect(stats(render()).map(node=>node.props.status)).toEqual([first,second]);
+  expect(stats(render()).map(node=>node.props.progress)).toEqual([povScanProgress(first),povScanProgress(second)]);
   for(const state of ["cancelled","done","failed","saving"]){
     hooks.values=[{...status,state},null,false,{...status,state},null,false];
     expect(stats(render())).toEqual([]);
