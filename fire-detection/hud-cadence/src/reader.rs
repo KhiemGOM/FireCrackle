@@ -13,8 +13,16 @@ pub struct Reading {
     pub mismatches: Vec<usize>,
 }
 
+/// Second threshold for an overlay dimmed by a screen tint (inventory or pause darkening): measured text ~80 grey
+/// over a ~22 box in the reference footage.
+pub const DIM_THRESHOLD: u8 = 50;
+
 pub fn binarize(gray: &[u8], width: usize, height: usize) -> Bitmap {
-    Bitmap { width, height, bits: gray[..width * height].iter().map(|&p| p > THRESHOLD).collect() }
+    binarize_at(gray, width, height, THRESHOLD)
+}
+
+pub fn binarize_at(gray: &[u8], width: usize, height: usize, threshold: u8) -> Bitmap {
+    Bitmap { width, height, bits: gray[..width * height].iter().map(|&p| p > threshold).collect() }
 }
 
 /// Score of `tpl` placed at (x, y) in `b`: lit-where-expected minus lit-where-not, or None below `min_hit` coverage.
@@ -31,7 +39,8 @@ fn score(b: &Bitmap, tpl: &Bitmap, x: usize, y: usize, min_hit: usize) -> Option
             }
         }
     }
-    (hit as usize >= min_hit).then_some(hit - extra)
+    // A solid bright region lights every template pixel too; the glyph gaps must stay mostly dark.
+    (hit as usize >= min_hit && extra * 2 < hit).then_some(hit - extra)
 }
 
 fn find_anchor(b: &Bitmap, tpl: &Bitmap, scale: usize, near: Option<(usize, usize)>) -> Option<(usize, usize)> {
@@ -44,7 +53,8 @@ fn find_anchor(b: &Bitmap, tpl: &Bitmap, scale: usize, near: Option<(usize, usiz
             (px.saturating_sub(6 * scale)..=(px + 6 * scale).min(max_x)).collect(),
             (py.saturating_sub(scale)..=(py + scale).min(max_y)).collect(),
         ),
-        None => ((0..=max_x).collect(), (0..=max_y).collect()),
+        // The HUD is laid out in GUI units, so the label sits on the `scale` grid: search it in steps of `scale`.
+        None => ((0..=max_x).step_by(scale).collect(), (0..=max_y).step_by(scale).collect()),
     };
     let min_hit = tpl.lit() * 97 / 100;
     let mut best: Option<(i64, usize, usize)> = None;
@@ -114,11 +124,24 @@ impl Templates {
     }
 
     pub fn read(&self, gray: &[u8], width: usize, height: usize, near: Option<(usize, usize)>) -> Option<Reading> {
-        let b = binarize(gray, width, height);
-        let anchor = find_anchor(&b, &self.anchor, self.scale, near)
-            .or_else(|| near.and_then(|_| find_anchor(&b, &self.anchor, self.scale, None)))?;
+        // Normal threshold first; the dim one only when the overlay is not found, so a lit overlay never
+        // picks up its own shadow or box as glyph pixels.
+        self.read_at(gray, width, height, near, THRESHOLD).or_else(|| self.read_at(gray, width, height, near, DIM_THRESHOLD))
+    }
+
+    fn read_at(&self, gray: &[u8], width: usize, height: usize, near: Option<(usize, usize)>, threshold: u8) -> Option<Reading> {
+        let b = binarize_at(gray, width, height, threshold);
+        let found = find_anchor(&b, &self.anchor, self.scale, near)
+            .or_else(|| near.and_then(|_| find_anchor(&b, &self.anchor, self.scale, None)));
+        // The label can be covered (a bright block, other HUD text) while the digits are intact: with the position
+        // known from the previous frame, read the digits there and accept only a clean match.
+        let (anchor, strict) = match (found, near) {
+            (Some(a), _) => (a, false),
+            (None, Some(n)) => (n, true),
+            (None, None) => return None,
+        };
         let (value, mismatches) = self.read_digits(&b, anchor.0 + self.anchor_advance, anchor.1, 4);
-        if value.is_empty() {
+        if value.is_empty() || (strict && mismatches.iter().any(|&m| m > 2 * self.scale * self.scale)) {
             return None;
         }
         Some(Reading { anchor, value, mismatches })
