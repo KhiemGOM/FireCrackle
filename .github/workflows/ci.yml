@@ -78,7 +78,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python -m pip install -r fire-detection/requirements.txt
       - run: python -m pip install pillow
-      - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       - run: python -m pytest fire-detection/obs fire-detection/augment fire-detection/bench FireCrackle/scripts/test_actual_quad_geometry.py FireCrackle/scripts/test_runtime_lock.py
   recording-mod:
     runs-on: ubuntu-24.04
