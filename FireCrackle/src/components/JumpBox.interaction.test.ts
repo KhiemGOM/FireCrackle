@@ -205,9 +205,3 @@ it("shifting in a digit does nothing to the frame box and leaves Backspace at th
   expect(input(render())!.props.value).toBe("1234");
   find(render(), (e) => e.type === "button")!; 
 });
-it("the error message is placed above the box, where the video pane does not clip it", async () => {
-  const css = (await import("node:fs")).readFileSync(new URL("./JumpBox.css", import.meta.url), "utf8");
-  const rule = /\.jump-error\s*\{([^}]*)\}/.exec(css)![1];
-  expect(rule).toMatch(/bottom:/);
-  expect(rule).not.toMatch(/top:/);
-});

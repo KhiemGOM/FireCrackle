@@ -135,3 +135,26 @@ and the per-tick position step pin it down:
 
 So the earlier reading "clock discontinuities, not content cuts" was wrong: the first stacked frames (61397–61420)
 were after the cut. With the tick grid as a third clock, all three agree, and the position jump is visible at cut 1.
+
+## Second video: YouTube LNsxw4VRTgQ (2026-10-23)
+
+2560×1440 AV1 60 fps, 3 h 53 min (839,411 frames). Overlay off for the first 52 min and hidden for ~5 min in the End
+(boss bar over the digits), readable elsewhere. Files: `results/find-yt-LNsxw4VRTgQ-2026-10-23.json`,
+`results/jolt-2.5-yt-LNsxw4VRTgQ-2026-10-23.json`.
+
+| Where | Jolt 2.5 | Cadence | Frames | Notes |
+|---|---|---|---|---|
+| 0:07:39.8 | removed 0.133 s (8 f), bracket 27,522–27,652 | overlay off | **27,589 → 27,590** | inventory screen closes; only abrupt change in the bracket |
+| 1:56:07.7 | residual step +2.5 f (no break flagged: below its 0.1 s threshold) | Jump −4 f: spacing 60 60 60 60 60 **56** 60 60… | change at 418,062; cut within the second before | player stationary in a GUI that closes at 418,032→418,033 |
+| 1:59:46.6 | residual step +2.0 f | Jump −3 f: … 60 **57** 60 … | change at 431,197 | |
+| 2:07:44.7 | no readings nearby | Jump +4 f in a jittery stretch (59 60 60 64 62 58 59 61) | change at 459,881 | weak |
+| 2:11:57.6 | residual step +3.0 f | Jump −3 f: … 60 **57** 60 … | change at 475,057 | player stationary, starts moving at 475,043 |
+| 2:15:30.6 | no readings nearby | Jump −3 f: … 60 **57** 60 … | change at 487,834 | |
+| 3:25:54.6 | removed 0.333 s (20 f), bracket 741,273–741,409 | overlay hidden (End) | **741,327 → 741,328** | a hunter appears between two frames while the camera is still; visible seam |
+| 3:41:50.9 | removed 0.100 s (6 f), bracket 798,481–798,613 | Jump −5 f: … 60 **55** 60 … | change at 798,659 | the whole bracket is a frozen frame (client stall); 5–6 frames of wall time missing across it |
+
+The three Jolt breaks are confirmed as frame removals where a second clock exists (3:41:50, both agree to a frame)
+or by a visible seam (3:25:54); 0:07:39 rests on Jolt plus the GUI-close seam. The four 3–4-frame cadence items at
+1:56–2:15 are the signature seen for real cuts (one short interval amid exact 60s) and Jolt's tick residual steps by
+2–3 frames across the three it has readings for; they are below Jolt's own break threshold and happen while the
+player is stationary or in a GUI, so the XYZ grid cannot place them inside the second. 2:07:44 is not trusted.
