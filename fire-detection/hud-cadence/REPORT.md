@@ -112,3 +112,21 @@ overlay was fully readable around every flag before 2:34. In particular the soft
 are game-side (lag, reload, dimension change) rather than edits. Files: `results/find-recovered-video-2026-10-22.json`,
 `results/jolt-2.5-recovered-video-2026-10-22.json`, `results/firecrackle-flags-recovered-video-2026-10-22.json`,
 `results/crossmatch.js` (`node crossmatch.js find.json flags.json jolt.json`).
+
+### Locating the cuts inside the windows (overlay XYZ / yaw / tick grid)
+
+Jolt's `from`/`to` and the cadence change frames only bracket a cut (the next food-bar jolt and the next FPS
+boundary after it). The overlay's XYZ updates once per client tick, i.e. every 3 video frames, so the tick grid
+and the per-tick position step pin it down:
+
+- **Cut 1:** between frames **61389 and 61390**. The boat's X step is a constant 0.251/tick for 10 ticks, then
+  61389→61390 jumps 0.582 (Z 0.720), the tick grid shifts by one frame (ticks at 61387, 61390, **61391**, 61394…),
+  and yaw moves −20.3→−18.9 across it. Food-bar jolt (food 17: every 17·3+1 = 52 ticks = 156 frames) at ticks
+  149240 and 149292 lands 139 frames apart instead of 156: **17 frames (0.283 s) removed**, the cadence's −19 ±2.
+- **Cut 2:** between frames **171472 and 171495** (player standing still, mouse flick). The tick grid is ≡1 mod 3
+  before and ≡0 mod 3 after, a one-frame shift, exactly what removing 46 frames (46 ≡ 1 mod 3) does. Food-bar
+  jolt (food 16: every 49 ticks = 147 frames) at ticks 185955 and 186004 lands 101 frames apart instead of 147:
+  **46 frames (0.767 s) removed**, the cadence's +13 ≡ −47.
+
+So the earlier reading "clock discontinuities, not content cuts" was wrong: the first stacked frames (61397–61420)
+were after the cut. With the tick grid as a third clock, all three agree, and the position jump is visible at cut 1.
