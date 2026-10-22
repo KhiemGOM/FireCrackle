@@ -4,6 +4,7 @@ import {fitTexturePhase,modulo,texturePhaseIntervals,textureTransitions} from '.
 import type {TimeReference,JoltState} from '../lib/jolt';
 import {EMPTY_JOLT} from '../lib/jolt';
 import {TextureJoltChart} from './TextureJoltChart';
+import {clampFrame} from '../lib/frameMath';
 import type {AxisRange} from '../lib/plotAxes';
 import type {Trace} from '../lib/clockComparison';
 import {formatTime} from '../lib/timeline';
@@ -11,7 +12,7 @@ import {ComparisonPlot} from './ComparisonPlot';
 import {PlotAxes} from './PlotAxes';
 
 /** A single animation's frame/phase workspace; held and backward frames stay ambiguous. */
-export function TexturePhases({atlas,points,clock,duration,onJump,fps,jolt=EMPTY_JOLT}:{atlas:AnimationAtlas;points:TextureObservation[];clock:TimeReference;duration:number;onJump:(frame:number)=>void;fps:number;jolt?:JoltState}){
+export function TexturePhases({atlas,points,clock,duration,onJump,onOpenTime,fps,jolt=EMPTY_JOLT}:{atlas:AnimationAtlas;points:TextureObservation[];clock:TimeReference;duration:number;onJump:(frame:number)=>void;onOpenTime?:(time:number)=>void;fps:number;jolt?:JoltState}){
  const [mode,setMode]=useState<'phase'|'row'|'jolt'>('phase'),[range,setRange]=useState<AxisRange|null>(null),[vertical,setVertical]=useState<AxisRange|null>(null),[hover,setHover]=useState<number|null>(null);
  const [ruler,setRuler]=useState(false),[offset,setOffset]=useState(0),[opacity,setOpacity]=useState(.35);
  const a=ANIMATION_ATLASES[atlas],canonical=clock.kind==='jolt';
@@ -52,11 +53,11 @@ export function TexturePhases({atlas,points,clock,duration,onJump,fps,jolt=EMPTY
   return {rows,phase,guide};
  },[samples,atlas,a.period,a.rows,ruler,mode,offset,lo,hi,canonical,clock]);
  const zoom=(factor:number,time:number)=>{const span=Math.max(canonical?1:.05,(hi-lo)/factor);setRange([time-(time-lo)/(hi-lo)*span,time+(hi-time)/(hi-lo)*span]);};
- const open=(x:number)=>{let nearest=samples[0];for(const p of samples)if(!nearest||Math.abs(p.x-x)<Math.abs(nearest.x-x))nearest=p;if(nearest)onJump(nearest.frame);else if(!canonical)onJump(Math.max(0,Math.round(x*fps)));};
+ const open=(x:number)=>{let nearest=samples[0];for(const p of samples)if(!nearest||Math.abs(p.x-x)<Math.abs(nearest.x-x))nearest=p;if(nearest)onJump(nearest.frame);else if(!canonical)(onOpenTime??(t=>onJump(clampFrame(t*fps,Number.MAX_SAFE_INTEGER))))(x);};
  const formatX=(x:number)=>canonical?String(Number(x.toFixed(2))):formatTime(x,.01);
  return <section aria-label={`${a.name} charts`}>
   <div className="phase-view-tabs" role="tablist" aria-label={`${a.name} views`}>{(['phase','row','jolt'] as const).map(id=><button key={id} role="tab" aria-selected={mode===id} onClick={()=>{setMode(id);setVertical(null);}}>{id==='phase'?'Timing':id==='row'?'Sprites':`Jolt + ${a.name}`}</button>)}</div>
-  {mode==='jolt'?<TextureJoltChart atlas={atlas} points={selected} state={jolt} fps={fps} onJump={onJump}/>:<>
+  {mode==='jolt'?<TextureJoltChart atlas={atlas} points={selected} state={jolt} fps={fps} onJump={onJump} onOpenTime={onOpenTime}/>:<>
   <details className="phase-help"><summary>Ruler & fit</summary><div className="ruler-bar">
    <label><input type="checkbox" checked={ruler} onChange={e=>setRuler(e.target.checked)}/> Perfect-clock ruler</label>
    <button disabled={!samples.length} onClick={()=>{const fit=fitTexturePhase(selected,atlas,clock.tickAt);if(fit!==null){setOffset(fit);setRuler(true);}}}>Find best match</button>

@@ -36,6 +36,7 @@ import { drawPhaseChart, GAP_COLORS, type GapBand } from "../lib/phaseChartCanva
 import { bridgeStatus, findEvidenceGaps, gapKind, gapText, type EvidenceGap, type GapKind } from "../lib/evidenceGaps";
 import { FlagCompare } from "./FlagCompare";
 import { bestRulerMatch, chartReference, deviation, deviationStats, rulerPhase } from "../lib/clockRuler";
+import { frameAtTime } from "../lib/frameMath";
 
 /** Stretches without fire evidence at least this long are drawn and explained. */
 const MIN_GAP_SECONDS = 2;
@@ -302,6 +303,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey, extraSource
   },[fullscreen,inspecting]);
   const axisX=(range:AxisRange)=>setViewport(clampViewport({start:range[0]*fps,pxPerFrame:logicalWidth/((range[1]-range[0])*fps)},logicalWidth,total));
   const resetX=()=>setViewport(fitViewport(total,logicalWidth));
+  // Every chart opens a video time the same way: the backend's exact timestamp lookup when available.
+  const openTime=(time:number)=>{void frameAtTime(time,{fps,frameCount:view.frame_count,locate:backend.joltFrame&&videoKey?t=>backend.joltFrame!(videoKey,t):undefined}).then(onJump).catch(e=>setError(messageOf(e)));};
   return (
     <main className={`phase-tab phase-workspace ${fullscreen?"fullscreen":""}`}>
         <header className="phase-clockbar">
@@ -323,8 +326,8 @@ export function PhaseTab({ backend, view, version, onJump, videoKey, extraSource
       </div>
       {error && <div className="banner error">{error}</div>}
       <section className="chart-area">
-        {animation!=="joint"&&isFluidChart(animation)&&<TexturePhases jolt={jolt} key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
-        <div hidden={fluid||viewMode!=="jolt"}><JoltChart materialName={animation==="soul"?"Soul fire":"Fire"} key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={time=>{const frame=backend.joltFrame&&videoKey?backend.joltFrame(videoKey,time):Promise.resolve(Math.max(0,Math.min(view.frame_count-1,Math.round(time*fps))));void frame.then(onJump).catch(e=>setError(messageOf(e)));}}/></div>
+        {animation!=="joint"&&isFluidChart(animation)&&<TexturePhases onOpenTime={openTime} jolt={jolt} key={`${videoKey}:${animation}:${jolt.clock}:${jolt.session}`} atlas={animation} points={videoChart?.texture_points??[]} clock={reference} duration={view.frame_count/fps} fps={fps} onJump={onJump}/>}
+        <div hidden={fluid||viewMode!=="jolt"}><JoltChart materialName={animation==="soul"?"Soul fire":"Fire"} key={`${videoKey}:${jolt.session}`} state={jolt} fps={fps} chart={unified} focusRange={joltFocusRange} onOpenTime={openTime}/></div>
 
         <div hidden={fluid||viewMode==="jolt"}>
         <div className="chart-head" hidden={viewMode!=="phase"}>

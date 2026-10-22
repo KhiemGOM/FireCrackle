@@ -1,6 +1,7 @@
 // Timeline geometry: frames <-> pixels, zoom anchored at the cursor, panning, a time ruler and thumbnail picks.
 // Pure functions; every tunable number (zoom factor, max zoom, thumbnail width, label spacing) is a parameter,
 // supplied from the settings table (`timeline.*`), never a constant here.
+import { clamp } from "./frameMath";
 
 export interface Viewport {
   /** The (fractional) frame at the left edge of the timeline. */
@@ -21,7 +22,6 @@ export interface RulerTick {
   major: boolean;
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Pixels per frame at which the whole video just fits the width. */
 function fitPx(total: number, width: number): number {

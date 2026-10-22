@@ -1,12 +1,13 @@
 import type { View } from "./api";
 import type { PreviewSprite } from "./firePreview";
+import { clampFrame } from "./frameMath";
 
 export interface GalleryImage { id: string; name: string; url: string; file: File }
 export const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/bmp,image/avif";
 export function isPhoto(file: Pick<File, "type" | "name">): boolean {
   return /^(image\/(png|jpeg|webp|bmp|avif))$/i.test(file.type) || (!file.type && /\.(png|jpe?g|webp|bmp|avif)$/i.test(file.name));
 }
-export function imageIndex(index: number, count: number): number { return Math.max(0, Math.min(Math.max(0, count - 1), index)); }
+export function imageIndex(index: number, count: number): number { return clampFrame(index, count); }
 export function clipboardPhotos(data: Pick<DataTransfer, "files" | "items"> | null): File[] {
   if (!data) return [];
   const files = Array.from(data.files).filter(isPhoto);

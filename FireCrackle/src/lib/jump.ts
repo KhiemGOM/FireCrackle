@@ -1,5 +1,6 @@
 /** Typed jumps in the video status bar: a frame number or a timecode in the bar's own `HH:MM:SS|FF` format. */
 import { failureMessage } from "./appErrors";
+import { clampFrame } from "./frameMath";
 
 export type JumpTarget = { kind: "frame"; frame: number } | { kind: "time"; seconds: number };
 export type JumpError = { error: string };
@@ -84,5 +85,5 @@ export async function resolveJump(
   }
   const rate = Number.isFinite(ctx.fps) && ctx.fps > 0 ? ctx.fps : 1;
   const guess = ctx.current + Math.round((target.seconds - ctx.pts) * rate);
-  return { frame: Math.max(0, Math.min(ctx.frameCount - 1, guess)) };
+  return { frame: clampFrame(guess, ctx.frameCount) };
 }

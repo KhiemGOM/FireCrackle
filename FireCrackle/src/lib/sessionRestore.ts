@@ -1,4 +1,5 @@
 import type { Backend, View } from "./api";
+import { clampFrame } from "./frameMath";
 
 export const SESSION_STORAGE_KEY = "firecrackle.session.v1";
 export interface SavedSession {
@@ -26,6 +27,6 @@ export function writeSession(storage: Pick<Storage, "setItem">, session: SavedSe
 /** Reopen the existing project and then return to its saved frame. */
 export async function openSession(backend: Backend, session: SavedSession): Promise<View> {
   const opened = await backend.openVideo(session.videoPath);
-  const frame = Math.max(0, Math.min(session.frame, opened.frame_count - 1));
+  const frame = clampFrame(session.frame, opened.frame_count);
   return frame === opened.current ? opened : backend.act({ type: "goTo", frame });
 }

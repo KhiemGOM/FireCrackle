@@ -7,8 +7,10 @@ import {formatTime} from '../lib/timeline';
 import {createFrameCursor} from './ChartCursor';
 import {ComparisonPlot} from './ComparisonPlot';
 import {PlotAxes} from './PlotAxes';
+import {clampFrame} from '../lib/frameMath';
 
-export function TextureJoltChart({atlas,points,state,fps,onJump}:{atlas:AnimationAtlas;points:TextureObservation[];state:JoltState;fps:number;onJump:(frame:number)=>void}){
+/** `onOpenTime` opens the frame at a video time (the Phase tab uses the backend's exact timestamp lookup); without it, frame = time × fps. */
+export function TextureJoltChart({atlas,points,state,fps,onJump,onOpenTime}:{atlas:AnimationAtlas;points:TextureObservation[];state:JoltState;fps:number;onJump:(frame:number)=>void;onOpenTime?:(time:number)=>void}){
  const data=useMemo(()=>textureJoltAgreement(points,atlas,state),[points,atlas,state]);
  const [range,setRange]=useState<AxisRange|null>(null),[vertical,setVertical]=useState<AxisRange|null>(null),[phaseVertical,setPhaseVertical]=useState<AxisRange|null>(null),[hover,setHover]=useState<number|null>(null);
  const name=ANIMATION_ATLASES[atlas].name;
@@ -19,7 +21,7 @@ export function TextureJoltChart({atlas,points,state,fps,onJump}:{atlas:Animatio
  const y=vertical??[min-pad,max+pad] as AxisRange,phaseY=phaseVertical??[-data.period/2,data.period/2] as AxisRange;
  const formatX=(t:number)=>formatTime(t,.01),cursor=createFrameCursor(fps);
  const zoom=(factor:number,time=(lo+hi)/2)=>setRange([time+(lo-time)/factor,time+(hi-time)/factor]);
- const open=(time:number)=>onJump(Math.max(0,Math.round(time*fps)));
+ const open=onOpenTime??((time:number)=>onJump(clampFrame(time*fps,Number.MAX_SAFE_INTEGER)));
  return <section aria-label={`Jolt + ${name}`}>
   <div className="timeline-controls"><button onClick={()=>{setRange(null);setVertical(null);setPhaseVertical(null);}}>Full recording</button><button onClick={()=>zoom(1.5)}>Zoom in</button><button onClick={()=>zoom(1/1.5)}>Zoom out</button><span>{data.anchors.length} Jolt readings · {data.paired} paired labels</span></div>
   <div className="chart-head"><b>Jolt timeline</b><span>GUI time versus video time</span></div>

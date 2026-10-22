@@ -1,4 +1,5 @@
 /** Zoom and pan: the pure logic behind wheel zoom on the video and ctrl+wheel zoom on panels. */
+import { clamp } from "./frameMath";
 
 export interface Limits {
   min: number;
@@ -33,9 +34,6 @@ export const ZOOM_STORAGE_KEY = "firecrackle.zoom.v1";
 const WHEEL_RATE = 0.0015; // per wheel-delta unit; a 100-unit notch is about 16 %
 const MAX_STEP = 1.6; // one wheel event never changes the scale by more than this factor
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
-}
 
 /** Scale factor for one wheel event: up (negative deltaY) zooms in. */
 export function wheelFactor(deltaY: number): number {
