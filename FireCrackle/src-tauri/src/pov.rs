@@ -95,6 +95,7 @@ impl Jobs {
         });
         Ok(Some(status))
     }
+    #[cfg(test)]
     pub fn status(&self) -> Result<Option<Status>, String> {
         Ok(self
             .current
@@ -122,6 +123,19 @@ impl Jobs {
             let _ = child.kill();
         }
         Ok(())
+    }
+    /// Stop a running scan (opening another video, or exit). A scan that is saving its labels is left to finish.
+    pub fn shutdown(&self) {
+        if let Ok(state) = self.current.lock()
+            && let Some(job) = state.as_ref().filter(|j| j.status.state == "running")
+        {
+            job.cancel.store(true, Ordering::Relaxed);
+            if let Ok(mut child) = job.child.lock()
+                && let Some(child) = child.as_mut()
+            {
+                let _ = child.kill();
+            }
+        }
     }
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
         self.start_impl(project, tools, false, None)
@@ -241,26 +255,30 @@ impl Jobs {
                     }
                 }
             };
-            let result = if already_finished {
-                Ok(()) // Explicitly reapply completed no-fire results without decoding/inference.
-            } else if decisions.iter().all(Option::is_some) {
-                // All decisions may have arrived before decoder EOF validation or a crash.
-                // Verify the final output/EOF without loading AI or redoing any inference.
-                scan_with_workers_resuming(
-                    &project,
-                    &tools,
-                    &cancel,
-                    &child,
-                    1,
-                    &decisions,
-                    |_| unreachable!("all frames are cached"),
-                    update,
-                )
-            } else if no_fire {
-                crate::no_fire::scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
-            } else {
-                scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
-            };
+            let result = guarded(|| {
+                if already_finished {
+                    Ok(()) // Explicitly reapply completed no-fire results without decoding/inference.
+                } else if decisions.iter().all(Option::is_some) {
+                    // All decisions may have arrived before decoder EOF validation or a crash.
+                    // Verify the final output/EOF without loading AI or redoing any inference.
+                    scan_with_workers_resuming(
+                        &project,
+                        &tools,
+                        &cancel,
+                        &child,
+                        1,
+                        &decisions,
+                        |_| unreachable!("all frames are cached"),
+                        update,
+                    )
+                } else if no_fire {
+                    crate::no_fire::scan_resuming(
+                        &project, &tools, &cancel, &child, &decisions, update,
+                    )
+                } else {
+                    scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
+                }
+            });
             // Kill and reap on success, failure, cancellation, or premature EOF.
             if let Ok(mut slot) = child.lock()
                 && let Some(mut process) = slot.take()
@@ -865,6 +883,12 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
         return Err(format!("FFmpeg failed: {message}"));
     }
     Ok(())
+}
+
+/// Run a scan worker body; a panic becomes an error so the job ends as failed instead of staying "running".
+fn guarded<T>(f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .unwrap_or_else(|_| Err("Scan worker failed".into()))
 }
 
 #[cfg(test)]
@@ -1684,6 +1708,40 @@ mod tests {
                 .load(Ordering::Relaxed)
         );
         assert!(jobs.cancel(2).is_err());
+    }
+    #[test]
+    fn shutdown_cancels_only_a_running_scan() {
+        let cancelled = |jobs: &Jobs| {
+            jobs.current
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .cancel
+                .load(Ordering::Relaxed)
+        };
+        let running = job("running");
+        running.shutdown();
+        assert!(cancelled(&running));
+        // Saving writes labels into the workspace; stopping it halfway would lose them.
+        for state in ["saving", "done", "cancelled", "failed"] {
+            let jobs = job(state);
+            jobs.shutdown();
+            assert!(!cancelled(&jobs), "{state}");
+        }
+        Jobs::default().shutdown(); // no job: nothing to do, no panic
+    }
+    #[test]
+    fn a_panicking_scan_worker_becomes_an_error_instead_of_a_stuck_scan() {
+        assert_eq!(
+            guarded(|| -> Result<(), String> { panic!("boom") }),
+            Err("Scan worker failed".into())
+        );
+        assert_eq!(guarded(|| Ok::<_, String>(())), Ok(()));
+        assert_eq!(
+            guarded(|| Err::<(), _>("decode".to_string())),
+            Err("decode".into())
+        );
     }
     #[test]
     fn candidate_review_requires_completed_scan_and_keeps_original_frame_numbers() {

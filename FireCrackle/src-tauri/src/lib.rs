@@ -53,36 +53,47 @@ struct AppState {
     gui_scan: gui_scan::Jobs,
 }
 
+impl AppState {
+    fn stop_scans(&self) {
+        stop_scans(&self.pov, &self.no_fire, &self.gui_scan);
+    }
+}
+
+/// Every per-video scan; called when another video opens and on exit (link downloads are not per video).
+fn stop_scans(pov: &pov::Jobs, no_fire: &pov::Jobs, gui_scan: &gui_scan::Jobs) {
+    pov.shutdown();
+    no_fire.shutdown();
+    gui_scan.shutdown();
+}
+
+/// The open video's project for a background job, without keeping the workspace locked afterwards.
+fn open_project(ws: &Mutex<Option<Workspace>>) -> Result<studio_core::project::Project, String> {
+    open_project_if_any(ws)?.ok_or_else(|| "No video is open".to_string())
+}
+
+/// Like [`open_project`], for status polling: no open video is not an error.
+fn open_project_if_any(
+    ws: &Mutex<Option<Workspace>>,
+) -> Result<Option<studio_core::project::Project>, String> {
+    let guard = ws.lock().map_err(|_| "Workspace unavailable")?;
+    Ok(guard.as_ref().map(Workspace::automation_project))
+}
+
 #[tauri::command]
 fn gui_scan_start(state: State<'_, AppState>) -> Result<gui_scan::Status, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let project = guard
-        .as_ref()
-        .ok_or("No video is open")?
-        .automation_project();
-    drop(guard);
+    let project = open_project(&state.ws)?;
     state
         .gui_scan
         .start(project, external_tools::video_tools()?)
 }
 #[tauri::command]
 fn gui_scan_status(state: State<'_, AppState>) -> Result<gui_scan::Status, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let project = guard
-        .as_ref()
-        .ok_or("No video is open")?
-        .automation_project();
-    drop(guard);
+    let project = open_project(&state.ws)?;
     state.gui_scan.status(&project)
 }
 #[tauri::command]
 fn gui_scan_cancel(state: State<'_, AppState>) -> Result<(), String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let project = guard
-        .as_ref()
-        .ok_or("No video is open")?
-        .automation_project();
-    drop(guard);
+    let project = open_project(&state.ws)?;
     state.gui_scan.cancel(&project)
 }
 
@@ -114,10 +125,7 @@ fn link_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
 }
 #[tauri::command]
 fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let workspace = guard.as_ref().ok_or("No video is open")?;
-    let project = workspace.automation_project();
-    drop(guard);
+    let project = open_project(&state.ws)?;
     let ws = state.ws.clone();
     state.no_fire.start_no_fire_saving(
         project,
@@ -142,11 +150,10 @@ fn no_fire_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
 }
 #[tauri::command]
 fn no_fire_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let Some(workspace) = guard.as_ref() else {
+    let Some(project) = open_project_if_any(&state.ws)? else {
         return Ok(None);
     };
-    state.no_fire.restore(&workspace.automation_project(), true)
+    state.no_fire.restore(&project, true)
 }
 #[tauri::command]
 fn no_fire_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
@@ -163,21 +170,16 @@ fn no_fire_candidates(
 
 #[tauri::command]
 fn pov_start(state: State<'_, AppState>) -> Result<pov::Status, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let project = guard
-        .as_ref()
-        .ok_or("No video is open")?
-        .automation_project();
+    let project = open_project(&state.ws)?;
     state.pov.start(project, external_tools::video_tools()?)
 }
 
 #[tauri::command]
 fn pov_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String> {
-    let guard = state.ws.lock().map_err(|_| "Workspace unavailable")?;
-    let Some(workspace) = guard.as_ref() else {
+    let Some(project) = open_project_if_any(&state.ws)? else {
         return Ok(None);
     };
-    state.pov.restore(&workspace.automation_project(), false)
+    state.pov.restore(&project, false)
 }
 
 #[tauri::command]
@@ -239,7 +241,11 @@ fn startup_video() -> Option<String> {
 #[tauri::command]
 async fn open_video(state: State<'_, AppState>, path: String) -> Result<View, String> {
     let ws = state.ws.clone();
-    let pov = state.pov.clone();
+    let scans = (
+        state.pov.clone(),
+        state.no_fire.clone(),
+        state.gui_scan.clone(),
+    );
     tauri::async_runtime::spawn_blocking(move || {
         let mut w = Workspace::open(
             &external_tools::video_tools()?,
@@ -251,11 +257,7 @@ async fn open_video(state: State<'_, AppState>, path: String) -> Result<View, St
         let mut guard = ws
             .lock()
             .map_err(|_| "internal error: the workspace lock was poisoned".to_string())?;
-        if let Some(status) = pov.status()?
-            && status.state == "running"
-        {
-            pov.cancel(status.id)?;
-        }
+        stop_scans(&scans.0, &scans.1, &scans.2);
         if let Some(old) = guard.take() {
             old.wait_idle(); // let the previous video's prefetch finish before it is dropped
         }
@@ -560,7 +562,29 @@ pub fn run_app() {
             use tauri::Manager;
             if let tauri::RunEvent::Exit = event {
                 app.state::<AppState>().links.shutdown();
-                app.state::<AppState>().gui_scan.shutdown();
+                app.state::<AppState>().stop_scans();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn open_project_explains_a_missing_video_and_never_keeps_the_workspace_locked() {
+        let ws = Mutex::new(None::<Workspace>);
+        assert_eq!(
+            open_project(&ws).err(),
+            Some("No video is open".to_string())
+        );
+        assert!(ws.try_lock().is_ok());
+        assert!(open_project_if_any(&ws).unwrap().is_none());
+        assert!(ws.try_lock().is_ok());
+    }
+    #[test]
+    fn opening_another_video_stops_every_scan_slot() {
+        // Each slot's shutdown is covered in its module; this pins that AppState stops all of them.
+        let state = AppState::default();
+        state.stop_scans();
+    }
 }

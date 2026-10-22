@@ -228,7 +228,10 @@ impl Jobs {
             if job.project == *project {
                 return Ok(job.clone());
             }
-            if job.state.lock().map_err(|_| "GUI scan unavailable")?.0 == "running" {
+            // A scan being stopped (e.g. by opening another video) no longer blocks; its worker owns the old job.
+            if job.state.lock().map_err(|_| "GUI scan unavailable")?.0 == "running"
+                && !job.cancel.load(Ordering::Relaxed)
+            {
                 return Err("Pause the GUI scan for the previous video first".into());
             }
         }
@@ -624,6 +627,29 @@ mod tests {
         assert_eq!(status.ranges.len(), 3);
         assert_eq!((status.ranges[1].first, status.ranges[1].last), (2, 3));
         assert!(status.ranges[2].menu);
+    }
+    #[test]
+    fn a_cancelled_scan_for_the_previous_video_does_not_block_the_next_video() {
+        let a = crate::scan_cache::tests::fixture(3);
+        let b = crate::scan_cache::tests::fixture(4);
+        let jobs = Jobs::default();
+        let old = Arc::new(Job {
+            project: a.project.clone(),
+            cache: Mutex::new(Cache::load(&a.project)),
+            state: Mutex::new(("running".into(), None)),
+            cancel: AtomicBool::new(false),
+            child: Mutex::new(None),
+        });
+        *jobs.current.lock().unwrap() = Some(old.clone());
+        assert!(
+            jobs.status(&b.project).is_err(),
+            "a live scan of another video still blocks"
+        );
+        jobs.shutdown();
+        assert!(old.cancel.load(Ordering::Relaxed));
+        // Its worker has not noticed yet (still "running"), but it is stopping, so the new video may start.
+        let status = jobs.status(&b.project).unwrap();
+        assert_eq!(status.total, b.project.frames.len() as u32);
     }
     #[test]
     fn a_range_is_sealed_only_when_both_neighbours_are_scanned() {
