@@ -15,9 +15,11 @@ import org.slf4j.LoggerFactory;
  *  and the displayed FPS value, so a recording can be aligned frame-for-frame with what the game actually drew. */
 public final class HudInfoClient implements ClientModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("hudinfo");
-    /** GUI rows: strip at 0..3, overlay box from 3, text at y = 4. */
+    /** The overlay line sits at GUI (2, 2) exactly like the reference footage; the strip goes to the top RIGHT
+     *  (256 GUI px wide, 3 tall) so the top-left corner stays pixel-identical to that footage. */
     public static final int STRIP_HEIGHT = 3;
-    public static final int TEXT_Y = STRIP_HEIGHT + 1;
+    public static final int STRIP_WIDTH = 2 * FrameStrip.CELLS;
+    public static final int TEXT_Y = 2;
     private static AsyncJsonLog output;
     private static long frame;
     private static int lastFps = Integer.MIN_VALUE;
@@ -61,10 +63,11 @@ public final class HudInfoClient implements ClientModInitializer {
         output.offer(row);
         // A new root layer keeps the strip above everything drawn so far.
         context.createNewRootLayer();
+        int x0 = context.getScaledWindowWidth() - STRIP_WIDTH;
         for (int cell = 0; cell < FrameStrip.CELLS; cell++) {
             int color = FrameStrip.white(id, cell) ? 0xffffffff : 0xff000000;
-            context.fill(cell * 2, 0, cell * 2 + 2, STRIP_HEIGHT, color);
+            context.fill(x0 + cell * 2, 0, x0 + cell * 2 + 2, STRIP_HEIGHT, color);
         }
-        if (!output.healthy()) context.fill(256, 0, 512, STRIP_HEIGHT, 0xffff0000);
+        if (!output.healthy()) context.fill(x0 - 64, 0, x0, STRIP_HEIGHT, 0xffff0000);
     }
 }
