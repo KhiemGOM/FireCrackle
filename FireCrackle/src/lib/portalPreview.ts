@@ -30,3 +30,22 @@ export async function portalPreview(image:PortalImage,signal:AbortSignal,world?:
     worker.postMessage({image,world:manual?undefined:world,manual});
   });
 }
+
+/** The coverage at a picture's size: the GUI mask is made from the scaled display frame, the picture may be full
+ *  resolution. Nearest neighbour keeps it a hard mask; a picture of another shape gets none. */
+export function fitCoverage(coverage:WorldCoverage|undefined,width:number,height:number):WorldCoverage|undefined{
+  if(!coverage)return;
+  if(coverage.width===width&&coverage.height===height)return coverage;
+  if(!sameShape(coverage,{width,height}))return;
+  const world=new Uint8Array(width*height);
+  for(let y=0;y<height;y++){
+    const row=Math.min(coverage.height-1,Math.floor(y*coverage.height/height))*coverage.width;
+    for(let x=0;x<width;x++)world[y*width+x]=coverage.world[row+Math.min(coverage.width-1,Math.floor(x*coverage.width/width))];
+  }
+  return {width,height,world};
+}
+
+/** Two sizes of one picture, allowing the rounding of a scaled display frame (h=-2 rounds to even). */
+export function sameShape(a:{width:number;height:number},b:{width:number;height:number}):boolean{
+  return a.width>0&&a.height>0&&b.width>0&&b.height>0&&Math.abs(a.width/a.height-b.width/b.height)<=0.01*b.width/b.height;
+}

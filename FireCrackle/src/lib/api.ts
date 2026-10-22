@@ -92,6 +92,8 @@ export interface Backend {
   view(): Promise<View>;
   act(action: UiAction): Promise<View>;
   frame(frame: number): Promise<ArrayBuffer>;
+  /** One frame at the video's own resolution as a lossless PNG, for a paused picture. */
+  exactFrame?(frame: number): Promise<ArrayBuffer>;
   /** Exact frame, small low-quality JPEG for list previews only. */
   previewThumbnail?(frame: number, width?: number, targets?: readonly number[]): Promise<ArrayBuffer>;
   timeline(start: number, end: number, buckets: number): Promise<Bucket[]>;
@@ -202,6 +204,7 @@ export async function createBackend(): Promise<Backend> {
     view: () => invoke<View>("view"),
     act: (action) => invoke<View>("act", { action }),
     frame: (frame) => invoke<ArrayBuffer>("frame", { frame }),
+    exactFrame: (frame) => invoke<ArrayBuffer>("exact_frame", { frame }),
     previewThumbnail: (frame, width=128, targets) => invoke<ArrayBuffer>("preview_thumbnail", { frame, width, targets }),
     timeline: (start, end, buckets) => invoke<Bucket[]>("timeline", { start, end, buckets }),
     flags: () => invoke<Flag[]>("flags"),
