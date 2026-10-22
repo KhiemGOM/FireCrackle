@@ -10,6 +10,7 @@ import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
 import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
+import {startPolling} from '../lib/poll';
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
   guiThumbnails(backend,videoKey,total);
@@ -46,13 +47,8 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order}),[menus,mode,display,order]);
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
-    let stopped=false, timer:ReturnType<typeof setTimeout>;
-    const poll=async()=>{
-      try {const value=await backend.guiScanStatus!();if(!stopped){setStatus(value);setError('');}}
-      catch(e){if(!stopped)setError(failureMessage(e));}
-      if(!stopped)timer=setTimeout(()=>void poll(),1000);
-    };
-    setStatus(null);void poll();return()=>{stopped=true;clearTimeout(timer);};
+    setStatus(null);
+    return startPolling(()=>backend.guiScanStatus!(),{intervalMs:1000,onValue:value=>{setStatus(value);setError('');},onError:e=>setError(failureMessage(e))});
   },[backend,videoKey]);
   async function action(start:boolean){
     setBusy(true);setError('');

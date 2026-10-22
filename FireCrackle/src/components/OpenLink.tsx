@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Backend, LinkStatus, ToolProgress } from "../lib/api";
 import { messageOf } from "../hooks/useWorkspace";
 import "./OpenLink.css";
+import { startPolling } from "../lib/poll";
 
 export function ToolSetupNotice({backend}:{backend:Backend}) {
   const [status,setStatus]=useState<ToolProgress|null>(null);
-  useEffect(()=>{let live=true;const poll=async()=>{try{const next=await backend.toolStatus?.();if(live)setStatus(next??null);}catch{/* A failed setup is reported by the operation that requested it. */}};void poll();const timer=setInterval(()=>void poll(),500);return()=>{live=false;clearInterval(timer);};},[backend]);
+  // A failed setup is reported by the operation that requested it, so poll errors are ignored here.
+  useEffect(()=>startPolling(async()=>(await backend.toolStatus?.())??null,{intervalMs:500,onValue:setStatus}),[backend]);
   if(!status)return null;
   return <div className="banner tool-download" role="status">Downloading {status.name} for first use · {(status.downloaded/1048576).toFixed(1)} MB{status.total?` / ${(status.total/1048576).toFixed(1)} MB`:""}<progress aria-label="Tool download progress" max={status.total??1} value={status.total?status.downloaded:undefined}/></div>;
 }
@@ -19,12 +21,11 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
   const active=useRef<number|null>(null);
   const onOpenRef=useRef(onOpen);onOpenRef.current=onOpen;
   useEffect(()=>{
-    let live=true;let polling=false;
-    const refresh=async()=>{if(polling)return;polling=true;try{const next=await backend.linkStatus?.();if(!live)return;setStatus(next??null);
+    return startPolling(async()=>(await backend.linkStatus?.())??null,{intervalMs:700,onError:e=>setError(messageOf(e)),onValue:async next=>{
+      setStatus(next);
       if(next?.state==="running")active.current=next.id;
       if(next?.state==="done"&&next.path&&active.current===next.id&&opened.current!==next.id){opened.current=next.id;await onOpenRef.current(next.path);}
-    }catch(e){if(live)setError(messageOf(e));}finally{polling=false;}};
-    void refresh();const timer=setInterval(()=>void refresh(),700);return()=>{live=false;clearInterval(timer);};
+    }});
   },[backend]);
   const running=status?.state==="running";
   async function start(){setError(null);setPending(true);try{

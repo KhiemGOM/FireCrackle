@@ -6,6 +6,7 @@ import { ScanProgressStats } from "./ScanProgressStats";
 import { povScanProgress } from "../lib/scanSpeed";
 import { sameVideo, scanStateLabel } from "../lib/scanState";
 import "./AutomationTools.css";
+import { startPolling } from "../lib/poll";
 
 export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void;onReview?:(frame:number)=>void}) {
   const [status,setStatus]=useState<PovStatus|null>(null);
@@ -18,11 +19,10 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
   const [frames,setFrames]=useState<number[]>([]);
   const [selected,setSelected]=useState(0);
   useEffect(()=>{
-    let live=true;
-    const refresh=async()=>{try{const next=await backend.povStatus?.();if(live)setStatus(next && sameVideo(next.video_path,videoPath)?next:null);}catch(e){if(live)setError(messageOf(e));}};
-    const refreshNoFire=async()=>{try{const next=await backend.noFireStatus?.();if(live)setNoFire(next && sameVideo(next.video_path,videoPath)?next:null);}catch(e){if(live)setNoFireError(messageOf(e));}};
-    void refresh();void refreshNoFire();const timer=setInterval(()=>{void refresh();void refreshNoFire();},700);
-    return()=>{live=false;clearInterval(timer);};
+    const own=(next:PovStatus|null|undefined)=>next && sameVideo(next.video_path,videoPath)?next:null;
+    const stopPov=startPolling(async()=>own(await backend.povStatus?.()),{intervalMs:700,onValue:setStatus,onError:e=>setError(messageOf(e))});
+    const stopNoFire=startPolling(async()=>own(await backend.noFireStatus?.()),{intervalMs:700,onValue:setNoFire,onError:e=>setNoFireError(messageOf(e))});
+    return()=>{stopPov();stopNoFire();};
   },[backend,videoPath]);
   useEffect(()=>{
     let live=true;setFrames([]);setSelected(0);
