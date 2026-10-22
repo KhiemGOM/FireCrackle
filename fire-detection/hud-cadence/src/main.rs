@@ -33,14 +33,20 @@ struct Args {
     prescale: Option<String>,
     /// labels: the source video to cut segments from.
     source: Option<String>,
+    /// find: also store every frame's reading in `<out>.values.json`.
+    dump_values: bool,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None, dump_values: false };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
     while let Some(flag) = it.next() {
+        if flag == "--dump-values" {
+            a.dump_values = true;
+            continue;
+        }
         let v = it.next().unwrap_or_default();
         match flag.as_str() {
             "--ffmpeg" => a.ffmpeg = v,
@@ -123,6 +129,86 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
     }
     child.wait().ok();
     err_thread.join().unwrap()
+}
+
+fn hms(t: f64) -> String {
+    format!("{:02}:{:02}:{:06.3}", (t / 3600.0) as u32, ((t % 3600.0) / 60.0) as u32, t % 60.0)
+}
+
+/// The human report: one line per finding, Jumps first in time order, then everything else by |ΔFPS|.
+fn report_text(f: &[hud_cadence::find::Finding], fps: u32, start: f64) -> String {
+    use std::fmt::Write;
+    let time = |frame: u32| start + frame as f64 / fps as f64;
+    let mut s = String::new();
+    let mut jumps: Vec<&hud_cadence::find::Finding> = f.iter().filter(|x| x.kind == Kind::Jump).collect();
+    jumps.sort_by_key(|x| x.frame);
+    writeln!(s, "JUMPS (phase moved >= 3 frames and stayed), in time order:").unwrap();
+    if jumps.is_empty() {
+        writeln!(s, "  none").unwrap();
+    }
+    for x in &jumps {
+        writeln!(
+            s,
+            "  {}  frame {:>8}  shift {:+3}  reading {:>4} -> {:<4}  |d| {:>3}{}{}",
+            hms(time(x.frame)), x.frame, x.shift, x.before.clone().unwrap_or_default(), x.after.clone().unwrap_or_default(), x.delta,
+            if x.unstable { "  UNSTABLE READINGS HERE (flickering digits): not reliable" } else { "" },
+            if x.partial { "  PARTIAL READ (a digit covered)" } else { "" }
+        ).unwrap();
+    }
+    writeln!(s).unwrap();
+    writeln!(s, "{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  note", "rank", "kind", "time", "frame", "shift", "before", "after", "|d|").unwrap();
+    for (i, x) in f.iter().enumerate() {
+        let mut note = match x.kind {
+            Kind::Jump => format!("phase moved {:+} frames and stayed: not continuous here", x.shift),
+            Kind::Drift => format!("phase moved {:+} frame(s): recorder drift or a cut within 2 frames of a whole second", x.shift),
+            Kind::Value => "largest value swings (top 1 %): no phase change, listed for cross-checking".into(),
+            Kind::Gap => format!("overlay unreadable for {} frames ({:.1} s)", x.length, x.length as f64 / fps as f64),
+        };
+        if x.partial {
+            note = format!("POSSIBLE PARTIAL READ (one value is a prefix/suffix of the other); {note}");
+        }
+        if x.unstable {
+            note = format!("UNSTABLE READINGS (digits flicker here, not reliable); {note}");
+        }
+        writeln!(
+            s,
+            "{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  {note}",
+            i + 1,
+            format!("{:?}", x.kind),
+            hms(time(x.frame)),
+            x.frame,
+            if matches!(x.kind, Kind::Jump | Kind::Drift) { format!("{:+}", x.shift) } else { String::new() },
+            x.before.clone().unwrap_or_default(),
+            x.after.clone().unwrap_or_default(),
+            if x.kind == Kind::Gap { String::new() } else { x.delta.to_string() }
+        ).unwrap();
+    }
+    s
+}
+
+/// `<out>` gets the findings (JSON, no per-frame data), `<out>.txt` the same table as printed; with `values`,
+/// `<out>.values.json` holds every frame's reading (large) for `refind`.
+#[allow(clippy::too_many_arguments)]
+fn write_report(path: &str, video: &serde_json::Value, fps: u32, scale: usize, prescale: &Option<String>, start: f64, frames: usize, readable: usize, f: &[hud_cadence::find::Finding], text: &str, values: Option<&Vec<Option<String>>>) {
+    let time = |frame: u32| start + frame as f64 / fps as f64;
+    let findings: Vec<serde_json::Value> = f
+        .iter()
+        .map(|x| serde_json::json!({
+            "kind": format!("{:?}", x.kind), "time": time(x.frame), "hms": hms(time(x.frame)), "frame": x.frame, "shift": x.shift,
+            "before": x.before, "after": x.after, "delta": x.delta, "gap_frames": x.length, "partial_read": x.partial, "unstable": x.unstable
+        }))
+        .collect();
+    let json = serde_json::json!({ "video": video, "fps": fps, "scale": scale, "prescale": prescale, "start": start, "frames": frames, "readable": readable, "findings": findings });
+    std::fs::write(path, serde_json::to_string_pretty(&json).unwrap()).unwrap();
+    let txt = format!("{path}.txt");
+    std::fs::write(&txt, text).unwrap();
+    eprintln!("wrote {path} and {txt}");
+    if let Some(values) = values {
+        let vp = format!("{path}.values.json");
+        let json = serde_json::json!({ "video": video, "fps": fps, "scale": scale, "prescale": prescale, "start": start, "values": values });
+        std::fs::write(&vp, serde_json::to_string(&json).unwrap()).unwrap();
+        eprintln!("wrote {vp}");
+    }
 }
 
 fn pts_times(stderr: &str) -> Vec<f64> {
@@ -234,6 +320,19 @@ fn main() {
                 std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
             }
         }
+        "refind" => {
+            // hud-cadence refind <report.values.json> [--out report.json]: recompute findings from stored readings.
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
+            let values: Vec<Option<String>> = json["values"].as_array().expect("no values in this file").iter().map(|v| v.as_str().map(str::to_string)).collect();
+            let fps = json["fps"].as_u64().map_or(a.fps, |f| f as u32);
+            let start = json["start"].as_f64().unwrap_or(0.0);
+            let f = findings(&values, fps, 3 * fps, 20);
+            let text = report_text(&f, fps, start);
+            print!("{text}");
+            if let Some(path) = &a.out {
+                write_report(path, &json["video"], fps, a.scale, &a.prescale, start, values.len(), values.iter().filter(|v| v.is_some()).count(), &f, &text, None);
+            }
+        }
         "find" => {
             // hud-cadence find <video> [--ffmpeg F] [--scale 3] [--fps 60] [--prescale W:H] [--start S --duration S] [--out report.json]
             // Reads the whole video, lists every cadence jump / drift / unreadable gap and the largest value swings,
@@ -262,40 +361,10 @@ fn main() {
                 100.0 * readable as f64 / total.max(1) as f64,
                 f.len()
             );
-            println!("{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  note", "rank", "kind", "time", "frame", "shift", "before", "after", "|d|");
-            for (i, x) in f.iter().enumerate() {
-                let mut note = match x.kind {
-                    Kind::Jump => format!("phase moved {:+} frames and stayed: not continuous here", x.shift),
-                    Kind::Drift => format!("phase moved {:+} frame(s): recorder drift or a cut within 2 frames of a whole second", x.shift),
-                    Kind::Value => "largest value swings (top 1 %): no phase change, listed for cross-checking".into(),
-                    Kind::Gap => format!("overlay unreadable for {} frames ({:.1} s)", x.length, x.length as f64 / a.fps as f64),
-                };
-                if x.partial {
-                    note = format!("POSSIBLE PARTIAL READ (one value is the tail of the other); {note}");
-                }
-                println!(
-                    "{:>4}  {:<6} {:>12}  {:>9}  {:>6}  {:>5}  {:>5}  {:>5}  {note}",
-                    i + 1,
-                    format!("{:?}", x.kind),
-                    hms(time(x.frame)),
-                    x.frame,
-                    if matches!(x.kind, Kind::Jump | Kind::Drift) { format!("{:+}", x.shift) } else { String::new() },
-                    x.before.clone().unwrap_or_default(),
-                    x.after.clone().unwrap_or_default(),
-                    if x.kind == Kind::Gap { String::new() } else { x.delta.to_string() }
-                );
-            }
+            let text = report_text(&f, a.fps, a.start);
+            print!("{text}");
             if let Some(path) = &a.out {
-                let json = serde_json::json!({
-                    "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "start": a.start, "frames": total, "readable": readable,
-                    "findings": f.iter().map(|x| serde_json::json!({
-                        "kind": format!("{:?}", x.kind), "time": time(x.frame), "frame": x.frame, "shift": x.shift,
-                        "before": x.before, "after": x.after, "delta": x.delta, "gap_frames": x.length, "partial_read": x.partial
-                    })).collect::<Vec<_>>(),
-                    "values": values,
-                });
-                std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
-                eprintln!("wrote {path}");
+                write_report(path, &serde_json::Value::String(a.video.clone()), a.fps, a.scale, &a.prescale, a.start, total, readable, &f, &text, a.dump_values.then_some(&values));
             }
         }
         "truth" => {
@@ -383,7 +452,7 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--out report.json]\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
+        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--out report.json] [--dump-values]\n       hud-cadence refind <report.values.json> [--out report.json]\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
        hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [--source <video> --ffmpeg F]"),
     }
 }

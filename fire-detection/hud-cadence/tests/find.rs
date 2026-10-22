@@ -68,3 +68,31 @@ fn an_unreadable_stretch_is_listed_as_a_gap_and_does_not_create_a_jump() {
     assert_eq!(gaps.len(), 1);
     assert_eq!((gaps[0].frame, gaps[0].length), (200, 400));
 }
+
+// A region where the reading flickers (a HUD element over the digits, a 3/8 confusion at the edge of the template
+// margin) produces runs that occasionally pass the persistence filter and look like phase jumps. Findings inside
+// such a region must carry `unstable` so they are not read as cuts; a prefix-truncated reading ("367" vs "36") is a
+// partial read as much as a suffix one.
+#[test]
+fn findings_inside_a_flickering_region_are_marked_unstable_and_prefix_truncation_is_partial() {
+    let mut v = values(2000, &[(0, "300"), (10, "301"), (70, "302"), (130, "303"), (190, "304"), (250, "305"), (310, "306")]);
+    // flicker from 400: alternate 367/36 every 7 frames, with one 25-frame run of "36" that passes min_run
+    let mut x = 400;
+    while x < 900 {
+        for i in x..(x + 7).min(900) { v[i] = Some("367".into()); }
+        for i in (x + 7)..(x + 14).min(900) { v[i] = Some("36".into()); }
+        x += 14;
+    }
+    for i in 700..725 { v[i] = Some("36".into()); }
+    for i in 725..760 { v[i] = Some("367".into()); }
+    for (k, f) in [1000usize, 1060, 1120, 1180, 1240, 1300].iter().enumerate() {
+        for i in *f..(f + 60).min(2000) { v[i] = Some(format!("{}", 400 + k)); }
+    }
+    let f = findings(&v, 60, 180, 20);
+    let early: Vec<&Finding> = f.iter().filter(|x| x.frame < 400).collect();
+    assert!(early.iter().all(|x| !x.unstable), "clean region must not be marked unstable: {early:?}");
+    let flicker: Vec<&Finding> = f.iter().filter(|x| x.frame >= 400 && x.frame < 900 && x.kind != Kind::Gap).collect();
+    assert!(!flicker.is_empty(), "the flicker region should produce findings to be flagged");
+    assert!(flicker.iter().all(|x| x.unstable), "{flicker:?}");
+    assert!(flicker.iter().filter(|x| x.kind == Kind::Value).all(|x| x.partial), "367 vs 36 is a partial read: {flicker:?}");
+}

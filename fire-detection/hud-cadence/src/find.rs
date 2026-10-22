@@ -29,8 +29,28 @@ pub struct Finding {
     pub delta: u32,
     /// Gap length in frames (Gap), else 0.
     pub length: u32,
-    /// One reading is a proper suffix of the other ("48" vs "948"): most likely a digit was covered, not a swing.
+    /// One reading is a proper prefix or suffix of the other ("48" vs "948", "367" vs "36"): a covered digit, not a swing.
     pub partial: bool,
+    /// The raw reading changed more than `UNSTABLE_CHANGES` times within ±2 s: the digits are flickering here
+    /// (something over them, or a glyph at the edge of the template margin), so phase findings are not reliable.
+    pub unstable: bool,
+}
+
+/// Raw reading changes within ±2 s above which a region counts as flickering (a clean overlay changes once a second).
+pub const UNSTABLE_CHANGES: usize = 8;
+
+fn raw_changes_near(values: &[Option<String>], frame: usize, half_window: usize) -> usize {
+    let lo = frame.saturating_sub(half_window);
+    let hi = (frame + half_window).min(values.len());
+    let mut n = 0;
+    let mut prev: Option<&String> = None;
+    for v in values[lo..hi].iter().flatten() {
+        if prev.is_some_and(|p| p != v) {
+            n += 1;
+        }
+        prev = Some(v);
+    }
+    n
 }
 
 /// Splits sorted change frames into runs wherever two consecutive changes are more than `max_gap` frames apart.
@@ -63,7 +83,7 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
             (true, None) => start = Some(i),
             (false, Some(s)) => {
                 if i - s > fps as usize {
-                    out.push(Finding { kind: Kind::Gap, frame: s as u32, shift: 0, before: None, after: None, delta: 0, length: (i - s) as u32, partial: false });
+                    out.push(Finding { kind: Kind::Gap, frame: s as u32, shift: 0, before: None, after: None, delta: 0, length: (i - s) as u32, partial: false, unstable: false });
                 }
                 start = None;
             }
@@ -78,11 +98,12 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
             _ => 0,
         };
         let partial = match (&before, &after) {
-            (Some(b), Some(a)) => b != a && (a.ends_with(b.as_str()) || b.ends_with(a.as_str())),
+            (Some(b), Some(a)) => b != a && (a.ends_with(b.as_str()) || b.ends_with(a.as_str()) || a.starts_with(b.as_str()) || b.starts_with(a.as_str())),
             _ => false,
         };
         (before, after, delta, partial)
     };
+    let unstable = |frame: u32| raw_changes_near(values, frame as usize, 2 * fps as usize) > UNSTABLE_CHANGES;
     // Value swings: the largest 1 % of |Δ| at ordinary boundaries, so a hidden whole-second cut that joined very
     // different scenes still surfaces, ranked with everything else.
     let mut deltas: Vec<(u32, u32)> = changes.iter().map(|&c| (describe(c).2, c)).collect();
@@ -93,13 +114,13 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
         for e in &analysis.events {
             let (before, after, delta, partial) = describe(e.frame);
             let kind = if e.kind == PhaseKind::Jump { Kind::Jump } else { Kind::Drift };
-            out.push(Finding { kind, frame: e.frame, shift: e.shift, before, after, delta, length: 0, partial });
+            out.push(Finding { kind, frame: e.frame, shift: e.shift, before, after, delta, length: 0, partial, unstable: unstable(e.frame) });
         }
     }
     for &(delta, frame) in &deltas {
         if delta >= value_cutoff && deltas.len() >= 100 && !out.iter().any(|f| f.frame == frame) {
             let (before, after, delta, partial) = describe(frame);
-            out.push(Finding { kind: Kind::Value, frame, shift: 0, before, after, delta, length: 0, partial });
+            out.push(Finding { kind: Kind::Value, frame, shift: 0, before, after, delta, length: 0, partial, unstable: unstable(frame) });
         }
     }
     // The test fixtures are short: with fewer than 100 boundaries, still surface the single largest swing.
@@ -107,7 +128,7 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
         if let Some(&(delta, frame)) = deltas.first() {
             if delta > 0 && !out.iter().any(|f| f.frame == frame) {
                 let (before, after, delta, partial) = describe(frame);
-                out.push(Finding { kind: Kind::Value, frame, shift: 0, before, after, delta, length: 0, partial });
+                out.push(Finding { kind: Kind::Value, frame, shift: 0, before, after, delta, length: 0, partial, unstable: unstable(frame) });
             }
         }
     }
