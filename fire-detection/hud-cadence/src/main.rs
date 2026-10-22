@@ -5,9 +5,12 @@
 use hud_cadence::font::Font;
 use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
+use hud_cadence::strip;
+use hud_cadence::truth::{align, expected_changes, parse_log};
 use std::io::Read;
 use std::process::{Command, Stdio};
 
+/// The overlay reader looks at the top-left 1500×40 px; with a strip, the crop widens to the full frame.
 const STRIP_W: usize = 1500;
 const STRIP_H: usize = 40;
 
@@ -20,10 +23,15 @@ struct Args {
     start: f64,
     duration: f64,
     out: Option<String>,
+    /// "none" | "right" (mod-hud) | "left" (mod-gui): where the frame-ID strip is.
+    strip: String,
+    /// Video width in pixels, needed to place a right-aligned strip.
+    width: usize,
+    log: Option<String>,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -36,6 +44,9 @@ fn args() -> Args {
             "--start" => a.start = v.parse().expect("--start"),
             "--duration" => a.duration = v.parse().expect("--duration"),
             "--out" => a.out = Some(v),
+            "--strip" => a.strip = v,
+            "--width" => a.width = v.parse().expect("--width"),
+            "--log" => a.log = Some(v),
             other => panic!("unknown flag {other}"),
         }
     }
@@ -43,7 +54,17 @@ fn args() -> Args {
 }
 
 /// Streams the top-left strip of every frame ffmpeg emits as 8-bit grey. Returns (frames, ffmpeg stderr).
+/// Crop (width, height) the scan decodes: the overlay area, widened/heightened to include the strip.
+fn crop(a: &Args) -> (usize, usize) {
+    match a.strip.as_str() {
+        "right" => (a.width, STRIP_H.max((strip::HUD_STRIP_Y + 3) * a.scale)),
+        "left" => (STRIP_W.max(strip::width(a.scale)), STRIP_H),
+        _ => (STRIP_W, STRIP_H),
+    }
+}
+
 fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) -> String {
+    let (w, h) = crop(a);
     let mut c = Command::new(&a.ffmpeg);
     c.args(["-v", "info", "-nostats", "-threads", "8"]);
     if keyframes_only {
@@ -53,7 +74,7 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
     c.arg("-i").arg(&a.video);
-    c.args(["-vf", &format!("crop={STRIP_W}:{STRIP_H}:0:0,format=gray,showinfo"), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
+    c.args(["-vf", &format!("crop={w}:{h}:0:0,format=gray,showinfo"), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
     c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = c.spawn().expect("start ffmpeg");
     let mut err = child.stderr.take().unwrap();
@@ -63,7 +84,7 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
         s
     });
     let mut out = child.stdout.take().unwrap();
-    let mut buf = vec![0u8; STRIP_W * STRIP_H];
+    let mut buf = vec![0u8; w * h];
     let mut n = 0;
     loop {
         let mut got = 0;
@@ -136,17 +157,34 @@ fn main() {
             }
         }
         "scan" => {
+            let (w, h) = crop(&a);
+            let strip_pos = match a.strip.as_str() {
+                "right" => Some((w - strip::width(a.scale), strip::HUD_STRIP_Y * a.scale)),
+                "left" => Some((0, 0)),
+                _ => None,
+            };
             let mut values: Vec<Option<String>> = Vec::new();
+            let mut ids: Vec<Option<u32>> = Vec::new();
             let mut near = None;
             let mut worst = 0usize;
             stream(&a, false, |_, g| {
-                let r = tpl.read(g, STRIP_W, STRIP_H, near);
+                let r = tpl.read(g, w, h, near);
                 near = r.as_ref().map(|r| r.anchor);
                 if let Some(r) = &r {
                     worst = worst.max(r.mismatches.iter().copied().max().unwrap_or(0));
                 }
                 values.push(r.map(|r| r.value));
+                if let Some((x0, y0)) = strip_pos {
+                    ids.push(strip::decode(g, w, a.scale, x0, y0));
+                }
             });
+            if strip_pos.is_some() {
+                let al = align(&ids);
+                println!(
+                    "strip: readable {} of {}; new {}, duplicates {}, skipped renderer frames {}, backwards {}",
+                    al.readable, ids.len(), al.new, al.duplicates, al.skipped_renderer_frames, al.backwards
+                );
+            }
             let total = values.len();
             let readable = values.iter().filter(|v| v.is_some()).count();
             let changes = change_frames(&values, 20);
@@ -171,9 +209,35 @@ fn main() {
                 println!("  {:?} at frame {} ({t:.2}s): shift {:+} frames", e.kind, e.frame, e.shift);
             }
             if let Some(path) = &a.out {
-                let json = serde_json::json!({"start": a.start, "fps": a.fps, "frames": total, "readable": readable, "worst_mismatch": worst, "changes": changes, "values": values, "phase": an.phase, "missing": an.missing, "events": an.events.iter().map(|e| serde_json::json!({"kind": format!("{:?}", e.kind), "frame": e.frame, "shift": e.shift})).collect::<Vec<_>>()});
+                let json = serde_json::json!({"start": a.start, "fps": a.fps, "frames": total, "readable": readable, "worst_mismatch": worst, "changes": changes, "values": values, "ids": ids, "phase": an.phase, "missing": an.missing, "events": an.events.iter().map(|e| serde_json::json!({"kind": format!("{:?}", e.kind), "frame": e.frame, "shift": e.shift})).collect::<Vec<_>>()});
                 std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
             }
+        }
+        "truth" => {
+            // hud-cadence truth <scan.json> --log <hudinfo.jsonl>: compare detected changes with the mod's log.
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
+            let ids: Vec<Option<u32>> = json["ids"].as_array().expect("scan was run with --strip").iter().map(|v| v.as_u64().map(|v| v as u32)).collect();
+            let detected: Vec<u32> = json["changes"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+            let fps = json["fps"].as_u64().unwrap() as u32;
+            let rows = parse_log(&std::fs::read_to_string(a.log.as_ref().expect("--log")).unwrap());
+            let al = align(&ids);
+            println!("strip: readable {} of {}; new {}, duplicates {}, skipped renderer frames {}, backwards {}", al.readable, ids.len(), al.new, al.duplicates, al.skipped_renderer_frames, al.backwards);
+            let expected = expected_changes(&rows, &ids);
+            println!("log: {} frame rows, {} FPS changes inside the captured range; detected {} changes", rows.len(), expected.len(), detected.len());
+            let (mut exact, mut off_by_one, mut missed) = (0, 0, 0);
+            for e in &expected {
+                match detected.iter().map(|&d| (d as i64 - e.video_frame as i64).abs()).min() {
+                    Some(0) => exact += 1,
+                    Some(1) => off_by_one += 1,
+                    _ => missed += 1,
+                }
+            }
+            println!("detected vs truth: exact {exact}, off by one frame {off_by_one}, missed {missed}; spurious {}", detected.len().saturating_sub(exact + off_by_one));
+            // The game's own grid: nanoTime of each change mod 1 s, in ms, should be constant.
+            let game_phase: Vec<i64> = expected.iter().map(|e| e.nanos.rem_euclid(1_000_000_000) / 1_000_000).collect();
+            let video_phase: Vec<u32> = expected.iter().map(|e| e.video_frame % fps).collect();
+            println!("game phase (ms mod 1000) per change: {}", game_phase.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(" "));
+            println!("video phase (frame mod {fps}) per true change: {}", video_phase.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(" "));
         }
         "replay" => {
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
@@ -192,6 +256,6 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--out FILE]"),
+        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|right|left] [--width PX] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
     }
 }

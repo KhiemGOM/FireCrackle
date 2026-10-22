@@ -37,16 +37,19 @@ pub fn white(frame: u32, cell: usize) -> bool {
     }
 }
 
-/// Decodes the strip from a grey image of width `width`, with the strip's left edge at video x `x0` on row 0
-/// (mod-gui draws it at the top left, mod-hud at the top right: `x0 = width - 256 * scale`). Each GUI pixel is
-/// `scale` video pixels. Samples the centre of each cell, checks Manchester polarity, preamble and CRC. Returns the
-/// renderer frame ID, or None when any check fails (a frame without a strip, or a torn frame).
-pub fn decode(gray: &[u8], width: usize, scale: usize, x0: usize) -> Option<u32> {
+/// GUI row of mod-hud's strip (below the overlay box); mod-gui draws its strip at row 0.
+pub const HUD_STRIP_Y: usize = 11;
+
+/// Decodes the strip from a grey image of width `width`, with the strip's top-left at video (`x0`, `y0`)
+/// (mod-gui: (0, 0); mod-hud: `x0 = width - 256 * scale`, `y0 = 11 * scale`). Each GUI pixel is `scale` video
+/// pixels. Samples the centre of each cell, checks Manchester polarity, preamble and CRC. Returns the renderer
+/// frame ID, or None when any check fails (a frame without a strip, or a torn frame).
+pub fn decode(gray: &[u8], width: usize, scale: usize, x0: usize, y0: usize) -> Option<u32> {
     let (cell_w, cell_h) = (2 * scale, 3 * scale);
-    if x0 + CELLS * cell_w > width || gray.len() < cell_h * width {
+    if x0 + CELLS * cell_w > width || gray.len() < (y0 + cell_h) * width {
         return None;
     }
-    let y = cell_h / 2;
+    let y = y0 + cell_h / 2;
     let sample = |cell: usize| gray[y * width + x0 + cell * cell_w + cell_w / 2] > 128;
     let mut bits = [false; 64];
     for (k, bit) in bits.iter_mut().enumerate() {
