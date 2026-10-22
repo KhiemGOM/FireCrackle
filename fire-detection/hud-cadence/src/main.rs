@@ -28,10 +28,12 @@ struct Args {
     /// Video width in pixels, needed to place a right-aligned strip.
     width: usize,
     log: Option<String>,
+    /// "W:H": scale every frame to this size before reading (a 1080p recording or upload of a 1440p game).
+    prescale: Option<String>,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -47,6 +49,7 @@ fn args() -> Args {
             "--strip" => a.strip = v,
             "--width" => a.width = v.parse().expect("--width"),
             "--log" => a.log = Some(v),
+            "--prescale" => a.prescale = Some(v),
             other => panic!("unknown flag {other}"),
         }
     }
@@ -74,7 +77,8 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
     c.arg("-i").arg(&a.video);
-    c.args(["-vf", &format!("crop={w}:{h}:0:0,format=gray,showinfo"), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
+    let pre = a.prescale.as_ref().map_or(String::new(), |wh| format!("scale={wh}:flags=lanczos,"));
+    c.args(["-vf", &format!("{pre}crop={w}:{h}:0:0,format=gray,showinfo"), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
     c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = c.spawn().expect("start ffmpeg");
     let mut err = child.stderr.take().unwrap();
@@ -256,6 +260,6 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|right|left] [--width PX] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
+        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
     }
 }
