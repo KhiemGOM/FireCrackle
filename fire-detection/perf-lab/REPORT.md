@@ -151,7 +151,7 @@ the TensorRT runtime); a smaller/lower-resolution model (would need an approved 
 
 ```bash
 # build (lab target dir keeps the main checkout's builds untouched)
-CARGO_TARGET_DIR=D:/Coding/Minecraft/FireCracking/.board/scan-perf-lab/target cargo build --release --manifest-path fire-detection/perf-lab/Cargo.toml
+cargo build --release --manifest-path fire-detection/perf-lab/Cargo.toml
 # app-faithful baseline
 perf-lab bench tool=pov video=misc/dream/recovered-video.mkv w=2560 h=1440 start=5490 frames=1800 decoder=app
 # lab configuration (H.264 sources: add cuvid=h264_cuvid)

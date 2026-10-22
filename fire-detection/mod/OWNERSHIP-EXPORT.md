@@ -80,7 +80,7 @@ Inspect sampling/texture filtering boundaries and mark a boundary band uncertain
 A direct development client reached the title screen, but opening a single-player world failed in Netty `NioEventLoop.openSelector`, with `Unable to establish loopback connection` and `UnixDomainSockets.connect0: Invalid argument: connect`. A process-local socket directory fixes the selector/pipe check on this machine:
 
 ```text
--Djdk.net.unixdomain.tmpdir=D:/Coding/Minecraft/FireCracking/fire-detection/mod/build/ownership-launch/socket-tmp
+-Djdk.net.unixdomain.tmpdir=<repo>/fire-detection/mod/build/ownership-launch/socket-tmp
 ```
 
 Create that directory before launch. This changes only the launched JVM, not Windows networking/security settings. An isolated `Selector.open()` plus `Pipe.open()` test passed with this setting, and Minecraft was relaunched with it. World entry and intermediate sample export succeeded with it. Current optimized ownership masks still need fresh live validation. Gradle also starts successfully with this setting. Use Java 21 for Fabric Loom; Java 17 cannot load the build plugin.

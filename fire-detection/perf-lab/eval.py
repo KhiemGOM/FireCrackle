@@ -8,7 +8,7 @@ checkout, which also holds the ignored recordings and labels.
 
 Writes results/<tag>/<tool>-<name>.jsonl (decisions) and results/<tag>/<tool>-report.json.
 """
-import argparse, json, subprocess, sys, time
+import argparse, json, os, subprocess, sys, time
 from pathlib import Path
 
 LAB = Path(__file__).resolve().parent
@@ -21,7 +21,8 @@ from pov_independent import OUT as SEPARATE, SOURCES as EXTRA, read_truth, summa
 
 VIDEOS = {**DEV, **EXTRA}
 POV_STRIDE = {'clip1': 5, 'clip2': 5, 'quad1': 30, 'survival1': 30, 'early': 5, 'later': 5}
-BINARY = Path(r'D:/Coding/Minecraft/FireCracking/.board/scan-perf-lab/target/release/perf-lab.exe')
+# Built with `cargo build --release --manifest-path fire-detection/perf-lab/Cargo.toml`; PERF_LAB_BIN overrides it.
+BINARY = Path(os.environ.get('PERF_LAB_BIN', LAB / 'target/release/perf-lab.exe'))
 
 
 def pov_truth(name):

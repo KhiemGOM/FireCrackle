@@ -2,7 +2,7 @@
 
 FireCrackle is a desktop app for matching Minecraft fire animations to video frames, with Windows x64 and Linux x86_64 packaging. This repository also contains the detector, recording mod and research tools used to evaluate it.
 
-**Version 0.1.1 is an experimental analysis tool.** A timing flag is a reason to inspect the footage, not proof of an edit. Automatic labels are distinguished from human checks; recording stalls, game lag and model mismatches can all affect the result.
+**FireCrackle is an experimental analysis tool.** A timing flag is a reason to inspect the footage, not proof of an edit. Automatic labels are distinguished from human checks; recording stalls, game lag and model mismatches can all affect the result.
 
 - [Download builds](https://github.com/KhiemGOM/FireCrackle/releases)
 - [App development and packaging](FireCrackle/README.md)
@@ -17,9 +17,13 @@ FireCrackle is a desktop app for matching Minecraft fire animations to video fra
 | --- | --- |
 | `FireCrackle/src` | React UI and matching/geometry helpers |
 | `FireCrackle/crates/studio_core` | Video projects, labels, autosave and timing analysis |
-| `FireCrackle/src-tauri` | Windows desktop commands, video encoding and background matching |
+| `FireCrackle/crates/no_fire_cnn` | Frozen no-fire classifier preprocessing and inference |
+| `FireCrackle/src-tauri` | Desktop commands (Windows and Linux), video decoding and background matching |
+| `FireCrackle/scripts` | Release/runtime packaging and evaluation scripts |
 | `fire-detection/core` | Rust matching library and research CLIs |
 | `fire-detection/mod` | Original Fabric recording/ground-truth mod |
+| `fire-detection/{mod-gui,mod-hud}` | Fabric mods for GUI-piece and HUD/frame-timing recordings |
+| `fire-detection/{hud-cadence,perf-lab}` | Frame-timing (F3 counter) analysis and scan performance lab |
 | `fire-detection/{obs,augment,bench}` | Python recording, degradation and evaluation tools |
 | `scripts` | Repository hygiene checks |
 

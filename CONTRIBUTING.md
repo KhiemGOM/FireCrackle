@@ -4,19 +4,28 @@ Keep behavior changes separate from formatting or refactors. Describe the concre
 
 ## Checks
 
-Run from the repository root:
+CI (`.github/workflows/ci.yml`) runs the checks below; run the ones for the code you changed before opening a pull request. Prerequisites: Node.js 24, Rust stable with `rustup target add wasm32-unknown-unknown` (the frontend scripts build the shared veil WebAssembly), and Python 3.10 for the research tools.
+
+From the repository root:
 
 ```powershell
 node --test scripts/check-repository.test.mjs
 node scripts/check-repository.mjs
-cargo fmt --manifest-path FireCrackle/crates/studio_core/Cargo.toml -- --check
-cargo fmt --manifest-path FireCrackle/src-tauri/Cargo.toml -- --check
-cargo fmt --manifest-path fire-detection/core/Cargo.toml -- --check
-cargo test --manifest-path FireCrackle/crates/studio_core/Cargo.toml
-cargo test --manifest-path fire-detection/core/Cargo.toml
 ```
 
-For video integration tests, put FFmpeg/FFprobe on `PATH`; otherwise tests that require them may explicitly skip. For the frontend, run `npm ci`, `npm test` and `npm run build` in `FireCrackle`. The Windows CI installs the pinned runtime before the Rust tests and compiles the desktop command tests. Python and mod instructions are in `fire-detection/README.md`.
+For each Rust crate: `FireCrackle/crates/studio_core`, `fire-detection/core`, `FireCrackle/crates/no_fire_cnn` and `FireCrackle/src-tauri`:
+
+```powershell
+cargo fmt --manifest-path <crate>/Cargo.toml -- --check
+cargo clippy --manifest-path <crate>/Cargo.toml --all-targets --no-deps -- -D warnings
+cargo test --manifest-path <crate>/Cargo.toml
+```
+
+For video integration tests, put FFmpeg/FFprobe on `PATH` (`FireCrackle/scripts/prepare-runtime.ps1` fetches the pinned build into `FireCrackle/src-tauri/runtime`); otherwise tests that require them may explicitly skip. For the frontend, run `npm ci`, `npm test` and `npm run build` in `FireCrackle`. Python checks: `python -m pytest fire-detection/obs fire-detection/augment fire-detection/bench`. Mod instructions are in `fire-detection/README.md`.
+
+## Pull requests
+
+Branch from `main` and open a pull request against it; CI must pass. Keep one concern per pull request.
 
 `npm run release -- -Installer` in `FireCrackle` builds local tester downloads. Publishing a release or changing repository visibility is a separate action requiring the owner's instruction.
 
