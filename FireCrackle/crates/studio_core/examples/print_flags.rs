@@ -14,11 +14,16 @@ fn main() {
         eprintln!("usage: print_flags VIDEO [OUT.json]");
         std::process::exit(2);
     };
-    let mut w = Workspace::open(&Tools::default(), Path::new(video), &Settings::default()).expect("open");
+    let mut w =
+        Workspace::open(&Tools::default(), Path::new(video), &Settings::default()).expect("open");
     let v = w.view();
     let fps = v.fps;
     let flags = w.flags();
-    eprintln!("{} frames at {fps:.3} fps; {} flags", v.frame_count, flags.len());
+    eprintln!(
+        "{} frames at {fps:.3} fps; {} flags",
+        v.frame_count,
+        flags.len()
+    );
     let rows: Vec<serde_json::Value> = flags
         .iter()
         .map(|f| {

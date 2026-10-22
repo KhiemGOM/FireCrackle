@@ -83,3 +83,12 @@
 
 Use targeted tests for changed paths. Coordinate shared-file work through Swarmboard and
 preserve unrelated agents' changes. Never commit local game assets, recordings or caches.
+
+## After a release: clean up
+
+A release is not finished until it is cleaned up. When a release is published:
+
+1. **Merge the release branch into `main`** (the version bump, notes and any release-only fixes), resolve the conflicts, and re-run the checks. `main` must never be behind the published version.
+2. **Delete the release branch** locally and on `origin` (`git branch -d`, `git push origin --delete`), once the release tag exists on the remote and the merge is pushed.
+3. **Remove its release worktree** under `.release-worktrees/` (unlink any junctions first, never `git worktree remove --force` over them) and delete stale local release outputs: `FireCrackle/releases/<old versions>`, old `.board/test-*` portables and superseded build bundles. Keep only the newest published version's portable for testing.
+4. **Rebuild the local app from `main`** so the exe people open is the released version, not a stale build.
