@@ -8,7 +8,7 @@ XYZ: 2340.293 / -24.999 / 838.915 | Yaw: 104.8 Pitch: 21.8 | Direction: west | F
 ```
 
 The FPS value is `MinecraftClient.getCurrentFps()`, the same once-per-second number F3 shows, so the
-cadence check applies unchanged. The text is drawn with the vanilla font and shadow at GUI (2, 2);
+cadence check applies unchanged. The text is drawn exactly like the vanilla F3 lines (vanilla font, light grey on a translucent grey box, no shadow) at GUI (2, 2);
 use **GUI scale 3** in Video Settings to match the reference's 3×3-pixel glyphs at 1440p. The line is
 hidden while F3 is open or the HUD is hidden (F1).
 

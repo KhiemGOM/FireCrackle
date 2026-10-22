@@ -5,7 +5,6 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.util.Colors;
 import org.firecracking.hudinfo.HudText;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,6 +24,9 @@ public class InGameHudMixin {
         }
         String line = HudText.line(player.getX(), player.getY(), player.getZ(), player.getYaw(), player.getPitch(),
             player.getHorizontalFacing().asString(), client.getCurrentFps());
-        context.drawTextWithShadow(client.textRenderer, line, 2, 2, Colors.WHITE);
+        // Same look as the vanilla F3 lines: translucent grey box, light grey text, no shadow.
+        int width = client.textRenderer.getWidth(line);
+        context.fill(1, 1, 2 + width + 1, 2 + 9 - 1, 0x90505050);
+        context.drawText(client.textRenderer, line, 2, 2, 0xFFE0E0E0, false);
     }
 }
