@@ -1,34 +1,7 @@
 //! Real temporal H.264 round trip for a projected 32-row fire cycle.
 //! Inputs are full-size white-background PNGs; only the frontend's fire alpha is displayed.
-use std::{
-    ffi::OsStr,
-    path::PathBuf,
-    process::Command,
-    sync::atomic::{AtomicU64, Ordering},
-};
-
-static NEXT: AtomicU64 = AtomicU64::new(0);
-struct Scratch(PathBuf);
-impl Scratch {
-    fn new() -> Result<Self, String> {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| e.to_string())?
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "firecrackle-codec-{}-{stamp}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&path).map_err(|e| e.to_string())?;
-        Ok(Self(path))
-    }
-}
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
+use std::{ffi::OsStr, process::Command};
+use studio_core::fsutil::ScratchDir;
 
 fn validate(width: u32, height: u32, frames: &[Vec<u8>], crf: u8) -> Result<(), String> {
     if width == 0
@@ -58,11 +31,6 @@ fn validate(width: u32, height: u32, frames: &[Vec<u8>], crf: u8) -> Result<(), 
 }
 
 fn run(command: &mut Command) -> Result<(), String> {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    }
     let out = command
         .output()
         .map_err(|e| format!("Could not run FFmpeg: {e}"))?;
@@ -83,14 +51,14 @@ pub fn encode(
     crf: u8,
 ) -> Result<Vec<u8>, String> {
     validate(width, height, &frames, crf)?;
-    let dir = Scratch::new()?;
+    let dir = ScratchDir::new("codec").map_err(|e| e.to_string())?;
     for (row, png) in frames.iter().enumerate() {
         std::fs::write(dir.0.join(format!("in{row:02}.png")), png).map_err(|e| e.to_string())?;
     }
     let video = dir.0.join("cycle.mkv");
     // 20 animation rows/sec -> 60 video frames/sec (three holds per row).
     // Pad odd dimensions for 4:2:0, without moving the fire or changing pixel scale.
-    run(Command::new(ffmpeg)
+    run(studio_core::proc::hidden_command(ffmpeg)
         .args([
             "-nostdin",
             "-hide_banner",
@@ -120,7 +88,7 @@ pub fn encode(
         ])
         .arg(&video))?;
     // Decode the middle held frame for each animation row, preserving I/P/B effects.
-    run(Command::new(ffmpeg)
+    run(studio_core::proc::hidden_command(ffmpeg)
         .args(["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i"])
         .arg(&video)
         .args([
@@ -155,11 +123,11 @@ mod tests {
         let Some(ffmpeg) = std::env::var_os("FIRECRACKLE_TEST_FFMPEG") else {
             return;
         };
-        let dir = Scratch::new().unwrap();
+        let dir = ScratchDir::new("codec").unwrap();
         let input = if let Some(path) = std::env::var_os("FIRECRACKLE_TEST_INPUT") {
-            PathBuf::from(path)
+            std::path::PathBuf::from(path)
         } else {
-            run(Command::new(&ffmpeg)
+            run(studio_core::proc::hidden_command(&ffmpeg)
                 .args([
                     "-nostdin",
                     "-v",

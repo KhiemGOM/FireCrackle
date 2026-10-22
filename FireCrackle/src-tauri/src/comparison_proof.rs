@@ -1,34 +1,8 @@
-use std::{
-    ffi::OsStr,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{ffi::OsStr, path::Path};
+use studio_core::fsutil::ScratchDir;
 #[cfg(windows)]
 use tauri::Manager;
 use tauri_plugin_clipboard_manager::ClipboardExt;
-
-static NEXT: AtomicU64 = AtomicU64::new(0);
-struct Scratch(PathBuf);
-impl Scratch {
-    fn new() -> Result<Self, String> {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| e.to_string())?
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "firecrackle-proof-{}-{stamp}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&path).map_err(|e| e.to_string())?;
-        Ok(Self(path))
-    }
-}
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
 
 fn decode(png: &[u8]) -> Result<tauri::image::Image<'static>, String> {
     if png.len() < 24 || png.len() > 128 * 1024 * 1024 || !png.starts_with(b"\x89PNG\r\n\x1a\n") {
@@ -96,7 +70,7 @@ fn encode_with_transition(
             return Err("Comparison pictures have different dimensions.".into());
         }
     }
-    let dir = Scratch::new()?;
+    let dir = ScratchDir::new("proof").map_err(|e| e.to_string())?;
     let after = dir.0.join("after.png");
     std::fs::write(&after, png).map_err(|e| e.to_string())?;
     let output = dir.0.join(format!(
@@ -385,7 +359,7 @@ mod tests {
     fn blink_encoding_has_no_intermediate_pictures() {
         let ffmpeg =
             std::env::var_os("FIRECRACKLE_TEST_FFMPEG").expect("Set FIRECRACKLE_TEST_FFMPEG");
-        let dir = Scratch::new().unwrap();
+        let dir = ScratchDir::new("proof").unwrap();
         let mut pictures = Vec::new();
         for color in ["black", "white"] {
             let path = dir.0.join(format!("{color}.png"));
@@ -466,7 +440,7 @@ mod tests {
     #[test]
     #[ignore = "requires FIRECRACKLE_TEST_FFMPEG and FIRECRACKLE_PROOF_BENCH fixture directory"]
     fn benchmark_real_size_animation() {
-        let root = PathBuf::from(
+        let root = std::path::PathBuf::from(
             std::env::var_os("FIRECRACKLE_PROOF_BENCH").expect("Set FIRECRACKLE_PROOF_BENCH"),
         );
         let ffmpeg =
@@ -532,7 +506,7 @@ mod tests {
     fn animated_formats_encode_real_fading_loops() {
         let ffmpeg =
             std::env::var_os("FIRECRACKLE_TEST_FFMPEG").expect("Set FIRECRACKLE_TEST_FFMPEG");
-        let dir = Scratch::new().unwrap();
+        let dir = ScratchDir::new("proof").unwrap();
         let mut inputs = Vec::new();
         for (name, extra) in [
             ("base", ""),

@@ -66,3 +66,17 @@ fn concurrent_writers_never_share_a_temporary_file() {
     );
     assert!(leftovers(&d).is_empty());
 }
+
+#[test]
+fn scratch_folders_are_unique_and_removed_with_their_contents() {
+    let a = studio_core::fsutil::ScratchDir::new("test").unwrap();
+    let b = studio_core::fsutil::ScratchDir::new("test").unwrap();
+    assert_ne!(a.0, b.0);
+    assert!(a.0.starts_with(std::env::temp_dir()));
+    assert!(a.0.file_name().unwrap().to_string_lossy().starts_with("firecrackle-test-"));
+    std::fs::write(a.0.join("frame.png"), b"x").unwrap();
+    let path = a.0.clone();
+    drop(a);
+    assert!(!path.exists());
+    assert!(b.0.is_dir());
+}

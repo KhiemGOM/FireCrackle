@@ -72,13 +72,8 @@ impl Drop for ClearStatus {
 }
 
 pub fn command(exe: impl AsRef<std::ffi::OsStr>) -> Command {
-    let mut c = Command::new(exe);
+    let mut c = studio_core::proc::hidden_command(exe);
     c.stdin(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        c.creation_flags(0x08000000);
-    }
     c
 }
 fn runs(exe: &std::ffi::OsStr, arg: &str) -> bool {
