@@ -405,7 +405,7 @@ export default function App() {
           }
         >
           <section className="left">
-            <VideoPane undoHistory={undoHistory} firstPersonAllowed={firstPersonAllowed} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
+            <VideoPane undoHistory={undoHistory} firstPersonAllowed={firstPersonAllowed} key={`video:${ws.videoPath}`} videoKey={ws.videoPath} backend={backend} view={view} atlasFilter={atlasFilter} atlasEdges={atlasEdges} veil={veilOptions} post={post.picture} onPortalStatus={post.setPortalStatus} onPortalFit={post.setPortalFit} onAnimationStart={() => setPlayback(STOPPED)} previewRef={videoPreviewRef} onPreviewChange={setPreviewSprite} onMatchCandidate={stageSprite} onStep={(frames) => { setPlayback(STOPPED); void act({ type: "step", frames }); }} onGoTo={(frame) => { setPlayback(STOPPED); void act({ type: "goTo", frame }); }} onFramePresented={framePresented} motion={{ dir: playback.dir, speed: playback.speed }} bufferSettings={bufferSettings} onError={reportVideoFailure} />
             <Splitter
               direction="row"
               label="Video height"
@@ -416,7 +416,7 @@ export default function App() {
               onReset={() => resetLayout("videoHeight")}
             />
             <Timeline
-              key={ws.videoPath} videoKey={ws.videoPath}
+              key={`timeline:${ws.videoPath}`} videoKey={ws.videoPath}
               backend={backend}
               view={view}
               flags={ws.flags}
@@ -504,7 +504,7 @@ export default function App() {
       {showUpdates && <UpdatesDialog localVersion={appVersion} auto={updates.state.settings.auto} lastCheckMs={updates.state.settings.lastCheckMs} status={statusOf(updates.state.result, updates.state.checking)} message={updates.state.result?.state === "error" ? updates.state.result.message : null} release={updates.state.result?.state === "available" ? updates.state.result.release : null} nowMs={Date.now()} onAuto={updates.controller.setAuto} onCheck={() => void updates.controller.check(true)} onOpen={updates.controller.open} onClose={() => setShowUpdates(false)} />}
       {showCredits && <Credits onClose={() => setShowCredits(false)} />}
       {showLink && <OpenLink backend={backend} initialUrl={/^https?:\/\//i.test(path.trim()) ? path : ""} onClose={() => setShowLink(false)} onOpen={async downloaded => { setShowLink(false); await openVideo(downloaded); }} />}
-      {showAutomation && view && <AutomationTools key={ws.videoPath} backend={backend} videoPath={ws.videoPath} onApply={ws.applyAutomation} onReview={(frame)=>{jumpToLabel(frame);setShowAutomation(false);}} onClose={()=>setShowAutomation(false)} />}
+      {showAutomation && view && <AutomationTools key={`automation:${ws.videoPath}`} backend={backend} videoPath={ws.videoPath} onApply={ws.applyAutomation} onReview={(frame)=>{jumpToLabel(frame);setShowAutomation(false);}} onClose={()=>setShowAutomation(false)} />}
     </div>
   );
 }

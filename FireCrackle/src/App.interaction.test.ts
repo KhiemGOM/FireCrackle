@@ -24,7 +24,7 @@ vi.mock("react", async original => ({
   },
 }));
 vi.mock("./lib/api", async original => ({ ...await original<typeof import("./lib/api")>(), createBackend: async () => fixture.backend }));
-vi.mock("./hooks/useWorkspace", () => ({ messageOf: (error:unknown) => error instanceof Error ? error.message : String(error), useWorkspace: () => ({ view: fixture.view, act: fixture.act, busy: {current: false}, flags: [], settings: [], version: 0, save: vi.fn(), opening: false, clearError: vi.fn() }) }));
+vi.mock("./hooks/useWorkspace", () => ({ messageOf: (error:unknown) => error instanceof Error ? error.message : String(error), useWorkspace: () => ({ videoPath: "D:/video.mkv", view: fixture.view, act: fixture.act, busy: {current: false}, flags: [], settings: [], version: 0, save: vi.fn(), opening: false, clearError: vi.fn() }) }));
 vi.mock("./hooks/useLayout", () => ({ useLayout: () => ({ layout: { sideWidth: 600, videoHeight: 400, flagsHeight: 120 }, set: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/usePanelZooms", () => ({ usePanelZooms: () => ({ zooms: {picker: 1, flags: 1}, wheel: vi.fn(), reset: vi.fn() }) }));
 vi.mock("./hooks/useWheel", () => ({ useWheel: () => {} }));
@@ -39,6 +39,7 @@ import { MiscToolsTab } from "./components/MiscToolsTab";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdatesDialog } from "./components/UpdatesDialog";
 import { EnhancePanel } from "./components/EnhancePanel";
+import { AutomationTools } from "./components/AutomationTools";
 import { DEFAULT_POST, type PostSettings } from "./lib/post/settings";
 import { parseRelease } from "./lib/updateCheck";
 import { version as appVersion } from "../package.json";
@@ -449,4 +450,19 @@ it("hands the saved presets and their handlers to the Enhance panel", () => {
   expect(panel.props.onPresetName).toBe(fixture.post.setPresetName);
   expect(panel.props.onSavePreset).toBe(fixture.post.savePreset);
   expect(panel.props.onDeletePreset).toBe(fixture.post.deletePreset);
+});
+
+function duplicateSiblingKeys(node: Element, found: string[] = []): string[] {
+  const children = [node.props.children].flat(Infinity).filter((c): c is Element => !!c && typeof c === "object" && "props" in c);
+  const keys = children.map(c => c.key).filter((k): k is string => k !== null);
+  for (const k of keys) if (keys.indexOf(k) !== keys.lastIndexOf(k) && !found.includes(k)) found.push(k);
+  children.forEach(c => duplicateSiblingKeys(c, found));
+  return found;
+}
+it.each(["Label", "Phase", "Misc tools"])("keeps sibling keys unique with Automation open over %s, so React never leaves a stale tab mounted", tab => {
+  let ui = render();
+  find(ui.tree, e => e.type === "button" && [e.props.children].flat().includes(` ${tab}`))!.props.onClick(); ui = render();
+  find(ui.tree, e => e.props.label === "Auto")!.props.onClick(); ui = render();
+  expect(find(ui.tree, e => e.type === AutomationTools)).toBeDefined();
+  expect(duplicateSiblingKeys(ui.tree)).toEqual([]);
 });
