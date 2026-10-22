@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "hudinfo",
+  "version": "${version}",
+  "name": "HUD Info Overlay",
+  "description": "Always-on top-left line with coordinates, yaw/pitch, facing and the once-per-second F3 FPS value, replicating the overlay in the reference footage for cadence experiments.",
+  "authors": ["FireCracking"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {"client": ["org.firecracking.hudinfo.HudInfoClient"]},
+  "mixins": ["hudinfo.mixins.json"],
+  "depends": {"fabricloader": ">=0.18.4", "minecraft": "1.21.11", "java": ">=21"}
+}
