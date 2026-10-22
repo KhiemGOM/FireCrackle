@@ -44,7 +44,9 @@ pub fn change_frames(values: &[Option<String>], min_run: usize) -> Vec<u32> {
     let mut k = 0;
     while k < readable.len() {
         let (frame, v) = readable[k];
-        if current.is_some_and(|c| c == v) {
+        // Same value, or a value that is a prefix/suffix of it ("804" read as "80" while something covers a digit):
+        // the counter did not change, a digit was hidden.
+        if current.is_some_and(|c| c == v || (c.len() != v.len() && (c.starts_with(v.as_str()) || c.ends_with(v.as_str()) || v.starts_with(c.as_str()) || v.ends_with(c.as_str())))) {
             k += 1;
             continue;
         }

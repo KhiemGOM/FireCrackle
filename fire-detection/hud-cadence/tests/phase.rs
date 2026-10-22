@@ -96,3 +96,10 @@ fn the_reference_phase_comes_from_the_first_two_agreeing_samples_not_a_lone_firs
     assert!(r.events.is_empty(), "{:?}", r.events);
     assert_eq!(r.outliers, 1);
 }
+
+#[test]
+fn a_transition_to_a_prefix_or_suffix_of_the_previous_value_is_a_covered_digit_not_a_change() {
+    // a boss bar sits over the last digit for a while: 804 -> 80 -> 804; and over the first: 365 -> 65 -> 365
+    let v = vals(&[(Some("804"), 60), (Some("80"), 40), (Some("804"), 20), (Some("365"), 60), (Some("65"), 30), (Some("365"), 30), (Some("371"), 60)]);
+    assert_eq!(change_frames(&v, 20), vec![120, 240]);
+}

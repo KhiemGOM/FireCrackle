@@ -98,7 +98,12 @@ pub fn findings(values: &[Option<String>], fps: u32, max_gap: u32, min_run: usiz
             _ => 0,
         };
         let partial = match (&before, &after) {
-            (Some(b), Some(a)) => b != a && (a.ends_with(b.as_str()) || b.ends_with(a.as_str()) || a.starts_with(b.as_str()) || b.starts_with(a.as_str())),
+            (Some(b), Some(a)) => {
+                b != a
+                    && (a.ends_with(b.as_str()) || b.ends_with(a.as_str()) || a.starts_with(b.as_str()) || b.starts_with(a.as_str())
+                        // a lone digit next to a three-digit reading: a bar or tooltip left one digit visible
+                        || (a.len().min(b.len()) <= 1 && a.len().max(b.len()) >= 3))
+            }
             _ => false,
         };
         (before, after, delta, partial)

@@ -41,13 +41,17 @@ fn a_cadence_jump_is_reported_with_the_values_on_both_sides_and_ranked_by_delta(
 }
 
 #[test]
-fn a_value_swing_where_one_reading_is_a_suffix_of_the_other_is_flagged_as_a_possible_partial_read() {
-    // "948" read as "48" while something covered the first digit, then back: not a real swing of 900
+fn covered_digit_flips_produce_no_finding_and_a_one_digit_reading_against_three_is_partial() {
+    // "948" read as "48" while something covers the first digit, then back: not a change at all now
     let v = values(400, &[(0, "948"), (10, "948"), (70, "48"), (130, "948"), (190, "950"), (250, "951"), (310, "952")]);
     let f = findings(&v, 60, 180, 20);
-    let top = &f[0];
-    assert_eq!((top.kind.clone(), top.frame, top.delta, top.partial), (Kind::Value, 70, 900, true));
-    assert!(f.iter().filter(|x| x.kind == Kind::Value).all(|x| x.partial || x.delta < 900));
+    assert!(f.iter().all(|x| x.delta < 900), "{f:?}");
+    // a boss bar leaving a lone digit: "822" -> "4" is not a prefix/suffix pair, but a one-digit reading next to a
+    // three-digit one is still a covered read, not a swing of 818
+    let v = values(400, &[(0, "822"), (10, "822"), (70, "4"), (130, "830"), (190, "835"), (250, "840"), (310, "845")]);
+    let f = findings(&v, 60, 180, 20);
+    let big: Vec<&Finding> = f.iter().filter(|x| x.delta >= 800).collect();
+    assert!(big.iter().all(|x| x.partial), "{big:?}");
 }
 
 #[test]
