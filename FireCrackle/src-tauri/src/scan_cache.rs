@@ -328,9 +328,12 @@ pub(crate) mod tests {
             index::{Packet, build_index},
             project::VideoMeta,
         };
+        // Tests run in parallel: the counter keeps two fixtures from ever sharing a folder (and its cache lock).
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let root = std::env::temp_dir().join(format!(
-            "firecrackle-scan-cache-{}-{}",
+            "firecrackle-scan-cache-{}-{}-{}",
             std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
