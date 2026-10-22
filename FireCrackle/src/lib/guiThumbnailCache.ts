@@ -1,6 +1,7 @@
 import type {Backend} from './api';
 import {loadFrameImage} from './frameComparison';
 import {backgroundBackend} from './appErrors';
+import {blobDataUrl} from './canvas';
 
 /** Small JPEGs survive row unmounts and tab switches. Full-size frames are never retained here. */
 export class GuiThumbnailCache {
@@ -76,10 +77,7 @@ export function previewFrames(backend:Backend,width=512):GuiThumbnailCache{
   const cache=new GuiThumbnailCache(async (frame,targets)=>{
     if(native.previewThumbnail){
       const bytes=await native.previewThumbnail(frame,width,targets);
-      return new Promise<string>((resolve,reject)=>{
-        const reader=new FileReader();reader.onload=()=>resolve(reader.result as string);
-        reader.onerror=()=>reject(Error('Could not read thumbnail'));reader.readAsDataURL(new Blob([bytes],{type:'image/jpeg'}));
-      });
+      return blobDataUrl(new Blob([bytes],{type:'image/jpeg'}),'Could not read thumbnail');
     }
     const image=await loadFrameImage(await backend.frame(frame));
     const canvas=document.createElement('canvas');canvas.width=width;canvas.height=Math.max(1,Math.round(width*image.naturalHeight/image.naturalWidth));

@@ -1,4 +1,5 @@
 import type {GuiRange} from './guiScan';
+import {loadImage} from './canvas';
 
 const motionScores=new WeakMap<object,Map<string,number|null>>();
 /** Share completed ordering work across tabs; a new video preview cache gets new scores. */
@@ -20,9 +21,7 @@ export function meanPixelChange(before:Uint8ClampedArray,after:Uint8ClampedArray
   return difference/(before.length/4*3*255);
 }
 export async function previewPixelChange(before:string,after:string):Promise<number>{
-  const load=(src:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
-    const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Could not load motion preview'));image.src=src;
-  });
+  const load=(src:string)=>loadImage(src,'Could not load motion preview');
   const [a,b]=await Promise.all([load(before),load(after)]);
   if(a.naturalWidth!==b.naturalWidth||a.naturalHeight!==b.naturalHeight)throw Error('Motion previews have different dimensions.');
   const canvas=document.createElement('canvas');canvas.width=Math.min(128,a.naturalWidth);canvas.height=Math.max(1,Math.round(canvas.width*a.naturalHeight/a.naturalWidth));

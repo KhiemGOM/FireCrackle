@@ -1,4 +1,5 @@
 import { inTauri } from "./api";
+import { blobDataUrl, canvasBlob as encodeCanvas, loadImage as loadPicture } from "./canvas";
 
 export interface ProofRect { x: number; y: number; width: number; height: number }
 export interface ProofMask { svg: SVGSVGElement; description: string; opacity: number; details?: string; bounds?: ProofRect }
@@ -46,23 +47,8 @@ export function proofLayout(width: number, height: number) {
   return { panelWidth, panelHeight, font, header: font * 5, footer: font * 2, gap: Math.max(8, Math.round(panelWidth / 120)) };
 }
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(Error("Could not render the comparison mask."));
-    image.src = url;
-  });
-}
-
-function dataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(Error("Could not read the compressed mask."));
-    reader.readAsDataURL(blob);
-  });
-}
+const loadImage = (url: string) => loadPicture(url, "Could not render the comparison mask.");
+const dataUrl = (blob: Blob) => blobDataUrl(blob, "Could not read the compressed mask.");
 
 /** Snapshot the rendered mask, including compression, but never its editing controls. */
 export function cleanProofMask(mask: ProofMask, width: number, height: number): SVGSVGElement {
@@ -98,9 +84,7 @@ async function rasterMask(svg: SVGSVGElement): Promise<{ image: HTMLImageElement
 export type ProofFormat = "gif" | "webp" | "png" | "jpeg";
 export interface ProofAction {format: ProofFormat; destination: "copy" | "save"}
 
-function canvasBlob(canvas: HTMLCanvasElement, type = "image/png"): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error("Could not render the comparison proof.")), type, 0.95));
-}
+const canvasBlob = (canvas: HTMLCanvasElement, type = "image/png") => encodeCanvas(canvas, type, 0.95, "Could not render the comparison proof.");
 
 async function renderProof(picture: HTMLImageElement, masks: ProofMask[], source: string, animated = false, type = "image/png"): Promise<{image: Blob; base?: Blob}> {
   if (!picture.complete || !picture.naturalWidth || !picture.naturalHeight) throw Error("Wait for the current picture to load.");

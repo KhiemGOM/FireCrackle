@@ -2,6 +2,7 @@ import type {Backend} from './api';
 import {inTauri} from './api';
 import {copyComparisonProof,type ProofAction} from './comparisonProof';
 import {formatTimecode} from './timecode';
+import {canvasBlob as encodeCanvas,loadImageBytes} from './canvas';
 
 export const FRAME_BLINK_MS=640;
 /** Absolute RGB difference, amplified only for inspection. Alpha is always opaque. */
@@ -12,11 +13,8 @@ export function frameDifference(before:Uint8ClampedArray,after:Uint8ClampedArray
  for(let i=0;i<result.length;i+=4){for(let c=0;c<3;c++)result[i+c]=Math.min(255,Math.abs(after[i+c]-before[i+c])*gain);result[i+3]=255;}
  return result;
 }
-export function loadFrameImage(bytes:ArrayBuffer):Promise<HTMLImageElement>{
- return new Promise((resolve,reject)=>{const url=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'})),image=new Image();
-  image.onload=()=>{URL.revokeObjectURL(url);resolve(image);};image.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Could not load the comparison picture.'));};image.src=url;});
-}
-function canvasBlob(canvas:HTMLCanvasElement,type='image/png'):Promise<Blob>{return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Could not render the comparison proof.')),type,0.95));}
+export const loadFrameImage=(bytes:ArrayBuffer)=>loadImageBytes(bytes,'image/jpeg','Could not load the comparison picture.');
+const canvasBlob=(canvas:HTMLCanvasElement,type='image/png')=>encodeCanvas(canvas,type,0.95,'Could not render the comparison proof.');
 export interface FrameProof {before:number;after:number;first:number;last:number;fps:number;source:string}
 /** Two originals, identical framing. Animated proofs switch instantly; stills show both. */
 export async function renderFrameProof(before:HTMLImageElement,after:HTMLImageElement,proof:FrameProof,animated:boolean,type='image/png'){

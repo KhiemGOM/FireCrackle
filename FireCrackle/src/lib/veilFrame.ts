@@ -5,6 +5,7 @@ import type {PortalImage,PortalResult} from './portal';
 import type {WorldCoverage} from './portalPreview';
 import { bmpFromRgba } from "./bmp";
 import { failureMessage } from "./appErrors";
+import { canvasBlob } from "./canvas";
 
 export interface FrameIo {
   /** RGBA pixels of an encoded picture. */
@@ -86,7 +87,7 @@ export const canvasFrameIo: FrameIo = {
     const g = canvas.getContext("2d");
     if (!g) throw new Error("no 2D canvas");
     g.putImageData(new ImageData(new Uint8ClampedArray(data), width, height), 0, 0);
-    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("could not encode the picture"))), "image/jpeg", 0.95));
+    return await canvasBlob(canvas, "image/jpeg", 0.95, "could not encode the picture");
   },
 };
 

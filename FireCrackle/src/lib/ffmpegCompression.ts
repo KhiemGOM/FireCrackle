@@ -1,6 +1,7 @@
 import { inTauri } from "./api";
 import type { ManualQuad } from "./quadMask";
 import { rasterizeFire, restoreFireAlpha } from "./quadRaster";
+import {canvasBlob,loadImage as loadPicture} from "./canvas";
 
 export function qualityToCrf(quality:number):number {
   return quality >= 0.8 ? 20 : quality >= 0.45 ? 28 : quality >= 0.15 ? 36 : 42;
@@ -17,14 +18,8 @@ export function unpackFrames(buffer:ArrayBuffer):Uint8Array[] {
   if(offset!==buffer.byteLength) throw new Error("Unexpected data after FFmpeg cycle");
   return result;
 }
-function loadImage(src:string):Promise<HTMLImageElement> {
-  return new Promise((resolve,reject)=> {
-    const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error("Could not rasterize fire"));image.src=src;
-  });
-}
-function png(canvas:HTMLCanvasElement):Promise<Blob> {
-  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("PNG export failed")),"image/png"));
-}
+const loadImage=(src:string)=>loadPicture(src,"Could not rasterize fire");
+const png=(canvas:HTMLCanvasElement)=>canvasBlob(canvas,"image/png",undefined,"PNG export failed");
 
 // Serialize expensive encodes. Superseded edits leave the queue before rasterization/IPC.
 let tail:Promise<void>=Promise.resolve();
