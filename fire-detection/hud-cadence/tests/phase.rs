@@ -87,3 +87,12 @@ fn a_confirmed_two_frame_shift_is_still_drift_not_a_cut() {
     assert_eq!(r.events.len(), 1);
     assert_eq!((r.events[0].kind.clone(), r.events[0].shift), (Kind::Drift, 2));
 }
+
+#[test]
+fn the_reference_phase_comes_from_the_first_two_agreeing_samples_not_a_lone_first_one() {
+    // the first boundary rendered late (recording started mid-stall); the run is really at phase 13
+    let r = analyse(&[50, 73, 133, 193, 253, 313], Period::Frames(60));
+    assert_eq!(r.phase, 13);
+    assert!(r.events.is_empty(), "{:?}", r.events);
+    assert_eq!(r.outliers, 1);
+}

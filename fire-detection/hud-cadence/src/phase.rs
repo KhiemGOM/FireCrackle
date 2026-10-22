@@ -82,9 +82,14 @@ pub fn analyse(changes: &[u32], period: Period) -> Analysis {
     }
     // The reference phase follows the run. A single ±1 sample is capture jitter; the same ±1 on two consecutive
     // samples is a one-frame drift (a dropped or duplicated capture frame) and moves the reference.
-    let mut reference = changes[0] as i64 % p64;
+    // Start from the first two consecutive samples that agree within a frame; a lone first sample (a boundary
+    // rendered late while the recording started) is an outlier, not the phase.
+    let start = changes.windows(2).position(|w| wrapped(w[1] as i64 - w[0] as i64, p64).abs() <= 1).unwrap_or(0);
+    out.outliers += start;
+    out.phase = changes[start] % p;
+    let mut reference = changes[start] as i64 % p64;
     let mut pending: Option<(i32, u32)> = None; // (sign, first frame seen at reference+sign)
-    for (k, &f) in changes.iter().enumerate().skip(1) {
+    for (k, &f) in changes.iter().enumerate().skip(start + 1) {
         let shift = wrapped(f as i64 - reference, p64);
         match shift {
             0 => pending = None,
