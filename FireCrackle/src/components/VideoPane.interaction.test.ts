@@ -29,6 +29,7 @@ import * as frameProcessing from "../lib/veilFrame";
 import * as portalProcessing from "../lib/portalPreview";
 import * as thumbnailCache from "../lib/guiThumbnailCache";
 import { DEFAULT_POST, DEFAULT_TONE, pictureSettings, type PostSettings } from "../lib/post/settings";
+import { videoStorageKey } from "../lib/videoStorage";
 
 type Element = ReactElement<Record<string, any>>;
 function viewport(node: Element): Element | undefined {
@@ -709,7 +710,7 @@ it("draws a paused frame pixel for pixel and leaves playback pictures as they ar
 // ------------------------------------------------------------ the quad is remembered per confirmed frame
 {
   const quadA = [[0.31, 0.22], [0.71, 0.21], [0.69, 0.83], [0.3, 0.8]] as const, quadB = [[0.1, 0.1], [0.5, 0.1], [0.5, 0.6], [0.1, 0.6]] as const;
-  const QUADS_KEY = "firecrackle.quads.v1:" + encodeURIComponent("D:/v.mkv");
+  const QUADS_KEY = videoStorageKey("quads.v1", "D:/v.mkv");
   const store = (maskOn: boolean, quads: Record<string, number[]> = {}) => {
     const data = new Map<string, string>([[MASK_STATE_KEY, JSON.stringify({ ...DEFAULT_MASK_STATE, manualEnabled: maskOn })]]);
     if (Object.keys(quads).length) data.set(QUADS_KEY, JSON.stringify(quads));

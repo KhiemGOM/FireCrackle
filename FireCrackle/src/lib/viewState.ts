@@ -1,15 +1,13 @@
 import { clampViewport, fitViewport, type Viewport } from "./timeline";
 import { IDENTITY, type ViewXform } from "./zoom";
+import { readVideoJson, videoStorageKey, writeJson } from "./videoStorage";
 
 type Store = Pick<Storage, "getItem" | "setItem">;
-function key(video: string, kind: string) { return `firecrackle.view.v1:${encodeURIComponent(video)}:${kind}`; }
 function read(video: string | undefined, kind: string, storage?: Pick<Store, "getItem">): any {
-  if (!video) return null;
-  try { return JSON.parse((storage ?? localStorage).getItem(key(video, kind)) ?? "null"); } catch { return null; }
+  return readVideoJson("view.v1", video, storage, kind) as any;
 }
 function write(video: string | undefined, kind: string, value: unknown, storage?: Pick<Store, "setItem">) {
-  if (!video) return;
-  try { (storage ?? localStorage).setItem(key(video, kind), JSON.stringify(value)); } catch { /* Optional UI memory. */ }
+  if (video) writeJson(videoStorageKey("view.v1", video, kind), value, storage);
 }
 export function readVideoView(video?: string, storage?: Pick<Store, "getItem">): ViewXform {
   const saved = read(video, "video", storage);

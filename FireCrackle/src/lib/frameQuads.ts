@@ -1,13 +1,13 @@
 // Where the quad mask sat on each frame the user confirmed, per video, so checking a frame again shows it there.
 
 import { validQuad, type ManualQuad } from "./quadMask";
+import { readVideoJson, videoStorageKey, writeJson } from "./videoStorage";
 
 type Reader = Pick<Storage, "getItem">;
 type Writer = Pick<Storage, "setItem">;
 export type FrameQuads = ReadonlyMap<number, ManualQuad>;
 
 const DIGITS = 1e5; // 0.00001 of the picture: far below a pixel
-const key = (video: string) => `firecrackle.quads.v1:${encodeURIComponent(video)}`;
 const round = (n: number) => Math.round(n * DIGITS) / DIGITS;
 
 function toQuad(flat: unknown): ManualQuad | null {
@@ -20,7 +20,7 @@ export function readFrameQuads(video: string | undefined, storage?: Reader): Map
   const quads = new Map<number, ManualQuad>();
   if (!video) return quads;
   try {
-    const saved = JSON.parse((storage ?? localStorage).getItem(key(video)) ?? "null");
+    const saved = readVideoJson("quads.v1", video, storage);
     if (!saved || typeof saved !== "object" || Array.isArray(saved)) return quads;
     for (const [name, flat] of Object.entries(saved)) {
       const frame = Number(name), quad = toQuad(flat);
@@ -36,8 +36,7 @@ export function writeFrameQuads(video: string | undefined, quads: FrameQuads, st
   try {
     const flat: Record<string, number[]> = {};
     for (const [frame, quad] of quads) flat[frame] = quad.flat();
-    (storage ?? localStorage).setItem(key(video), JSON.stringify(flat));
-    return true;
+    return writeJson(videoStorageKey("quads.v1", video), flat, storage);
   } catch { return false; }
 }
 
