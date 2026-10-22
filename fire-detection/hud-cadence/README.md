@@ -63,7 +63,22 @@ rank  kind          time      frame   shift  before  after   |d|  note
 - **Gap**: the overlay was unreadable for more than a second (F3 open, menu, occlusion). The phase is tracked
   separately on each side; a different phase after a gap is not called a jump.
 
-`--out` writes the same findings plus every frame's reading as JSON.
+`--out report.json` writes the findings as JSON **and** the same table to `report.json.txt`. The JSON holds no
+per-frame data unless you add `--dump-values` (then `report.json.values.json` is written too, large).
+
+**Got a JSON and want the table back?**
+
+```
+hud-cadence report report.json
+```
+
+prints it (Jumps first, in time order, then everything ranked by |ΔFPS|). If the file still contains every
+frame's reading (`values`: reports from older builds, or `--dump-values`), the findings are recomputed with the
+current rules first, so old reports pick up newer flags such as `UNSTABLE READINGS`.
+
+Two flags to read before trusting a Jump: **UNSTABLE READINGS** means the digits flicker in that stretch
+(something drawn over them, or a glyph at the edge of the template margin); phase findings there are not reliable.
+**PARTIAL READ** means one reading is a prefix/suffix of the other (`367` vs `36`): a covered digit, not a swing.
 
 Speed: about 300 frames/s on a 1440p60 AV1 file with dav1d (decode-bound), so an hour of video takes ~12 min.
 
@@ -79,6 +94,7 @@ the digits are intact. Other overlays with a different label would need a differ
 ```
 hud-cadence sweep  VIDEO --ffmpeg F [--scale 3] [--out sweep.json]
 hud-cadence scan   VIDEO --ffmpeg F --start S --duration S [--fps 60] [--strip bottom-right --width 2560] [--prescale 2560:1440] [--out scan.json]
+hud-cadence report report.json
 hud-cadence replay scan.json
 hud-cadence truth  scan.json --log <run/hudinfo/session.jsonl>
 hud-cadence labels scan.json --log <run/hudinfo/session.jsonl> --out <dir> [--source VIDEO --ffmpeg F]

@@ -320,17 +320,39 @@ fn main() {
                 std::fs::write(path, serde_json::to_string(&json).unwrap()).unwrap();
             }
         }
-        "refind" => {
-            // hud-cadence refind <report.values.json> [--out report.json]: recompute findings from stored readings.
+        "report" | "refind" => {
+            // hud-cadence report <report.json> [--out report2.json]: print a saved report as the readable table.
+            // A file that still holds every frame's reading (`values`: the old format, or `--dump-values`) is
+            // re-analysed with the current rules; a findings-only file is just formatted.
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
-            let values: Vec<Option<String>> = json["values"].as_array().expect("no values in this file").iter().map(|v| v.as_str().map(str::to_string)).collect();
             let fps = json["fps"].as_u64().map_or(a.fps, |f| f as u32);
             let start = json["start"].as_f64().unwrap_or(0.0);
-            let f = findings(&values, fps, 3 * fps, 20);
+            let (f, frames, readable) = match json["values"].as_array() {
+                Some(arr) => {
+                    let values: Vec<Option<String>> = arr.iter().map(|v| v.as_str().map(str::to_string)).collect();
+                    let readable = values.iter().filter(|v| v.is_some()).count();
+                    (findings(&values, fps, 3 * fps, 20), values.len(), readable)
+                }
+                None => {
+                    let f = json["findings"].as_array().expect("neither values nor findings in this file").iter().map(|x| hud_cadence::find::Finding {
+                        kind: match x["kind"].as_str().unwrap_or("") { "Jump" => Kind::Jump, "Drift" => Kind::Drift, "Gap" => Kind::Gap, _ => Kind::Value },
+                        frame: x["frame"].as_u64().unwrap_or(0) as u32,
+                        shift: x["shift"].as_i64().unwrap_or(0) as i32,
+                        before: x["before"].as_str().map(str::to_string),
+                        after: x["after"].as_str().map(str::to_string),
+                        delta: x["delta"].as_u64().unwrap_or(0) as u32,
+                        length: x["gap_frames"].as_u64().unwrap_or(0) as u32,
+                        partial: x["partial_read"].as_bool().unwrap_or(false),
+                        unstable: x["unstable"].as_bool().unwrap_or(false),
+                    }).collect();
+                    (f, json["frames"].as_u64().unwrap_or(0) as usize, json["readable"].as_u64().unwrap_or(0) as usize)
+                }
+            };
+            eprintln!("{}: {frames} frames, overlay readable on {readable}", json["video"].as_str().unwrap_or("?"));
             let text = report_text(&f, fps, start);
             print!("{text}");
             if let Some(path) = &a.out {
-                write_report(path, &json["video"], fps, a.scale, &a.prescale, start, values.len(), values.iter().filter(|v| v.is_some()).count(), &f, &text, None);
+                write_report(path, &json["video"], fps, a.scale, &a.prescale, start, frames, readable, &f, &text, None);
             }
         }
         "find" => {
@@ -353,8 +375,6 @@ fn main() {
             let total = values.len();
             let readable = values.iter().filter(|v| v.is_some()).count();
             let f = findings(&values, a.fps, 3 * a.fps, 20);
-            let time = |frame: u32| a.start + frame as f64 / a.fps as f64;
-            let hms = |t: f64| format!("{:02}:{:02}:{:06.3}", (t / 3600.0) as u32, ((t % 3600.0) / 60.0) as u32, t % 60.0);
             eprintln!(
                 "{total} frames in {:.0} s; overlay readable on {readable} ({:.1} %); {} findings",
                 t0.elapsed().as_secs_f64(),
@@ -452,7 +472,7 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--out report.json] [--dump-values]\n       hud-cadence refind <report.values.json> [--out report.json]\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
+        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--out report.json] [--dump-values]\n       hud-cadence report <report.json> [--out report2.json]   (prints a saved report as the readable table)\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
        hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [--source <video> --ffmpeg F]"),
     }
 }
