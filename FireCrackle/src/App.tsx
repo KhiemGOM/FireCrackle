@@ -150,6 +150,7 @@ export default function App() {
     const action = candidateConfirmation(currentCandidate(view, draft));
     if (!action) return;
     setPlayback(STOPPED);
+    videoPreviewRef.current?.rememberQuad(); // while the mask is still on this frame
     void act(action);
   }, [view, draft, act, ws.busy]);
   useEffect(() => { undoHistory.ignore(()=>setDraft(null)); }, [view?.current]);

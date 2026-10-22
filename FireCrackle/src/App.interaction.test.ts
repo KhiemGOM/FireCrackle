@@ -126,7 +126,7 @@ it("does not send video navigation or confirmation hotkeys while Images is selec
 
 it("atlas clicks and preview-only Ctrl clicks never save or advance; Confirm saves the staged choice", () => {
   let ui = render();
-  const preview = vi.fn(() => true); ui.video.props.previewRef.current = { selectSprite: preview };
+  const preview = vi.fn(() => true); ui.video.props.previewRef.current = { selectSprite: preview, rememberQuad: vi.fn() };
   ui.picker.props.onCell(2, 31, false);
   expect(fixture.act).not.toHaveBeenCalled();
   ui = render(); expect(ui.picker.props.candidate).toEqual({fire: {sheet: 0, row: 31, mirrored: true}});
@@ -465,4 +465,19 @@ it.each(["Label", "Phase", "Misc tools"])("keeps sibling keys unique with Automa
   find(ui.tree, e => e.props.label === "Auto")!.props.onClick(); ui = render();
   expect(find(ui.tree, e => e.type === AutomationTools)).toBeDefined();
   expect(duplicateSiblingKeys(ui.tree)).toEqual([]);
+});
+
+it("has the video pane remember its quad mask just before a label is confirmed, and not when nothing is confirmed", () => {
+  fixture.view = { ...fixture.view, suggestion: null };
+  let ui = render();
+  const calls: string[] = [];
+  const remember = vi.fn(() => { calls.push("remember"); });
+  fixture.act.mockImplementation(async () => { calls.push("act"); });
+  ui.video.props.previewRef.current = { selectSprite: vi.fn(() => true), rememberQuad: remember };
+  ui.confirm.props.onClick();
+  expect(fixture.act).not.toHaveBeenCalled(); // nothing staged: nothing to confirm
+  expect(remember).not.toHaveBeenCalled();
+  ui.picker.props.onCell(2, 31, false); ui = render();
+  ui.confirm.props.onClick();
+  expect(calls).toEqual(["remember", "act"]);
 });

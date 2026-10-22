@@ -10,7 +10,7 @@ vi.mock("react", async (original) => ({
   },
   useRef: (initial: unknown) => hooks.refs[hooks.refCursor++] ??= { current: initial },
   useEffect: (setup: () => void | (() => void)) => { hooks.effects.push(setup); },
-  useImperativeHandle: () => {},
+  useImperativeHandle: (ref: unknown, create: () => unknown) => { if (ref && typeof ref === "object") (ref as { current: unknown }).current = create(); },
 }));
 vi.mock("../hooks/useWheel", () => ({ useWheel: () => {} }));
 vi.mock("../lib/quadRefine",async original=>({...await original<typeof import("../lib/quadRefine")>(),refineFireQuads:vi.fn()}));
@@ -705,3 +705,81 @@ it("draws a paused frame pixel for pixel and leaves playback pictures as they ar
   const playing = all(await tree({ motion: { dir: 1, speed: 1 } })).find(n => n.type === "img")!;
   expect(playing.props.className).toBeUndefined();
 });
+
+// ------------------------------------------------------------ the quad is remembered per confirmed frame
+{
+  const quadA = [[0.31, 0.22], [0.71, 0.21], [0.69, 0.83], [0.3, 0.8]] as const, quadB = [[0.1, 0.1], [0.5, 0.1], [0.5, 0.6], [0.1, 0.6]] as const;
+  const QUADS_KEY = "firecrackle.quads.v1:" + encodeURIComponent("D:/v.mkv");
+  const store = (maskOn: boolean, quads: Record<string, number[]> = {}) => {
+    const data = new Map<string, string>([[MASK_STATE_KEY, JSON.stringify({ ...DEFAULT_MASK_STATE, manualEnabled: maskOn })]]);
+    if (Object.keys(quads).length) data.set(QUADS_KEY, JSON.stringify(quads));
+    return { data, getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+  };
+  const flat = (q: readonly (readonly number[])[]) => q.flat();
+  const all = (node: Element): Element[] => [node, ...[node.props.children].flat(Infinity).filter(n => n && typeof n === "object" && "props" in n).flatMap(all)];
+  const recall = () => hooks.effects.find(effect => effect.toString().includes("recalledQuad"))!();
+  const quadOf = (root: Element) => all(root).find(n => n.type === FireQuadMask)!.props.quad;
+  async function open(storage: ReturnType<typeof store>, frame: number, extra: Partial<Parameters<typeof VideoPane>[0]> = {}) {
+    const view = { ...(await createMockBackend().view()), current: frame };
+    const props = { stateStorage: storage, videoKey: "D:/v.mkv", view, ...extra };
+    // show the frame as loaded (picture url, shown frame, image size) so the mask is drawn
+    await tree(props); hooks.states[0] = "blob:frame"; hooks.states[1] = frame;
+    all(await tree(props)).find(n => n.type === "img")!.props.onLoad({ currentTarget: { naturalWidth: 1920, naturalHeight: 1080, getAttribute: () => null } });
+    return { props, render: () => tree(props) };
+  }
+
+  it("puts the quad back where it was confirmed when the frame is shown again", async () => {
+    const undoHistory = new LabelUndo();
+    const { render } = await open(store(true, { "10": flat(quadA) }), 10, { undoHistory });
+    await render(); recall();
+    expect(quadOf(await render())).toEqual(quadA);
+    expect(undoHistory.size).toBe(0); // putting it back is not an edit to undo
+  });
+
+  it("leaves the quad where it is on a frame that was never confirmed", async () => {
+    const storage = store(true, { "10": flat(quadA) });
+    const first = await open(storage, 10); await first.render(); recall(); await first.render();
+    const next = await open(storage, 11); await next.render(); recall();
+    expect(quadOf(await next.render())).toEqual(quadA);
+  });
+
+  it("does not undo a drag when the same frame renders again", async () => {
+    const { render } = await open(store(true, { "10": flat(quadA) }), 10);
+    await render(); recall();
+    all(await render()).find(n => n.type === FireQuadMask)!.props.onQuad(quadB);
+    await render(); recall();
+    expect(quadOf(await render())).toEqual(quadB);
+  });
+
+  it("does not move the quad while playing, or while the mask is off", async () => {
+    const playing = await open(store(true, { "10": flat(quadA) }), 10, { motion: { dir: 1, speed: 1 } });
+    await playing.render(); recall();
+    expect(quadOf(await playing.render())).not.toEqual(quadA);
+    hooks.states = []; hooks.refs = [];
+    const off = await open(store(false, { "10": flat(quadA) }), 10);
+    const root = await off.render(); recall();
+    expect(all(root).find(n => n.type === FireQuadMask)).toBeUndefined();
+    expect(JSON.parse(off.props.stateStorage.getItem(MASK_STATE_KEY)!).manualQuad).not.toEqual(quadA);
+  });
+
+  it("remembers the quad of the current frame when it is confirmed, and only with the mask on", async () => {
+    const on = store(true), previewRef = { current: null as any };
+    const { render } = await open(on, 10, { previewRef });
+    await render();
+    all(await render()).find(n => n.type === FireQuadMask)!.props.onQuad(quadB);
+    await render(); previewRef.current.rememberQuad();
+    expect(JSON.parse(on.data.get(QUADS_KEY)!)).toEqual({ "10": flat(quadB) });
+    hooks.states = []; hooks.refs = [];
+    const off = store(false), offRef = { current: null as any };
+    const closed = await open(off, 10, { previewRef: offRef });
+    await closed.render(); offRef.current.rememberQuad();
+    expect(off.data.has(QUADS_KEY)).toBe(false);
+  });
+
+  it("keeps the frames it already knew when another is confirmed", async () => {
+    const storage = store(true, { "10": flat(quadA) }), previewRef = { current: null as any };
+    const { render } = await open(storage, 11, { previewRef });
+    await render(); previewRef.current.rememberQuad();
+    expect(Object.keys(JSON.parse(storage.data.get(QUADS_KEY)!)).sort()).toEqual(["10", "11"]);
+  });
+}

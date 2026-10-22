@@ -12,6 +12,7 @@ import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
 import { IconButton } from "./Icon";
 import { DEFAULT_QUAD, type ManualQuad } from "../lib/quadMask";
+import { readFrameQuads, recalledQuad, rememberQuad, sameQuad, writeFrameQuads } from "../lib/frameQuads";
 import { framePreview, previewSprite, spriteWithSheet, labelSprite, type PreviewSprite } from "../lib/firePreview";
 import { compressionGeometry } from "../lib/compressionPreview";
 import { readMaskState, writeMaskState, type MaskState } from "../lib/maskState";
@@ -52,6 +53,8 @@ import { blocksVideoToolKeys, focusVideoViewport, videoToolContextAvailable } fr
 export interface VideoPreviewHandle {
   /** True when an enabled preview consumes the selection without a label write. */
   selectSprite: (sprite: PreviewSprite) => boolean;
+  /** The user confirmed this frame: keep where the quad mask sits on it, so showing it again puts the mask back. */
+  rememberQuad: () => void;
 }
 
 export function describeLabel(label: Label): string {
@@ -316,7 +319,18 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     } else setHudRow(next.row);
     return true;
   }
-  useImperativeHandle(previewRef, () => ({ selectSprite: selectPreview }));
+  // Where the quad mask was when each frame was confirmed (video frames only; a photo has no such history).
+  const frameQuads = useRef<Map<number, ManualQuad> | null>(null);
+  if (!frameQuads.current) frameQuads.current = readFrameQuads(stillImage ? undefined : videoKey, toolStorage);
+  const quadNow = useRef({ frame: view.current, quad: manualQuad, enabled: manualEnabled });
+  quadNow.current = { frame: view.current, quad: manualQuad, enabled: manualEnabled };
+  function rememberCurrentQuad() {
+    const now = quadNow.current;
+    if (stillImage || !now.enabled) return;
+    frameQuads.current = rememberQuad(frameQuads.current ?? new Map(), now.frame, now.quad);
+    writeFrameQuads(videoKey, frameQuads.current, toolStorage);
+  }
+  useImperativeHandle(previewRef, () => ({ selectSprite: selectPreview, rememberQuad: rememberCurrentQuad }));
 
   const previousFrame = useRef(view.current);
   useEffect(() => {
@@ -507,6 +521,19 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   const [proofBusy, setProofBusy] = useState(false);
   const [proofCopied, setProofCopied] = useState<string | undefined>(undefined);
   useEffect(() => { if (!proofCopied) return; const timer = setTimeout(() => setProofCopied(undefined), 2000); return () => clearTimeout(timer); }, [proofCopied]);
+  // Showing a confirmed frame again (stepping, a jump, pausing on it) puts the quad mask back where it was confirmed.
+  // Only when the frame, the mask or playback changes, so dragging the mask on a frame is never undone, and not while
+  // playing, where the mask would jump with every frame.
+  const recallKey = useRef("");
+  useEffect(() => {
+    const key = `${view.current}|${manualEnabled}|${playing}`;
+    if (recallKey.current === key) return;
+    recallKey.current = key;
+    if (stillImage || !manualEnabled || playing) return;
+    const remembered = recalledQuad(frameQuads.current ?? new Map(), view.current);
+    if (!remembered || sameQuad(remembered, manualQuad)) return;
+    if (undoHistory) undoHistory.ignore(() => setManualQuad(remembered)); else setManualQuad(remembered);
+  }, [view.current, manualEnabled, playing]); // eslint-disable-line react-hooks/exhaustive-deps
   async function comparisonProof(action: ProofAction) {
     if (proofBusy) return;
     setProofBusy(true); setProofCopied(undefined); setAnimationStop(value => value + 1); onAnimationStart?.();
