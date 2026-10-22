@@ -27,15 +27,9 @@ const MUTATING = new Set<UiAction["type"]>([
   "manualBigStep",
 ]);
 
-export function messageOf(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
-}
+/** The one error-to-text helper (kept under this name for existing callers). */
+import { failureMessage } from "../lib/appErrors";
+export const messageOf = failureMessage;
 
 /** The saved project list; the old single "last video" becomes the first project once. */
 function loadProjects(): ProjectEntry[] {

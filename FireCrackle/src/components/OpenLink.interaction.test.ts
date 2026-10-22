@@ -33,3 +33,11 @@ it("keeps invalid schemes away from the downloader and isolates Enter",async()=>
   const event={key:"Enter",stopPropagation:vi.fn(),preventDefault:vi.fn()};find(tree,e=>e.props.role==="dialog")!.props.onKeyDown(event);await flush();
   expect(event.stopPropagation).toHaveBeenCalled();expect(event.preventDefault).toHaveBeenCalled();expect(backend.linkStart).not.toHaveBeenCalled();expect(find(render(),e=>e.props.role==="alert")).toBeDefined();
 });
+it("a failed cancel is shown, not left as an unhandled rejection",async()=>{
+  current={id:7,state:"running",message:"Downloading",path:null,error:null};
+  let tree=render();cleanup=hooks.effect!();await flush();tree=render();
+  (backend.linkCancel as any).mockRejectedValueOnce(new Error("yt-dlp did not stop"));
+  find(tree,e=>e.type==="button"&&e.props.children==="Cancel download")!.props.onClick();await flush();
+  expect(JSON.stringify(render())).toContain("yt-dlp did not stop");
+  expect(JSON.stringify(render())).not.toContain("Error: yt-dlp");
+});

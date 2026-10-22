@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Backend, LinkStatus, ToolProgress } from "../lib/api";
+import { messageOf } from "../hooks/useWorkspace";
 import "./OpenLink.css";
 
 export function ToolSetupNotice({backend}:{backend:Backend}) {
@@ -22,7 +23,7 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
     const refresh=async()=>{if(polling)return;polling=true;try{const next=await backend.linkStatus?.();if(!live)return;setStatus(next??null);
       if(next?.state==="running")active.current=next.id;
       if(next?.state==="done"&&next.path&&active.current===next.id&&opened.current!==next.id){opened.current=next.id;await onOpenRef.current(next.path);}
-    }catch(e){if(live)setError(String(e));}finally{polling=false;}};
+    }catch(e){if(live)setError(messageOf(e));}finally{polling=false;}};
     void refresh();const timer=setInterval(()=>void refresh(),700);return()=>{live=false;clearInterval(timer);};
   },[backend]);
   const running=status?.state==="running";
@@ -30,7 +31,7 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
     const parsed=new URL(url.trim());if(!["https:","http:"].includes(parsed.protocol)||parsed.username||parsed.password)throw new Error("Paste an http:// or https:// video link without login details.");
     const folder=await backend.pickDownloadFolder?.();if(!folder)return;
     const next=await backend.linkStart!(url.trim(),folder);active.current=next.id;setStatus(next);
-  }catch(e){setError(String(e));}finally{setPending(false);}}
+  }catch(e){setError(messageOf(e));}finally{setPending(false);}}
   return <div className="modal-backdrop" onMouseDown={onClose}>
     <div className="modal open-link" role="dialog" aria-modal="true" aria-label="Open video link" onMouseDown={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==="Escape")onClose();if(e.key==="Enter"&&!running&&!pending){e.preventDefault();void start();}}}>
       <div className="modal-head"><h2>Open video link</h2><button onClick={onClose}>Close</button></div>
@@ -42,7 +43,7 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
         {status&&<p role="status" className="link-status">{status.message}{running&&<><br/><small>You can close this panel while the download continues; reopen it to open the finished video.</small></>}</p>}
         {(error||status?.error)&&<p role="alert">{error??status?.error}</p>}
         <div className="link-actions"><button className="on" disabled={!backend.linkStart||!url.trim()||running||pending} onClick={()=>void start()}>{pending?"Preparing…":"Download and open"}</button>
-        {running&&<button onClick={()=>void backend.linkCancel?.(status.id)}>Cancel download</button>}
+        {running&&<button onClick={()=>void backend.linkCancel?.(status.id).catch(e=>setError(messageOf(e)))}>Cancel download</button>}
         {status?.state==="done"&&status.path&&<button onClick={()=>void onOpen(status.path!)}>Open downloaded video</button>}</div>
         <p className="dim">Powered by yt-dlp, Deno and FFmpeg. Credits and license details are in Credits and THIRD_PARTY_NOTICES.txt.</p>
       </div>

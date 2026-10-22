@@ -72,3 +72,17 @@ it("shows independent live speed and ETA for running scans only",()=>{
     expect(stats(render())).toEqual([]);
   }
 });
+
+it("labels a first-person scan that is saving as saving, not failed",()=>{
+  hooks.values=[{...status,state:"saving"},null,false];
+  expect(JSON.stringify(render())).toContain("Saving labels");
+  expect(JSON.stringify(render())).not.toContain("Scan failed");
+});
+it("pausing the no-fire scan blocks a second click and refreshes its status",async()=>{
+  hooks.values=[null,null,false,{...status,state:"running"},null,false];
+  let resolve!:()=>void;noFireCancel.mockReturnValue(new Promise<void>(r=>{resolve=r;}));
+  find(render(),"Pause no-fire scan")!.props.onClick();
+  expect(find(render(),"Pause no-fire scan")!.props.disabled).toBe(true);
+  resolve();for(let i=0;i<10;i++)await Promise.resolve();
+  expect(find(render(),"Pause no-fire scan")!.props.disabled).toBe(false);
+});

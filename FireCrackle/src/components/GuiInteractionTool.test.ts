@@ -72,3 +72,10 @@ it('a running GUI scan shows the shared speed and ETA readout; a finished one do
   stats=find(render(),n=>typeof n.type==='function'&&n.type.name==='ScanProgressStats');
   expect(stats).toHaveLength(0);
 });
+it('a GUI scan that failed says so instead of Ready, and a paused one says its progress is saved',()=>{
+  hooks.values[0]={video_path:'video',state:'error',total:1000,processed:400,detected:0,ranges,error:'decode failed'};
+  let text=JSON.stringify(render());
+  expect(text).toContain('Scan failed · progress saved');expect(text).not.toContain('Ready');
+  hooks.values[0]={...hooks.values[0],state:'paused',error:null};
+  text=JSON.stringify(render());expect(text).toContain('Paused · progress saved');
+});

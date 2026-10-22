@@ -4,6 +4,7 @@ import { messageOf } from "../hooks/useWorkspace";
 import { Icon } from "./Icon";
 import { ScanProgressStats } from "./ScanProgressStats";
 import { povScanProgress } from "../lib/scanSpeed";
+import { sameVideo, scanStateLabel } from "../lib/scanState";
 import "./AutomationTools.css";
 
 export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void;onReview?:(frame:number)=>void}) {
@@ -18,8 +19,8 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
   const [selected,setSelected]=useState(0);
   useEffect(()=>{
     let live=true;
-    const refresh=async()=>{try{const next=await backend.povStatus?.();if(live)setStatus(next && next.video_path===videoPath?next:null);}catch(e){if(live)setError(messageOf(e));}};
-    const refreshNoFire=async()=>{try{const next=await backend.noFireStatus?.();if(live)setNoFire(next && next.video_path===videoPath?next:null);}catch(e){if(live)setNoFireError(messageOf(e));}};
+    const refresh=async()=>{try{const next=await backend.povStatus?.();if(live)setStatus(next && sameVideo(next.video_path,videoPath)?next:null);}catch(e){if(live)setError(messageOf(e));}};
+    const refreshNoFire=async()=>{try{const next=await backend.noFireStatus?.();if(live)setNoFire(next && sameVideo(next.video_path,videoPath)?next:null);}catch(e){if(live)setNoFireError(messageOf(e));}};
     void refresh();void refreshNoFire();const timer=setInterval(()=>{void refresh();void refreshNoFire();},700);
     return()=>{live=false;clearInterval(timer);};
   },[backend,videoPath]);
@@ -34,9 +35,14 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
       setNoFire(await backend.noFireStart!());
     } catch(e){setNoFireError(messageOf(e));}finally{setNoFirePending(false);}
   }
+  async function pauseNoFire(id:number) {
+    setNoFirePending(true);setNoFireError(null);
+    try{await backend.noFireCancel?.(id);const next=await backend.noFireStatus?.();setNoFire(next && sameVideo(next.video_path,videoPath)?next:null);}
+    catch(e){setNoFireError(messageOf(e));}finally{setNoFirePending(false);}
+  }
   async function perform(action:()=>Promise<unknown>) {
     setPending(true);setError(null);
-    try{await action();const next=await backend.povStatus?.();setStatus(next && next.video_path===videoPath?next:null);}
+    try{await action();const next=await backend.povStatus?.();setStatus(next && sameVideo(next.video_path,videoPath)?next:null);}
     catch(e){setError(messageOf(e));}finally{setPending(false);}
   }
   const running=status?.state==="running";
@@ -53,7 +59,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         {!supported&&<p>This tool is available in the desktop app.</p>}
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
-          <span>{status.state==="running"?"Scanning":status.state==="done"?"Scan complete":status.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
+          <span>{scanStateLabel(status.state,status.processed)} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
           <span>{status.accepted.toLocaleString()} accepted matches{status.applied>0?` · ${status.applied.toLocaleString()} added`:""}</span>
           {running&&<ScanProgressStats key={`${status.video_path}:${status.id}`} progress={povScanProgress(status)}/>}
         </div>}
@@ -82,11 +88,11 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
           </ul>
           <div className="automation-actions">
             <button disabled={!backend.noFireStart||!videoPath||noFireRunning||noFirePending||running} onClick={()=>void scanNoFire()}>{noFire?.state==="done"?"Apply cached no-fire":noFire?"Resume no-fire scan":"Scan & label no fire"}</button>
-            {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void backend.noFireCancel?.(noFire.id).catch(e=>setNoFireError(messageOf(e)))}>Pause no-fire scan</button>}
+            {noFire?.state==="running"&&<button disabled={noFirePending} onClick={()=>void pauseNoFire(noFire.id)}>Pause no-fire scan</button>}
           </div>
           {noFire&&<div className="automation-progress" role="status">
             <progress aria-label="No-fire scan progress" max={Math.max(1,noFire.total)} value={noFire.processed}/>
-            <span>{noFire.state==="running"?(noFire.processed===0?"Preparing AI":"Scanning"):noFire.state==="saving"?"Saving labels":noFire.state==="done"?"Scan complete":noFire.state==="cancelled"?"Paused · progress saved":"Scan failed · progress saved"} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
+            <span>{scanStateLabel(noFire.state,noFire.processed,{warmup:"Preparing AI"})} · {noFire.processed.toLocaleString()} / {noFire.total.toLocaleString()} frames · {noFire.accepted.toLocaleString()} candidates{noFire.state==="done"?` · ${noFire.applied.toLocaleString()} labelled`:""}</span>
             {noFire.state==="running"&&<ScanProgressStats key={`${noFire.video_path}:${noFire.id}`} progress={povScanProgress(noFire)}/>}
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
