@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-/** The playback path runs on every frame, so it is kept small on purpose (PLAN-BUFFER.md, "lean pass"). A file that
+/** The playback path runs on every frame, so it is kept small on purpose (docs/PLAN-BUFFER.md, "lean pass"). A file that
  *  outgrows its budget fails here: shrink it, or move the extra work out of the per-frame path, before raising a number. */
 const BUDGET: Record<string, number> = {
   "src/lib/frameBuffer.ts": 260,

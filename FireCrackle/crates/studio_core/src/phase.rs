@@ -1,4 +1,4 @@
-//! Phase analysis without any sync strip. Every rule is derived in `PHASE-EVIDENCE.md` (E1-E5, E7):
+//! Phase analysis without any sync strip. Every rule is derived in `docs/PHASE-EVIDENCE.md` (E1-E5, E7):
 //!
 //! - the animation index advances once per client tick (E1, E3), equally for both sheets;
 //! - executed ticks follow wall-clock time, `N(T) = floor(20 * T)`, so with the video timestamp `t` the

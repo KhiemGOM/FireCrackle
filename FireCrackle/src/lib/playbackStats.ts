@@ -1,4 +1,4 @@
-/** What playback actually did, for the small readout in the status bar (PLAN-BUFFER.md): the achieved frame rate, frames
+/** What playback actually did, for the small readout in the status bar (docs/PLAN-BUFFER.md): the achieved frame rate, frames
  *  lost, frames that arrived late and how long the picture took to follow the playhead.
  *
  *  A frame is *needed* when the playhead lands on it and *shown* when its picture is on screen. A frame replaced by a

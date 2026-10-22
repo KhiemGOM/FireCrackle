@@ -1,5 +1,5 @@
 //! Unified GUI mask, phase 2: shadowed text (chat, held-item name, titles, boss names), the XP number, boss bars, mount
-//! health and jump bar, F3 text. Evidence and failure cases: `FireCrackle/PLAN-GUI-MASK.md` 3.3.
+//! health and jump bar, F3 text. Evidence and failure cases: `FireCrackle/docs/PLAN-GUI-MASK.md` 3.3.
 
 use fire_core::gui_mask::*;
 use std::path::PathBuf;

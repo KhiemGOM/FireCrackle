@@ -251,7 +251,7 @@ stage rejects a pose after ~18 reads on average, which is already its early-exit
 | + **pose pruning to the HUD scale** (±0.26) | **115.7 / 109.5** | 13.0 ms | 13.1 M (−91 %) |
 
 Pruning rationale: vanilla sets one scale factor per window (`Window.calculateScaleFactor`
-via `MinecraftClient.onResolutionChanged`, PLAN-GUI-MASK.md §1.1) and renders HUD and
+via `MinecraftClient.onResolutionChanged`, FireCrackle/docs/PLAN-GUI-MASK.md §1.1) and renders HUD and
 screens with it, so a panel cannot be drawn at a different pixel scale than the hotbar the
 same frame fits. The restriction applies only when the hotbar fit is reliable; otherwise
 the full search runs. It is not provably output-identical (a wrong hotbar fit could hide a

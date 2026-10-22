@@ -20,7 +20,7 @@ First-person matching supports the vanilla 1.16.5 uncropped viewport and tries t
 is absent. Existing results were measured on recordings also used to select constants,
 so they do not establish accuracy on unseen recordings or YouTube compression.
 See [acceptance status](bench/FIRST_PERSON_STATUS.md), the historical
-[detector experiments](core/DETECT_PLAN.md) and [performance measurements](../FireCrackle/POV-PERFORMANCE.md).
+[detector experiments](core/DETECT_PLAN.md) and [performance measurements](../FireCrackle/docs/POV-PERFORMANCE.md).
 World-fire localization and reliable small/distant-fire detection remain research work.
 
 ## Prerequisites

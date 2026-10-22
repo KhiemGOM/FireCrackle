@@ -28,7 +28,7 @@ material analysis or cross-material flag is performed by these tabs.
 
 On an atlas upload/reload, `Sprite.upload()` initially uploads physical image 0,
 before ticking metadata order. This exceptional first frame is not an ordinary
-steady-cycle phase observation. See [multi-texture research](phase-research/MULTI-TEXTURE-REVIEW.md).
+steady-cycle phase observation. See [multi-texture research](../phase-research/MULTI-TEXTURE-REVIEW.md).
 
 Every material uses the same adaptive sprite picker, filters, exclusions, mirrored
 columns, preview controls, and manual quad overlay. The auto labellers and quad

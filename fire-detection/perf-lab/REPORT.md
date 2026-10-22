@@ -70,7 +70,7 @@ so software-decode numbers at 4K are optimistic, and no accuracy claim is made f
 5. **HUD-scale pose pruning (measured, opt-in).** The known-panel detector visited ~104,000
    poses per GUI frame at ~18 probe reads each (already its early-exit floor). Vanilla draws
    HUD and screens with one window scale factor (`Window.calculateScaleFactor` via
-   `MinecraftClient.onResolutionChanged`, PLAN-GUI-MASK.md §1.1), so poses are restricted to
+   `MinecraftClient.onResolutionChanged`, FireCrackle/docs/PLAN-GUI-MASK.md §1.1), so poses are restricted to
    the frame's reliable hotbar scale (±0.26): 91 % fewer poses, interactions 41 → 13 ms per
    GUI frame. Not provably output-identical (a wrong hotbar fit could hide a panel) — see
    below for what was measured.

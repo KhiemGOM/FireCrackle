@@ -1,4 +1,4 @@
-//! The app side of the shared GUI mask (`fire_core::gui_mask`, plan in `PLAN-GUI-MASK.md` 3.2).
+//! The app side of the shared GUI mask (`fire_core::gui_mask`, plan in `docs/PLAN-GUI-MASK.md` 3.2).
 //!
 //! HUD fitting retains its 1.16.5 reference. Independent interaction panels use
 //! the shared versioned source bank, without a user-confirmation gate.

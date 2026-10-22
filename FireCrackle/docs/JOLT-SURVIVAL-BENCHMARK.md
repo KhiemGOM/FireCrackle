@@ -165,7 +165,7 @@ cargo run --offline --release --manifest-path FireCrackle/crates/studio_core/Car
 ```
 
 Run the opt-in test again to include the same-checker comparison in
-[jolt-survival-summary.json](jolt-survival-summary.json). Quantiles use linear
+[jolt-survival-summary.json](../jolt-survival-summary.json). Quantiles use linear
 interpolation of order statistics. Recording, joined labels, scanner HTML/JSON,
 and detailed frame data remain local and ignored. This is one held-out clip;
 no general accuracy/causality claim or application tuning is made.

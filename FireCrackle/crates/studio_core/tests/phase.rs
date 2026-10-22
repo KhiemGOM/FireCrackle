@@ -1,5 +1,5 @@
 //! Phase tests, no sync strip. Ground truth comes from a tiny simulation of the game written out from
-//! PHASE-EVIDENCE.md (E1 step per tick, E2 row per sheet, E4/E7 executed ticks N(T) = floor(rate * T)),
+//! docs/PHASE-EVIDENCE.md (E1 step per tick, E2 row per sheet, E4/E7 executed ticks N(T) = floor(rate * T)),
 //! never from the code under test.
 
 use studio_core::label::Label;

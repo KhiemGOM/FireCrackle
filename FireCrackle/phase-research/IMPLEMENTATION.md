@@ -51,7 +51,7 @@ an injected five-tick mismatch. The early reference is identical before/after th
 Clip2's observed hold is frames 13862-14003, **47 nominal ticks** of elapsed video time. Its post-hold
 clock residual differs from the pre-hold centre by **0.167 tick**, supporting recovered timing. Its
 two original hard findings remain, now with recovered-hold evidence rather than a claim of bad labels.
-The vanilla-source/capture explanation remains in PHASE-EVIDENCE.md E9.
+The vanilla-source/capture explanation remains in ../docs/PHASE-EVIDENCE.md E9.
 
 The four `clip*-combined-seed*.json` reports contain complete settings, per-bucket counts, all baseline
 flags, combined explanations, lag intervals and matching/mismatching gap controls. These are two

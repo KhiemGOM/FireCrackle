@@ -631,7 +631,7 @@ fn undoing_a_range_fill_moves_to_its_first_frame() {
 
 // ================================================================ flags
 
-/// A clean 60 fps game on sheet 1 (see PHASE-EVIDENCE.md E7), labelled frame by frame through the session.
+/// A clean 60 fps game on sheet 1 (see docs/PHASE-EVIDENCE.md E7), labelled frame by frame through the session.
 fn labelled_game(n: usize) -> Session {
     let mut s = session_with(n, 60.0, Settings::default());
     for i in 0..n {

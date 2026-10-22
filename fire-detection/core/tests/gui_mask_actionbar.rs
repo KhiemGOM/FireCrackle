@@ -1,4 +1,4 @@
-//! Unified GUI mask: the action bar (PLAN-GUI-MASK.md 3.4). Unshadowed, so it is accepted only when its pixels parse
+//! Unified GUI mask: the action bar (FireCrackle/docs/PLAN-GUI-MASK.md 3.4). Unshadowed, so it is accepted only when its pixels parse
 //! as real font glyphs, centred at y = H-72.
 
 use fire_core::gui_mask::*;

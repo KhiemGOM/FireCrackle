@@ -1,5 +1,5 @@
 //! Unified GUI mask, phase 1: scale fit and the neutral HUD. Geometry from Yarn 1.16.5 (`InGameHud`, `Window`), see
-//! `FireCrackle/PLAN-GUI-MASK.md`. Synthetic frames are composed from the real vanilla textures with that geometry, so the
+//! `FireCrackle/docs/PLAN-GUI-MASK.md`. Synthetic frames are composed from the real vanilla textures with that geometry, so the
 //! truth is known per pixel.
 
 use fire_core::gui_mask::*;
@@ -68,7 +68,7 @@ fn hits(m: &GuiMask, p: PieceId) -> Vec<&PieceHit> {
 }
 
 /// IoU of piece `id`, over the pixels where the mask commits to a class (edge pixels the mask calls `unknown` are its
-/// stated uncertainty, PLAN-GUI-MASK.md 3.1, and are checked separately).
+/// stated uncertainty, FireCrackle/docs/PLAN-GUI-MASK.md 3.1, and are checked separately).
 fn iou(m: &GuiMask, b: &[u8], id: u8) -> f64 {
     let (mut inter, mut uni) = (0usize, 0usize);
     for ((&x, &y), &c) in m.piece.iter().zip(b).zip(&m.class) {

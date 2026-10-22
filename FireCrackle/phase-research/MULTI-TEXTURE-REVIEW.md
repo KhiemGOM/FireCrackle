@@ -43,7 +43,7 @@ Relevant source locations in the inspected archive:
 - `MinecraftClient.java:302,1022-1024,1479-1482`: nominal client rate 20 Hz;
   at most ten client ticks per game render; animated textures tick while a world
   exists. The texture tick is outside the pause gate. The ten-tick limit is not
-  a bound between recorded pictures: see [PHASE-EVIDENCE E9](../PHASE-EVIDENCE.md).
+  a bound between recorded pictures: see [PHASE-EVIDENCE E9](../docs/PHASE-EVIDENCE.md).
 - `TextureManager.java:142-146` and `SpriteAtlasTexture.java:261-275`: the block
   atlas updates every animated sprite on the same tick, without visibility tests.
   Looking away, spawning a new block or loading a chunk does not start its own
@@ -69,7 +69,7 @@ uncertainty. Packs, shaders and animation-changing mods require a different mode
 
 ## What the literature contributes
 
-The existing baseline is [PLAN-PHASE-V2](../PLAN-PHASE-V2.md) and its
+The existing baseline is [PLAN-PHASE-V2](../docs/PLAN-PHASE-V2.md) and its
 [paired benchmark](RESULTS.md): fixed-clock residuals, circular PELT and PCID,
 with capture holds and long-gap ambiguity retained. This pass adds joint modular
 constraints; it does not replace those independent anomaly checks.

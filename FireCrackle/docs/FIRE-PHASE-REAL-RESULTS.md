@@ -22,7 +22,7 @@ experiment, not a claim of reliable automatic labels.
 
 ## Real data and coverage
 
-The [canonical catalogue](../docs/TRAINING_DATA_CATALOGUE.md) was refreshed during
+The [canonical catalogue](../../docs/TRAINING_DATA_CATALOGUE.md) was refreshed during
 preparation (commit `2b9a4a4`). The run's `coverage.json` accounts for all 12
 original clips and relevant derived families. Seven older normal recordings plus
 the newest mixed normal/soul recording were inspected. The newest recording

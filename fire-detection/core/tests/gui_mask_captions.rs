@@ -1,4 +1,4 @@
-//! Unified GUI mask: sound captions (PLAN-GUI-MASK.md 3.5). Bottom-right boxes of equal width, black at alpha 204,
+//! Unified GUI mask: sound captions (FireCrackle/docs/PLAN-GUI-MASK.md 3.5). Bottom-right boxes of equal width, black at alpha 204,
 //! stacked upward from y = H-35, with grey unshadowed text centred in them and an optional arrow.
 
 use fire_core::gui_mask::*;

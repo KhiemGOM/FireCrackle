@@ -1,4 +1,4 @@
-//! Research alternatives to the shipped greedy checker. See PLAN-PHASE-V2.md.
+//! Research alternatives to the shipped greedy checker. See docs/PLAN-PHASE-V2.md.
 //! PELT is exact on time-binned circular means. PCID follows alternating interval isolation with a
 //! block-permutation adaptation and overlapping bounded windows, not a calibrated significance claim.
 use crate::config::PhaseResearchConfig;

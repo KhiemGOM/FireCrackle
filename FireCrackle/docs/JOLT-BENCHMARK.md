@@ -2,7 +2,7 @@
 
 2026-10-16. Production clock/ruler implementation: `72b8432`. No clock or matching
 constants were tuned during this experiment. Machine-readable results are in
-[jolt-benchmark-summary.json](jolt-benchmark-summary.json).
+[jolt-benchmark-summary.json](../jolt-benchmark-summary.json).
 
 Jolt adds useful independent evidence, especially for cuts of a whole fire cycle.
 It should complement video-time analysis. This test does **not** establish that

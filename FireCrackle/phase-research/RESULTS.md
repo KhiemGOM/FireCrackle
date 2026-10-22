@@ -84,7 +84,7 @@ automatically substituted for the nominal rate.
 
 ## Freeze evidence resolved
 
-See `../PHASE-EVIDENCE.md` E9. The cap is 10 ticks per **game render**. Clip2 repeats game render 22323
+See `../docs/PHASE-EVIDENCE.md` E9. The cap is 10 ticks per **game render**. Clip2 repeats game render 22323
 through video frame 14003, then captures game render 22529 at frame 14004: **206 game renders elapsed**,
 with 47 executed ticks. The sheet advances `47 mod 32 = 15`, as observed. This does not contradict
 vanilla and does not establish a client render-thread freeze. It establishes held capture output;

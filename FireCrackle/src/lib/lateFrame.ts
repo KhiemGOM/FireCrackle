@@ -1,4 +1,4 @@
-/** Whether a picture that arrived after the playhead moved on should still be shown (PLAN-BUFFER.md).
+/** Whether a picture that arrived after the playhead moved on should still be shown (docs/PLAN-BUFFER.md).
  *
  *  When frames are fetched or decoded slower than the playhead moves, each one used to be thrown away as soon as the
  *  playhead had passed it, so the screen froze on an old picture and then jumped. A late frame that is newer (in the

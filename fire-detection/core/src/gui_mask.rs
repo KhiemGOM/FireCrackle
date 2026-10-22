@@ -1,4 +1,4 @@
-//! Unified per-piece GUI mask, phase 1: GUI scale fit and the neutral HUD (see `FireCrackle/PLAN-GUI-MASK.md`).
+//! Unified per-piece GUI mask, phase 1: GUI scale fit and the neutral HUD (see `FireCrackle/docs/PLAN-GUI-MASK.md`).
 //!
 //! Metadata only: for every pixel, which HUD piece (if any) is drawn there and whether it is opaque, translucent (world
 //! still visible, blended with a known colour) or unknown. Nothing is erased. Geometry is Yarn 1.16.5 `InGameHud` /
@@ -2702,7 +2702,7 @@ fn label(mask: &mut GuiMask, tex: &GuiTextures, p: &Placed, fit: &GuiFit, tol: f
     }
 }
 
-// ================================================================ phase 2: text (PLAN-GUI-MASK.md 3.3)
+// ================================================================ phase 2: text (FireCrackle/docs/PLAN-GUI-MASK.md 3.3)
 
 /// `ChatHud.getWidth(1.0)`: the default chat width option.
 const CHAT_WIDTH: i32 = 320;
