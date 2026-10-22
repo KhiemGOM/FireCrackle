@@ -6,7 +6,7 @@ use hud_cadence::font::Font;
 use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
 use hud_cadence::strip;
-use hud_cadence::truth::{align, expected_changes, parse_log};
+use hud_cadence::truth::{align, expected_changes, labels, parse_log, segments};
 use std::io::Read;
 use std::process::{Command, Stdio};
 
@@ -30,10 +30,12 @@ struct Args {
     log: Option<String>,
     /// "W:H": scale every frame to this size before reading (a 1080p recording or upload of a 1440p game).
     prescale: Option<String>,
+    /// labels: the source video to cut segments from.
+    source: Option<String>,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 60.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -50,6 +52,7 @@ fn args() -> Args {
             "--width" => a.width = v.parse().expect("--width"),
             "--log" => a.log = Some(v),
             "--prescale" => a.prescale = Some(v),
+            "--source" => a.source = Some(v),
             other => panic!("unknown flag {other}"),
         }
     }
@@ -256,6 +259,48 @@ fn main() {
             println!("game phase (ms mod 1000) per change: {}", game_phase.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(" "));
             println!("video phase (frame mod {fps}) per true change: {}", video_phase.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(" "));
         }
+        "labels" => {
+            // hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [<video> --ffmpeg F]: per-frame
+            // label files for every usable segment (strip readable on consecutive frames), and, with a video, the
+            // matching cut of each segment (re-encoded so the frame count is exact).
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
+            let ids: Vec<Option<u32>> = json["ids"].as_array().expect("scan was run with --strip").iter().map(|v| v.as_u64().map(|v| v as u32)).collect();
+            let values: Vec<Option<String>> = json["values"].as_array().unwrap().iter().map(|v| v.as_str().map(str::to_string)).collect();
+            let fps = json["fps"].as_u64().unwrap() as u32;
+            let start = json["start"].as_f64().unwrap();
+            let rows = parse_log(&std::fs::read_to_string(a.log.as_ref().expect("--log")).unwrap());
+            let all = labels(&rows, &ids, fps);
+            let dir = std::path::PathBuf::from(a.out.as_ref().expect("--out <dir>"));
+            std::fs::create_dir_all(&dir).unwrap();
+            let min_len = 2 * fps as usize;
+            let segs = segments(&ids, min_len);
+            println!("{} frames; {} usable segments of >= {min_len} frames:", ids.len(), segs.len());
+            for (n, &(s, len)) in segs.iter().enumerate() {
+                let t0 = start + s as f64 / fps as f64;
+                let path = dir.join(format!("segment-{n:02}.jsonl"));
+                let mut text = String::new();
+                for l in &all[s..s + len] {
+                    let row = serde_json::json!({
+                        "segment_frame": l.video_frame - s as u32, "source_frame": l.video_frame, "source_time": start + l.time,
+                        "renderer_frame": l.renderer_frame, "nanos": l.nanos, "fps": l.fps, "fps_changed": l.fps_changed,
+                        "fps_read": values[l.video_frame as usize],
+                    });
+                    text.push_str(&row.to_string());
+                    text.push('\n');
+                }
+                std::fs::write(&path, text).unwrap();
+                let with_log = all[s..s + len].iter().filter(|l| l.nanos.is_some()).count();
+                println!("  segment {n:02}: source {t0:.3}s +{:.3}s ({len} frames, {with_log} with log rows) -> {}", len as f64 / fps as f64, path.display());
+                if let Some(video) = &a.source {
+                    let clip = dir.join(format!("segment-{n:02}.mkv"));
+                    let status = Command::new(&a.ffmpeg)
+                        .args(["-v", "error", "-y", "-ss", &format!("{t0:.6}"), "-i"]).arg(video)
+                        .args(["-frames:v", &len.to_string(), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-r", &fps.to_string()])
+                        .arg(&clip).status().expect("ffmpeg");
+                    println!("    video {} ({})", clip.display(), if status.success() { "ok" } else { "FAILED" });
+                }
+            }
+        }
         "replay" => {
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
             let values: Vec<Option<String>> = json["values"].as_array().unwrap().iter().map(|v| v.as_str().map(str::to_string)).collect();
@@ -273,6 +318,7 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>"),
+        _ => eprintln!("usage: hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
+       hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [--source <video> --ffmpeg F]"),
     }
 }

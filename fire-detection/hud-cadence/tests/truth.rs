@@ -49,3 +49,40 @@ fn a_change_inside_a_strip_gap_is_not_mapped_to_the_frame_after_the_gap() {
     let e = expected_changes(&rows, &ids);
     assert_eq!(e.iter().map(|c| (c.renderer_frame, c.video_frame)).collect::<Vec<_>>(), vec![(200, 9)]);
 }
+
+// Per-frame labels: every video frame whose strip decoded gets the mod's row for that renderer frame (clock, FPS
+// value, whether it was the change frame). Usable segments are runs of consecutive strip-readable frames of at
+// least `min_len`; frames without a strip (F3, a toast over it) are excluded, never interpolated.
+use hud_cadence::truth::{labels, segments, Label};
+
+#[test]
+fn segments_are_runs_of_readable_strip_frames_of_at_least_min_len() {
+    let ids = [Some(1), Some(2), None, Some(4), Some(5), Some(6), None, None, Some(9)];
+    assert_eq!(segments(&ids, 2), vec![(0, 2), (3, 3)]);
+    assert_eq!(segments(&ids, 1), vec![(0, 2), (3, 3), (8, 1)]);
+    assert_eq!(segments(&[None, None], 1), vec![]);
+}
+
+#[test]
+fn labels_join_each_readable_frame_to_the_logged_renderer_frame() {
+    // The renderer frame where the value changed (12) was not captured: the next captured frame (13) must still
+    // be labelled as the first video frame showing the new value.
+    let rows = vec![
+        LogRow { frame: 10, nanos: 100, fps: 60, changed: true },
+        LogRow { frame: 11, nanos: 116, fps: 60, changed: false },
+        LogRow { frame: 12, nanos: 133, fps: 61, changed: true },
+        LogRow { frame: 13, nanos: 150, fps: 61, changed: false },
+        LogRow { frame: 14, nanos: 166, fps: 61, changed: false },
+    ];
+    let ids = [Some(10), Some(11), None, Some(13), Some(14), Some(99)];
+    let l = labels(&rows, &ids, 60);
+    assert_eq!(l.len(), 6);
+    assert_eq!(l[0], Label { video_frame: 0, time: 0.0, renderer_frame: Some(10), nanos: Some(100), fps: Some(60), fps_changed: true });
+    assert!(!l[1].fps_changed);
+    assert_eq!(l[2].renderer_frame, None);
+    assert_eq!((l[3].nanos, l[3].fps, l[3].fps_changed), (Some(150), Some(61), true));
+    assert!(!l[4].fps_changed, "same value as the previous labelled frame");
+    // a decoded ID with no log row (log truncated) keeps the ID but no clock
+    assert_eq!((l[5].renderer_frame, l[5].nanos, l[5].fps_changed), (Some(99), None, false));
+    assert!((l[5].time - 5.0 / 60.0).abs() < 1e-9);
+}
