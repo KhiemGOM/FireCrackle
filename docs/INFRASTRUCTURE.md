@@ -64,7 +64,7 @@ a second implementation, and record the decision here.
 |---|---|---|
 | Minecraft perspective projection (vertical FOV, view space → pixels) | `fire_core::overlay::project` (`fire-detection/core/src/overlay.rs`) | **Any camera / perspective work (camera fitting, perspective reversal, projecting world blocks into frames) builds on this.** Do not write another projection. |
 | Minecraft camera (eye, yaw, pitch, roll, FOV) and the camera solver (perspective reversal) | `fire_core::camera` (`Camera::project`, `solve` for any clicked points, `fit`, `fit_label_frame` for label logs) | Built on `overlay::project`. Run on label logs: `cargo run --release --bin fire_camera <labels.jsonl>`. |
-| Vanilla fire block geometry (every baked quad by attachment, with per-corner UV) | `fire_core::fire_model` (`block_quads`, `block_candidates`) | 1.16.5 `BakedQuadFactory` rules; identical models in 1.21.11. Entity fire is not in it yet. |
+| Vanilla fire block geometry (every baked quad by attachment, with per-corner UV) | `fire_core::fire_model` (`block_quads`, `block_candidates`); locating a fire from a camera + box: `fire_core::fire_locate` (`locate`, `predicted_box`) | 1.16.5 `BakedQuadFactory` rules; identical models in 1.21.11. Entity fire is not in it yet. |
 | Camera answer key in recordings | label mod `CameraPose` → `"cam"` in every captured row (schema v3.3, `fire-detection/mod/PLAN.md`) | |
 | Fire quad fit, match, refine, rasterize | `src/lib/quadOptimizer.ts` (Nelder–Mead), `quadMatch.ts`, `quadRefine.ts`, `quadEcc.ts` + `ecc.ts` (masked homography ECC, OpenCV parity), `quadRaster.ts`, `quadTransform.ts` | |
 | Animation atlases / sprite phases | `FireCrackle/docs/ANIMATION-ATLASES.md`, `src/lib/animationAtlases.ts`, `studio_core::label` | |

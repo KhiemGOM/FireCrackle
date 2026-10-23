@@ -29,7 +29,7 @@ impl Camera {
     }
 
     /// View direction to world direction (the inverse rotation).
-    fn to_world_dir(self, v: [f64; 3]) -> [f64; 3] {
+    pub fn view_dir_to_world(self, v: [f64; 3]) -> [f64; 3] {
         let (sr, cr) = (-self.roll).to_radians().sin_cos();
         let (x1, y2) = (v[0] * cr - v[1] * sr, v[0] * sr + v[1] * cr);
         let (sp, cp) = (-self.pitch).to_radians().sin_cos();
@@ -396,7 +396,7 @@ fn start_grid(
                     roll: 0.0,
                     fov,
                 };
-                let r = c.to_world_dir([ray[0] / len, ray[1] / len, ray[2] / len]);
+                let r = c.view_dir_to_world([ray[0] / len, ray[1] / len, ray[2] / len]);
                 c.pos = [
                     anchor[0] - d * r[0],
                     anchor[1] - d * r[1],

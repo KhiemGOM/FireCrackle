@@ -81,3 +81,24 @@ drawn over the real video frame (`fire_camera --grid N`) lies on the ground plan
   binding of `fire_core::camera` (like `veil.ts`). After that, place a fire block or an entity's fire and draw its
   quads over the video.
 - New recordings carry `"cam"`, so `solve` on clicked corners can be scored against the true camera.
+
+## Locating the fire block from the camera (`fire_core::fire_locate`)
+
+Given a solved camera and a fire's box on screen, `locate` ranks every block near the ray through the box, with every
+attachment (floor fire draws its 4 side planes too), by the left/right/bottom box edges. The top is not compared:
+flame tips are transparent and animate.
+
+Held-out test (`cargo run --release --bin fire_locate <labels.jsonl>`): the camera is solved from the other fire blocks
+of the frame, then a fully visible fire (vis ≥ 0.95, box clear of the screen edge) is located from its logged box only.
+
+| Recording | Fires | Same drawn outline (every edge ≤ 1 px) | Right block first | Right block in top 3 |
+|---|---|---|---|---|
+| quad1 (every 10th frame) | 151 | 39.1 % | 48.3 % | 72.8 % |
+| survival1 (every 20th frame) | 600 | 36.2 % | 42.7 % | 70.0 % |
+
+Best at 4–8 blocks (53–100 % same outline). Beyond 16 blocks a fire is a few pixels wide and depth is a guess.
+Two kinds of miss can't be fixed from a box:
+- a side fire and the neighbouring block's opposite-side fire are the same plane, 0.0012 blocks apart;
+- a fire with two or more flammable neighbours draws several side planes; those combinations are not candidates yet.
+
+**Decision:** placing the fire is manual. The locator's top 3 are offered as one-click suggestions.

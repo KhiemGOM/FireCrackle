@@ -5,6 +5,7 @@ pub mod camera;
 pub mod detect;
 pub mod eval;
 pub mod features;
+pub mod fire_locate;
 pub mod fire_model;
 pub mod flicker;
 pub mod gui_interaction;
