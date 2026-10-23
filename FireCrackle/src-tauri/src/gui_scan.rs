@@ -3,9 +3,6 @@ use fire_core::video::{parallel_frames_indexed_with_state, scan_workers};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    path::PathBuf,
     process::Child,
     sync::{
         Arc, Mutex,
@@ -38,19 +35,26 @@ pub struct Status {
     pub ranges: Vec<Range>,
     pub error: Option<String>,
 }
+/// One frame of the GUI scan: the detected panel, or `None` when no GUI piece is on screen.
+pub(crate) type Hit = Option<Surface>;
+
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Entry {
-    Header { key: String, total: usize },
-    Frame { frame: u32, hit: Option<Surface> },
-    Finished,
+pub struct HitSaved {
+    hit: Hit,
 }
-struct Cache {
-    path: PathBuf,
-    key: String,
-    frames: Vec<Option<Option<Surface>>>,
-    finished: bool,
+
+impl crate::scan_cache::Decision for Hit {
+    type Saved = HitSaved;
+    fn save(&self) -> HitSaved {
+        HitSaved { hit: self.clone() }
+    }
+    fn load(saved: HitSaved) -> Option<Hit> {
+        Some(saved.hit)
+    }
 }
+
+type Cache = crate::scan_cache::Journal<Hit>;
+
 /// Results are reused only for the same project, video file and scan pipeline (detector, decoder, app version).
 fn cache_key(project: &Project, pipeline: &str) -> String {
     let mut hash = Sha256::new();
@@ -60,81 +64,14 @@ fn cache_key(project: &Project, pipeline: &str) -> String {
     crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
     crate::hex(&hash.finalize())
 }
-impl Cache {
-    fn load(project: &Project) -> Self {
-        let path = crate::scan_cache::auto_cache_file(project, "gui-interactions.jsonl")
-            .unwrap_or_default();
-        let key = cache_key(project, crate::scan_cache::pipeline_version());
-        let mut cache = Self {
-            path,
-            key,
-            frames: vec![None; project.frames.len()],
-            finished: false,
-        };
-        if let Ok(file) = File::open(&cache.path) {
-            let mut lines = BufReader::new(file).lines();
-            let valid=lines.next().and_then(Result::ok).and_then(|s|serde_json::from_str::<Entry>(&s).ok())
-                .is_some_and(|e|matches!(e,Entry::Header{key,total} if key==cache.key && total==cache.frames.len()));
-            if valid {
-                for line in lines {
-                    let Ok(line) = line else { break };
-                    let Ok(entry) = serde_json::from_str::<Entry>(&line) else {
-                        break;
-                    };
-                    match entry {
-                        Entry::Frame { frame, hit } if (frame as usize) < cache.frames.len() => {
-                            cache.frames[frame as usize] = Some(hit)
-                        }
-                        Entry::Finished => cache.finished = true,
-                        _ => break,
-                    }
-                }
-            }
-        }
-        cache.finished &= cache.frames.iter().all(Option::is_some);
-        cache
-    }
-    // Rewrite the valid prefix before appending: interrupted/truncated final
-    // JSON must never swallow a subsequently resumed record.
-    fn writer(&self) -> Result<File, String> {
-        std::fs::create_dir_all(self.path.parent().ok_or("GUI cache has no parent")?)
-            .map_err(|e| e.to_string())?;
-        let tmp = self.path.with_extension("tmp");
-        let mut file = File::create(&tmp).map_err(|e| e.to_string())?;
-        write_entry(
-            &mut file,
-            &Entry::Header {
-                key: self.key.clone(),
-                total: self.frames.len(),
-            },
-        )?;
-        for (frame, hit) in self.frames.iter().enumerate() {
-            if let Some(hit) = hit {
-                write_entry(
-                    &mut file,
-                    &Entry::Frame {
-                        frame: frame as u32,
-                        hit: hit.clone(),
-                    },
-                )?;
-            }
-        }
-        file.sync_all().map_err(|e| e.to_string())?;
-        drop(file);
-        std::fs::rename(&tmp, &self.path).map_err(|e| e.to_string())?;
-        OpenOptions::new()
-            .append(true)
-            .open(&self.path)
-            .map_err(|e| e.to_string())
-    }
-}
-fn write_entry(file: &mut File, entry: &Entry) -> Result<(), String> {
-    // Serialize before touching the file: one write per complete cache record,
-    // instead of a Windows filesystem call for each JSON token. Do not buffer
-    // across frames; interrupted scans still retain every completed record.
-    let mut bytes = serde_json::to_vec(entry).map_err(|e| e.to_string())?;
-    bytes.push(b'\n');
-    file.write_all(&bytes).map_err(|e| e.to_string())
+
+fn load_cache(project: &Project) -> Cache {
+    let path =
+        crate::scan_cache::auto_cache_file(project, "gui-interactions.jsonl").unwrap_or_default();
+    let key = cache_key(project, crate::scan_cache::pipeline_version());
+    let total = project.frames.len();
+    Cache::load_at(path.clone(), key.clone(), total)
+        .unwrap_or_else(|| Cache::empty(path, key, total))
 }
 struct Job {
     project: Project,
@@ -149,7 +86,7 @@ impl Job {
         let state = self.state.lock().map_err(|_| "GUI scan unavailable")?;
         let mut ranges: Vec<Range> = Vec::new();
         let mut detected = 0;
-        for (frame, hit) in cache.frames.iter().enumerate() {
+        for (frame, hit) in cache.decisions.iter().enumerate() {
             if let Some(Some(hit)) = hit {
                 detected += 1;
                 if let Some(last) = ranges
@@ -168,7 +105,7 @@ impl Job {
             }
         }
         let scanned = |frame: Option<usize>| {
-            frame.is_none_or(|i| cache.frames.get(i).is_none_or(|f| f.is_some()))
+            frame.is_none_or(|i| cache.decisions.get(i).is_none_or(|f| f.is_some()))
         };
         for range in &mut ranges {
             let before = (range.first as usize).checked_sub(1);
@@ -178,8 +115,8 @@ impl Job {
         Ok(Status {
             video_path: self.project.video_path.clone(),
             state: state.0.clone(),
-            processed: cache.frames.iter().filter(|f| f.is_some()).count() as u32,
-            total: cache.frames.len() as u32,
+            processed: cache.processed(),
+            total: cache.decisions.len() as u32,
             detected,
             ranges,
             error: state.1.clone(),
@@ -216,7 +153,7 @@ impl Jobs {
                 return Err("Pause the GUI scan for the previous video first".into());
             }
         }
-        let cache = Cache::load(project);
+        let cache = load_cache(project);
         let state = if cache.finished { "done" } else { "ready" };
         let job = Arc::new(Job {
             project: project.clone(),
@@ -282,25 +219,15 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     let (w, h) = (job.project.meta.width, job.project.meta.height);
     detector.prepare(w, h)?;
     let mut cache = job.cache.lock().map_err(|_| "GUI cache unavailable")?;
-    std::fs::create_dir_all(cache.path.parent().ok_or("GUI cache has no parent")?)
-        .map_err(|e| e.to_string())?;
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(cache.path.with_extension("lock"))
-        .map_err(|e| e.to_string())?;
-    lock.try_lock()
-        .map_err(|_| "Another FireCrackle instance is using the GUI scan cache")?;
-    *cache = Cache::load(&job.project);
+    // Reread from disk (another window may have scanned meanwhile), then lock the journal for this scan.
+    *cache = load_cache(&job.project);
+    cache.begin()?;
     let start = cache
-        .frames
+        .decisions
         .iter()
         .position(Option::is_none)
-        .unwrap_or(cache.frames.len()) as u32;
-    let previous = cache.frames.clone();
-    let mut file = cache.writer()?;
+        .unwrap_or(cache.decisions.len()) as u32;
+    let previous = cache.decisions.clone();
     drop(cache);
     let total = previous.len() as u32;
     if start < total {
@@ -340,13 +267,11 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
                 if previous[frame as usize].is_some() {
                     return;
                 }
-                let written = write_entry(
-                    &mut file,
-                    &Entry::Frame {
-                        frame,
-                        hit: hit.clone(),
-                    },
-                );
+                let written = job
+                    .cache
+                    .lock()
+                    .map_err(|_| "GUI cache unavailable".to_string())
+                    .and_then(|mut cache| cache.put(frame, hit));
                 if let Err(e) = written {
                     write_error = Some(e);
                     job.cancel.store(true, Ordering::Relaxed);
@@ -355,10 +280,6 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
                     {
                         let _ = child.kill();
                     }
-                    return;
-                }
-                if let Ok(mut cache) = job.cache.lock() {
-                    cache.frames[frame as usize] = Some(hit);
                 }
             },
         );
@@ -381,50 +302,95 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
             }
         }
     }
-    if !job.cancel.load(Ordering::Relaxed) {
-        write_entry(&mut file, &Entry::Finished)?;
-        job.cache
-            .lock()
-            .map_err(|_| "GUI cache unavailable")?
-            .finished = true;
+    let mut cache = job.cache.lock().map_err(|_| "GUI cache unavailable")?;
+    if job.cancel.load(Ordering::Relaxed) {
+        cache.close()
+    } else {
+        cache.finish(0)
     }
-    file.sync_all().map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn cache_record_bytes_match_streamed_serialization() {
-        let fixture = crate::scan_cache::tests::fixture(3);
-        let path = fixture.root.join("entries-test");
-        let mut file = File::create(&path).unwrap();
-        let entries = [
-            Entry::Header {
-                key: "test".into(),
-                total: 3,
-            },
-            Entry::Frame {
-                frame: 0,
-                hit: None,
-            },
-            Entry::Frame {
-                frame: 2,
-                hit: Some(Surface {
-                    bounds: [1.0, 2.5, 30.0, 40.0],
-                    menu: false,
-                }),
-            },
-            Entry::Finished,
-        ];
-        let mut expected = Vec::new();
-        for entry in entries {
-            serde_json::to_writer(&mut expected, &entry).unwrap();
-            expected.push(b'\n');
-            write_entry(&mut file, &entry).unwrap();
+    use crate::scan_cache::Journal;
+    fn panel(menu: bool) -> Surface {
+        Surface {
+            bounds: [1.0, 2.0, 3.0, 4.0],
+            menu,
         }
-        drop(file);
-        assert_eq!(std::fs::read(path).unwrap(), expected);
+    }
+    const OLD_FORMAT: &str = "{\"type\":\"Header\",\"key\":\"k\",\"total\":4}
+{\"type\":\"Frame\",\"frame\":0,\"hit\":null}
+{\"type\":\"Frame\",\"frame\":2,\"hit\":{\"bounds\":[1.0,2.0,3.0,4.0],\"menu\":true}}
+";
+    #[test]
+    fn reads_a_gui_cache_written_by_0_5_and_resumes_after_a_torn_last_line() {
+        let f = crate::scan_cache::tests::fixture(4);
+        let path = f.root.join("gui.jsonl");
+        std::fs::write(&path, format!("{OLD_FORMAT}{{\"type\":\"Fra")).unwrap();
+        let read = Journal::<Hit>::load_at(path.clone(), "k".into(), 4).unwrap();
+        assert_eq!(
+            read.decisions,
+            vec![Some(None), None, Some(Some(panel(true))), None]
+        );
+        assert!(!read.finished);
+        let mut journal = Journal::<Hit>::open_at(path.clone(), "k".into(), 4).unwrap();
+        assert!(journal.put(1, Some(panel(false))).unwrap());
+        assert!(
+            !journal.put(0, Some(panel(false))).unwrap(),
+            "a known frame is never rewritten"
+        );
+        assert!(journal.put(3, None).unwrap());
+        journal.finish(0).unwrap();
+        drop(journal);
+        let again = Journal::<Hit>::load_at(path, "k".into(), 4).unwrap();
+        assert!(again.finished);
+        assert_eq!(again.decisions[1], Some(Some(panel(false))));
+        assert_eq!(
+            again.decisions[0],
+            Some(None),
+            "the torn record did not swallow later ones"
+        );
+    }
+    #[test]
+    fn a_finished_line_from_0_5_without_an_applied_count_still_counts() {
+        let f = crate::scan_cache::tests::fixture(4);
+        let path = f.root.join("gui.jsonl");
+        let all = format!(
+            "{OLD_FORMAT}{{\"type\":\"Frame\",\"frame\":1,\"hit\":null}}
+{{\"type\":\"Frame\",\"frame\":3,\"hit\":null}}
+{{\"type\":\"Finished\"}}
+"
+        );
+        std::fs::write(&path, all).unwrap();
+        assert!(
+            Journal::<Hit>::load_at(path, "k".into(), 4)
+                .unwrap()
+                .finished
+        );
+    }
+    #[test]
+    fn a_second_window_cannot_write_the_same_gui_cache() {
+        let f = crate::scan_cache::tests::fixture(4);
+        let path = f.root.join("gui.jsonl");
+        let _first = Journal::<Hit>::open_at(path.clone(), "k".into(), 4).unwrap();
+        let second = Journal::<Hit>::open_at(path, "k".into(), 4).err().unwrap();
+        assert!(second.contains("Another FireCrackle instance"), "{second}");
+    }
+    #[test]
+    fn stale_or_oversized_gui_caches_are_ignored() {
+        let f = crate::scan_cache::tests::fixture(4);
+        let path = f.root.join("gui.jsonl");
+        std::fs::write(&path, OLD_FORMAT).unwrap();
+        assert!(Journal::<Hit>::load_at(path.clone(), "other".into(), 4).is_none());
+        assert!(Journal::<Hit>::load_at(path.clone(), "k".into(), 5).is_none());
+        std::fs::write(
+            &path,
+            format!("{OLD_FORMAT}{}", " ".repeat(2 * 1024 * 1024)),
+        )
+        .unwrap();
+        assert!(Journal::<Hit>::load_at(path, "k".into(), 4).is_none());
     }
     #[test]
     #[ignore = "Requires GUI_BENCH_PROJECT, GUI_BENCH_ROOT, GUI_SMOKE_FFMPEG/FFPROBE and GUI_SMOKE_REFERENCE"]
@@ -439,7 +405,7 @@ mod tests {
             .unwrap();
         assert!(count > 0 && count <= project.frames.len());
         project.frames.truncate(count);
-        let root = PathBuf::from(std::env::var("GUI_BENCH_ROOT").unwrap());
+        let root = std::path::PathBuf::from(std::env::var("GUI_BENCH_ROOT").unwrap());
         std::fs::create_dir_all(&root).unwrap();
         let run = root.join(format!(
             "run-{}-{}",
@@ -496,7 +462,7 @@ mod tests {
             count as f64 / seconds,
             run.display()
         );
-        let cache = Cache::load(&project);
+        let cache = load_cache(&project);
         assert!(cache.finished);
         let mut compared = 0;
         for line in std::fs::read_to_string(std::env::var("GUI_SMOKE_REFERENCE").unwrap())
@@ -511,7 +477,7 @@ mod tests {
             let expected: Option<[f64; 4]> =
                 serde_json::from_value(value["bounds"].clone()).unwrap();
             assert_eq!(
-                cache.frames[frame]
+                cache.decisions[frame]
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -532,61 +498,52 @@ mod tests {
     }
     #[test]
     fn cache_keeps_original_indices_and_retries_a_truncated_tail() {
+        use std::io::Write;
         let f = crate::scan_cache::tests::fixture(5);
-        let cache = Cache::load(&f.project);
-        let path = cache.path.clone();
-        let mut file = cache.writer().unwrap();
-        write_entry(
-            &mut file,
-            &Entry::Frame {
-                frame: 3,
-                hit: Some(Surface {
+        let path =
+            crate::scan_cache::auto_cache_file(&f.project, "gui-interactions.jsonl").unwrap();
+        let mut cache = load_cache(&f.project);
+        cache.begin().unwrap();
+        cache
+            .put(
+                3,
+                Some(Surface {
                     bounds: [2., 3., 4., 5.],
                     menu: false,
                 }),
-            },
-        )
-        .unwrap();
-        write_entry(
-            &mut file,
-            &Entry::Frame {
-                frame: 0,
-                hit: None,
-            },
-        )
-        .unwrap();
-        file.write_all(b"{\"type\":\"Frame\"").unwrap();
-        drop(file);
-        let recovered = Cache::load(&f.project);
-        assert_eq!(recovered.frames[0], Some(None));
-        assert!(recovered.frames[1].is_none());
-        assert!(recovered.frames[3].as_ref().unwrap().is_some());
+            )
+            .unwrap();
+        cache.put(0, None).unwrap();
+        cache.close().unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"{\"type\":\"Frame\"")
+            .unwrap();
+        let mut recovered = load_cache(&f.project);
+        assert_eq!(recovered.decisions[0], Some(None));
+        assert!(recovered.decisions[1].is_none());
+        assert!(recovered.decisions[3].as_ref().unwrap().is_some());
         assert!(!recovered.finished);
-        let mut file = recovered.writer().unwrap();
-        write_entry(
-            &mut file,
-            &Entry::Frame {
-                frame: 4,
-                hit: None,
-            },
-        )
-        .unwrap();
-        drop(file);
-        assert_eq!(Cache::load(&f.project).frames[4], Some(None));
+        recovered.begin().unwrap();
+        recovered.put(4, None).unwrap();
+        recovered.close().unwrap();
+        assert_eq!(load_cache(&f.project).decisions[4], Some(None));
         let mut changed = f.project.clone();
         changed.fingerprint = "changed".into();
-        assert!(Cache::load(&changed).frames.iter().all(Option::is_none));
+        assert!(load_cache(&changed).decisions.iter().all(Option::is_none));
         assert!(path.exists());
     }
     #[test]
     fn ranges_break_on_unknown_frames_and_menu_boundaries() {
         let f = crate::scan_cache::tests::fixture(5);
-        let mut cache = Cache::load(&f.project);
+        let mut cache = load_cache(&f.project);
         let panel = Surface {
             bounds: [1., 2., 3., 4.],
             menu: false,
         };
-        cache.frames = vec![
+        cache.decisions = vec![
             Some(Some(panel.clone())),
             None,
             Some(Some(panel.clone())),
@@ -616,7 +573,7 @@ mod tests {
         let jobs = Jobs::default();
         let old = Arc::new(Job {
             project: a.project.clone(),
-            cache: Mutex::new(Cache::load(&a.project)),
+            cache: Mutex::new(load_cache(&a.project)),
             state: Mutex::new(("running".into(), None)),
             cancel: AtomicBool::new(false),
             child: Mutex::new(None),
@@ -649,14 +606,14 @@ mod tests {
     #[test]
     fn a_range_is_sealed_only_when_both_neighbours_are_scanned() {
         let f = crate::scan_cache::tests::fixture(8);
-        let mut cache = Cache::load(&f.project);
+        let mut cache = load_cache(&f.project);
         let hit = |menu| {
             Some(Some(Surface {
                 bounds: [1., 2., 3., 4.],
                 menu,
             }))
         };
-        cache.frames = vec![
+        cache.decisions = vec![
             hit(false), // 0 ┐ range 0..=1 starts at the video start
             hit(false), // 1 ┘
             hit(true),  // 2   menu range, both neighbours scanned
@@ -727,14 +684,14 @@ mod tests {
             assert!(started.elapsed().as_secs() < 600);
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        let cache = Cache::load(&project);
+        let cache = load_cache(&project);
         assert!(cache.finished);
         let reference =
             std::fs::read_to_string(std::env::var("GUI_SMOKE_REFERENCE").unwrap()).unwrap();
         for (n, line) in reference.lines().enumerate() {
             let r: serde_json::Value = serde_json::from_str(line).unwrap();
             assert_eq!(
-                cache.frames[n].as_ref().unwrap().is_some(),
+                cache.decisions[n].as_ref().unwrap().is_some(),
                 r["candidate"].as_bool().unwrap(),
                 "frame {n}"
             );

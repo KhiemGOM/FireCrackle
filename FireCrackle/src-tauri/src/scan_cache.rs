@@ -1,6 +1,6 @@
 //! Append-only per-video scan decisions. Unknown, abstained and accepted are distinct;
 //! workers may finish out of order. A truncated final record is safely retried.
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, OpenOptions},
@@ -10,8 +10,6 @@ use std::{
     time::{Duration, Instant},
 };
 use studio_core::project::Project;
-
-pub type Decisions = Vec<Option<i16>>; // None pending, -1 abstained, 0..31 accepted row.
 
 pub(crate) fn pipeline_version() -> &'static str {
     static VERSION: OnceLock<String> = OnceLock::new();
@@ -61,16 +59,60 @@ pub(crate) fn auto_cache_file(project: &Project, name: &str) -> Result<PathBuf, 
     Ok(dir.join("auto-cache").join(name))
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Record {
-    Header { key: String, total: usize },
-    Frame { frame: u32, row: Option<u8> },
-    Finished { applied: usize },
+/// One frame's result as a scan journal stores it. `Saved` is the `Frame` record's fields beside `frame`, so each
+/// scan keeps its own on-disk shape (`"row"` for first-person/no-fire, `"hit"` for the GUI detector).
+pub trait Decision: Clone + PartialEq {
+    type Saved: Serialize + DeserializeOwned;
+    fn save(&self) -> Self::Saved;
+    /// `None` when the stored value cannot be right (the journal is then not trusted).
+    fn load(saved: Self::Saved) -> Option<Self>;
 }
 
-pub struct Journal {
-    pub decisions: Decisions,
+#[derive(Serialize, Deserialize)]
+pub struct RowSaved {
+    row: Option<u8>,
+}
+
+/// First-person / no-fire: -1 abstained, 0..31 the accepted sprite row.
+impl Decision for i16 {
+    type Saved = RowSaved;
+    fn save(&self) -> RowSaved {
+        RowSaved {
+            row: u8::try_from(*self).ok(),
+        }
+    }
+    fn load(saved: RowSaved) -> Option<i16> {
+        match saved.row {
+            None => Some(-1),
+            Some(r) if r < 32 => Some(i16::from(r)),
+            Some(_) => None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Record<S> {
+    Header {
+        key: String,
+        total: usize,
+    },
+    Frame {
+        frame: u32,
+        #[serde(flatten)]
+        value: S,
+    },
+    Finished {
+        #[serde(default)]
+        applied: usize,
+    },
+}
+
+/// Append-only, resumable per-video scan results: one header, one record per frame (in any order), then `Finished`.
+/// It is locked against a second FireCrackle window, flushed to disk about once a second, and a torn final record
+/// from a crash is cut off in place before anything new is appended.
+pub struct Journal<T: Decision = i16> {
+    pub decisions: Vec<Option<T>>,
     pub finished: bool,
     pub applied: usize,
     path: PathBuf,
@@ -80,26 +122,22 @@ pub struct Journal {
     synced: Instant,
 }
 
-impl Journal {
-    fn location(project: &Project, no_fire: bool) -> Result<(PathBuf, String), String> {
-        let mut hash = Sha256::new();
-        hash.update(pipeline_version());
-        hash.update([u8::from(no_fire)]);
-        hash.update(serde_json::to_vec(project).map_err(|e| e.to_string())?);
-        hash_video_file(&mut hash, &project.video_path);
-        let key = crate::hex(&hash.finalize());
-        let name = if no_fire {
-            "no-fire.jsonl"
-        } else {
-            "first-person.jsonl"
-        };
-        Ok((auto_cache_file(project, name)?, key))
+impl<T: Decision> Journal<T> {
+    /// A journal with nothing recorded yet (nothing is written until [`Journal::begin`]).
+    pub fn empty(path: PathBuf, key: String, total: usize) -> Self {
+        Self {
+            decisions: vec![None; total],
+            finished: false,
+            applied: 0,
+            path,
+            key,
+            valid_bytes: 0,
+            file: None,
+            synced: Instant::now(),
+        }
     }
-    pub fn load(project: &Project, no_fire: bool) -> Option<Self> {
-        let (path, key) = Self::location(project, no_fire).ok()?;
-        Self::read(path, key, project.frames.len())
-    }
-    fn read(path: PathBuf, key: String, total: usize) -> Option<Self> {
+    /// The saved journal at `path` when it belongs to this `key` and length; `None` when missing, stale or damaged.
+    pub fn load_at(path: PathBuf, key: String, total: usize) -> Option<Self> {
         if std::fs::metadata(&path).ok()?.len()
             > (total as u64)
                 .saturating_mul(128)
@@ -115,43 +153,31 @@ impl Journal {
             std::io::BufReader::new(File::open(&path).ok()?)
                 .read_until(b'\n', &mut first)
                 .ok()?;
-            match serde_json::from_slice::<Record>(&first).ok()? {
+            match serde_json::from_slice::<Record<T::Saved>>(&first).ok()? {
                 Record::Header { key: k, total: n } if k == key && n == total => {}
                 _ => return None,
             }
         }
         let bytes = std::fs::read(&path).ok()?;
-        let mut journal = Self {
-            decisions: vec![None; total],
-            finished: false,
-            applied: 0,
-            path,
-            key,
-            valid_bytes: 0,
-            file: None,
-            synced: Instant::now(),
-        };
+        let mut journal = Self::empty(path, key, total);
         let mut header = false;
         for line in bytes.split_inclusive(|b| *b == b'\n') {
             if !line.ends_with(b"\n") {
                 break;
             } // Crash during the final append: discard that record only.
-            let record: Record = serde_json::from_slice(line).ok()?;
+            let record: Record<T::Saved> = serde_json::from_slice(line).ok()?;
             match record {
                 Record::Header { key, total: n }
                     if !header && journal.valid_bytes == 0 && key == journal.key && n == total =>
                 {
                     header = true
                 }
-                Record::Frame { frame, row }
-                    if header
-                        && (frame as usize) < total
-                        && row.is_none_or(|r| r < 32)
-                        && !journal.finished =>
+                Record::Frame { frame, value }
+                    if header && (frame as usize) < total && !journal.finished =>
                 {
-                    let value = row.map_or(-1, i16::from);
+                    let value = T::load(value)?;
                     let slot = &mut journal.decisions[frame as usize];
-                    if slot.is_some_and(|old| old != value) {
+                    if slot.as_ref().is_some_and(|old| *old != value) {
                         return None;
                     }
                     *slot = Some(value);
@@ -168,46 +194,48 @@ impl Journal {
         }
         header.then_some(journal)
     }
-    pub fn open(project: &Project, no_fire: bool) -> Result<Self, String> {
-        let (path, key) = Self::location(project, no_fire)?;
-        let mut journal =
-            Self::read(path.clone(), key.clone(), project.frames.len()).unwrap_or(Self {
-                decisions: vec![None; project.frames.len()],
-                finished: false,
-                applied: 0,
-                path,
-                key,
-                valid_bytes: 0,
-                file: None,
-                synced: Instant::now(),
-            });
-        std::fs::create_dir_all(journal.path.parent().unwrap())
+    /// [`Journal::load_at`] (or an empty journal), opened for writing.
+    pub fn open_at(path: PathBuf, key: String, total: usize) -> Result<Self, String> {
+        let mut journal = Self::load_at(path.clone(), key.clone(), total)
+            .unwrap_or_else(|| Self::empty(path, key, total));
+        journal.begin()?;
+        Ok(journal)
+    }
+    /// Take the file for writing: lock it, cut off anything after the last whole record, write the header if new.
+    pub fn begin(&mut self) -> Result<(), String> {
+        self.open_file()?;
+        if self.finished {
+            self.close()?;
+        }
+        Ok(())
+    }
+    fn open_file(&mut self) -> Result<(), String> {
+        if self.file.is_some() {
+            return Ok(());
+        }
+        std::fs::create_dir_all(self.path.parent().ok_or("Scan cache has no folder")?)
             .map_err(|e| format!("Cannot create scan cache: {e}"))?;
         let mut file = OpenOptions::new()
             .create(true)
             .truncate(false)
             .read(true)
             .write(true)
-            .open(&journal.path)
+            .open(&self.path)
             .map_err(|e| format!("Cannot open scan cache: {e}"))?;
         file.try_lock()
             .map_err(|_| "Another FireCrackle instance is using this scan cache")?;
-        file.set_len(journal.valid_bytes)
-            .map_err(|e| e.to_string())?;
+        file.set_len(self.valid_bytes).map_err(|e| e.to_string())?;
         file.seek(SeekFrom::End(0)).map_err(|e| e.to_string())?;
-        journal.file = Some(file);
-        if journal.valid_bytes == 0 {
-            journal.append(&Record::Header {
-                key: journal.key.clone(),
-                total: journal.decisions.len(),
+        self.file = Some(file);
+        if self.valid_bytes == 0 {
+            self.append(&Record::Header {
+                key: self.key.clone(),
+                total: self.decisions.len(),
             })?;
         }
-        if journal.finished {
-            journal.close()?;
-        }
-        Ok(journal)
+        Ok(())
     }
-    fn append(&mut self, record: &Record) -> Result<(), String> {
+    fn append(&mut self, record: &Record<T::Saved>) -> Result<(), String> {
         let mut bytes = serde_json::to_vec(record).map_err(|e| e.to_string())?;
         bytes.push(b'\n');
         let file = self
@@ -223,7 +251,8 @@ impl Journal {
         }
         Ok(())
     }
-    pub fn record(&mut self, frame: u32, row: Option<u8>) -> Result<bool, String> {
+    /// Record one frame. `false` when it was already known (results never change once saved).
+    pub fn put(&mut self, frame: u32, value: T) -> Result<bool, String> {
         let slot = self
             .decisions
             .get(frame as usize)
@@ -231,34 +260,65 @@ impl Journal {
         if slot.is_some() {
             return Ok(false);
         }
-        if row.is_some_and(|r| r >= 32) {
-            return Err("Invalid scan sprite row".into());
-        }
-        self.append(&Record::Frame { frame, row })?;
-        self.decisions[frame as usize] = Some(row.map_or(-1, i16::from));
+        self.append(&Record::Frame {
+            frame,
+            value: value.save(),
+        })?;
+        self.decisions[frame as usize] = Some(value);
         Ok(true)
     }
     pub fn finish(&mut self, applied: usize) -> Result<(), String> {
         if self.decisions.iter().any(Option::is_none) {
             return Err("Cannot finish an incomplete scan".into());
         }
-        if self.file.is_none() {
-            let mut file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(&self.path)
-                .map_err(|e| e.to_string())?;
-            file.try_lock()
-                .map_err(|_| "Another FireCrackle instance is using this scan cache")?;
-            file.set_len(self.valid_bytes).map_err(|e| e.to_string())?;
-            file.seek(SeekFrom::End(0)).map_err(|e| e.to_string())?;
-            self.file = Some(file);
-        }
+        self.open_file()?;
         self.append(&Record::Finished { applied })?;
         self.close()?;
         self.applied = applied;
         self.finished = true;
         Ok(())
+    }
+    pub fn processed(&self) -> u32 {
+        self.decisions.iter().filter(|r| r.is_some()).count() as u32
+    }
+    /// Flush and release the file (and its lock); the journal can be resumed with [`Journal::begin`].
+    pub fn close(&mut self) -> Result<(), String> {
+        if let Some(file) = self.file.take() {
+            file.sync_data()
+                .map_err(|e| format!("Cannot sync scan progress: {e}"))?;
+        }
+        Ok(())
+    }
+}
+
+impl Journal<i16> {
+    fn location(project: &Project, no_fire: bool) -> Result<(PathBuf, String), String> {
+        let mut hash = Sha256::new();
+        hash.update(pipeline_version());
+        hash.update([u8::from(no_fire)]);
+        hash.update(serde_json::to_vec(project).map_err(|e| e.to_string())?);
+        hash_video_file(&mut hash, &project.video_path);
+        let key = crate::hex(&hash.finalize());
+        let name = if no_fire {
+            "no-fire.jsonl"
+        } else {
+            "first-person.jsonl"
+        };
+        Ok((auto_cache_file(project, name)?, key))
+    }
+    pub fn load(project: &Project, no_fire: bool) -> Option<Self> {
+        let (path, key) = Self::location(project, no_fire).ok()?;
+        Self::load_at(path, key, project.frames.len())
+    }
+    pub fn open(project: &Project, no_fire: bool) -> Result<Self, String> {
+        let (path, key) = Self::location(project, no_fire)?;
+        Self::open_at(path, key, project.frames.len())
+    }
+    pub fn record(&mut self, frame: u32, row: Option<u8>) -> Result<bool, String> {
+        if row.is_some_and(|r| r >= 32) {
+            return Err("Invalid scan sprite row".into());
+        }
+        self.put(frame, row.map_or(-1, i16::from))
     }
     pub fn rows(&self) -> Vec<(u32, u8)> {
         self.decisions
@@ -266,16 +326,6 @@ impl Journal {
             .enumerate()
             .filter_map(|(n, value)| value.filter(|r| *r >= 0).map(|r| (n as u32, r as u8)))
             .collect()
-    }
-    pub fn processed(&self) -> u32 {
-        self.decisions.iter().filter(|r| r.is_some()).count() as u32
-    }
-    pub fn close(&mut self) -> Result<(), String> {
-        if let Some(file) = self.file.take() {
-            file.sync_data()
-                .map_err(|e| format!("Cannot sync scan progress: {e}"))?;
-        }
-        Ok(())
     }
 }
 
@@ -391,7 +441,8 @@ pub(crate) mod tests {
         let path = cache.path.clone();
         drop(cache);
         assert!(
-            Journal::read(path, "old-detector-model-preprocessing-version".into(), 3).is_none()
+            Journal::<i16>::load_at(path, "old-detector-model-preprocessing-version".into(), 3)
+                .is_none()
         );
         let mut changed = f.project.clone();
         changed.fingerprint = "other".into();
