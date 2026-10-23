@@ -11,6 +11,7 @@ import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
 import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
+import {DesktopOnly} from './DesktopOnly';
 
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
   guiThumbnails(backend,videoKey,total);
@@ -111,7 +112,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
       <span className="dim">Click an image to inspect{order==='motion'&&ranking.key===scoreKey&&!ranking.done?` · Ranking ${ranking.processed}/${scorable.length}`:''}</span>
     </div>}
     {(error||status?.error)&&<p role="alert">{error||status?.error}</p>}
-    {!backend.guiScanStart&&<p className="dim">Video scanning is available in the desktop app.</p>}
+    <DesktopOnly what="Video scanning" available={!!backend.guiScanStart}/>
     </div>
     <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
       {sorted.map(range=><button key={guiRangeKey(range)} aria-label={`Compare frames ${Math.max(0,range.first-1)} and ${Math.min(status!.total-1,range.last+1)}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range)}>

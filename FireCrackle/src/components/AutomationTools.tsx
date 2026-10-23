@@ -7,6 +7,7 @@ import { povScanProgress } from "../lib/scanSpeed";
 import { sameVideo, scanStateLabel } from "../lib/scanState";
 import "./AutomationTools.css";
 import { startPolling } from "../lib/poll";
+import { DesktopOnly } from "./DesktopOnly";
 
 export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{backend:Backend;videoPath?:string;onApply:(id:number)=>Promise<void>;onClose:()=>void;onReview?:(frame:number)=>void}) {
   const [status,setStatus]=useState<PovStatus|null>(null);
@@ -56,7 +57,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
         <p>Finds first-person fire sprites. Use the Phase chart to spot unusual timing; check nearby automatic labels first.</p>
         <p className="dim">Best with full, uncropped vanilla Minecraft 1.16.5 footage. Existing labels stay unchanged; uncertain frames are left alone.</p>
         <p>In testing, it detected 98.8% of first-person fire samples, with no false positives or wrong sprite labels.</p>
-        {!supported&&<p>This tool is available in the desktop app.</p>}
+        <DesktopOnly what="This tool" available={supported}/>
         {status&&<div className="automation-progress" role="status">
           <progress aria-label="First-person scan progress" max={Math.max(1,status.total)} value={status.processed}/>
           <span>{scanStateLabel(status.state,status.processed)} · {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames</span>
@@ -96,7 +97,7 @@ export function AutomationTools({backend,videoPath,onApply,onClose,onReview}:{ba
             {noFire.state==="running"&&<ScanProgressStats key={`${noFire.video_path}:${noFire.id}`} progress={povScanProgress(noFire)}/>}
           </div>}
           {(noFireError||noFire?.error)&&<p role="alert">{noFireError??noFire?.error}</p>}
-          {!backend.noFireStart&&<p className="dim">Scanning is available in the desktop app.</p>}
+          <DesktopOnly what="Scanning" available={!!backend.noFireStart}/>
           {noFire?.state==="done"&&frames.length>0&&<div className="automation-actions">
             <select aria-label="Suggested no-fire frame" value={selected} onChange={e=>setSelected(Number(e.target.value))}>{frames.map((frame,i)=><option key={frame} value={i}>Frame {frame.toLocaleString()}</option>)}</select>
             <button disabled={!onReview} onClick={()=>onReview?.(frames[selected])}>Review frame</button>

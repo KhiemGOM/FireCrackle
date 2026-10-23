@@ -5,6 +5,7 @@ import "./OpenLink.css";
 import { startPolling } from "../lib/poll";
 import { downloadReadout, formatMegabytes } from "../lib/proofExport";
 import { ScanSpeedTracker } from "../lib/scanSpeed";
+import { DesktopOnly } from "./DesktopOnly";
 
 export function ToolSetupNotice({backend}:{backend:Backend}) {
   const [status,setStatus]=useState<ToolProgress|null>(null);
@@ -44,7 +45,7 @@ export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend
         <p>Paste a YouTube link or another video site supported by yt-dlp. Choose where to save the video; it opens here when the download finishes.</p>
         <label className="link-field">Video link<input autoFocus type="url" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" disabled={running||pending}/></label>
         <p className="dim">One video per link. Downloads the best available quality. yt-dlp and Deno are downloaded on first use and cached separately from FireCrackle. FFmpeg is also downloaded if needed on Windows; Linux uses system FFmpeg.</p>
-        {backend.mock&&<p>Link downloads are available in the desktop app.</p>}
+        <DesktopOnly what="Link downloads" available={!!backend.linkStart}/>
         {status&&<p role="status" className="link-status">{status.message}{running&&<><br/><small>You can close this panel while the download continues; reopen it to open the finished video.</small></>}</p>}
         {(error||status?.error)&&<p role="alert">{error??status?.error}</p>}
         <div className="link-actions"><button className="on" disabled={!backend.linkStart||!url.trim()||running||pending} onClick={()=>void start()}>{pending?"Preparing…":"Download and open"}</button>
