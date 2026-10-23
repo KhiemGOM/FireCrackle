@@ -11,6 +11,18 @@ fire block or entity fire can be placed and drawn back over the video as exact q
 | [MCV / MinecraftCV](https://github.com/rubyswolf/mcv) (rubyswolf) | Label points (edge detection helps) with world coordinates; solves camera pose and focal length; tick-boundary positions; SVG export. | Described as PnL / PnP from 2D–3D correspondences, OpenCV. | TypeScript/React web + Python/Flask/OpenCV. MIT. Built for the Dream MCC 11 parkour question. README: data API "not yet implemented, project is being left here". |
 | [mc-locate](https://github.com/LAOUUUUU/mc-locate) (LAOUUUUU), camera mode | Screenshot plus 4+ tagged pixel ↔ block-corner pairs (coordinates read from F3). | Solver not stated. | Rust, MIT. Part of a seed/coordinate toolkit. |
 | "Andrew's" perspective reversal | Not found. Searches only turn up unrelated people named Andrew. | | Needs a link or full name. |
+| Texture-rotation base finder ([Laggy, video](https://www.youtube.com/watch?v=gXTN9DD_Cp0)) | You draw the block grid by hand and extrude faces. "Auto analyze" then reads each face's texture rotation variant, and a GPU search finds the absolute coordinates. | Texture rotation (it depends on the block coordinate) + brute force. | The only automatic part is reading the texture variants. It gives **absolute** coordinates and north, which vanishing points cannot. Website and GPU cracker linked from the video. |
+| Pack.png seed reversal ([HN](https://news.ycombinator.com/item?id=24621303)) | One famous image, reconstructed by hand. | Camera fitted by regression; texture rotations and clouds used for position. | A one-off, not a tool. |
+| F3 readers ([MC-Maps](https://github.com/KK-mp4/MC-Maps); mc-locate mode 3/13) | Read the F3 debug text with OCR. | OCR. | Automatic, but only when F3 is on screen. |
+
+**Triple-checked on 2026-10-23:** I read each project's README and controls docs, and MCV's source tree and its demo video
+([MinecraftCV](https://www.youtube.com/watch?v=3rxNn3sZg_4)). Every tool needs a person to put in the geometry.
+- **MCV:** you draw axis lines by hand and type anchor coordinates. Its "optical optimization" snaps a line you drew to
+  the nearest strong edge (whiskers, then a line fit), which makes it look automatic in the demo.
+- **PerspectiveReverser:** you click points and type their coordinates.
+- **mc-locate camera mode:** you tag pixels by hand. Its automatic modes read F3 text only.
+
+None of them finds the lines or the correspondences by itself, and none tracks through a video.
 
 ## PerspectiveReverser, tested
 
@@ -125,7 +137,8 @@ world axes.
 - The eye's position within the block lattice: its fractional part per axis.
 
 It cannot give the absolute block coordinates or which of the four 90° yaw turns is north, unless the F3 screen is
-visible. Neither is needed to draw fire over the video: the camera is solved in a local frame anchored at one visible
+visible. A later option is texture-rotation cracking (the base-finder above): once the lattice is known, reading the
+rotation variant of each grass, sand or stone face gives the absolute position and north. Neither is needed to draw fire over the video: the camera is solved in a local frame anchored at one visible
 block, and the fire is placed in that same frame.
 
 **Pipeline.** Every stage extends `fire_core`. The camera stages extend `fire_core::camera`; there is no second
