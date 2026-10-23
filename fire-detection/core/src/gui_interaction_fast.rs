@@ -8,7 +8,7 @@ use std::sync::{
 mod tooltip;
 
 // Presence settings validated on the downloaded-video sample in
-// docs/GUI_DOWNLOADED_VIDEO_CHECK.md. These are detector tolerances, not game
+// docs/research/GUI_DOWNLOADED_VIDEO_CHECK.md. These are detector tolerances, not game
 // constants or probabilities. Occlusion/support requirements stay independent.
 const CHANNEL_TOLERANCE: u8 = 32;
 const BORDER_MIN: f64 = 0.80;

@@ -210,6 +210,6 @@ Other catalogue sources are excluded from this explicitly requested single-video
 audit, not represented as heldout or full-data results. Two inventory parse errors
 are unrelated performance-lab run logs and are excluded from this GUI audit.
 
-See [the data catalogue](TRAINING_DATA_CATALOGUE.md),
+See [the data catalogue](../TRAINING_DATA_CATALOGUE.md),
 [previous development recording results](GUI_ALL_FRAMES_CHECK.md), and
 [the historical miss audit](GUI_MISSED_FRAME_CATALOGUE.md).

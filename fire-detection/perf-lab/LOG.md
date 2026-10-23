@@ -376,7 +376,7 @@ on the 1440p fire segment, app load present, with every decision vector unchange
 `eval.py pov` on the two short labelled recordings with the lab build (all exact changes,
 pruning off): `later` 338/344 accepted-and-correct, 0/309 false positives, 0 wrong rows;
 `early` 5/5, 0/1,875 FP — identical to the production regression numbers in
-`docs/GUI_PRODUCTION_CHECK.md` (338/344, 5/5). Pruning on: see E19.
+`docs/research/GUI_PRODUCTION_CHECK.md` (338/344, 5/5). Pruning on: see E19.
 
 ### E19. Round 12 (`results/round12`): parity alternative, other segments, pruning accuracy
 

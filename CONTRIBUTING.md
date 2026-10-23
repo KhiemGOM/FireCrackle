@@ -29,6 +29,10 @@ Branch from `main` and open a pull request against it; CI must pass. Keep one co
 
 `npm run release -- -Installer` in `FireCrackle` builds local tester downloads. Publishing a release or changing repository visibility is a separate action requiring the owner's instruction.
 
+## Files for AI coding agents
+
+`AGENTS.md`, `CLAUDE.md` and `.swarmboard.json` are instructions and coordination settings for the AI coding agents that also work in this repository. You can ignore them; the project rules that matter to you are repeated here and in the READMEs.
+
 ## Source and data boundaries
 
 - Keep synthetic/minimal test fixtures small and explain their purpose.

@@ -12,7 +12,7 @@ abstain on an interaction/menu panel: hidden world pixels cannot establish absen
 
 An official-client asset audit compared 30 stable Java releases from 1.16.5
 through 1.21.11. Source client identities and per-panel hashes are retained in
-`GUI_ASSET_COMPATIBILITY.json`, without copying the assets. Thirteen of eighteen ordinary base-panel families retain
+`research/GUI_ASSET_COMPATIBILITY.json`, without copying the assets. Thirteen of eighteen ordinary base-panel families retain
 identical artwork: inventory, generic chest, crafting, furnace, blast furnace,
 smoker, beacon, cartography, dispenser/dropper, hopper, loom, shulker and
 stonecutter. Their shared pixels do not identify a game version or an exact
@@ -51,8 +51,8 @@ The frozen 1.21.11 tooltip-neutral policy detected 9,967/9,970 calibration GUI
 frames and 3,723/3,723 independently recorded GUI frames, with zero observed
 false positives in 15,959 closed frames. Optimized endpoint-bank output matched
 all 34,290 original frame decisions, including excluded screens. These are
-correlated local recordings; see `GUI_CALIBRATION_RESULTS.md` and
-`GUI_INDEPENDENT_TEST.md`. Additional version variants and AI preprocessing
+correlated local recordings; see `research/GUI_CALIBRATION_RESULTS.md` and
+`research/GUI_INDEPENDENT_TEST.md`. Additional version variants and AI preprocessing
 changes require their own parity/regression checks before release claims.
 
 Source audit: Swarmboard notice 13/job 240; reproducible private asset comparison

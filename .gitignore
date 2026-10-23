@@ -65,3 +65,7 @@ FireCrackle/src/lib/veil.wasm
 FireCrackle/src/lib/veil.generated.ts
 FireCrackle/public/portal.png
 fire-detection/data/assets/gui/interaction.bundle
+
+# Raw benchmark runs and exported labels stay local (summaries live in REPORT.md / LOG.md).
+fire-detection/perf-lab/results/
+fire-detection/data/labels/

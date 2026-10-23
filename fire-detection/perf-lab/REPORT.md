@@ -1,5 +1,7 @@
 # Scan performance lab — report
 
+> Raw run files (`results/`) are kept locally and not committed; this report and `LOG.md` hold the measured numbers.
+
 Branch `claude/scan-perf-lab` (worktree `.board/scan-perf-lab/checkout`), 2026-10-21.
 Running log with every experiment and raw numbers: [`LOG.md`](LOG.md); raw JSON in `results/`.
 
@@ -34,7 +36,7 @@ busy), are in `LOG.md`; they are lower in absolute terms but show the same ratio
 
 Ground truth (lab build, every change on): `later` 338/344 accepted-and-correct, 0/309 false
 positives, 0 wrong rows; `early` 5/5, 0/1,875 FP — identical to the production regression
-(`docs/GUI_PRODUCTION_CHECK.md`).
+(`docs/research/GUI_PRODUCTION_CHECK.md`).
 
 The synthetic clips: 31 s of the fire-rich 1440p segment, resized and re-encoded with libx264.
 Pixel counts, decode resolution and GUI geometry are those of real 720p/4K footage, so the

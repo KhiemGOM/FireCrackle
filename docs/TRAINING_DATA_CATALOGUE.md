@@ -11,7 +11,7 @@ Local recordings, annotations, frame images, game assets, tensors and model weig
 Shared GUI production integration (20 October 2026): the frozen 1.21.11
 interaction detector now has one versioned source bank and a common neutral
 mask interface. See `GUI_VERSION_COMPATIBILITY.md`, its source-only
-`GUI_ASSET_COMPATIBILITY.json` hash catalogue, and `GUI_PRODUCTION_CHECK.md`.
+`research/GUI_ASSET_COMPATIBILITY.json` hash catalogue, and `research/GUI_PRODUCTION_CHECK.md`.
 Private `.board/gui-production/version-check/` contains full-frame parity over
 all three GUI recordings (34,290 original frames); `pov-regression/` contains
 the existing six-recording first-person regression (15,964 samples), its
@@ -167,15 +167,15 @@ this new session as test-only for the previously frozen GUI candidate (tooltip
 mask, 80% border / 70% interior, regional checks off); no threshold selection on it.
 Frozen candidate: 3,723/3,723 GUI frames detected, 0/3,001 closed false detections;
 original baseline: 3,646/3,723, also zero false detections. No test tuning.
-See [GUI_INDEPENDENT_TEST.md](GUI_INDEPENDENT_TEST.md) for scope and runtime limits.
+See [research/GUI_INDEPENDENT_TEST.md](research/GUI_INDEPENDENT_TEST.md) for scope and runtime limits.
 
 ## Reusable dataset families and producers
 
 | Family / roots | What it contains | Producer / constraints |
 |---|---|---|
 | `.board/gui-interaction-detector/{assets*,check-*,final-check}` | Local vanilla source-template packs and deterministic GUI functional-check predictions, not learned models or independent truth | `fire-detection/bench/gui_interaction/`; development inputs are the two aligned Oct 20 GUI clips in S8. Assets are not recorded training examples; predictions are not ground truth. Preserve the source/video/preprocessing hashes and whole-session grouping. |
-| `.board/gui-calibration/run-v1` | Approved deterministic threshold/tooltip calibration on all 27,385 frames of the same two S8 recordings; not an independent test or AI training pool | `fire-detection/bench/gui_interaction/calibrate.py` and `calibrate.rs`; manifest stores the approved source coverage, exclusions, hashes and 147-setting index map. Prediction JSONL rows store video/index, renderer ID, copied aligned truth, `plain`/`masked` decision bitstrings, tooltip rectangles, timing and masked-default parity. Decisions and proposed masks are predictions, not GUI/mask ground truth. Renderer repetitions share total weight one for selection; a new recording session remains held out until the winner is frozen. See [GUI_CALIBRATION_RESULTS.md](GUI_CALIBRATION_RESULTS.md). |
-| `.board/gui-independent-test` | Frozen independent GUI-session evaluation; no threshold selection or AI fitting | Native frame predictions contain baseline/candidate booleans and timing, renderer ID and copied aligned truth. Manifest records video/label/source hashes and coverage; alignment rows contain video frame, renderer frame, screen type, stability and optional layout ID. Proposed tooltip count and decisions are predictions, not pixel-mask truth. New session remains test-only; see [GUI_INDEPENDENT_TEST.md](GUI_INDEPENDENT_TEST.md). |
+| `.board/gui-calibration/run-v1` | Approved deterministic threshold/tooltip calibration on all 27,385 frames of the same two S8 recordings; not an independent test or AI training pool | `fire-detection/bench/gui_interaction/calibrate.py` and `calibrate.rs`; manifest stores the approved source coverage, exclusions, hashes and 147-setting index map. Prediction JSONL rows store video/index, renderer ID, copied aligned truth, `plain`/`masked` decision bitstrings, tooltip rectangles, timing and masked-default parity. Decisions and proposed masks are predictions, not GUI/mask ground truth. Renderer repetitions share total weight one for selection; a new recording session remains held out until the winner is frozen. See [research/GUI_CALIBRATION_RESULTS.md](research/GUI_CALIBRATION_RESULTS.md). |
+| `.board/gui-independent-test` | Frozen independent GUI-session evaluation; no threshold selection or AI fitting | Native frame predictions contain baseline/candidate booleans and timing, renderer ID and copied aligned truth. Manifest records video/label/source hashes and coverage; alignment rows contain video frame, renderer frame, screen type, stability and optional layout ID. Proposed tooltip count and decisions are predictions, not pixel-mask truth. New session remains test-only; see [research/GUI_INDEPENDENT_TEST.md](research/GUI_INDEPENDENT_TEST.md). |
 | `.board/fire-ai/{quad1,survival,survival-train,survival-train-dense,baseline-reviewed,survival-curated}` | Real rectified/known-quad cases, dense survival training, reviewed selections and tensors | `FireCrackle/scripts/fire-ai/prepare_real.py`, `prepare_survival_train.py`, `apply_review.py`; preserve review/split manifests. These overlap. |
 | `.board/fire-ai/{backgrounds,backgrounds-reviewed,negative,large-bg,pilot,codec}` | Video-derived backgrounds, negative crops, synthetic/codec variants | `prepare_backgrounds.py`, synthetic render/train scripts, `codec_test.py`; background source recording still defines leakage group. |
 | `.board/row32-real` | New real-only normal-fire pipeline accounts for eight mapped recording identities, including the new mixed-material recording and explicitly ineligible box-only sources | `FireCrackle/scripts/fire-ai/row32/real/`; inspect `inventory.json`, `candidates.json`, `selected.json` and per-source frame caches. An active pipeline can change after this snapshot. |

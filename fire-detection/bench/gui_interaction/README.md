@@ -85,11 +85,11 @@ height, shared player inventory, source preview exclusions) are explicit.
 **All 27,385 frames scanned: 9,458/9,970 interaction-GUI frames detected
 (94.86%), with 0/12,958 closed-GUI false detections.** Excluding creative
 inventory, recall is 6,573/6,613 (99.40%). Creative inventory accounts for 472 of 512
-misses. See [`GUI_ALL_FRAMES_CHECK.md`](../../../docs/GUI_ALL_FRAMES_CHECK.md)
+misses. See [`GUI_ALL_FRAMES_CHECK.md`](../../../docs/research/GUI_ALL_FRAMES_CHECK.md)
 for full scope, per-type errors, contiguous misses and provenance. These are
 same-session development recordings; neighbouring frames are correlated.
 All 512 misses are catalogued by rejection gate in
-[`GUI_MISSED_FRAME_CATALOGUE.md`](../../../docs/GUI_MISSED_FRAME_CATALOGUE.md),
+[`GUI_MISSED_FRAME_CATALOGUE.md`](../../../docs/research/GUI_MISSED_FRAME_CATALOGUE.md),
 with the full private per-frame/run catalogue and reviewed images linked there.
 
 ## Segment-midpoint development check
@@ -100,11 +100,11 @@ controls, source-rounded container origin and whole-panel presence evidence
 recover 18 misses without losing previous detections. Shared-slot evidence
 returns GUI presence without claiming an exact type. The same-session,
 sampled-development limits still apply. See
-[`GUI_DISTRIBUTED_PRESENCE_CHECK.md`](../../../docs/GUI_DISTRIBUTED_PRESENCE_CHECK.md)
+[`GUI_DISTRIBUTED_PRESENCE_CHECK.md`](../../../docs/research/GUI_DISTRIBUTED_PRESENCE_CHECK.md)
 for the latest presence check,
-[`GUI_FINAL_MISS_CHECK.md`](../../../docs/GUI_FINAL_MISS_CHECK.md) for the
+[`GUI_FINAL_MISS_CHECK.md`](../../../docs/research/GUI_FINAL_MISS_CHECK.md) for the
 final cases and source-origin fix, and
-[`GUI_SOFT_GUARD_CHECK.md`](../../../docs/GUI_SOFT_GUARD_CHECK.md) for the earlier
+[`GUI_SOFT_GUARD_CHECK.md`](../../../docs/research/GUI_SOFT_GUARD_CHECK.md) for the earlier
 edge/sign method. Regenerate local source packs to
 include the new hanging-sign control alternatives.
 
