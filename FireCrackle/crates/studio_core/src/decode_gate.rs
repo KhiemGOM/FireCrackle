@@ -16,12 +16,21 @@ const STARVATION: Duration = Duration::from_secs(5);
 /// Decodes at once until the settings say otherwise (`decode.max_parallel`).
 pub const DEFAULT_LIMIT: usize = 2;
 
+const MAX_WAITING: usize = 32; // callers waiting at most; past it a normal waiter is dropped
+
+/// `Urgent` (the paused full-quality frame the user waits for) goes before every `Normal` decode, never dropped for one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Priority {
+    Normal,
+    Urgent,
+}
+
 struct State {
     limit: usize,
     in_flight: usize,
     next_ticket: u64,
     /// The callers waiting for a slot, oldest first.
-    waiting: Vec<(u64, Instant)>,
+    waiting: Vec<(u64, Instant, Priority)>,
 }
 
 pub struct DecodeGate {
@@ -84,13 +93,22 @@ impl DecodeGate {
     /// is decoded first, not after the places they passed. A request that has waited longer than the starvation time
     /// goes first instead, so an old request cannot be put off for ever by a stream of new ones.
     pub fn acquire(&self, cancel: &AtomicBool) -> Option<Permit<'_>> {
+        self.acquire_as(cancel, Priority::Normal)
+    }
+
+    /// `acquire` at `priority`: the most urgent class first, each by the rules above; a full queue drops a normal waiter.
+    pub fn acquire_as(&self, cancel: &AtomicBool, priority: Priority) -> Option<Permit<'_>> {
         let mut state = self.lock();
         let ticket = state.next_ticket;
         state.next_ticket += 1;
-        if state.waiting.len() == 32 {
-            state.waiting.remove(0);
+        if state.waiting.len() >= MAX_WAITING {
+            let normal = state.waiting.iter().position(|w| w.2 == Priority::Normal);
+            match normal.or((priority == Priority::Urgent).then_some(0)) {
+                Some(i) => _ = state.waiting.remove(i),
+                None => return None, // everyone waiting is urgent and this is not
+            }
         }
-        state.waiting.push((ticket, Instant::now()));
+        state.waiting.push((ticket, Instant::now(), priority));
         self.freed.notify_all();
         loop {
             if cancel.load(Ordering::SeqCst) || !state.waiting.iter().any(|w| w.0 == ticket) {
@@ -112,17 +130,16 @@ impl DecodeGate {
         }
     }
 
+    /// Within the most urgent waiting class: the overdue oldest, else the newest.
     fn is_next(state: &State, ticket: u64, starvation: Duration) -> bool {
-        match (state.waiting.first(), state.waiting.last()) {
-            (Some(oldest), Some(newest)) => {
-                if oldest.1.elapsed() > starvation {
-                    oldest.0 == ticket
-                } else {
-                    newest.0 == ticket
-                }
-            }
-            _ => false,
-        }
+        let top = state.waiting.iter().map(|w| w.2).max();
+        let mut class = state.waiting.iter().filter(|w| Some(w.2) == top);
+        let Some(oldest) = class.next() else {
+            return false;
+        };
+        let newest = class.last().unwrap_or(oldest);
+        let overdue = oldest.1.elapsed() > starvation;
+        (if overdue { oldest } else { newest }).0 == ticket
     }
 }
 

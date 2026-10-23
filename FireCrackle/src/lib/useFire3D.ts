@@ -2,10 +2,13 @@
 // whenever the corners change), the one fire and its planes. Pixels are the picture's native ones (the camera is
 // solved in them); the overlay scales them to the displayed picture.
 import { useEffect, useState } from "react";
-import { canvasFrameIo } from "./veilFrame";
 import { failureMessage } from "./appErrors";
-import { initReversal, orientation, reversalReady, type FireQuad } from "./reversal";
-import { emptyTool, fireQuads, newFire, solveTool, usableClicks, type ToolState } from "./fireTool";
+import { initReversal, reversalReady, type FireQuad } from "./reversal";
+import { pictureTask } from "./pictureWorker";
+import { emptyTool, fireQuads, latestOnly, newFire, solveTool, usableClicks, type ToolState } from "./fireTool";
+
+/** The guesses of the one 3D quad tool: only the newest picture's runs when frames are stepped quickly. */
+const guesses = latestOnly();
 
 /** What a click on the picture does: add a block corner, place the fire, or nothing (pan and zoom as usual). */
 export type ClickMode = "none" | "corner" | "fire";
@@ -51,10 +54,12 @@ export function useFire3D(pictureKey: string, load: () => Promise<Blob>, active:
     let cancelled = false;
     setBusy(true); setError("");
     void (async () => {
-      const img = await canvasFrameIo.decode(await (await load()).arrayBuffer());
+      // decoding a native frame and the guess take over a second at 1440p: off the UI thread (lib/pictureWorker.ts)
+      const made = await guesses(async () => cancelled ? null : pictureTask("orientation", { bytes: await (await load()).arrayBuffer() }));
+      if (made === null) return; // a newer picture's guess runs instead
       if (cancelled) return;
-      setSize({ width: img.width, height: img.height });
-      const guess = orientation(img.data, img.width, img.height);
+      const { width, height, guess } = made;
+      setSize({ width, height });
       setRaw(s => shown === pictureKey ? { ...s, guess } : { ...emptyTool(0), fire: s.fire, eyeY: s.eyeY, camera: s.camera, guess });
       setShown(pictureKey);
     })().catch(e => { if (!cancelled) setError(failureMessage(e)); }).finally(() => { if (!cancelled) setBusy(false); });

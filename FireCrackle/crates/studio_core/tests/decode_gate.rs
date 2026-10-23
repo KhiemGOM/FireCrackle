@@ -362,3 +362,105 @@ fn invalid_large_limits_cannot_disable_the_process_cap() {
     gate.set_limit(usize::MAX);
     assert!(gate.limit() <= 8);
 }
+
+// ---- a paused frame's full-quality decode is urgent
+
+use studio_core::decode_gate::Priority;
+
+#[test]
+fn a_full_queue_drops_normal_waiters_never_the_urgent_one() {
+    // pausing asks for the exact frame while playback and thumbnails have filled the queue: the paused picture must
+    // not be the request that is thrown away ("Full-quality frame decode failed: Cancelled")
+    let gate = Arc::new(DecodeGate::new(1));
+    let held = gate.acquire(&never()).unwrap();
+    let g = gate.clone();
+    let urgent = thread::spawn(move || g.acquire_as(&never(), Priority::Urgent).is_some());
+    wait_for_waiters(&gate, 1);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let normal: Vec<_> = (0..40)
+        .map(|_| {
+            let (g, c) = (gate.clone(), cancel.clone());
+            thread::spawn(move || g.acquire(&c).is_none())
+        })
+        .collect();
+    thread::sleep(Duration::from_millis(200));
+    assert!(gate.waiting() <= 32, "the queue stays bounded: {}", gate.waiting());
+    cancel.store(true, Ordering::SeqCst);
+    drop(held);
+    assert!(urgent.join().unwrap(), "the urgent request was dropped");
+    for h in normal {
+        assert!(h.join().unwrap());
+    }
+}
+
+#[test]
+fn an_urgent_request_goes_before_newer_and_overdue_normal_ones() {
+    let gate = Arc::new(DecodeGate::with_starvation(1, Duration::from_millis(100)));
+    let held = gate.acquire(&never()).unwrap();
+    let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let spawn = |id: u32, priority: Priority| {
+        let (g, o) = (gate.clone(), order.clone());
+        thread::spawn(move || {
+            let _slot = g.acquire_as(&never(), priority).unwrap();
+            o.lock().unwrap().push(id);
+            thread::sleep(Duration::from_millis(10));
+        })
+    };
+    let mut handles = vec![spawn(1, Priority::Normal)];
+    wait_for_waiters(&gate, 1);
+    thread::sleep(Duration::from_millis(200)); // the normal one is overdue
+    handles.push(spawn(2, Priority::Urgent));
+    wait_for_waiters(&gate, 2);
+    handles.push(spawn(3, Priority::Normal));
+    wait_for_waiters(&gate, 3);
+    drop(held);
+    for h in handles {
+        h.join().unwrap();
+    }
+    assert_eq!(*order.lock().unwrap(), vec![2, 1, 3], "urgent, then the overdue one, then the rest");
+}
+
+#[test]
+fn the_newest_urgent_request_goes_first_and_urgent_ones_alone_stay_bounded() {
+    let gate = Arc::new(DecodeGate::new(1));
+    let held = gate.acquire(&never()).unwrap();
+    let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut handles = Vec::new();
+    for id in 1..=2 {
+        let (g, o) = (gate.clone(), order.clone());
+        handles.push(thread::spawn(move || {
+            let _slot = g.acquire_as(&never(), Priority::Urgent).unwrap();
+            o.lock().unwrap().push(id);
+            thread::sleep(Duration::from_millis(10));
+        }));
+        wait_for_waiters(&gate, id);
+    }
+    drop(held);
+    for h in handles {
+        h.join().unwrap();
+    }
+    assert_eq!(*order.lock().unwrap(), vec![2, 1]);
+
+    let held = gate.acquire(&never()).unwrap();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let many: Vec<_> = (0..40)
+        .map(|_| {
+            let (g, c) = (gate.clone(), cancel.clone());
+            thread::spawn(move || g.acquire_as(&c, Priority::Urgent).is_none())
+        })
+        .collect();
+    thread::sleep(Duration::from_millis(200));
+    assert!(gate.waiting() <= 32, "unbounded urgent waiters: {}", gate.waiting());
+    cancel.store(true, Ordering::SeqCst);
+    for h in many {
+        assert!(h.join().unwrap());
+    }
+    drop(held);
+    assert_eq!(gate.waiting(), 0);
+}
+
+#[test]
+fn the_exact_png_decode_asks_the_gate_as_urgent() {
+    let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/frames.rs")).unwrap();
+    assert!(text.contains("Priority::Urgent"), "the exact picture must not wait behind playback and thumbnails");
+}

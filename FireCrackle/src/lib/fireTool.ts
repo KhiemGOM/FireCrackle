@@ -3,10 +3,40 @@
 // modes: a fire block, a burning block (the fire cell's planes on its burning neighbours' faces) or fire on an entity.
 // Soul fire is the soul atlas, not a mode. Every camera, pixel and fire corner comes from Rust through lib/reversal.ts.
 import {
-  defaultFace, entityFireQuads, entitySize, fireBlockQuads, project, solveCamera, solveGuided,
+  defaultFace, entityFireQuads, entitySize, fireBlockQuads, initReversal, orientation, project, solveCamera, solveGuided,
   type CameraFit, type CameraPose, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
 import { validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
+import { canvasFrameIo, type FrameIo } from "./veilFrame";
+
+/** The automatic camera guess of a picture at its native size (worker-safe; the hook runs it as the picture
+ * worker's `orientation` task, since a 1440p frame takes over a second). */
+/** Runs one request at a time; one that is passed over while waiting resolves null, so only the newest runs next
+ * (stepping frames quickly must not queue a second-long guess per frame). */
+export function latestOnly() {
+  let busy = false, waiting: { run: () => Promise<unknown>; done: (v: Promise<unknown> | null) => void } | null = null;
+  const start = <T>(run: () => Promise<T>): Promise<T> => {
+    busy = true;
+    const made = run();
+    void made.catch(() => {}).finally(() => {
+      busy = false;
+      const next = waiting;
+      waiting = null;
+      if (next) next.done(start(next.run));
+    });
+    return made;
+  };
+  return <T>(run: () => Promise<T>): Promise<T | null> => {
+    if (!busy) return start(run);
+    waiting?.done(null);
+    return new Promise<T | null>(resolve => { waiting = { run, done: v => resolve(v as Promise<T> | null) }; });
+  };
+}
+
+export async function guessPicture(bytes: ArrayBuffer, io: Pick<FrameIo, "decode"> = canvasFrameIo): Promise<{ width: number; height: number; guess: Orientation | null }> {
+  const [image] = await Promise.all([io.decode(bytes), initReversal()]);
+  return { width: image.width, height: image.height, guess: orientation(image.data, image.width, image.height) };
+}
 
 export type Vec3 = [number, number, number];
 export interface ToolClick { id: number; px: [number, number]; world: Vec3 | null; }

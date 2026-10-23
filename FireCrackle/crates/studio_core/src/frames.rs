@@ -316,9 +316,18 @@ fn decode_selected(
 
     // At most `decode.max_parallel` decodes run at once, however many frames are asked for (crate::decode_gate). A decode
     // that is cancelled while it waits for its turn never starts.
-    let gate = crate::decode_gate::decode_gate();
+    use crate::decode_gate::{decode_gate, Priority};
+    let gate = decode_gate();
     gate.set_limit(cfg.max_parallel as usize);
-    let _slot = gate.acquire(cancel).ok_or(DecodeError::Cancelled)?;
+    // the paused frame at full quality is what the user is looking at: it goes before playback and thumbnails
+    let priority = if picture == Picture::ExactPng {
+        Priority::Urgent
+    } else {
+        Priority::Normal
+    };
+    let _slot = gate
+        .acquire_as(cancel, priority)
+        .ok_or(DecodeError::Cancelled)?;
 
     let mut cmd = crate::proc::ffmpeg_command(&tools.ffmpeg);
     if picture == Picture::ExactPng && job.first != job.last {

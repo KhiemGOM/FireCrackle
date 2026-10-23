@@ -160,3 +160,87 @@ describe("click or drag", () => {
     expect(isClick([100, 100], [100, 96])).toBe(false);
   });
 });
+
+// ---- the automatic guess runs off the UI thread (a 2560x1440 frame took 1.4 s of WASM on pause)
+
+import { orientation } from "./reversal";
+import { guessPicture } from "./fireTool";
+
+/** A small picture with strong straight edges in two directions, so the guess has something to work on. */
+function boxes(w: number, h: number): Uint8ClampedArray {
+  const px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = ((Math.floor((x + y * 0.3) / 24) + Math.floor((y - x * 0.2) / 20)) % 2) ? 220 : 40;
+    px.set([v, v, v, 255], (y * w + x) * 4);
+  }
+  return px;
+}
+
+describe("guessPicture", () => {
+  it("decodes the picture and returns its native size with exactly the guess orientation() gives its pixels", async () => {
+    const data = boxes(320, 180);
+    const io = { decode: toolTest.fn(async () => ({ data, width: 320, height: 180 })) };
+    const bytes = new Uint8Array([1, 2, 3]).buffer;
+    const made = await guessPicture(bytes, io);
+    expect(io.decode).toHaveBeenCalledWith(bytes);
+    expect(made.width).toBe(320);
+    expect(made.height).toBe(180);
+    expect(made.guess).toEqual(orientation(data, 320, 180));
+  });
+  it("a picture that cannot be decoded rejects (the tool shows the error)", async () => {
+    const io = { decode: toolTest.fn(async () => { throw new Error("not a picture"); }) };
+    await expect(guessPicture(new ArrayBuffer(0), io)).rejects.toThrow("not a picture");
+  });
+  it("a flat picture has no guess, but still its size", async () => {
+    const data = new Uint8ClampedArray(64 * 48 * 4).fill(128);
+    const made = await guessPicture(new ArrayBuffer(1), { decode: async () => ({ data, width: 64, height: 48 }) });
+    expect(made).toEqual({ width: 64, height: 48, guess: orientation(data, 64, 48) });
+  });
+});
+
+describe("the 3D quad hook", () => {
+  it("runs the guess as a picture-worker task, never orientation() on the UI thread", async () => {
+    const { readFile } = await toolTest.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+    const hook = await readFile(new URL("./useFire3D.ts", import.meta.url), "utf8");
+    const tasks = await readFile(new URL("./pictureTasks.ts", import.meta.url), "utf8");
+    expect(hook).toMatch(/pictureTask\(\s*["']orientation["']/);
+    expect(hook).not.toMatch(/\borientation\(/);
+    expect(hook).not.toMatch(/canvasFrameIo\.decode/);
+    expect(tasks).toMatch(/case\s*'orientation'.*guessPicture/);
+  });
+});
+
+// ---- stepping frames quickly runs only the newest picture's guess (a held arrow key queued 15 s of stale guesses)
+
+import { latestOnly } from "./fireTool";
+
+describe("latestOnly", () => {
+  it("runs one at a time; requests passed over while waiting are skipped (null) and the newest runs", async () => {
+    const queue = latestOnly();
+    const started: number[] = [];
+    let finishFirst!: () => void;
+    const first = queue(() => { started.push(1); return new Promise<number>(r => { finishFirst = () => r(1); }); });
+    const second = queue(async () => { started.push(2); return 2; });
+    const third = queue(async () => { started.push(3); return 3; });
+    await Promise.resolve();
+    expect(started).toEqual([1]);
+    finishFirst();
+    expect(await first).toBe(1);
+    expect(await second).toBeNull();
+    expect(await third).toBe(3);
+    expect(started).toEqual([1, 3]);
+  });
+  it("an idle queue runs a request at once, and a failure reaches its caller without blocking the next", async () => {
+    const queue = latestOnly();
+    expect(await queue(async () => "a")).toBe("a");
+    await expect(queue(async () => { throw new Error("worker failed"); })).rejects.toThrow("worker failed");
+    expect(await queue(async () => "b")).toBe("b");
+  });
+});
+
+it("the hook's guesses go through one latestOnly queue", async () => {
+  const { readFile } = await toolTest.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+  const hook = await readFile(new URL("./useFire3D.ts", import.meta.url), "utf8");
+  expect(hook).toMatch(/latestOnly\(\)/);
+  expect(hook).toMatch(/if \(made === null\) return/);
+});

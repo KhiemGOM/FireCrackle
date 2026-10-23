@@ -3,6 +3,8 @@
 import {correctPicture,unveilPicture,type CorrectJob,type Mask} from './comparisonPost';
 import type {ProcessedFrame} from './veilFrame';
 import {motionChange} from './guiAimReview';
+import {guessPicture} from './fireTool';
+import type {Orientation} from './reversal';
 import type {VeilOptions} from './veil';
 import type {WorldCoverage} from './portalPreview';
 
@@ -13,12 +15,15 @@ export interface PictureTasks {
   change:{args:{before:string;after:string;screens:(WorldCoverage|undefined)[]};result:number};
   /** A comparison frame's post effects on the native picture (lib/comparisonPost.ts correctPicture). */
   correct:{args:CorrectJob;result:ProcessedFrame&{guiProtected:boolean}};
+  /** The 3D quad tool's automatic camera guess of a native frame (lib/fireTool.ts guessPicture). */
+  orientation:{args:{bytes:ArrayBuffer};result:{width:number;height:number;guess:Orientation|null}};
 }
 export type PictureTask=keyof PictureTasks;
 
 export async function runPictureTask<K extends PictureTask>(task:K,args:PictureTasks[K]['args']):Promise<PictureTasks[K]['result']>{
   switch(task){
     case 'unveil':{const a=args as PictureTasks['unveil']['args'];return await unveilPicture(a) as PictureTasks[K]['result'];}
+    case 'orientation':return await guessPicture((args as PictureTasks['orientation']['args']).bytes) as PictureTasks[K]['result'];
     case 'correct':return await correctPicture(args as CorrectJob) as PictureTasks[K]['result'];
     case 'change':{const a=args as PictureTasks['change']['args'];return await motionChange(a.before,a.after,a.screens) as PictureTasks[K]['result'];}
     default:throw Error(`Unknown picture task ${String(task)}`);
