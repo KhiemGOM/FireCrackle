@@ -68,6 +68,8 @@ pub struct PanelMatch {
     /// Visible probes contributing to each score; zero means unavailable,
     /// not a negative vote. Order: border, structure, fixed controls.
     pub visible_probes: [usize; 3],
+    /// Matched at the recipe-book pose (panel shifted 77 GUI px right): the book is open beside it.
+    pub recipe_book: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -796,6 +798,7 @@ fn detect_impl(
                                     border_score,
                                     structure_score,
                                     presence_only,
+                                    recipe_book: *shift > 0.,
                                     visible_probes: [
                                         border.probes,
                                         structure.probes,
@@ -923,6 +926,44 @@ impl Detection {
             score: hit.score,
             text: None,
         });
+        if hit.recipe_book {
+            // The open book sits 2 GUI px left of the shifted panel, 147 x 166; its category tabs hang off its left
+            // edge (x - 32 for the selected one, 27 px apart from y + 3, up to five). Same screen, same neutrality.
+            let (sx, sy) = (hit.scale_x, hit.scale_y);
+            let book_x = hit.bounds.x - 149. * sx;
+            let mut fill = |x: f64, y: f64, w: f64, h: f64| {
+                let (x0, y0) = (x.floor().max(0.) as usize, y.floor().max(0.) as usize);
+                let x1 = (x + w).ceil().min(mask.width as f64).max(0.) as usize;
+                let y1 = (y + h).ceil().min(mask.height as f64).max(0.) as usize;
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        let p = y * mask.width + x;
+                        if mask.class[p] == 0 {
+                            mask.class[p] = 3;
+                            mask.piece[p] = crate::gui_mask::PieceId::RecipeBookPanel as u8;
+                            count += 1;
+                        }
+                    }
+                }
+            };
+            fill(book_x, hit.bounds.y, 147. * sx, 166. * sy);
+            fill(
+                book_x - 32. * sx,
+                hit.bounds.y + 3. * sy,
+                32. * sx,
+                135. * sy,
+            );
+            mask.hits.push(crate::gui_mask::PieceHit {
+                piece: crate::gui_mask::PieceId::RecipeBookPanel,
+                index: 0,
+                x: (book_x - 32. * sx).floor().max(0.) as i32,
+                y: y0 as i32,
+                w: (179. * sx).round() as u32,
+                h: (166. * sy).round() as u32,
+                score: hit.score,
+                text: None,
+            });
+        }
         mask.notes.push(format!(
             "Known GUI layout ({} source); panel region is neutral, not pixel ownership",
             hit.version

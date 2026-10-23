@@ -108,6 +108,8 @@ struct PreparedTemplate {
 }
 struct Pose {
     bounds: Rect,
+    /// The recipe-book shift this pose was placed at (0 or 77 GUI px).
+    shift: f64,
     sx: f64,
     sy: f64,
     border: Vec<u32>,
@@ -414,6 +416,7 @@ fn poses(t: &PanelTemplate, w: usize, h: usize) -> Vec<Pose> {
                     }
                     let mut pose = Pose {
                         bounds,
+                        shift: *shift,
                         sx,
                         sy,
                         border: Vec::new(),
@@ -645,6 +648,7 @@ fn find(
                 structure_score: structure.value.unwrap_or(0.),
                 presence_only: true,
                 visible_probes: [border.probes, structure.probes, identity.probes],
+                recipe_book: pose.shift > 0.,
             });
         }
         None

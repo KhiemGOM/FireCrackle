@@ -194,6 +194,26 @@ fn jpeg(w: usize, h: usize, hud: bool, name: &str) -> Vec<u8> {
         };
         if name == "screen_inventory" {
             draw((sw - 176) / 2, (sh - 166) / 2, 176, 166, true);
+        } else if name == "screen_recipe" {
+            // inventory shifted right by the open recipe book, the book two GUI px to its left
+            let (x, y) = ((sw - 176) / 2 + 77, (sh - 166) / 2);
+            draw(x, y, 176, 166, true);
+            let recipe = tex.recipe_book.as_ref().expect("recipe_book.rgba");
+            for v in 0..166 {
+                for u in 0..147 {
+                    let p = (v * recipe.width + u) * 4;
+                    let c = &recipe.rgba[p..p + 4];
+                    if c[3] != 255 {
+                        continue;
+                    }
+                    for dy in 0..3 {
+                        for dx in 0..3 {
+                            let p = (((y + v) * 3 + dy) * w + (x - 149 + u) * 3 + dx) * 3;
+                            f[p..p + 3].copy_from_slice(&c[..3]);
+                        }
+                    }
+                }
+            }
         } else if name == "screen_menu" {
             for row in 0..3 {
                 draw(sw / 2 - 102, sh / 4 + 8 + row * 24, 204, 20, false);
@@ -287,6 +307,24 @@ fn known_open_screens_are_reported_separately_from_the_hud() {
             reply.pieces
         );
     }
+    // The open recipe book is a screen too: its pixels are flagged like the inventory's.
+    let (reply, packed) = analyzer
+        .analyze_jpeg(&jpeg(1280, 720, true, "screen_recipe"))
+        .unwrap();
+    assert!(
+        reply
+            .pieces
+            .iter()
+            .any(|p| p.piece == "RecipeBookPanel" && p.count > 0),
+        "{:?}",
+        reply.pieces
+    );
+    // middle of the book: GUI x = (427-176)/2 + 77 - 149 + 70, y = (240-166)/2 + 80, at 3 px per GUI px
+    let (bx, by) = (
+        (((427 - 176) / 2 + 77 - 149 + 70) * 3) as usize,
+        (((240 - 166) / 2 + 80) * 3) as usize,
+    );
+    assert!(is_screen(packed[by * 1280 + bx]));
     let (reply, _) = analyzer
         .analyze_jpeg(&jpeg(1280, 720, true, "hud_only"))
         .unwrap();

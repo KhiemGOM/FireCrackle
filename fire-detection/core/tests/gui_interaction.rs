@@ -611,3 +611,80 @@ fn entirely_or_almost_hidden_gui_is_uncertain_and_bad_mask_dimensions_fail() {
     );
     assert!(detect_with_occlusion(&frame, 400, 240, &[template], opts(), &[0; 3]).is_err());
 }
+
+/// The open recipe book shifts the inventory 77 GUI px right (one of the detector's own poses). The match says so,
+/// and the neutral mask then covers the book beside it (147 px wide, 2 px left of the panel) and its category tabs.
+#[test]
+fn an_inventory_shifted_by_the_recipe_book_masks_the_book_and_its_tabs() {
+    let (_, image) = fixture("inventory");
+    let template = PanelTemplate::from_rgba(
+        "inventory".into(),
+        "fixture".into(),
+        "test".into(),
+        80,
+        80,
+        true,
+        &image,
+    )
+    .unwrap();
+    let (w, h) = (800, 240);
+    let blank = || fire_core::gui_mask::GuiMask {
+        width: w,
+        height: h,
+        piece: vec![0; w * h],
+        class: vec![0; w * h],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    let draw = |left: usize| {
+        let mut frame = vec![31; w * h * 3];
+        for y in 0..160 {
+            for x in 0..160 {
+                let src = ((y / 2) * 80 + x / 2) * 4;
+                let dst = ((40 + y) * w + left + x) * 3;
+                frame[dst..dst + 3].copy_from_slice(&image[src..src + 3]);
+            }
+        }
+        frame
+    };
+    let piece = |mask: &fire_core::gui_mask::GuiMask, x: usize, y: usize| mask.piece[y * w + x];
+    let book = fire_core::gui_mask::PieceId::RecipeBookPanel as u8;
+
+    // shifted: panel at (800-160)/2 + 77*2 = 474; book 474 - 149*2 = 176 .. 470; tabs 176 - 64 = 112 .. 176
+    let shifted = detect(&draw(474), w, h, std::slice::from_ref(&template), opts()).unwrap();
+    let hit = shifted
+        .matched
+        .as_ref()
+        .or(shifted.alternatives.first())
+        .unwrap();
+    assert!(hit.recipe_book);
+    let mut mask = blank();
+    shifted.merge_neutral_panel(&mut mask).unwrap();
+    assert_eq!(piece(&mask, 300, 120), book, "book");
+    assert_eq!(piece(&mask, 140, 60), book, "tabs");
+    assert_eq!(piece(&mask, 100, 60), 0, "nothing left of the tabs");
+    assert_eq!(
+        piece(&mask, 550, 120),
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
+    );
+    assert!(mask
+        .hits
+        .iter()
+        .any(|p| p.piece == fire_core::gui_mask::PieceId::RecipeBookPanel));
+
+    // centred: no book
+    let centred = detect(&draw(320), w, h, &[template], opts()).unwrap();
+    assert!(
+        !centred
+            .matched
+            .as_ref()
+            .or(centred.alternatives.first())
+            .unwrap()
+            .recipe_book
+    );
+    let mut mask = blank();
+    centred.merge_neutral_panel(&mut mask).unwrap();
+    assert!(!mask.piece.contains(&book));
+}

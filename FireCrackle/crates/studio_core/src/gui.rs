@@ -161,10 +161,8 @@ pub struct GuiAnalyzer {
 
 impl GuiAnalyzer {
     pub fn new() -> Result<GuiAnalyzer, String> {
-        let tex = with_interactions(
-            GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
-                .with_extras(None, Some(FONT.to_vec()))?,
-        )?;
+        // the same texture set as every other GUI mask user (recipe book included)
+        let tex = pov_textures()?;
         Ok(GuiAnalyzer {
             detector: GuiDetector::new(tex, GuiOptions::default())?,
         })
