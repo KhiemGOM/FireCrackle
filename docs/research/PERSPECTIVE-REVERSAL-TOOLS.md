@@ -102,3 +102,89 @@ Two kinds of miss can't be fixed from a box:
 - a fire with two or more flammable neighbours draws several side planes; those combinations are not candidates yet.
 
 **Decision:** placing the fire is manual. The locator's top 3 are offered as one-click suggestions.
+
+## Plan: automatic zero-shot reversal from the video alone (2026-10-23)
+
+The owner wants the camera solved automatically on any video, with no labels and no clicks, and manual clicking only
+as the correction when the automatic answer is wrong.
+
+**What exists:** none of the tools above solve automatically. PerspectiveReverser, MCV and mc-locate all need
+pixel ↔ world-coordinate pairs typed in by hand, and so did the well-known community reversals (seed finding from
+screenshots). A search for automatic Minecraft camera solving found nothing. The general technique for this, though, is
+standard for man-made scenes:
+- auto-calibrating a camera by clustering line segments into three orthogonal vanishing points
+  ([Grammatikopoulos 2007](https://pcvg.geo.uniwa.gr/wp-content/uploads/sites/350/2022/12/Grammatikopoulos2007-An-Automatic-Approach-for-Camera-Calibration-from-Vanishing-Points.pdf));
+- tracking those vanishing points through video ([Elloumi 2013](https://www.scitepress.org/Papers/2013/42141/)).
+
+Minecraft suits this method unusually well: every block edge, and every texture-pixel edge, lies along one of the three
+world axes.
+
+**What the video alone can give:**
+- Rotation: pitch, roll, and yaw modulo 90°.
+- FOV.
+- The eye's position within the block lattice: its fractional part per axis.
+
+It cannot give the absolute block coordinates or which of the four 90° yaw turns is north, unless the F3 screen is
+visible. Neither is needed to draw fire over the video: the camera is solved in a local frame anchored at one visible
+block, and the fire is placed in that same frame.
+
+**Pipeline.** Every stage extends `fire_core`. The camera stages extend `fire_core::camera`; there is no second
+solver.
+1. **F3 shortcut.** When the debug screen is visible, read `XYZ`, `Facing` and the yaw/pitch from it. The result is the
+   exact absolute camera. The F3 glyph and layout knowledge already lives in `gui_mask` (its debug-text mask): build the
+   reader on that, not on a new font table.
+2. **Segments.** Find straight edge segments in the world pixels only. Mask out the GUI and HUD with `gui_mask`, unveil
+   with `veil`, and leave out the hand and held-item region. `fire_core` has no line detector yet: add one
+   (`fire_core::lines`) and register it. `FireCrackle/src/lib/post/edges.ts` is a display effect, not a detector.
+3. **Manhattan frame.** Use RANSAC over segment pairs to find the three orthogonal vanishing directions. From them, solve
+   rotation and focal length (that is, FOV). Abstain when fewer than two directions are well supported, for example on
+   sky, water or a flat field. With only one horizontal direction, keep the FOV from neighbouring frames.
+4. **Lattice phase and scale.** With rotation and FOV fixed, fit the eye's fractional position so that the integer
+   lattice planes fall on the segments.
+   - **Problem:** texture-pixel edges lie on a 1/16 lattice, so scale is ambiguous by a factor of 16 (and by other
+     factors).
+   - **Fixes:**
+     - weight block boundaries (colour or texture change across the edge, depth edges) above texture edges inside a
+       face;
+     - use the eye-height prior: standing on the ground puts the eye 1.62 above the floor block's top (1.27 sneaking);
+     - use the known 16×16 texel pitch of a face as a check.
+5. **Refine with the existing solver.** Turn lattice corners and lattice lines into correspondences, then run them
+   through `camera::fit`. To do that, `fit` gets a point-to-line residual next to its point residual, so one solver
+   handles clicks, logged quads and detected lines.
+6. **Video.** Track the pose from frame to frame: rotation through vanishing-point tracking, and the lattice phase
+   (including the integer offset) through continuity.
+   - FOV is quantised: the video's single FOV setting × {1, 1.1, 1.15, 1.265, …}. Snap to it after the first confident
+     frames.
+   - Cuts are already known from hud-cadence and JoltCracker breaks. Reset tracking at each cut.
+7. **Confidence and fallback.** Each frame gets a confidence score: inlier count, reprojection residual, and agreement
+   with the track. Below a threshold, the frame is marked "needs manual". The manual click tool runs the same
+   `camera::solve`, seeded with the automatic answer, so a correction is a few clicks rather than a full solve.
+
+**Measuring accuracy, without the log as input.** The automatic pipeline reads only the video's pixels. The answer
+key is used only for scoring:
+- **Recordings made with the label mod from schema v3.3 on** carry `"cam"`, the exact camera for each frame. None
+  exist yet: a short new recording is needed, covering walking, sprinting, looking around, a cave and open ground.
+- **quad1 and survival1** come before v3.3. Their answer key is the camera that `fit_label_frame` solves from the log,
+  on frames where it reproduces every logged corner to ≤ 0.06 px: 97 % and 94 % of frames are exact.
+
+Per frame, against the answer key:
+- **Rotation:** angle of the relative rotation, after removing the best 90° yaw turn. Also report how often the turn was
+  right when F3 or another cue claimed to know it.
+- **FOV:** error in degrees.
+- **Position:** the eye error after removing the best integer block offset. Also report how often the offset found by
+  tracking equals the best one; this is what fire placement needs.
+- **End use:** put the logged fire quads in the automatic frame with the answer key's integer offset, and measure the
+  pixel RMS against the logged corners. This is the "does the fire drawn over the video line up" number.
+- **Coverage and abstention:** the share of frames answered, and the share of answered frames that are wrong (more than
+  2 px end-use RMS). A wrong answer that claims confidence is the worst outcome; abstaining is acceptable.
+
+All of these go in one evaluation bin, the same shape as `fire_camera` and `fire_locate`, run on every Nth frame of
+each recording. Samples are checked by eye (grid overlay) before any full run.
+
+**Order of work:**
+1. The line detector and the Manhattan rotation + FOV, scored on rotation and FOV first: the cheapest, most certain win.
+2. The lattice phase and scale.
+3. Line residuals in `camera::fit`.
+4. Video tracking and FOV snapping.
+5. The F3 reader.
+6. The WASM binding and the app's automatic overlay, with the manual correction tool.
