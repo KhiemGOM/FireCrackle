@@ -11,7 +11,6 @@ import {readPreferences,writePreferences} from '../lib/preferences';
 import './MiscToolsTab.css';
 import {Viewable,type ViewerImage} from './ImageViewer';
 import {canvasBlob} from '../lib/canvas';
-import {nativeFrame} from '../lib/exactFrame';
 import { failureMessage } from '../lib/appErrors';
 import {BOUNDARY_POST,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from '../lib/comparisonPost';
 import {guiPairFrames} from '../lib/guiAimReview';
@@ -86,11 +85,11 @@ function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null,processed
  const shown=usePost?processed!.url!:image.url,shownBefore=blinking&&applyToBlink&&both?processed!.compareUrl!:comparison.url;
  const diffPictures=both?{before:processed!.compareUrl!,after:processed!.url!}:diffReady?{before:comparison.url!,after:image.url!}:undefined;
  const diffCanvas=useRef<HTMLCanvasElement>(null),showsDiff=inspect&&mode==='diff';
- const at=(f:number)=>`Frame ${f} · ${formatTimecode(f/fps,fps)}`,native=(f:number)=>()=>nativeFrame(backend,f).then(blob=>URL.createObjectURL(blob));
- // the image viewer: this side, after the frame it is compared with; the difference picture on its own
+ const at=(f:number)=>`Frame ${f} · ${formatTimecode(f/fps,fps)}`;
+ // the image viewer shows the pictures as displayed: this side, after the frame it is compared with; the difference on its own
  const viewerImages:ViewerImage[]|null=frame===null||!image.url?null:showsDiff?diffPictures?[{title:`Difference ×${gain}`,detail:`${at(compareFrame??frame)} → ${at(frame)}`,src:()=>diffCanvas.current?canvasBlob(diffCanvas.current).then(blob=>URL.createObjectURL(blob)):Promise.reject(Error('The difference picture is not ready.'))}]:null
-  :[...(inspect&&compareFrame!==null&&comparison.url?[{title:'Before',detail:`${at(compareFrame)}${both&&usePost?' · post effects':''}`,src:both&&usePost?processed!.compareUrl!:native(compareFrame),thumb:comparison.url}]:[]),
-    {title,detail:`${at(frame)}${usePost?' · post effects':''}`,src:usePost?shown!:native(frame),thumb:shown}];
+  :[...(inspect&&compareFrame!==null&&comparison.url?[{title:'Before',detail:`${at(compareFrame)}${both&&usePost?' · post effects':''}`,src:both&&usePost?processed!.compareUrl!:comparison.url}]:[]),
+    {title,detail:`${at(frame)}${usePost?' · post effects':''}`,src:shown!}];
  return <figure className="misc-review-frame">
   <figcaption><strong>{title}</strong>{frame!==null&&<span>Frame {frame} · {formatTimecode(frame/fps,fps)}</span>}</figcaption>
   {pictureBox(viewerImages,<>

@@ -1,4 +1,5 @@
 // The one image viewer: every picture in the app opens here (the Label/Images video viewer is its own tool).
+// It shows the picture source it is given, exactly as displayed: no decoding, correction or other logic of its own.
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useWheel } from "../hooks/useWheel";
@@ -10,8 +11,8 @@ import { panView, wheelFactor, type Box, type ViewXform } from "../lib/zoom";
 import { Icon, IconButton } from "./Icon";
 import "./ImageViewer.css";
 
-/** `src` is a URL, or makes one when the viewer shows it (a canvas or a processed frame); a blob: URL it makes is revoked by the viewer. */
-export interface ViewerImage { src: string | (() => Promise<string>); title: string; detail?: string; /** a small picture already at hand, for the strip */ thumb?: string }
+/** `src` is the displayed picture's URL, or makes one from a displayed canvas; a blob: URL made that way is revoked by the viewer. */
+export interface ViewerImage { src: string | (() => Promise<string>); title: string; detail?: string }
 type Open = (images: ViewerImage[], index?: number) => void;
 
 const ViewerContext = createContext<Open | null>(null);
@@ -258,7 +259,7 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
       </span>
       {multiple && <div className="image-viewer-strip" role="group" aria-label="Pictures">
         {images.map((p, i) => <button key={i} type="button" aria-pressed={i === index} aria-label={`Show ${p.title}`} onClick={() => onIndex(i)}>
-          {(p.thumb ?? (typeof p.src === "string" ? p.src : undefined)) && <img src={p.thumb ?? p.src as string} alt="" draggable={false} />}<span>{p.title}</span>
+          {typeof p.src === "string" && <img src={p.src} alt="" draggable={false} />}<span>{p.title}</span>
         </button>)}
       </div>}
     </footer>

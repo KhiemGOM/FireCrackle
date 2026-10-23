@@ -14,14 +14,12 @@ import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
 import {ViewButton,type ViewerImage} from './ImageViewer';
-import {boundaryPicture} from '../lib/comparisonPost';
 
-/** A gallery frame at full size, unveiled like its card. */
-const fullFrame=(backend:Backend,veil:VeilOptions,frame:number,title:string,fps:number):ViewerImage=>({title,detail:`Frame ${frame} · ${formatTimecode(frame/fps,fps)} · auto unveil`,
-  src:()=>boundaryPicture({backend,frame,veilOptions:veil}).then(blob=>URL.createObjectURL(blob))});
+type Shown={before:string;after?:string};
 
 /** The two pictures of a card, shown as they are and then replaced by their Auto-unveiled versions (open GUI kept, HUD unveiled). */
-function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions}) {
+/** `onShown`: the pictures it displays, whenever they change (the image viewer shows exactly these). */
+function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil,onShown}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions;onShown?:(pictures:Shown)=>void}) {
   guiThumbnails(backend,videoKey,total);
   const cache=previewFrames(backend,512),unveiled=unveiledPreviews(backend,veil);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
@@ -48,6 +46,7 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
       .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
   },[cache,unveiled,first,last,total,visible,pair]);
+  useEffect(()=>{if(pictures)onShown?.(pictures);},[pictures]); // eslint-disable-line react-hooks/exhaustive-deps
   return <span ref={container} className={`misc-gui-thumbnail${large?' misc-gui-aim-picture':''}`} data-display={display} style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
     {pictures?<><img src={pictures.before} alt="Before GUI" draggable={false}/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI" draggable={false}/>}</>:<span className="dim" role={failed?'alert':undefined} aria-label={failed?'Preview unavailable':'Loading preview'}>{failed?'!':''}</span>}
   </span>;
@@ -107,6 +106,11 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
   },[backend,videoKey,mode,order,scoreKey]);
   // Order from every score known so far; unscored (new or growing) ranges wait at the end in video order.
   const sorted=mode==='aim'&&order==='motion'&&ranking.video===videoKey?rankGuiRanges(ranges,ranking.scores):ranges;
+  // what each card displays, for its enlarge button
+  const shown=useRef(new Map<string,Shown>());
+  const shownImages=(pictures:Shown|undefined,frames:{before:number;after:number}):ViewerImage[]=>!pictures?[]:[
+    {src:pictures.before,title:'Before GUI',detail:`Frame ${frames.before} · ${formatTimecode(frames.before/fps,fps)}`},
+    ...(pictures.after?[{src:pictures.after,title:'After GUI',detail:`Frame ${frames.after} · ${formatTimecode(frames.after/fps,fps)}`}]:[])];
   return <section className="misc-gui-tool" aria-label="GUI interactions">
     <div className="misc-panel misc-gui-controls">
     <div className="misc-compare-toolbar">
@@ -137,13 +141,13 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     </div>
     <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
       {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <div key={guiRangeKey(range)} className="misc-gui-card"><button aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
-        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil}/>
+        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil} onShown={pictures=>shown.current.set(guiRangeKey(range),pictures)}/>
         {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>
         <span>Inspect</span>
         </>}
-      </button><ViewButton label={`Enlarge frames ${frames.before} and ${frames.after}`} images={[fullFrame(backend,veil,frames.before,'Before GUI',fps),fullFrame(backend,veil,frames.after,'After GUI',fps)]}/></div>;})}
+      </button><ViewButton label={`Enlarge frames ${frames.before} and ${frames.after}`} images={()=>shownImages(shown.current.get(guiRangeKey(range)),frames)}/></div>;})}
     </div>
     {status?.state==='done'&&!ranges.length&&<p>No supported GUI intervals detected.</p>}
   </section>;

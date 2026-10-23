@@ -111,14 +111,21 @@ it('gallery pictures are auto-unveiled with the Enhance veil settings',()=>{
   expect(thumbs.length).toBeGreaterThan(0);
   for(const thumb of thumbs)expect(thumb.props.veil).toBe(veil);
 });
-it('every aim card has an enlarge button showing its two frames at full size, separate from the card click',()=>{
+it('every aim card has an enlarge button that shows exactly the pictures its card displays, separate from the card click',()=>{
   const root=aim();
   const gallery=find(root,n=>n.props['aria-label']==='Aim jump images')[0];
   const enlarge=find(gallery,n=>typeof n.type==='function'&&n.type.name==='ViewButton');
   expect(enlarge).toHaveLength(2);
-  const images=enlarge[0].props.images;
+  // nothing shown yet: nothing to view
+  expect(enlarge[0].props.images()).toEqual([]);
+  const thumbs=find(gallery,n=>typeof n.props.onShown==='function');
+  thumbs[0].props.onShown({before:'data:shown-before',after:'data:shown-after'});
+  const images=enlarge[0].props.images();
+  expect(images.map((i:any)=>i.src)).toEqual(['data:shown-before','data:shown-after']);
   expect(images.map((i:any)=>i.title)).toEqual(['Before GUI','After GUI']);
   expect(images.map((i:any)=>i.detail)).toEqual([expect.stringContaining('Frame 19 '),expect.stringContaining('Frame 40 ')]); // around: the frames either side of the GUI
-  expect(typeof images[0].src).toBe('function');
+  // only the before picture is shown while the after one loads
+  thumbs[1].props.onShown({before:'data:only-before'});
+  expect(enlarge[1].props.images().map((i:any)=>i.src)).toEqual(['data:only-before']);
   expect(onCompare).not.toHaveBeenCalled();
 });

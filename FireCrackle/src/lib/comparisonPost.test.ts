@@ -1,7 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import * as frameProcessing from './veilFrame';
 import {DEFAULT_POST,STARTING_POST,type PostSettings} from './post/settings';
-import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,comparesProcessed,comparisonPictures,comparisonSettings,maskScreens,type ComparePost} from './comparisonPost';
+import {BOUNDARY_POST,NO_COMPARE_POST,comparesProcessed,comparisonPictures,comparisonSettings,maskScreens,type ComparePost} from './comparisonPost';
 import type {Backend} from './api';
 import type {GuiMaskReply} from './guiMask';
 
@@ -64,27 +64,6 @@ describe('making the compared pictures',()=>{
   expect(call[7]).toEqual({width:2,height:1});
   expect(call[8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
   expect(portal.mock.calls[0][2]).toEqual(new Uint8Array([0,0]));
- });
- it('one full frame as the gallery shows it: auto unveil, or the plain frame when that fails',async()=>{
-  const made=new Blob(['unveiled'],{type:'image/png'});
-  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async()=>({blob:made,applied:true}));
-  const b=backend(),veilOptions={minShare:.5,margin:.2,slack:2};
-  expect(await boundaryPicture({backend:b,frame:5,veilOptions,io:fakeIo()})).toBe(made);
-  expect(process.mock.calls[0][2]).toBe('auto');
-  process.mockImplementation(async()=>{throw Error('wasm gone');});
-  const plain=await boundaryPicture({backend:b,frame:5,veilOptions,io:fakeIo()});
-  expect(plain).not.toBe(made);expect(plain.type).toBe('image/jpeg');expect(plain.size).toBe(4);
- });
- it('the full frame is the native (exact) picture, unveiled with the GUI mask fitted to it',async()=>{
-  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:false}));
-  const exactFrame=vi.fn(async()=>new Uint8Array([0x89,0x50,0x4e,0x47,1,2]).buffer);
-  const b={...backend(),exactFrame} as unknown as Backend,io={...fakeIo(),decode:vi.fn(async()=>({data:new Uint8ClampedArray(32),width:4,height:2}))};
-  const plain=await boundaryPicture({backend:b,frame:5,veilOptions:{minShare:.5,margin:.2,slack:2},io});
-  expect(exactFrame).toHaveBeenCalledWith(5);
-  expect(b.frame).not.toHaveBeenCalled();
-  expect([plain.type,plain.size]).toEqual(['image/png',6]);
-  // the 2x1 GUI mask is fitted to the 4x2 native picture (same aspect)
-  expect(process.mock.calls[0][8]).toMatchObject({width:4,height:2});
  });
  it('skips the GUI mask fetch when nothing needs it',async()=>{
   vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:false,enhanced:true}));

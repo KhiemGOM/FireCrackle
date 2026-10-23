@@ -133,5 +133,7 @@ it('a compared picture opens the image viewer with Before and After, starting on
  const images=typeof viewable.props.images==='function'?viewable.props.images():viewable.props.images;
  expect(images.map((i:any)=>i.title)).toEqual(['Before','After']);
  expect(images[viewable.props.index].detail).toContain(`Frame ${side.props.frame}`);
+ // the viewer shows the displayed pictures themselves
+ expect(images.map((i:any)=>i.src)).toEqual(['blob:review','blob:review']);
  cleanups.forEach(cleanup=>cleanup?.());
 });

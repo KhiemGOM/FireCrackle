@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EXACT_DELAY_MS, exactFrameUrl, nativeFrame, showsExactFrame } from "./exactFrame";
+import { EXACT_DELAY_MS, exactFrameUrl, showsExactFrame } from "./exactFrame";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).buffer;
 let made: Blob[] = [];
@@ -84,17 +84,4 @@ describe("the size of a full-quality frame", () => {
   it("is unknown for anything else", () => {
     expect(pngSize(new Uint8Array([1, 2, 3]).buffer)).toBeNull();
   });
-});
-
-it('the native frame is the exact PNG, or the display JPEG when exact frames are unavailable or fail', async () => {
-  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer, jpeg = new Uint8Array([0xff, 0xd8]).buffer;
-  const frame = vi.fn(async () => jpeg);
-  const exact = await nativeFrame({ frame, exactFrame: vi.fn(async () => png) }, 7);
-  expect([exact.type, exact.size]).toEqual(["image/png", 4]);
-  expect(frame).not.toHaveBeenCalled();
-  const display = await nativeFrame({ frame }, 7);
-  expect([display.type, display.size]).toEqual(["image/jpeg", 2]);
-  const failed = await nativeFrame({ frame, exactFrame: vi.fn(async () => { throw Error("decode failed"); }) }, 7);
-  expect(failed.type).toBe("image/jpeg");
-  await expect(nativeFrame({ frame: vi.fn(async () => { throw Error("no video"); }) }, 7)).rejects.toThrow("no video");
 });
