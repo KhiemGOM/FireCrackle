@@ -135,5 +135,7 @@ it('a compared picture opens the image viewer with Before and After, starting on
  expect(images[viewable.props.index].detail).toContain(`Frame ${side.props.frame}`);
  // the viewer shows the displayed pictures themselves
  expect(images.map((i:any)=>i.src)).toEqual(['blob:review','blob:review']);
+ // plain frames also open at native resolution
+ expect(images.map((i:any)=>typeof i.native)).toEqual(['function','function']);
  cleanups.forEach(cleanup=>cleanup?.());
 });

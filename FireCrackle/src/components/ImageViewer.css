@@ -93,6 +93,8 @@
   font-variant-numeric: tabular-nums;
   color: var(--dim);
 }
+.image-viewer-chip.loading { color: var(--amber); animation: image-viewer-pulse 1.2s ease-in-out infinite; }
+@keyframes image-viewer-pulse { 50% { opacity: 0.5; } }
 
 .image-viewer-tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .image-viewer-group {

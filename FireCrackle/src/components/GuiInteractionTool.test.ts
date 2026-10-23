@@ -119,13 +119,15 @@ it('every aim card has an enlarge button that shows exactly the pictures its car
   // nothing shown yet: nothing to view
   expect(enlarge[0].props.images()).toEqual([]);
   const thumbs=find(gallery,n=>typeof n.props.onShown==='function');
-  thumbs[0].props.onShown({before:'data:shown-before',after:'data:shown-after'});
+  thumbs[0].props.onShown({before:'data:shown-before',after:'data:shown-after',unveiled:true});
   const images=enlarge[0].props.images();
   expect(images.map((i:any)=>i.src)).toEqual(['data:shown-before','data:shown-after']);
   expect(images.map((i:any)=>i.title)).toEqual(['Before GUI','After GUI']);
+  // and the same pictures at native resolution
+  expect(images.map((i:any)=>typeof i.native)).toEqual(['function','function']);
   expect(images.map((i:any)=>i.detail)).toEqual([expect.stringContaining('Frame 19 '),expect.stringContaining('Frame 40 ')]); // around: the frames either side of the GUI
   // only the before picture is shown while the after one loads
-  thumbs[1].props.onShown({before:'data:only-before'});
+  thumbs[1].props.onShown({before:'data:only-before',unveiled:false});
   expect(enlarge[1].props.images().map((i:any)=>i.src)).toEqual(['data:only-before']);
   expect(onCompare).not.toHaveBeenCalled();
 });

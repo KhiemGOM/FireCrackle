@@ -14,8 +14,11 @@ import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
 import {ViewButton,type ViewerImage} from './ImageViewer';
+import {boundaryPicture} from '../lib/comparisonPost';
+import {nativeFrame} from '../lib/exactFrame';
 
-type Shown={before:string;after?:string};
+/** What a card displays; `unveiled` when its pictures are the auto-unveiled previews. */
+type Shown={before:string;after?:string;unveiled?:boolean};
 
 /** The two pictures of a card, shown as they are and then replaced by their Auto-unveiled versions (open GUI kept, HUD unveiled). */
 /** `onShown`: the pictures it displays, whenever they change (the image viewer shows exactly these). */
@@ -23,7 +26,7 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
   guiThumbnails(backend,videoKey,total);
   const cache=previewFrames(backend,512),unveiled=unveiledPreviews(backend,veil);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
-  const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
+  const [pictures,setPictures]=useState<Shown|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
     const element=container.current;if(!element)return;
     const observer=new IntersectionObserver(entries=>setVisible(entries.some(entry=>entry.isIntersecting)),{root:element.closest('.misc-gui-ranges'),rootMargin:'80px'});
@@ -41,7 +44,7 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
         if(cancelled)return;
         setPictures({before,after});
         // a failed unveil keeps the plain pictures
-        void Promise.all([unveiled.get(frames.before,wanted),unveiled.get(frames.after,wanted)]).then(([before,after])=>{if(!cancelled)setPictures({before,after});}).catch(()=>{});
+        void Promise.all([unveiled.get(frames.before,wanted),unveiled.get(frames.after,wanted)]).then(([before,after])=>{if(!cancelled)setPictures({before,after,unveiled:true});}).catch(()=>{});
       })
       .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
@@ -108,9 +111,11 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
   const sorted=mode==='aim'&&order==='motion'&&ranking.video===videoKey?rankGuiRanges(ranges,ranking.scores):ranges;
   // what each card displays, for its enlarge button
   const shown=useRef(new Map<string,Shown>());
+  // the card's pictures, and the same pictures at native resolution (unveiled like the card, or plain)
+  const native=(frame:number,unveiled?:boolean)=>()=>(unveiled?boundaryPicture({backend,frame,veilOptions:veil}):nativeFrame(backend,frame)).then(blob=>URL.createObjectURL(blob));
   const shownImages=(pictures:Shown|undefined,frames:{before:number;after:number}):ViewerImage[]=>!pictures?[]:[
-    {src:pictures.before,title:'Before GUI',detail:`Frame ${frames.before} · ${formatTimecode(frames.before/fps,fps)}`},
-    ...(pictures.after?[{src:pictures.after,title:'After GUI',detail:`Frame ${frames.after} · ${formatTimecode(frames.after/fps,fps)}`}]:[])];
+    {src:pictures.before,native:native(frames.before,pictures.unveiled),title:'Before GUI',detail:`Frame ${frames.before} · ${formatTimecode(frames.before/fps,fps)}`},
+    ...(pictures.after?[{src:pictures.after,native:native(frames.after,pictures.unveiled),title:'After GUI',detail:`Frame ${frames.after} · ${formatTimecode(frames.after/fps,fps)}`}]:[])];
   return <section className="misc-gui-tool" aria-label="GUI interactions">
     <div className="misc-panel misc-gui-controls">
     <div className="misc-compare-toolbar">

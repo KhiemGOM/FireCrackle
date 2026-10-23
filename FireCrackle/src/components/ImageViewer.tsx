@@ -1,5 +1,6 @@
 // The one image viewer: every picture in the app opens here (the Label/Images video viewer is its own tool).
-// It shows the picture source it is given, exactly as displayed: no decoding, correction or other logic of its own.
+// It shows the picture source it is given, exactly as displayed; its only logic is swapping in the same picture at
+// native resolution when the displayed one is a reduced copy (`native`).
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useWheel } from "../hooks/useWheel";
@@ -12,7 +13,11 @@ import { Icon, IconButton } from "./Icon";
 import "./ImageViewer.css";
 
 /** `src` is the displayed picture's URL, or makes one from a displayed canvas; a blob: URL made that way is revoked by the viewer. */
-export interface ViewerImage { src: string | (() => Promise<string>); title: string; detail?: string }
+export interface ViewerImage {
+  src: string | (() => Promise<string>); title: string; detail?: string;
+  /** The same picture at native resolution, when `src` is a reduced copy (a thumbnail, the scaled display frame). */
+  native?: () => Promise<string>;
+}
 type Open = (images: ViewerImage[], index?: number) => void;
 
 const ViewerContext = createContext<Open | null>(null);
@@ -58,6 +63,7 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
   const [fit, setFit] = useState(1);
   const [hover, setHover] = useState<{ x: number; y: number; rgb?: number[] } | null>(null);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [full, setFull] = useState<{ src: string | null; state: "none" | "loading" | "ready" | "failed" }>(() => ({ src: null, state: image.native ? "loading" : "none" }));
   const stage = useRef<HTMLDivElement | null>(null), dialog = useRef<HTMLDivElement | null>(null), img = useRef<HTMLImageElement | null>(null);
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
   const fitted = useRef(true), sampler = useRef<CanvasRenderingContext2D | null | false>(null);
@@ -78,6 +84,16 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
       setPicture({ src: null, error: null });
       image.src().then(src => { made = src; if (cancelled) release(); else setPicture({ src, error: null }); }, e => { if (!cancelled) setPicture({ src: null, error: failureMessage(e) }); });
     }
+    return () => { cancelled = true; release(); };
+  }, [image]);
+
+  // the same picture at native resolution, swapped in when it is ready; the displayed one stays when it fails
+  useEffect(() => {
+    let cancelled = false, made: string | null = null;
+    const release = () => { if (made?.startsWith("blob:")) URL.revokeObjectURL(made); made = null; };
+    if (!image.native) { setFull({ src: null, state: "none" }); return; }
+    setFull({ src: null, state: "loading" });
+    image.native().then(src => { made = src; if (cancelled) release(); else setFull({ src, state: "ready" }); }, () => { if (!cancelled) setFull({ src: null, state: "failed" }); });
     return () => { cancelled = true; release(); };
   }, [image]);
 
@@ -108,8 +124,8 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
 
   async function pictureBlob(): Promise<Blob> {
     const el = img.current;
-    if (!picture.src || !el || !size) throw Error("The picture is not loaded yet.");
-    const fetched = await fetch(picture.src).then(r => r.blob()).catch(() => null);
+    if (!shownSrc || !el || !size) throw Error("The picture is not loaded yet.");
+    const fetched = await fetch(shownSrc).then(r => r.blob()).catch(() => null);
     if (fetched?.type === "image/png") return fetched;
     const canvas = document.createElement("canvas");
     canvas.width = size.w; canvas.height = size.h;
@@ -123,7 +139,8 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
     } catch (e) { setNote({ text: `Could not ${kind} the picture: ${failureMessage(e)}`, error: true }); }
   }
 
-  const loaded = !!size && !!picture.src && !picture.error;
+  const shownSrc = full.src ?? picture.src;
+  const loaded = !!size && !!shownSrc && !picture.error;
   function act(action: ViewerAction) {
     switch (action) {
       case "close": onClose(); break;
@@ -216,7 +233,9 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
       <div className="image-viewer-title">
         <strong>{image.title}</strong>
         {image.detail && <span className="dim">{image.detail}</span>}
-        {size && <span className="image-viewer-chip" title="Native resolution">{size.w} × {size.h}</span>}
+        {size && <span className="image-viewer-chip" title={full.state === "ready" || full.state === "none" ? "Resolution" : "Displayed size"}>{size.w} × {size.h}</span>}
+        {full.state === "loading" && <span className="image-viewer-chip loading">Loading full resolution…</span>}
+        {full.state === "failed" && <span className="image-viewer-chip" title="The native-resolution picture could not be loaded">displayed size · native unavailable</span>}
         {multiple && <span className="image-viewer-chip">{index + 1} / {images.length}</span>}
       </div>
       <div className="image-viewer-tools" role="toolbar" aria-label="Image viewer tools">
@@ -238,13 +257,13 @@ export function ImageViewerDialog({ images, index, onIndex, onClose }: { images:
     </header>
     <div ref={stage} className={`image-viewer-stage${drag.current ? " dragging" : ""}`} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => setHover(null)} onDoubleClick={doubleClick}>
       {picture.error ? <div className="image-viewer-message" role="alert">Could not load the picture: {picture.error}</div>
-        : !picture.src ? <div className="image-viewer-message" role="status">Preparing picture…</div>
-          : <img ref={img} key={picture.src} src={picture.src} alt={image.title} draggable={false}
+        : !shownSrc ? <div className="image-viewer-message" role="status">Preparing picture…</div>
+          : <img ref={img} key={shownSrc} src={shownSrc} alt={image.title} draggable={false}
             className={pixelated ? "pixelated" : undefined}
             style={view && size ? { width: size.w, height: size.h, transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` } : { visibility: "hidden" }}
-            onLoad={e => { const s = { w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight }; if (!(s.w > 0 && s.h > 0)) { setPicture(p => ({ ...p, error: "the picture is empty" })); return; } setSize(s); toFit(s); }}
+            onLoad={e => { const s = { w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight }; if (!(s.w > 0 && s.h > 0)) { setPicture(p => ({ ...p, error: "the picture is empty" })); return; } if (size && view && !fitted.current && size.w > 0) { const ratio = size.w / s.w; setFit(fitScale(s, pane())); setView({ ...view, scale: view.scale * ratio }); setSize(s); sampler.current = null; return; } setSize(s); sampler.current = null; toFit(s); }}
             onError={() => setPicture(p => ({ ...p, error: "the file is missing or not a picture" }))} />}
-      {!size && picture.src && !picture.error && <div className="image-viewer-message" role="status">Loading…</div>}
+      {!size && shownSrc && !picture.error && <div className="image-viewer-message" role="status">Loading…</div>}
       {multiple && <>
         <IconButton icon="left" label="Previous image" title="Previous (←)" className="image-viewer-nav previous" disabled={index === 0} onClick={() => act("previous")} />
         <IconButton icon="right" label="Next image" title="Next (→)" className="image-viewer-nav next" disabled={index === images.length - 1} onClick={() => act("next")} />

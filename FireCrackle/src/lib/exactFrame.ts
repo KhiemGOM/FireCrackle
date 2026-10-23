@@ -1,6 +1,7 @@
 // The paused picture at the video's own resolution as a lossless PNG, replacing the scaled display JPEG.
 // Playback keeps the JPEG frame buffer; the exact frame is asked for only after the playhead rests a moment.
 
+import type { Backend } from "./api";
 /** Wait before decoding, so stepping through frames does not queue a full-quality decode per step. */
 export const EXACT_DELAY_MS = 200;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -46,4 +47,12 @@ export function pngSize(bytes: ArrayBuffer): { width: number; height: number } |
   const head = new Uint8Array(bytes, 0, 8), view = new DataView(bytes);
   if (PNG_SIGNATURE.some((b, i) => head[i] !== b)) return null;
   return { width: view.getUint32(16), height: view.getUint32(20) };
+}
+
+/** A frame at the video's own resolution (the exact PNG), or the scaled display JPEG when exact frames are unavailable. */
+export async function nativeFrame(backend: Pick<Backend, "frame" | "exactFrame">, frame: number): Promise<Blob> {
+  if (backend.exactFrame) {
+    try { return new Blob([await backend.exactFrame(frame)], { type: "image/png" }); } catch { /* the display frame below */ }
+  }
+  return new Blob([await backend.frame(frame)], { type: "image/jpeg" });
 }

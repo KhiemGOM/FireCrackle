@@ -61,3 +61,30 @@ it('a picture made on demand (a canvas) is shown once it is ready, and a failure
   root=render();
   expect(find(root,n=>n.props.role==='alert').map(text).join('')).toContain('canvas gone');
 });
+const flush=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setTimeout(r,0));};
+const runEffects=()=>hooks.effects.forEach(f=>{try{f();}catch{/* DOM-only effects */}});
+it('shows the displayed picture at once, then the same picture at native resolution when it is ready',async()=>{
+  images=[{src:'blob:shown',title:'After',native:()=>Promise.resolve('blob:native')}];
+  let root=render();
+  expect(find(root,n=>n.type==='img')[0].props.src).toBe('blob:shown');
+  load(root,1280,720);root=render();
+  expect(text(root)).toContain('full resolution');
+  runEffects();await flush();root=render();
+  expect(find(root,n=>n.type==='img')[0].props.src).toBe('blob:native');
+  load(root,2560,1440);root=render();
+  expect(text(root)).toContain('2560 × 1440');
+  expect(text(root)).not.toContain('full resolution');
+});
+it('keeps the displayed picture when its native resolution cannot be loaded, and says so',async()=>{
+  images=[{src:'blob:shown',title:'After',native:()=>Promise.reject(Error('decode failed'))}];
+  let root=render();runEffects();await flush();root=render();
+  expect(find(root,n=>n.type==='img')[0].props.src).toBe('blob:shown');
+  load(root,1280,720);root=render();
+  expect(text(root)).toContain('1280 × 720');
+  expect(text(root)).toContain('displayed size');
+});
+it('a picture without a native source is shown as it is',()=>{
+  let root=render();load(root,512,288);root=render();
+  expect(find(root,n=>n.type==='img')[0].props.src).toBe('blob:after');
+  expect(text(root)).not.toContain('full resolution');
+});
