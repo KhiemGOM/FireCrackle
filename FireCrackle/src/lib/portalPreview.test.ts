@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {guiWorldCoverage,portalPreview} from './portalPreview';
+import {guiScreenCoverage,guiWorldCoverage,portalPreview} from './portalPreview';
 const reply={width:2,height:1,reliable:false,mask_available:true},pixels=new Uint8ClampedArray([255,215,0,110,0,0,0,0]);
 afterEach(()=>vi.unstubAllGlobals());
 it('uses the new neutral interaction mask without a fitted HUD',()=>{expect(guiWorldCoverage({maskFrame:5,pixels,reply},5)).toEqual({width:2,height:1,world:new Uint8Array([0,1])});});
@@ -9,6 +9,13 @@ it('rejects stale, unavailable and malformed masks',()=>{
  expect(guiWorldCoverage({maskFrame:5,pixels:new Uint8ClampedArray(3),reply},5)).toBeUndefined();
  expect(guiWorldCoverage({maskFrame:5,pixels,reply:{...reply,width:NaN}},5)).toBeUndefined();
  expect(guiWorldCoverage({maskFrame:5,pixels,reply:null},5)).toBeUndefined();
+});
+it('unveil protects only the open screen, never the hotbar or HUD',()=>{
+ const screen=new Uint8Array([1,0]);
+ expect(guiScreenCoverage({maskFrame:5,screen,reply},5)).toEqual({width:2,height:1,world:screen});
+ expect(guiScreenCoverage({maskFrame:4,screen,reply},5)).toBeUndefined();
+ expect(guiScreenCoverage({maskFrame:5,screen:null,reply},5)).toBeUndefined();
+ expect(guiScreenCoverage({maskFrame:5,screen:new Uint8Array(3),reply},5)).toBeUndefined();
 });
 it('supports legacy reliable masks with no availability field',()=>{expect(guiWorldCoverage({maskFrame:5,pixels,reply:{width:2,height:1,reliable:true}},5)?.world).toEqual(new Uint8Array([0,1]));});
 it.each([false,true])('protects GUI only in automatic portal mode (manual: %s)',async manual=>{

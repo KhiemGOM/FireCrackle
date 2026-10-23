@@ -41,9 +41,20 @@ export function veilScreenEvidence(reply: GuiMaskReply | null): { width: number;
   return screen ? { width: reply.width, height: reply.height } : undefined;
 }
 
-/** Piece id (low nibble) and pixel class (high nibble: 0 none, 1 opaque, 2 translucent, 3 unknown). */
-export function unpack(b: number): { piece: number; cls: number } {
-  return { piece: b & 0x0f, cls: b >> 4 };
+/** Set on pixels of an open screen (inventory, menu buttons, recipe book): studio_core::gui::SCREEN_FLAG. */
+const SCREEN_FLAG = 0x40;
+const classOf = (b: number) => (b >> 4) & 0x03;
+
+/** Piece id (low nibble), pixel class (bits 4-5: 0 none, 1 opaque, 2 translucent, 3 unknown), open-screen flag. */
+export function unpack(b: number): { piece: number; cls: number; screen?: true } {
+  return b & SCREEN_FLAG ? { piece: b & 0x0f, cls: classOf(b), screen: true } : { piece: b & 0x0f, cls: classOf(b) };
+}
+
+/** What unveil may change: 0 on an open screen, 1 everywhere else (the hotbar and HUD are drawn over the veil too). */
+export function screenWorld(packed: Uint8Array): Uint8Array {
+  const world = new Uint8Array(packed.length);
+  for (let i = 0; i < packed.length; i++) world[i] = packed[i] & SCREEN_FLAG ? 0 : 1;
+  return world;
 }
 
 const TINT: Record<number, [number, number, number, number]> = {
@@ -59,7 +70,7 @@ export function overlayRgba(packed: Uint8Array, width: number, height: number): 
   }
   const out = new Uint8ClampedArray(width * height * 4);
   for (let i = 0; i < packed.length; i++) {
-    const t = TINT[packed[i] >> 4];
+    const t = TINT[classOf(packed[i])];
     if (!t) continue;
     out.set(t, i * 4);
   }

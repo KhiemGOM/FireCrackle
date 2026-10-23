@@ -13,6 +13,12 @@ export const guiRangeKey=(range:GuiRange)=>`${range.first}-${range.last}`;
 export function guiReviewFrames(range:GuiRange,total:number){
   return {before:Math.max(0,range.first-1),after:Math.min(total-1,range.last+1)};
 }
+export type GuiPair='around'|'open'|'close';
+/** The two frames a gallery card compares: around the whole GUI, or across the cut where it opens or closes. */
+export function guiPairFrames(range:GuiRange,total:number,pair:GuiPair){
+  const around=guiReviewFrames(range,total);
+  return pair==='open'?{before:around.before,after:range.first}:pair==='close'?{before:range.last,after:around.after}:around;
+}
 /** Mean absolute RGB change, 0..1. A review ordering, not an aim/cheating classifier. */
 export function meanPixelChange(before:Uint8ClampedArray,after:Uint8ClampedArray):number{
   if(before.length!==after.length||before.length===0||before.length%4!==0)throw Error('Comparison images must have matching RGBA pixels.');

@@ -45,7 +45,8 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
     if (result.error) return { blob: original, applied: false, error: result.error };
     let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
     // Screen's veil is behind foreground GUI pieces (Screen.renderTransparentBackground,
-    // Java 1.21.11; 0xC0101010 -> 0xD0101010). Keep supplied GUI coverage untouched in Auto.
+    // Java 1.21.11; 0xC0101010 -> 0xD0101010). Keep supplied GUI coverage untouched in Auto: callers pass the open
+    // screen only (the hotbar and HUD sit on the veil too and are unveiled with the world).
     // Always undo deliberately bypasses this exclusion. Inverse/rounding stay in Rust.
     if(mode==="auto"&&result.applied&&coverage?.width===img.width&&coverage.height===img.height&&coverage.world.length===img.width*img.height){
       data=new Uint8ClampedArray(data);

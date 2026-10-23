@@ -8,6 +8,13 @@ export function guiWorldCoverage(state:{maskFrame:number|null;pixels:Uint8Clampe
   return {width:r.width,height:r.height,world:portalWorldMask(state.pixels)};
 }
 
+/** Unveil's coverage: only the open screen is kept, from the same frame's mask (`GuiMaskState.screen`). */
+export function guiScreenCoverage(state:{maskFrame:number|null;screen:Uint8Array|null;reply:{width:number;height:number;reliable:boolean;mask_available?:boolean}|null},frame:number):WorldCoverage|undefined{
+  const r=state.reply;
+  if(state.maskFrame!==frame||!r||!(r.mask_available??r.reliable)||!state.screen||!Number.isInteger(r.width)||!Number.isInteger(r.height)||r.width<=0||r.height<=0||state.screen.length!==r.width*r.height)return;
+  return {width:r.width,height:r.height,world:state.screen};
+}
+
 /** Consume the GUI overlay's coverage only; no GUI detection rules live here. */
 export function portalWorldMask(gui:Uint8ClampedArray):Uint8Array{
   if(gui.length%4)throw Error('Invalid GUI overlay');

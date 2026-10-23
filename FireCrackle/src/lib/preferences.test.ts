@@ -8,6 +8,15 @@ it('restores all Misc tools controls and rejects invalid saved settings',()=>{
  raw=JSON.stringify({miscTool:'bad',miscGuiMode:'bad',miscGuiDisplay:'bad',miscGuiOrder:'bad',miscGuiMenus:1,miscCompareMode:'bad',miscDifferenceGain:9});
  expect(readPreferences(storage)).toEqual(DEFAULT_PREFERENCES);
 });
+it('restores the comparison post toggles and the gallery pair, repairing bad ones',()=>{
+ let raw:string|null=null;const storage={getItem:()=>raw,setItem:(_:string,value:string)=>{raw=value;}};
+ expect(readPreferences(storage).miscComparePost).toEqual({veil:false,portal:false,enhance:false,gui:false,blink:false});
+ expect(readPreferences(storage).miscGuiPair).toBe('around');
+ writePreferences({miscComparePost:{veil:true,portal:false,enhance:true,gui:true,blink:true},miscGuiPair:'open'},storage);
+ expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:true,portal:false,enhance:true,gui:true,blink:true},miscGuiPair:'open'});
+ raw=JSON.stringify({miscComparePost:{veil:'yes',portal:true},miscGuiPair:'sideways'});
+ expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:false,portal:true,enhance:false,gui:false,blink:false},miscGuiPair:'around'});
+});
 it('restores the current-video Misc tools tab',()=>{
  expect(readPreferences({getItem:()=>'{"tab":"misc"}'}).tab).toBe('misc');
 });

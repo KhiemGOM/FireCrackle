@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, veilScreenEvidence, readGuiMaskFrame, type GuiMaskReply } from "./guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, unpack, veilScreenEvidence, readGuiMaskFrame, screenWorld, type GuiMaskReply } from "./guiMask";
 
 const reply = (over: Partial<GuiMaskReply> = {}): GuiMaskReply => ({
   width: 4, height: 1, reliable: true, scale: 4.5, scaled_width: 427, scaled_height: 240, notes: [],
@@ -56,9 +56,26 @@ describe("unpack", () => {
     expect(unpack(0x37)).toEqual({ piece: 7, cls: 3 });
     expect(unpack(0)).toEqual({ piece: 0, cls: 0 });
   });
+  it("reads the open-screen flag apart from the class", () => {
+    // inventory (24) packs into the low nibble as 8, like Armor; the flag tells them apart
+    expect(unpack(0x78)).toEqual({ piece: 8, cls: 3, screen: true });
+    expect(unpack(0x38).screen).toBeFalsy();
+  });
+});
+
+describe("screenWorld", () => {
+  it("leaves only open-screen pixels out: the hotbar and HUD are world for unveil", () => {
+    expect(screenWorld(new Uint8Array([0x00, 0x11, 0x38, 0x78, 0x79, 0x7a]))).toEqual(new Uint8Array([1, 1, 1, 0, 0, 0]));
+  });
+  it("is all world for a frame with no GUI", () => {
+    expect(screenWorld(new Uint8Array(3))).toEqual(new Uint8Array([1, 1, 1]));
+  });
 });
 
 describe("overlayRgba", () => {
+  it("colours a flagged screen pixel by its class", () => {
+    expect(Array.from(overlayRgba(new Uint8Array([0x78]), 1, 1))).toEqual(Array.from(overlayRgba(new Uint8Array([0x38]), 1, 1)));
+  });
   it("colours opaque red, translucent blue, unknown yellow and leaves the rest clear", () => {
     const px = overlayRgba(new Uint8Array([0x00, 0x11, 0x21, 0x31]), 4, 1);
     expect(px).toHaveLength(16);

@@ -47,3 +47,11 @@ it('cancelled saving produces no success or file write',async()=>{
 it('a decoder failure cannot create a proof from an unrelated or stale picture',async()=>{
  fixture();await expect(exportFrameProof({frame:vi.fn(async()=>{throw Error('Decode failed');})} as unknown as Backend,proof,{format:'webp',destination:'copy'})).rejects.toThrow('Decode failed');expect(native.invoke).not.toHaveBeenCalled();
 });
+it('a proof of post-processed frames uses those pictures and names the effects',async()=>{
+ const {text}=fixture(),frame=vi.fn(async()=>new ArrayBuffer(4));
+ const pictures={before:new Blob(['b']),after:new Blob(['a'])};
+ expect(await exportFrameProof({frame} as unknown as Backend,{...proof,effects:'Unveil · GUI masked'},{format:'webp',destination:'copy'},pictures)).toBe(true);
+ expect(frame).not.toHaveBeenCalled();
+ const lines=text.mock.calls.map(c=>c[0]).join('\n');
+ expect(lines).toContain('Unveil · GUI masked');expect(lines).not.toContain('original video frames');
+});

@@ -52,3 +52,7 @@
 .misc-gui-aim-gallery .misc-gui-aim-picture{width:100%;height:auto;aspect-ratio:16/9;border-radius:0;}
 .misc-gui-thumbnail[data-display=before] .misc-gui-thumbnail-after{animation:none;opacity:0;}
 .misc-gui-thumbnail[data-display=after] .misc-gui-thumbnail-after{animation:none;opacity:1;}
+.misc-post-toggles{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;}
+.misc-post-toggles>span:first-child{color:var(--muted,#9aa6b8);}
+.misc-post-toggles label{display:flex;align-items:center;gap:4px;}
+.misc-blink-post{display:flex;align-items:center;gap:4px;padding:0 9px;font-size:12px;border-left:1px solid var(--line);}

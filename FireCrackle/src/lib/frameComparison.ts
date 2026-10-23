@@ -16,7 +16,8 @@ export function frameDifference(before:Uint8ClampedArray,after:Uint8ClampedArray
 }
 export const loadFrameImage=(bytes:ArrayBuffer)=>loadImageBytes(bytes,'image/jpeg','Could not load the comparison picture.');
 const canvasBlob=(canvas:HTMLCanvasElement,type='image/png')=>encodeCanvas(canvas,type,0.95,'Could not render the comparison proof.');
-export interface FrameProof {before:number;after:number;first:number;last:number;fps:number;source:string}
+/** `effects`: the post effects applied to both pictures, when they are not the original frames. */
+export interface FrameProof {before:number;after:number;first:number;last:number;fps:number;source:string;effects?:string}
 /** Two originals, identical framing. Animated proofs switch instantly; stills show both. */
 export async function renderFrameProof(before:HTMLImageElement,after:HTMLImageElement,proof:FrameProof,animated:boolean,type='image/png'){
  const width=before.naturalWidth,height=before.naturalHeight;
@@ -31,7 +32,7 @@ export async function renderFrameProof(before:HTMLImageElement,after:HTMLImageEl
   ctx.fillStyle='#ffffff';ctx.font='600 20px sans-serif';ctx.fillText('Frame comparison · before / after',18,28,canvas.width-36);
   ctx.fillStyle='#bdc8da';ctx.font='14px sans-serif';ctx.fillText(proof.source,18,51,canvas.width-36);
   ctx.fillText(`Before ${stamp(proof.before)}  /  After ${stamp(proof.after)}`,18,73,canvas.width-36);
-  ctx.fillText(`Interval ${proof.first}–${proof.last} · original video frames · ${animated?'direct switch every 640 ms':'side by side'}`,18,canvas.height-13,canvas.width-36);
+  ctx.fillText(`Interval ${proof.first}–${proof.last} · ${proof.effects??'original video frames'} · ${animated?'direct switch every 640 ms':'side by side'}`,18,canvas.height-13,canvas.width-36);
   ctx.fillStyle='#ffad40';ctx.font='600 14px sans-serif';ctx.fillText(animated?label:'Before',18,94,w-36);
   ctx.drawImage(image,0,header,w,h);
   if(!animated){ctx.fillText('After',w+gap+18,94,w-36);ctx.drawImage(after,w+gap,header,w,h);}
@@ -40,10 +41,11 @@ export async function renderFrameProof(before:HTMLImageElement,after:HTMLImageEl
  if(animated)paint(after,'After');
  return {image:await canvasBlob(canvas,type),base};
 }
-export async function exportFrameProof(backend:Backend,proof:FrameProof,action:ProofAction):Promise<boolean>{
+/** `pictures`: the post-processed Before and After to use instead of the original frames. */
+export async function exportFrameProof(backend:Backend,proof:FrameProof,action:ProofAction,pictures?:{before:Blob;after:Blob}):Promise<boolean>{
  const animated=action.format==='webp'||action.format==='gif',native=inTauri();
  if(!native&&(animated||action.destination==='copy'&&action.format!=='png'))throw Error('Use the desktop app for this comparison format.');
- const pending=Promise.all([backend.frame(proof.before),backend.frame(proof.after)])
+ const pending=(pictures?Promise.all([pictures.before.arrayBuffer(),pictures.after.arrayBuffer()]):Promise.all([backend.frame(proof.before),backend.frame(proof.after)]))
   .then(bytes=>Promise.all(bytes.map(loadFrameImage)))
   .then(([before,after])=>renderFrameProof(before,after,proof,animated,!native&&action.format==='jpeg'?'image/jpeg':'image/png'));
  void pending.catch(()=>{});

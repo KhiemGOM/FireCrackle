@@ -390,7 +390,7 @@ export default function App() {
           onOpenLink={() => { setPlayback(STOPPED); setShowLink(true); }}
         />
       ) : tab === "misc" ? (
-        <MiscToolsTab key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} onOpenFrame={jumpToLabel}/>
+        <MiscToolsTab key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} onOpenFrame={jumpToLabel} post={post.settings} veil={veilOptions}/>
       ) : tab === "phase" ? (
         <PhaseTab extraSources={extraSources} key={ws.videoPath} videoKey={ws.videoPath} backend={backend} view={view} version={ws.version} onJump={jumpToLabel} />
       ) : (

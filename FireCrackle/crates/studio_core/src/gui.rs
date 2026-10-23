@@ -45,15 +45,33 @@ pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String>
     })
 }
 
-/// One byte per pixel: the pixel class (0 none, 1 opaque, 2 translucent, 3 unknown) in the high nibble, the piece id in
-/// the low nibble.
+/// Set on pixels of an open screen (inventory, menu buttons, recipe book), whose ids do not fit the low nibble.
+pub const SCREEN_FLAG: u8 = 0x40;
+const SCREEN_PIECES: [PieceId; 3] = [
+    PieceId::InventoryPanel,
+    PieceId::MenuButton,
+    PieceId::RecipeBookPanel,
+];
+
+/// One byte per pixel: the pixel class (0 none, 1 opaque, 2 translucent, 3 unknown) in bits 4-5, the piece id in
+/// the low nibble, and [`SCREEN_FLAG`] for an open screen (unveil protects only those, never the HUD).
 pub fn pack(piece: u8, class: u8) -> u8 {
-    (class << 4) | (piece & 0x0f)
+    let screen = if SCREEN_PIECES.iter().any(|&p| p as u8 == piece) {
+        SCREEN_FLAG
+    } else {
+        0
+    };
+    (class << 4) | (piece & 0x0f) | screen
 }
 
 /// `(piece, class)` of a packed pixel.
 pub fn unpack(b: u8) -> (u8, u8) {
-    (b & 0x0f, b >> 4)
+    (b & 0x0f, (b >> 4) & 0x03)
+}
+
+/// Whether a packed pixel belongs to an open screen.
+pub fn is_screen(b: u8) -> bool {
+    b & SCREEN_FLAG != 0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

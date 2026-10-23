@@ -34,7 +34,7 @@ import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
 import { exactFrameBytes, pngSize, showsExactFrame } from "../lib/exactFrame";
 import { canvasFrameIo, losslessFrameIo, processFrame } from "../lib/veilFrame";
-import { portalPreview, guiWorldCoverage, fitCoverage, sameShape } from "../lib/portalPreview";
+import { portalPreview, guiScreenCoverage, guiWorldCoverage, fitCoverage, sameShape } from "../lib/portalPreview";
 import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
@@ -366,6 +366,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
       });
     };
     const guiCoverage = stillImage ? undefined : guiWorldCoverage(guiMask, view.current), guiReady = !!guiCoverage;
+    const screenCoverage = stillImage ? undefined : guiScreenCoverage(guiMask, view.current);
     const correcting = correctsNow({ playing, veilMode, portalMode, enhance: enhanceOn });
     const runPortal = portalMode !== "off" && correcting;
     let guiProtected = false;
@@ -426,6 +427,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     // evidence, made from the scaled display frame, are stretched to it (another shape gets none).
     function correct(bytes: ArrayBuffer, original: Blob, io: typeof canvasFrameIo, size?: { width: number; height: number }) {
       const coverage = size ? fitCoverage(guiCoverage, size.width, size.height) : guiCoverage;
+      const unveilCoverage = size ? fitCoverage(screenCoverage, size.width, size.height) : screenCoverage;
       const evidence = guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined;
       const screen = evidence && size ? (sameShape(evidence, size) ? size : undefined) : evidence;
       return processFrame(bytes, original, veilMode, veilOptions, io, runPortal ? async image => {
@@ -437,7 +439,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         const fit = await portalPreview(image, cancel.signal, world, manualPortal);
         if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
         return fit;
-      } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, screen, coverage);
+      } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, screen, unveilCoverage);
     }
     function present(made: Awaited<ReturnType<typeof processFrame>>, exact: boolean) {
       if (made.error) onError(`Picture correction: ${made.error}`);
@@ -466,7 +468,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${failureMessage(e)}`));
     return () => { ++token.current; cancel.abort(); };
-  }, [backend, buffer, view.current, stillImage?.url, veilMode, veilKey, portalMode, portalManualKey, enhanceKey, playing, guiMask.maskFrame, guiMask.reply, guiMask.pixels]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backend, buffer, view.current, stillImage?.url, veilMode, veilKey, portalMode, portalManualKey, enhanceKey, playing, guiMask.maskFrame, guiMask.reply, guiMask.pixels, guiMask.screen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(
     () => () => {

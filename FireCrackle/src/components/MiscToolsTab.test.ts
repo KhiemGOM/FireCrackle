@@ -79,3 +79,47 @@ it('includes real video boundary frames in manual comparison',()=>{
  const root=MiscToolsTab({backend,view:boundary,onOpenFrame:onOpen});
  expect(find(root,n=>n.props.title?.includes?.('annotated WebP'))[0].props.disabled).toBe(false);
 });
+
+const toggle=(root:any,label:string)=>find(root,n=>n.props['aria-label']===label)[0];
+it('post effects reuse the Enhance settings; Enhance and the GUI mask are offered only when they can run',()=>{
+ let raw:string|null=null;
+ vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?raw:null,setItem:(key:string,value:string)=>{if(key===PREFERENCES_KEY)raw=value;}});
+ let root=render();
+ for(const label of ['Unveil comparison frames','Undo portal on comparison frames','Enhance comparison frames','Mask the open GUI on comparison frames'])expect(toggle(root,label).props.checked).toBe(false);
+ expect(toggle(root,'Enhance comparison frames').props.disabled).toBe(true); // no effect is on in the Enhance panel
+ expect(toggle(root,'Mask the open GUI on comparison frames').props.disabled).toBe(true); // this backend has no GUI mask
+ toggle(root,'Unveil comparison frames').props.onChange({target:{checked:true}});root=render();
+ expect(toggle(root,'Unveil comparison frames').props.checked).toBe(true);
+ hooks.effects.forEach(effect=>effect());
+ expect(JSON.parse(raw!).miscComparePost).toMatchObject({veil:true});
+});
+it('Apply to blink sits beside the view modes of After and needs a post effect',()=>{
+ let root=render();
+ const after=()=>find(root,n=>n.props.title==='After')[0];
+ expect(after().props.applyToBlink).toBe(false);
+ toggle(root,'Unveil comparison frames').props.onChange({target:{checked:true}});root=render();
+ after().props.onApplyToBlink(true);root=render();
+ expect(after().props.applyToBlink).toBe(true);
+ expect(find(root,n=>n.props.title==='Before')[0].props.onApplyToBlink).toBeUndefined();
+});
+it('a GUI boundary opens its two frames with unveil and the GUI mask on',()=>{
+ let root=render();find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props.onClick();root=render();
+ find(root,n=>typeof n.props.onCompare==='function')[0].props.onCompare({first:20,last:39,menu:false},'open');root=render();
+ expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(19);
+ expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(20);
+ expect(toggle(root,'Unveil comparison frames').props.checked).toBe(true);
+ expect(toggle(root,'Mask the open GUI on comparison frames').props.checked).toBe(true);
+});
+it('the After card blinks the processed pictures only with Apply to blink',()=>{
+ const root=render(),side=find(root,n=>n.props.title==='After')[0];
+ const srcs=(applyToBlink:boolean)=>{
+  hooks.cursor=0;hooks.values=[];hooks.effects=[];
+  const props:Record<string,any>={...side.props,processed:{url:'blob:after-post',compareUrl:'blob:before-post'},applyToBlink};
+  (side.type as Function)(props);
+  hooks.values[0]={frame:props.frame,url:'blob:after',full:true};hooks.values[2]={frame:props.compareFrame,url:'blob:before',full:true};
+  hooks.values[4]='blink';hooks.values[6]=true;hooks.cursor=0;
+  return find((side.type as Function)(props),n=>n.type==='img').map(n=>n.props.src);
+ };
+ expect(srcs(true)).toEqual(['blob:after-post','blob:before-post']);
+ expect(srcs(false)).toEqual(['blob:after','blob:before']);
+});

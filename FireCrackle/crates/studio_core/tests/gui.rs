@@ -86,6 +86,21 @@ fn a_pixel_packs_class_and_piece_into_one_byte() {
     assert_eq!(unpack(pack(11, 2)), (11, 2));
 }
 
+#[test]
+fn open_screen_pixels_are_flagged_apart_from_the_hud() {
+    // Inventory/menu/recipe panels (ids 24..26) would collide with Armor/Food/Air in the low nibble.
+    for screen in [24, 25, 26] {
+        let b = pack(screen, 3);
+        assert!(is_screen(b), "piece {screen}");
+        assert_eq!(unpack(b).1, 3, "class survives the flag");
+    }
+    for hud in [1, 4, 8, 9, 10, 11, 15] {
+        assert!(!is_screen(pack(hud, 1)), "piece {hud}");
+        assert!(!is_screen(pack(hud, 3)), "piece {hud}");
+    }
+    assert!(!is_screen(0));
+}
+
 // ================================================================ analysing a frame
 
 #[test]

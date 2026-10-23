@@ -448,7 +448,7 @@ const postOf = (patch: Partial<PostSettings> = {}, tone: Partial<typeof DEFAULT_
 });
 
 it("loads the original without waiting for a thumbnail and ignores a late placeholder", async () => {
-  vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, screen: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
   let release!: (url: string) => void;
   const pending = new Promise<string>(resolve => { release = resolve; });
   vi.spyOn(thumbnailCache, "previewFrames").mockReturnValue(new thumbnailCache.GuiThumbnailCache(() => pending));
@@ -473,7 +473,7 @@ it("loads the original without waiting for a thumbnail and ignores a late placeh
 
 async function runLoad(post: PostSettings | undefined, extra: Record<string, unknown> = {}, mask?: guiControls.GuiMaskState) {
   // no GUI mask (its own effect would be found first), as in the portal tests above
-  vi.spyOn(guiControls, "useGuiMask").mockReturnValue(mask ?? { supported: false, reply: null, maskFrame: null, pixels: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+  vi.spyOn(guiControls, "useGuiMask").mockReturnValue(mask ?? { supported: false, reply: null, maskFrame: null, pixels: null, screen: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
   const backend = createMockBackend();
   vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(0));
   const view = await backend.view();
@@ -515,7 +515,7 @@ it.each(["menu", "inventory", "hud", "stale", "unreliable"])("auto veil requests
   const spy = vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (_b, original) => ({ blob: original, applied: false }));
   const { current } = await createMockBackend().view();
   const state = {
-    supported: true, busy: false, error: null, pixels: null,
+    supported: true, busy: false, error: null, pixels: null, screen: null,
     maskFrame: kind === "stale" ? current - 1 : current,
     reply: { reliable: kind !== "unreliable", width: 1920, height: 1080, scale: 2, scaled_width: 960, scaled_height: 540, notes: [], pieces: [{ piece: kind === "hud" ? "Hotbar" : kind === "inventory" ? "InventoryPanel" : "MenuButton", count: 1 }] },
   };
@@ -691,11 +691,12 @@ it.each(['auto','manual'] as const)('passes the new HUD-independent GUI mask to 
  const portal=vi.spyOn(portalProcessing,'portalPreview').mockResolvedValue({data:image.data,applied:true,valid:new Uint8Array(2),phase:0,opacity:.5});
  const processing=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original,_m,_o,_io,transform)=>{await transform?.(image);return {blob:original,applied:false};});
  const {current}=await createMockBackend().view();
- const mask={supported:true,busy:false,error:null,maskFrame:current,pixels:new Uint8ClampedArray([255,215,0,110,0,0,0,0]),reply:{width:2,height:1,reliable:false,mask_available:true,scale:null,scaled_width:null,scaled_height:null,notes:[],pieces:[{piece:'InventoryPanel',count:1}]}};
+ const mask={supported:true,busy:false,error:null,maskFrame:current,pixels:new Uint8ClampedArray([255,215,0,110,255,0,0,120]),screen:new Uint8Array([0,1]),reply:{width:2,height:1,reliable:false,mask_available:true,scale:null,scaled_width:null,scaled_height:null,notes:[],pieces:[{piece:'InventoryPanel',count:1}]}};
  await runLoad(postOf({veil:'auto',portal:mode}),{},mask);
  expect(processing.mock.calls[0][7]).toEqual({width:2,height:1});
+ // unveil keeps only the open screen (pixel 0); the HUD pixel 1 is unveiled. Portal still avoids every GUI pixel.
  expect(processing.mock.calls[0][8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
- expect(portal.mock.calls[0][2]).toEqual(mode==='auto'?new Uint8Array([0,1]):undefined);
+ expect(portal.mock.calls[0][2]).toEqual(mode==='auto'?new Uint8Array([0,0]):undefined);
 });
 
 it("draws a paused frame pixel for pixel and leaves playback pictures as they are", async () => {

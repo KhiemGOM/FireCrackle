@@ -1,5 +1,16 @@
 import {expect,it} from 'vitest';
-import {guiReviewFrames,meanPixelChange,rankGuiRanges,scorableRanges} from './guiAimReview';
+import {guiPairFrames,guiReviewFrames,meanPixelChange,rankGuiRanges,scorableRanges} from './guiAimReview';
+
+it('pairs frames around the GUI, at its opening cut and at its closing cut',()=>{
+  const range={first:20,last:39,menu:false};
+  expect(guiPairFrames(range,100,'around')).toEqual({before:19,after:40});
+  expect(guiPairFrames(range,100,'open')).toEqual({before:19,after:20});
+  expect(guiPairFrames(range,100,'close')).toEqual({before:39,after:40});
+});
+it('boundary pairs stay inside the video',()=>{
+  expect(guiPairFrames({first:0,last:5,menu:false},10,'open')).toEqual({before:0,after:0});
+  expect(guiPairFrames({first:3,last:9,menu:false},10,'close')).toEqual({before:9,after:9});
+});
 
 it('compares immediate outside neighbours, clamped to the video',()=>{
   expect(guiReviewFrames({first:20,last:39,menu:false},100)).toEqual({before:19,after:40});

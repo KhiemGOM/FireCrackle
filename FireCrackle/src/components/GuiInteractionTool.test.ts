@@ -31,7 +31,7 @@ it('shows image-only large cards in aim mode, and clicks open the original GUI i
   expect(find(gallery,n=>n.type==='span')).toHaveLength(0);
   const pictures=find(gallery,n=>n.props.large===true);expect(pictures).toHaveLength(2);
   expect(pictures[0].props.display).toBe('blink');
-  cards[0].props.onClick();expect(onCompare).toHaveBeenCalledWith(ranges[0]);
+  cards[0].props.onClick();expect(onCompare).toHaveBeenCalledWith(ranges[0],'around');
   find(root,n=>n.props.children==='Before')[0].props.onClick();root=render();
   expect(find(root,n=>n.props.large===true)[0].props.display).toBe('before');
 });
@@ -78,4 +78,18 @@ it('a GUI scan that failed says so instead of Ready, and a paused one says its p
   expect(text).toContain('Scan failed · progress saved');expect(text).not.toContain('Ready');
   hooks.values[0]={...hooks.values[0],state:'paused',error:null};
   text=JSON.stringify(render());expect(text).toContain('Paused · progress saved');
+});
+
+it('the gallery can pair the frames across the cut where the GUI opens or closes',()=>{
+  let raw:string|null=null;
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?raw:null,setItem:(key:string,value:string)=>{if(key===PREFERENCES_KEY)raw=value;}});
+  let root=aim();root=render();
+  const pair=(label:string)=>find(root,n=>n.props.children===label&&n.props['aria-pressed']!==undefined)[0];
+  expect(pair('Around GUI').props['aria-pressed']).toBe(true);
+  pair('GUI opens').props.onClick();root=render();
+  expect(find(root,n=>n.props.large===true)[0].props.pair).toBe('open');
+  const card=find(find(root,n=>n.props['aria-label']==='Aim jump images')[0],n=>n.type==='button')[0];
+  expect(card.props['aria-label']).toBe('Compare frames 19 and 20');
+  card.props.onClick();expect(onCompare).toHaveBeenCalledWith(ranges[0],'open');
+  hooks.effects[0]();expect(JSON.parse(raw!).miscGuiPair).toBe('open');
 });

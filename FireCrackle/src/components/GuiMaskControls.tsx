@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Backend } from "../lib/api";
-import { GUI_ASSUMPTION, maskStatus, overlayRgba, type GuiMaskReply } from "../lib/guiMask";
+import { GUI_ASSUMPTION, maskStatus, overlayRgba, screenWorld, type GuiMaskReply } from "../lib/guiMask";
 import "./GuiMaskControls.css";
 import { failureMessage } from "../lib/appErrors";
 
@@ -10,6 +10,8 @@ export interface GuiMaskState {
   /** The frame the mask belongs to (a mask is never drawn over another frame). */
   maskFrame: number | null;
   pixels: Uint8ClampedArray | null;
+  /** 0 on open-screen pixels, 1 elsewhere: what unveil may change (lib/guiMask.ts screenWorld). */
+  screen: Uint8Array | null;
   busy: boolean;
   error: string | null;
 }
@@ -20,6 +22,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
   const [reply, setReply] = useState<GuiMaskReply | null>(null);
   const [maskFrame, setMaskFrame] = useState<number | null>(null);
   const [pixels, setPixels] = useState<Uint8ClampedArray | null>(null);
+  const [screen, setScreen] = useState<Uint8Array | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const token = useRef(0);
@@ -44,6 +47,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
         setReply(r);
         setMaskFrame(frame);
         setPixels(raw ? overlayRgba(raw, r.width, r.height) : null);
+        setScreen(raw ? screenWorld(raw) : null);
       } catch (e) {
         if (mine === token.current) setError(failureMessage(e));
       } finally {
@@ -53,7 +57,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
     return () => { ++token.current; };
   }, [backend, supported, on, ready, frame]);
 
-  return { supported, reply, maskFrame, pixels, busy, error };
+  return { supported, reply, maskFrame, pixels, screen, busy, error };
 }
 
 /** Detection status; compatibility is an assumption in the tooltip, not a confirmation. */

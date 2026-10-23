@@ -8,12 +8,12 @@ import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
 import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
-import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges} from '../lib/guiAimReview';
+import {guiMotionScores,guiPairFrames,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges,type GuiPair} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
 
-function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after'}) {
+function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair}) {
   guiThumbnails(backend,videoKey,total);
   const cache=previewFrames(backend,512);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
@@ -28,24 +28,28 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
     setPictures(null);setFailed(false);
     if(!visible)return;
     const wanted=()=>!cancelled;
-    const frames=guiReviewFrames({first,last,menu:false},total);
+    const frames=guiPairFrames({first,last,menu:false},total,pair);
     const before=cache.get(frames.before,wanted).then(image=>{if(!cancelled)setPictures({before:image});return image;});
     void Promise.all([before,cache.get(frames.after,wanted)])
       .then(([before,after])=>{if(!cancelled)setPictures({before,after});})
       .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
-  },[cache,first,last,total,visible]);
+  },[cache,first,last,total,visible,pair]);
   return <span ref={container} className={`misc-gui-thumbnail${large?' misc-gui-aim-picture':''}`} data-display={display} style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
     {pictures?<><img src={pictures.before} alt="Before GUI" draggable={false}/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI" draggable={false}/>}</>:<span className="dim" role={failed?'alert':undefined} aria-label={failed?'Preview unavailable':'Loading preview'}>{failed?'!':''}</span>}
   </span>;
 }
 
-export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange)=>void}) {
+/** `onCompare` opens a card's two frames in the frame comparison: around the GUI, or across its opening or closing cut. */
+export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange,pair:GuiPair)=>void}) {
   const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(()=>readPreferences().miscGuiMenus),[busy,setBusy]=useState(false);
   const [mode,setMode]=useState(()=>readPreferences().miscGuiMode),[display,setDisplay]=useState(()=>readPreferences().miscGuiDisplay);
   const [order,setOrder]=useState(()=>readPreferences().miscGuiOrder);
   const [ranking,setRanking]=useState<{video:string|undefined;key:string;scores:Map<string,number|null>;processed:number;done:boolean}>({video:undefined,key:'',scores:new Map(),processed:0,done:false});
-  useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order}),[menus,mode,display,order]);
+  const [savedPair,setPair]=useState(()=>readPreferences().miscGuiPair);
+  useEffect(()=>writePreferences({miscGuiMenus:menus,miscGuiMode:mode,miscGuiDisplay:display,miscGuiOrder:order,miscGuiPair:savedPair}),[menus,mode,display,order,savedPair]);
+  // the opening and closing cuts are an aim-gallery view; the interval list always compares around the GUI
+  const pair:GuiPair=mode==='aim'?savedPair:'around';
   useEffect(()=>{
     if(!backend.guiScanStatus)return;
     setStatus(null);
@@ -60,7 +64,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
   const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,scorable.map(guiRangeKey)]);
   if(status?.total){
     guiThumbnails(backend,videoKey,status.total);
-    previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiReviewFrames(range,status.total);return [frames.before,frames.after];}));
+    previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiPairFrames(range,status.total,pair);return [frames.before,frames.after];}));
   }
   useEffect(()=>{
     if(mode!=='aim'||order!=='motion'||!status?.total)return;
@@ -108,6 +112,9 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
       <div className="misc-view-modes" role="group" aria-label="Gallery image view">
         {(['blink','before','after'] as const).map(value=><button key={value} aria-pressed={display===value} onClick={()=>setDisplay(value)}>{value==='blink'?'Blink':value==='before'?'Before':'After'}</button>)}
       </div>
+      <div className="misc-view-modes" role="group" aria-label="Gallery frame pair" title="Around GUI: the frames just outside the whole interaction. GUI opens / closes: the two frames across that cut, to see whether the view jumped there.">
+        {([['around','Around GUI'],['open','GUI opens'],['close','GUI closes']] as const).map(([value,text])=><button key={value} aria-pressed={savedPair===value} onClick={()=>setPair(value)}>{text}</button>)}
+      </div>
       <label>Order <select value={order} onChange={e=>setOrder(e.target.value as typeof order)} title="Average RGB change in small before/after previews. Lighting and animation also contribute; this is not an aim detector."><option value="motion">Most movement first</option><option value="time">Video order</option></select></label>
       <span className="dim">Click an image to inspect{order==='motion'&&ranking.key===scoreKey&&!ranking.done?` · Ranking ${ranking.processed}/${scorable.length}`:''}</span>
     </div>}
@@ -115,14 +122,14 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     <DesktopOnly what="Video scanning" available={!!backend.guiScanStart}/>
     </div>
     <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
-      {sorted.map(range=><button key={guiRangeKey(range)} aria-label={`Compare frames ${Math.max(0,range.first-1)} and ${Math.min(status!.total-1,range.last+1)}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range)}>
-        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'}/>
+      {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <button key={guiRangeKey(range)} aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
+        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair}/>
         {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>
         <span>Inspect</span>
         </>}
-      </button>)}
+      </button>;})}
     </div>
     {status?.state==='done'&&!ranges.length&&<p>No supported GUI intervals detected.</p>}
   </section>;
