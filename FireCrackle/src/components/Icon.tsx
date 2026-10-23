@@ -15,6 +15,7 @@ const shapes = {
   keyboard: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10" /></>,
   settings: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="3" /><circle cx="15" cy="17" r="3" /></>,
   layers: <><path d="m12 3 10 5-10 5L2 8ZM3 12l9 5 9-5M3 16l9 5 9-5" /></>,
+  cube: <><path d="M12 2 21 7v10l-9 5-9-5V7Z" /><path d="m3 7 9 5 9-5M12 12v10" /></>,
   mirror: <><path d="M12 3v18M3 7l5-3v16l-5-3ZM21 7l-5-3v16l5-3Z" /></>,
   noFire: <><path d="M14 3c0 4-5 6-5 9 0 1 1 2 2 2M7 7c-2 3-3 5-3 8a8 8 0 0 0 13 6M17 7c2 3 3 5 3 8M3 3l18 18" /></>,
   skip: <><path d="m5 5 10 7-10 7ZM19 5v14" /></>,
