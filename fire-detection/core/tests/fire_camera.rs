@@ -417,3 +417,26 @@ fn corner_rms_is_zero_for_the_drawing_camera_and_grows_when_it_turns() {
     assert!(e > 0.5 * expect && e < 2.0 * expect, "{e} vs {expect}");
     assert!(corner_rms(&[], &cam, 2560, 1440).is_none());
 }
+
+/// The 3D view's orbit camera: looking at `target` from `dist` blocks back along yaw/pitch puts the target at the
+/// image centre; zero distance or a bad FOV gives nothing.
+#[test]
+fn an_orbit_camera_puts_its_target_at_the_centre() {
+    let target = [4.5, 64.0, -7.5];
+    for (yaw, pitch) in [(0.0, 30.0), (137.0, 60.0), (-90.0, -10.0)] {
+        let c = Camera::orbit(target, yaw, pitch, 12.0, 70.0).expect("orbit");
+        let (x, y) = c.project(target, 1600, 900).unwrap();
+        assert!(
+            (x - 800.0).abs() < 1e-6 && (y - 450.0).abs() < 1e-6,
+            "{c:?}"
+        );
+        let d = ((c.pos[0] - target[0]).powi(2)
+            + (c.pos[1] - target[1]).powi(2)
+            + (c.pos[2] - target[2]).powi(2))
+        .sqrt();
+        assert!((d - 12.0).abs() < 1e-9);
+        assert!((c.yaw - yaw).abs() < 1e-9 && (c.pitch - pitch).abs() < 1e-9);
+    }
+    assert!(Camera::orbit(target, 0.0, 0.0, 0.0, 70.0).is_none());
+    assert!(Camera::orbit(target, 0.0, 0.0, 5.0, 0.0).is_none());
+}

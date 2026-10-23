@@ -352,3 +352,43 @@ pub unsafe extern "C" fn rev_entity(i: usize, name: *mut u8, cap: usize, dims: *
     f64s_mut(dims, 2).copy_from_slice(&[e.1, e.2]);
     k as i32
 }
+
+/// The 3D view's orbit camera (`Camera::orbit`) into `out` (7 numbers). 1 = made, 0 = not.
+///
+/// # Safety
+/// `out` holds 7 f64.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)] // flat C ABI
+pub unsafe extern "C" fn rev_orbit(
+    tx: f64,
+    ty: f64,
+    tz: f64,
+    yaw: f64,
+    pitch: f64,
+    dist: f64,
+    fov: f64,
+    out: *mut f64,
+) -> i32 {
+    match Camera::orbit([tx, ty, tz], yaw, pitch, dist, fov) {
+        Some(c) => {
+            f64s_mut(out, 7)
+                .copy_from_slice(&[c.pos[0], c.pos[1], c.pos[2], c.yaw, c.pitch, c.roll, c.fov]);
+            1
+        }
+        None => 0,
+    }
+}
+
+/// The face of the fire cell (x, y, z) pointing away from an eye at (ex, ey, ez) (`fire_model::facing_away`), as a
+/// `rev_block_quads` face bit: 2 north, 4 east, 8 south, 16 west.
+#[no_mangle]
+pub extern "C" fn rev_facing_away(ex: f64, ey: f64, ez: f64, x: i32, y: i32, z: i32) -> u32 {
+    match fire_model::facing_away([ex, ey, ez], [x, y, z]) {
+        fire_model::Attach::North => 2,
+        fire_model::Attach::East => 4,
+        fire_model::Attach::South => 8,
+        fire_model::Attach::West => 16,
+        fire_model::Attach::Up => 32,
+        fire_model::Attach::Floor => 1,
+    }
+}

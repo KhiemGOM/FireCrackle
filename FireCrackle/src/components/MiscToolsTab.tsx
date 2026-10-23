@@ -6,6 +6,7 @@ import type {ProofAction} from '../lib/comparisonProof';
 import {formatTimecode} from '../lib/timecode';
 import {ComparisonProofButton} from './ComparisonProofButton';
 import {GuiInteractionTool} from './GuiInteractionTool';
+import {FireQuadTool} from './FireQuadTool';
 import {displayFrame} from '../lib/imagePreview';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import './MiscToolsTab.css';
@@ -152,8 +153,9 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame,post=DEFAULT_POS
   <div className="misc-tool-tabs" role="tablist" aria-label="Inspection tools">
    <button role="tab" aria-selected={tool==='compare'} onClick={()=>setTool('compare')}>Frame comparison</button>
    <button role="tab" aria-selected={tool==='gui'} onClick={()=>setTool('gui')}>GUI interactions</button>
+   <button role="tab" aria-selected={tool==='fire3d'} onClick={()=>setTool('fire3d')}>3D fire</button>
   </div>
-  {tool==='gui'?<GuiInteractionTool backend={backend} videoKey={videoKey} fps={fps} veil={veil} onCompare={(range,pair)=>{const pick=guiPairFrames(range,view.frame_count,pair);setInterval({first:pick.before,last:pick.after});if(pair!=='around')setCompare(previous=>({...previous,...BOUNDARY_POST}));setTool('compare');}}/>:<section className="misc-panel" aria-label="Frame comparison">
+  {tool==='fire3d'?<FireQuadTool backend={backend} view={view}/>:tool==='gui'?<GuiInteractionTool backend={backend} videoKey={videoKey} fps={fps} veil={veil} onCompare={(range,pair)=>{const pick=guiPairFrames(range,view.frame_count,pair);setInterval({first:pick.before,last:pick.after});if(pair!=='around')setCompare(previous=>({...previous,...BOUNDARY_POST}));setTool('compare');}}/>:<section className="misc-panel" aria-label="Frame comparison">
    <div className="misc-compare-toolbar">
     <div className="misc-compare-controls" data-owns-keys="true">
      <label>Before frame <input aria-label="First comparison frame" type="number" min={0} max={view.frame_count-1} value={range.first} disabled={proofBusy} onChange={e=>edit('first',e.target.valueAsNumber)}/></label>

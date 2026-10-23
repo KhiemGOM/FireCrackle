@@ -24,6 +24,8 @@ type Runtime = {
   rev_block_quads(cam: number, w: number, h: number, x: number, y: number, z: number, faces: number, soul: number, out: number, cap: number): number;
   rev_entity_quads(cam: number, w: number, h: number, x: number, y: number, z: number, ew: number, eh: number, out: number, cap: number): number;
   rev_entity_count(): number; rev_entity(i: number, name: number, cap: number, dims: number): number;
+  rev_orbit(tx: number, ty: number, tz: number, yaw: number, pitch: number, dist: number, fov: number, out: number): number;
+  rev_facing_away(ex: number, ey: number, ez: number, x: number, y: number, z: number): number;
 };
 let native: Runtime | undefined;
 let pending: Promise<void> | undefined;
@@ -152,3 +154,20 @@ export function entitySizes(): Map<string, [number, number]> {
 export function entitySize(kind: string): [number, number] | null {
   return entitySizes().get(kind.replace(/^minecraft:/, "")) ?? null;
 }
+
+/** The 3D view's camera: looking at `target` from `dist` blocks back along yaw / pitch. */
+export function orbitCamera(target: [number, number, number], yaw: number, pitch: number, dist: number, fov: number): CameraPose | null {
+  return withBuffers([56], (n, [out]) => {
+    if (n.rev_orbit(target[0], target[1], target[2], yaw, pitch, dist, fov, out) !== 1) return null;
+    const v = f64Out(n, out, 7);
+    return { x: v[0], y: v[1], z: v[2], yaw: v[3], pitch: v[4], roll: v[5], fov: v[6] };
+  });
+}
+
+export type Face = keyof FireFaces;
+/** The fire cell's side pointing away from the camera: the first guess of which face of the block behind it burns. */
+export function defaultFace(cam: CameraPose, cell: [number, number, number]): Face {
+  const bit = rt().rev_facing_away(cam.x, cam.y, cam.z, cell[0], cell[1], cell[2]);
+  return ({ 1: "floor", 2: "north", 4: "east", 8: "south", 16: "west", 32: "up" } as Record<number, Face>)[bit] ?? "north";
+}
+

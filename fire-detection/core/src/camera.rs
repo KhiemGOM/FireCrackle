@@ -43,6 +43,30 @@ impl Camera {
         project_view(self.to_view(p), self.fov, w, h)
     }
 
+    /// A camera looking at `target` from `dist` blocks back along `yaw` / `pitch` (the 3D view's orbit camera). None for
+    /// a distance or FOV that cannot make a picture.
+    pub fn orbit(target: [f64; 3], yaw: f64, pitch: f64, dist: f64, fov: f64) -> Option<Camera> {
+        if !(dist > 0.0 && dist.is_finite() && fov > 0.0 && fov < 180.0) {
+            return None;
+        }
+        let c = Camera {
+            pos: [0.0; 3],
+            yaw,
+            pitch,
+            roll: 0.0,
+            fov,
+        };
+        let f = c.view_dir_to_world([0.0, 0.0, -1.0]);
+        Some(Camera {
+            pos: [
+                target[0] - f[0] * dist,
+                target[1] - f[1] * dist,
+                target[2] - f[2] * dist,
+            ],
+            ..c
+        })
+    }
+
     /// The same rotation with pitch in [−90, 90] and angles in (−180, 180].
     fn normalized(mut self) -> Camera {
         let wrap = |a: f64| {

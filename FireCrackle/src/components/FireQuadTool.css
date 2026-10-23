@@ -1,0 +1,33 @@
+.fq-tool { display: flex; flex-direction: column; gap: 12px; }
+.fq-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.fq-guess { font-variant-numeric: tabular-nums; }
+.fq-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+@media (max-width: 1100px) { .fq-split { grid-template-columns: 1fr; } }
+.fq-pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fq-pane-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fq-video, .fq-world { width: 100%; height: auto; background: #111; border-radius: 4px; display: block; }
+.fq-world { aspect-ratio: 800 / 560; cursor: grab; touch-action: none; }
+.fq-video.picking { cursor: crosshair; }
+.fq-world-bg { fill: #16181c; }
+.fq-grid { stroke: rgba(80, 220, 255, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fq-box { stroke: rgba(255, 255, 255, 0.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.fq-quad { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fq-quad.block { fill: rgba(255, 140, 20, 0.22); stroke: #ff9a2a; }
+.fq-quad.soul { fill: rgba(60, 220, 255, 0.22); stroke: #4be0ff; }
+.fq-quad.entity { fill: rgba(255, 230, 60, 0.2); stroke: #ffe23c; }
+.fq-click circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fq-click.pending circle { fill: #888; }
+.fq-click text { fill: #fff; font-size: 22px; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+.fq-world-click { fill: #ff3b6b; }
+.fq-eye { fill: #fff; }
+.fq-look { stroke: #fff; stroke-width: 2; }
+.fq-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.fq-panels h3 { margin: 0 0 6px; font-size: 14px; }
+.fq-row, .fq-placement { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.fq-placement { padding: 6px 0; border-top: 1px solid rgba(127, 127, 127, 0.25); }
+.fq-num { display: inline-flex; align-items: center; gap: 4px; }
+.fq-num input { width: 76px; }
+.fq-grid-fields { display: flex; flex-wrap: wrap; gap: 6px; }
+.fq-faces { display: inline-flex; gap: 2px; }
+.fq-faces button[aria-pressed="true"] { background: #ff9a2a; color: #000; }
+.fq-candidates { display: flex; flex-direction: column; gap: 2px; }

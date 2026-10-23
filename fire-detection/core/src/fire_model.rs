@@ -297,6 +297,24 @@ pub fn fire_block_quads(pos: [i32; 3], faces: FireFaces, soul: bool) -> Vec<Mode
     out
 }
 
+/// The side of the fire cell at `cell` that points away from an eye at `eye`: a burning block is behind the fire in
+/// front of it, so this is the 3D tool's first guess of which face burns (the dominant horizontal direction).
+pub fn facing_away(eye: [f64; 3], cell: [i32; 3]) -> Attach {
+    let dx = cell[0] as f64 + 0.5 - eye[0];
+    let dz = cell[2] as f64 + 0.5 - eye[2];
+    if dx.abs() > dz.abs() {
+        if dx > 0.0 {
+            Attach::East
+        } else {
+            Attach::West
+        }
+    } else if dz > 0.0 {
+        Attach::South
+    } else {
+        Attach::North
+    }
+}
+
 /// A quad of fire on an entity: world corners, UV within the sprite, and which sprite (0 = fire_0, 1 = fire_1).
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntityQuad {

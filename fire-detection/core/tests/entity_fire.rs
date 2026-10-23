@@ -111,3 +111,18 @@ fn no_size_gives_no_quads() {
     assert!(entity_quads([0.0; 3], 0.6, 0.0, 0.0).is_empty());
     assert!(entity_quads([0.0; 3], f64::NAN, 1.0, 0.0).is_empty());
 }
+
+/// A burning block is behind the fire cell, so the default face is the cell's side pointing away from the camera
+/// (the dominant horizontal direction from the eye to the cell).
+#[test]
+fn the_default_face_points_away_from_the_camera() {
+    use fire_core::fire_model::{facing_away, Attach};
+    let cell = [10, 64, 10];
+    // camera south of the cell (bigger z) looking north: the burning block is north of the cell
+    assert_eq!(facing_away([10.5, 65.6, 20.0], cell), Attach::North);
+    assert_eq!(facing_away([10.5, 65.6, 0.0], cell), Attach::South);
+    assert_eq!(facing_away([0.0, 65.6, 10.4], cell), Attach::East);
+    assert_eq!(facing_away([20.0, 65.6, 10.6], cell), Attach::West);
+    // diagonal: the larger horizontal offset decides
+    assert_eq!(facing_away([14.0, 65.6, 25.0], cell), Attach::North);
+}

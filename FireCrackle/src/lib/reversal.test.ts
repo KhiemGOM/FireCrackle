@@ -5,7 +5,7 @@
 import { vi as reversalTest } from "vitest";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation,
+  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation, orbitCamera, defaultFace,
   type CameraPose,
 } from "./reversal";
 
@@ -115,3 +115,18 @@ describe("automatic guess", () => {
     expect(() => orientation(new Uint8ClampedArray(10), 320, 180)).toThrow();
   });
 });
+
+describe("tool helpers", () => {
+  it("an orbit camera looks at its target from the given distance", () => {
+    const c = orbitCamera([4.5, 64, -7.5], 137, 60, 12, 70)!;
+    const [p] = project(c, [[4.5, 64, -7.5]], 1600, 900);
+    expect(p![0]).toBeCloseTo(800, 6);
+    expect(p![1]).toBeCloseTo(450, 6);
+    expect(orbitCamera([0, 0, 0], 0, 0, 0, 70)).toBeNull();
+  });
+  it("the default face points away from the camera", () => {
+    expect(defaultFace({ ...cam, x: 10.5, z: 20 }, [10, 64, 10])).toBe("north");
+    expect(defaultFace({ ...cam, x: 0, z: 10.4 }, [10, 64, 10])).toBe("east");
+  });
+});
+
