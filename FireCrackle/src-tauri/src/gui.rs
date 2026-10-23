@@ -139,6 +139,7 @@ mod tests {
             scaled_height: None,
             notes: vec![],
             pieces: vec![],
+            screen_veil: None,
         }
     }
 

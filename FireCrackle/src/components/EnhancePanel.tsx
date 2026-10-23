@@ -13,7 +13,7 @@ export const ROW_NAMES: Record<RowId, string> = {
   veil: "GUI veil", portal: "Portal", tone: STAGES.tone.name, denoise: STAGES.denoise.name, deblur: STAGES.deblur.name, sharpen: STAGES.sharpen.name, fire: STAGES.fire.name, channels: STAGES.channels.name, edges: STAGES.edges.name,
 };
 const VEIL_LABELS: Record<VeilMode, string> = { off: "Off", auto: "Auto-undo", on: "Always undo" };
-const MENU_VEIL_LABELS: Record<MenuVeil, string> = { flat: "Menus: vignette veil (1.16)", blur: "Menus: blur veil (1.21+)" };
+const MENU_VEIL_LABELS: Record<MenuVeil, string> = { flat: "Unclear menus: vignette veil (1.16)", blur: "Unclear menus: blur veil (1.21+)" };
 /** Shown on hover, on the row name, instead of paragraphs in the panel. */
 const ROW_HELP: Partial<Record<RowId, string>> = {
   veil: "Reverses the darkening Minecraft draws behind an open screen. Auto uses veil evidence and preserves detected GUI pixels. Always undo processes every pixel; thresholds are in Settings.",
@@ -122,7 +122,7 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
             {VEIL_MODES.map(m => <option key={m} value={m}>{VEIL_LABELS[m]}</option>)}
           </select>
           {settings.veil !== "off" ? (
-            <select aria-label="Menu veil" title="How this video's version veils menus (pause, options): inventories always use the flat veil" value={settings.menuVeil}
+            <select aria-label="Menu veil" title="Auto picks each screen's veil from its type and the world around it. Only a pause menu over a dark world looks the same in 1.16 and 1.21: this says which it is" value={settings.menuVeil}
               onChange={e => MENU_VEILS.includes(e.target.value as MenuVeil) && onChange({ ...settings, menuVeil: e.target.value as MenuVeil })}>
               {MENU_VEILS.map(m => <option key={m} value={m}>{MENU_VEIL_LABELS[m]}</option>)}
             </select>

@@ -1,6 +1,6 @@
 // Decode / correction / encode glue. Pixel math lives only in canonical Rust, reached through WASM bindings.
 
-import { initVeil, applyVeil, type VeilMode, type VeilOptions } from "./veil";
+import { initVeil, applyVeil, menuBackgroundEvident, type VeilMode, type VeilOptions, type VeilStyle } from "./veil";
 import type { ScreenEvidence } from "./guiMask";
 import type {PortalImage,PortalResult} from './portal';
 import {fitCoverage,sameShape,type WorldCoverage} from './portalPreview';
@@ -46,8 +46,11 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
     // remains in applyVeil's canonical Rust/WASM inverse.
     // the screen was found on any size of this picture (the native frame): same shape is enough
     const screenMatches = !!screen && sameShape(screen, img);
-    // a detected menu in a 1.21+ video has the menu background, not the flat gradient (veil.rs VeilStyle)
-    const style = screen?.menu && options.menu === "blur" ? "menu" : "flat";
+    const kept=fitCoverage(coverage,img.width,img.height);
+    const world=kept&&kept.world.length===img.width*img.height?kept.world:undefined;
+    // which veil: the screen type's, and for the pause menu (the same in 1.16 and 1.21) the world's brightness; only
+    // a dark world leaves it to the Enhance panel's menu veil (veil.rs screen_veil, menu_background_evident)
+    const style: VeilStyle = screen?.menu === "menu" || (screen?.menu === "unclear" && (menuBackgroundEvident(img.data, img.width, img.height, world) || options.menu === "blur")) ? "menu" : "flat";
     const result = applyVeil(img, mode === "on" || (mode === "auto" && screenMatches) ? "on" : "off", options, style);
     if (result.error) return { blob: original, applied: false, error: result.error };
     let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
@@ -55,8 +58,7 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
     // Java 1.21.11; 0xC0101010 -> 0xD0101010). Keep supplied GUI coverage untouched in Auto: callers pass the open
     // screen only (the hotbar and HUD sit on the veil too and are unveiled with the world).
     // Always undo deliberately bypasses this exclusion. Inverse/rounding stay in Rust.
-    const kept=mode==="auto"&&result.applied?fitCoverage(coverage,img.width,img.height):undefined;
-    if(kept&&kept.world.length===img.width*img.height){
+    if(mode==="auto"&&result.applied&&kept&&world){
       data=new Uint8ClampedArray(data);
       for(let i=0;i<kept.world.length;i++)if(!kept.world[i])data.set(img.data.subarray(i*4,i*4+4),i*4);
     }

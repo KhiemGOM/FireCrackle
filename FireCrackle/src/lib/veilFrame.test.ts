@@ -56,19 +56,51 @@ function menuPixels(): Uint8ClampedArray {
   return f;
 }
 
+/** A night scene under the 1.21 menu background: dark enough to also fit under the flat veil. */
+function darkMenuPixels(): Uint8ClampedArray {
+  const f = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < f.length; i += 4) f.fill(Math.round(((i / 4) % 60) * (1 - 64 / 255)), i, i + 3), (f[i + 3] = 255);
+  return f;
+}
+
 describe("the menu veil style", () => {
   const blur = { ...DEFAULT_VEIL_OPTIONS, menu: "blur" as const };
-  it("a detected menu with the blur style (1.21+) gets the menu inverse", async () => {
+  const screen = (menu?: "menu" | "unclear") => ({ width: W, height: H, ...(menu ? { menu } : {}) });
+  it("a screen only 1.21+ has (options, packs) gets the menu inverse whatever the setting", async () => {
     const pixels = menuPixels(), fake = io(pixels);
-    const r = await processFrame(bytes, original(), "auto", blur, fake, undefined, undefined, { width: W, height: H, menu: true });
+    const r = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, screen("menu"));
     expect(r.applied).toBe(true);
     expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
     expect(fake.encoded[0]).not.toEqual(unveilRgba(pixels, W, H));
   });
-  it("a detected menu with the default style (1.16 flat veil) gets the flat inverse", async () => {
+  it("a pause menu over a world too bright for the flat veil gets the menu inverse, even with the 1.16 setting", async () => {
     const pixels = menuPixels(), fake = io(pixels);
-    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W, height: H, menu: true });
+    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, screen("unclear"));
+    expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
+  });
+  it("a pause menu over a dark world is unclear: the setting decides", async () => {
+    const pixels = darkMenuPixels();
+    const flat = io(pixels);
+    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, flat, undefined, undefined, screen("unclear"));
+    expect(flat.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+    const blurred = io(pixels);
+    await processFrame(bytes, original(), "auto", blur, blurred, undefined, undefined, screen("unclear"));
+    expect(blurred.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
+  });
+  it("a 1.16 pause menu (the flat veil over any world) stays flat", async () => {
+    const pixels = veiledPixels(), fake = io(pixels);
+    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, screen("unclear"));
     expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+  });
+  it("only the world around the menu is judged: a bright screen panel is not", async () => {
+    const pixels = veiledPixels();
+    // the left half is bright like a menu panel, and it is the open screen (world 0)
+    for (let i = 0; i < pixels.length; i += 4) if ((i / 4) % W < W / 2) pixels.fill(200, i, i + 3);
+    const world = new Uint8Array(W * H).map((_, i) => (i % W < W / 2 ? 0 : 1));
+    const fake = io(pixels);
+    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, screen("unclear"), { width: W, height: H, world });
+    const right = ((H - 1) * W + W - 1) * 4;
+    expect(Array.from(fake.encoded[0].subarray(right, right + 4))).toEqual(Array.from(unveilRgba(pixels, W, H).subarray(right, right + 4)));
   });
   it("an inventory gets the flat inverse even with the blur style: containers keep the flat veil in 1.21", async () => {
     const pixels = veiledPixels(), fake = io(pixels);
@@ -76,12 +108,12 @@ describe("the menu veil style", () => {
     expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
   });
   it("Always undo with the blur style uses the menu inverse only where a menu was detected", async () => {
-    const pixels = menuPixels();
+    const pixels = darkMenuPixels();
     const none = io(pixels);
     await processFrame(bytes, original(), "on", blur, none);
     expect(none.encoded[0]).toEqual(unveilRgba(pixels, W, H));
     const menu = io(pixels);
-    await processFrame(bytes, original(), "on", blur, menu, undefined, undefined, { width: W, height: H, menu: true });
+    await processFrame(bytes, original(), "on", blur, menu, undefined, undefined, screen("unclear"));
     expect(menu.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
   });
 });

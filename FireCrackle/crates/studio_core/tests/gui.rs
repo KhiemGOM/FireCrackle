@@ -349,6 +349,7 @@ fn the_reply_serialises_for_the_ui() {
             piece: "Hotbar".into(),
             count: 1,
         }],
+        screen_veil: None,
     };
     let v = serde_json::to_value(&r).unwrap();
     assert_eq!(v["scale"], 3.0);
@@ -487,4 +488,24 @@ fn a_mask_from_the_scans_result_alone_runs_no_detector_and_has_only_the_screens(
         studio_core::gui::screens_mask(&screens(2560, 1440), 1000, 1000).is_err(),
         "another shape"
     );
+}
+
+#[test]
+fn the_reply_says_which_veil_the_open_screen_draws() {
+    let with = |screen_type: &str, version: &str| {
+        let mut d = screens(2560, 1440);
+        d.alternatives[0].screen_type = screen_type.into();
+        d.alternatives[0].version = version.into();
+        studio_core::gui::screens_mask(&d, 1024, 576).unwrap().0.screen_veil
+    };
+    assert_eq!(with("inventory.inventory_screen", "1.21.11"), Some("flat"));
+    assert_eq!(with("inventory.sign_edit_screen", "1.21.11"), Some("flat"));
+    assert_eq!(with("options.options_screen", "1.21.11"), Some("menu"));
+    assert_eq!(with("options.options_screen", "1.16.5"), Some("flat"));
+    assert_eq!(with("pause_screen", "1.16.5"), Some("unclear"));
+    // no open screen, no veil to name
+    let none = studio_core::gui::screens_mask(&fire_core::gui_interaction::Detection::none(2560, 1440), 1024, 576);
+    assert_eq!(none.unwrap().0.screen_veil, None);
+    let v = serde_json::to_value(studio_core::gui::screens_mask(&screens(2560, 1440), 1024, 576).unwrap().0).unwrap();
+    assert_eq!(v["screen_veil"], "flat");
 }

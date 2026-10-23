@@ -34,7 +34,7 @@ it("rejects truncated or mismatched atomic mask packets", () => {
 describe("the GUI compatibility assumption", () => {
   it("uses only reliable, texture-confirmed menu/inventory pieces as veil evidence", () => {
     for (const piece of ["InventoryPanel", "MenuButton"]) {
-      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 1 }] }))).toEqual(piece === "MenuButton" ? { width: 4, height: 1, menu: true } : { width: 4, height: 1 });
+      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 1 }] }))).toEqual(piece === "MenuButton" ? { width: 4, height: 1, menu: "unclear" } : { width: 4, height: 1 });
       expect(veilScreenEvidence(reply({ reliable: false, pieces: [{ piece, count: 1 }] }))).toBeUndefined();
       expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 0 }] }))).toBeUndefined();
     }
@@ -42,8 +42,15 @@ describe("the GUI compatibility assumption", () => {
     expect(veilScreenEvidence(reply({reliable:false,mask_available:true,pieces:[{piece:'InventoryPanel',count:1}]}))).toEqual({width:4,height:1});
     expect(veilScreenEvidence(null)).toBeUndefined();
   });
+  it("names the open screen's veil from the detector's screen type", () => {
+    const menu = (screen_veil: GuiMaskReply["screen_veil"]) => veilScreenEvidence(reply({ screen_veil, pieces: [{ piece: "MenuButton", count: 3 }] }))?.menu;
+    expect(menu("menu")).toBe("menu"); // an options or pack screen: only 1.21+ has that layout
+    expect(menu("unclear")).toBe("unclear"); // the pause menu: the same in 1.16.5 and 1.21.11
+    expect(menu("flat")).toBeUndefined(); // sign editing has buttons but the flat veil
+    expect(veilScreenEvidence(reply({ screen_veil: "flat", pieces: [{ piece: "InventoryPanel", count: 1 }] }))).toEqual({ width: 4, height: 1 });
+  });
   it("says a screen is a menu only when no inventory is open (containers draw the flat veil in every version)", () => {
-    expect(veilScreenEvidence(reply({ pieces: [{ piece: "MenuButton", count: 3 }] }))?.menu).toBe(true);
+    expect(veilScreenEvidence(reply({ pieces: [{ piece: "MenuButton", count: 3 }] }))?.menu).toBe("unclear");
     expect(veilScreenEvidence(reply({ pieces: [{ piece: "MenuButton", count: 3 }, { piece: "InventoryPanel", count: 1 }] }))?.menu).toBeUndefined();
     expect(veilScreenEvidence(reply({ pieces: [{ piece: "InventoryPanel", count: 1 }, { piece: "MenuButton", count: 0 }] }))?.menu).toBeUndefined();
   });

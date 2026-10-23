@@ -16,6 +16,8 @@ export interface GuiMaskReply {
   scaled_height: number | null;
   notes: string[];
   pieces: Array<{ piece: string; count: number }>;
+  /** The veil the open screen draws (veil.rs screen_veil): "unclear" for the pause menu, the same in 1.16.5 and 1.21.11. */
+  screen_veil?: "flat" | "menu" | "unclear" | null;
 }
 
 export interface GuiMaskFrame { reply: GuiMaskReply; packed: Uint8Array | null }
@@ -38,12 +40,15 @@ export function readGuiMaskFrame(bytes: ArrayBuffer): GuiMaskFrame {
 export function veilScreenEvidence(reply: GuiMaskReply | null): ScreenEvidence | undefined {
   if (!reply || !(reply.mask_available ?? reply.reliable) || !(reply.width > 0) || !(reply.height > 0)) return undefined;
   const has = (piece: string) => !!reply.pieces?.some(p => p.count > 0 && p.piece === piece);
-  if (has("InventoryPanel")) return { width: reply.width, height: reply.height };
-  // menu buttons and no inventory: a menu, which 1.21+ veils its own way (the Enhance panel's menu veil)
-  return has("MenuButton") ? { width: reply.width, height: reply.height, menu: true } : undefined;
+  if (!has("InventoryPanel") && !has("MenuButton")) return undefined;
+  const size = { width: reply.width, height: reply.height };
+  // the detector's screen type names the veil; without one (texture-confirmed pieces), menu buttons are unclear
+  const veil = reply.screen_veil ?? (has("InventoryPanel") ? "flat" : "unclear");
+  return veil === "flat" ? size : { ...size, menu: veil };
 }
-/** An open screen the GUI detector found on a picture of this size; `menu` when it is a menu, not an inventory. */
-export interface ScreenEvidence { width: number; height: number; menu?: true }
+/** An open screen the GUI detector found on a picture of this size. `menu`: it is a menu with the 1.21 menu background
+ * ("menu"), or one that looks the same in 1.16 ("unclear", the pause menu); absent for the flat veil. */
+export interface ScreenEvidence { width: number; height: number; menu?: "menu" | "unclear" }
 
 /** Set on pixels of an open screen (inventory, menu buttons, recipe book): studio_core::gui::SCREEN_FLAG. */
 const SCREEN_FLAG = 0x40;

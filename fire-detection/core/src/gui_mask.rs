@@ -1410,6 +1410,15 @@ impl GuiDetector {
         }
     }
     pub fn detect(&self, frame: &[u8], width: usize, height: usize) -> Result<GuiMask, String> {
+        self.detect_screens(frame, width, height).map(|(mask, _)| mask)
+    }
+    /// `detect`, also returning the open-screen result it merged (None without the interaction bank).
+    pub fn detect_screens(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+    ) -> Result<(GuiMask, Option<crate::gui_interaction::Detection>), String> {
         if width == 0
             || height == 0
             || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
@@ -1430,8 +1439,8 @@ impl GuiDetector {
             None,
             false,
         )?;
-        self.merge_interactions(frame, width, height, &mut mask)?;
-        Ok(mask)
+        let screens = self.merge_interactions(frame, width, height, &mut mask)?;
+        Ok((mask, screens))
     }
     /// The frame's GUI scale from the HUD fit alone (the hotbar, with the same hint reuse as `detect_with_hint`), or
     /// None when the HUD is not reliable. One frame has one GUI scale: vanilla draws the HUD and every screen with it.
@@ -1568,14 +1577,14 @@ impl GuiDetector {
         width: usize,
         height: usize,
         mask: &mut GuiMask,
-    ) -> Result<(), String> {
-        if let Some(detector) = &self.textures.interactions {
-            let hud_scale = mask.fit.filter(|_| mask.reliable).map(|fit| fit.scale);
-            detector
-                .detect_with_scale(frame, width, height, hud_scale)?
-                .merge_neutral_panel(mask)?;
-        }
-        Ok(())
+    ) -> Result<Option<crate::gui_interaction::Detection>, String> {
+        let Some(detector) = &self.textures.interactions else {
+            return Ok(None);
+        };
+        let hud_scale = mask.fit.filter(|_| mask.reliable).map(|fit| fit.scale);
+        let screens = detector.detect_with_scale(frame, width, height, hud_scale)?;
+        screens.merge_neutral_panel(mask)?;
+        Ok(Some(screens))
     }
     pub fn detect_timed(
         &self,

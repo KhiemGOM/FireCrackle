@@ -5,7 +5,7 @@ beforeAll(async()=>{
   await initVeil(await readFile(new URL("./veil.wasm",import.meta.url)));
 });
 import { beforeAll, describe, expect, it } from "vitest";
-import { A_BOTTOM, A_TOP, DEFAULT_VEIL_OPTIONS, MENU_ALPHA, applyVeil, detectVeilStrict, detectVeil, unveilRgba, type VeilOptions } from "./veil";
+import { A_BOTTOM, A_TOP, DEFAULT_VEIL_OPTIONS, MENU_ALPHA, menuBackgroundEvident, applyVeil, detectVeilStrict, detectVeil, unveilRgba, type VeilOptions } from "./veil";
 
 // The game draws fillGradient(0xC0101010 -> 0xD0101010) behind an open screen: colour (16,16,16), alpha 192/255 at the
 // top row to 208/255 at the bottom row. out = 16a + p(1-a). (Same cases as fire-detection/core/tests/veil.rs.)
@@ -72,6 +72,17 @@ describe("the menu inverse (1.21 menus: black at alpha 64)", () => {
     expect(back[0]).toBe(0);
   });
   it("is generated from Rust", () => expect(MENU_ALPHA).toBeCloseTo(64 / 255, 12));
+  it("tells a bright world under the menu background from the flat veil, only where the world is", () => {
+    const n = 64 * 32, menu = new Uint8ClampedArray(n * 4), flat = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      menu.fill(Math.round(200 * (1 - 64 / 255)), i * 4, i * 4 + 3), (menu[i * 4 + 3] = 255);
+      flat.fill(Math.round(16 * 0.78 + 200 * 0.22), i * 4, i * 4 + 3), (flat[i * 4 + 3] = 255);
+    }
+    expect(menuBackgroundEvident(menu, 64, 32)).toBe(true);
+    expect(menuBackgroundEvident(flat, 64, 32)).toBe(false);
+    expect(menuBackgroundEvident(menu, 64, 32, new Uint8Array(n))).toBe(false);
+    expect(() => menuBackgroundEvident(menu, 64, 32, new Uint8Array(3))).toThrow();
+  });
 });
 
 describe("constants", () => {

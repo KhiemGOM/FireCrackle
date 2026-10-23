@@ -380,3 +380,77 @@ fn the_styled_inverse_rejects_bad_frames() {
     let mut px = vec![0; 5];
     assert!(fire_core::veil::unveil_style_in_place(&mut px, 2, 1, 3, fire_core::veil::VeilStyle::Menu).is_err());
 }
+
+#[test]
+fn a_screen_type_says_which_veil_it_draws() {
+    use fire_core::veil::{screen_veil, ScreenVeil};
+    // containers, signs and books draw the flat veil in every version
+    for t in ["inventory.inventory_screen", "inventory.container_screen", "inventory.sign_edit_screen", "inventory.hanging_sign_edit_screen"] {
+        for v in ["1.16.5", "1.21.11"] {
+            assert_eq!(screen_veil(t, v), ScreenVeil::Flat, "{t} {v}");
+        }
+    }
+    // a menu whose layout differs between versions: the matched version's veil
+    for t in ["options.options_screen", "options.language_select_screen", "packs.pack_selection_screen"] {
+        assert_eq!(screen_veil(t, "1.21.11"), ScreenVeil::Menu, "{t}");
+        assert_eq!(screen_veil(t, "1.16.5"), ScreenVeil::Flat, "{t}");
+    }
+    // the pause menu and the confirm-link screen look the same in 1.16.5 and 1.21.11: the matched version means nothing
+    for t in ["pause_screen", "confirm_link_screen"] {
+        for v in ["1.16.5", "1.21.11"] {
+            assert_eq!(screen_veil(t, v), ScreenVeil::Unclear, "{t} {v}");
+        }
+    }
+    // a screen type or version nobody classified is not guessed
+    assert_eq!(screen_veil("something_new", "1.16.5"), ScreenVeil::Unclear);
+    assert_eq!(screen_veil("options.options_screen", "test"), ScreenVeil::Unclear);
+}
+
+/// A bright scene, `dark` applied to each channel (the veil formula).
+fn veiled_scene(dark: impl Fn(f64, f64) -> f64) -> Vec<u8> {
+    let frame = scene(11, 120, 255);
+    (0..H)
+        .flat_map(|y| {
+            let a = A_TOP + (A_BOTTOM - A_TOP) * (y as f64 + 0.5) / H as f64;
+            frame[y * W * 3..(y + 1) * W * 3].iter().map(move |&p| p as f64).collect::<Vec<_>>().into_iter().map(move |p| (p, a))
+        })
+        .map(|(p, a)| dark(p, a).round().clamp(0.0, 255.0) as u8)
+        .collect()
+}
+
+#[test]
+fn the_flat_veil_never_lets_the_world_above_its_ceiling() {
+    let flat = veiled_scene(|p, a| 16.0 * a + p * (1.0 - a));
+    assert_eq!(fire_core::veil::flat_veil_excess(&flat, W, H, 3, None).unwrap(), 0.0);
+    assert!(!fire_core::veil::menu_background_evident(&flat, W, H, 3, None).unwrap());
+}
+
+#[test]
+fn a_bright_world_under_the_menu_background_is_above_the_flat_ceiling() {
+    let menu = veiled_scene(|p, _| p * (1.0 - 64.0 / 255.0));
+    assert!(fire_core::veil::flat_veil_excess(&menu, W, H, 3, None).unwrap() > 0.9);
+    assert!(fire_core::veil::menu_background_evident(&menu, W, H, 3, None).unwrap());
+}
+
+#[test]
+fn a_dark_world_under_the_menu_background_is_unclear() {
+    // a night scene, 0..90, darkened by the menu background stays under the flat ceiling
+    let dark: Vec<u8> = scene(5, 0, 90).iter().map(|&p| (p as f64 * (1.0 - 64.0 / 255.0)).round() as u8).collect();
+    assert!(!fire_core::veil::menu_background_evident(&dark, W, H, 3, None).unwrap());
+}
+
+#[test]
+fn only_world_pixels_count_and_a_little_bright_text_does_not() {
+    let mut flat = veiled_scene(|p, a| 16.0 * a + p * (1.0 - a));
+    // white heading text over the veil: a few hundred pixels
+    for px in flat[..300 * 3].iter_mut() {
+        *px = 255;
+    }
+    assert!(!fire_core::veil::menu_background_evident(&flat, W, H, 3, None).unwrap());
+    // a bright screen panel is outside the world mask and never counts
+    let menu = veiled_scene(|p, _| p * (1.0 - 64.0 / 255.0));
+    let none = vec![0u8; W * H];
+    assert_eq!(fire_core::veil::flat_veil_excess(&menu, W, H, 3, Some(&none)).unwrap(), 0.0);
+    assert!(!fire_core::veil::menu_background_evident(&menu, W, H, 3, Some(&none)).unwrap());
+    assert!(fire_core::veil::flat_veil_excess(&menu, W, H, 3, Some(&[0u8; 3])).is_err());
+}

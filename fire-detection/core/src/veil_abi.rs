@@ -250,6 +250,30 @@ pub unsafe extern "C" fn veil_inverse(
 ) -> i32 {
     unsafe { veil_inverse_style(p, len, w, h, channels, 0) }
 }
+/// `veil::menu_background_evident` of an RGB/RGBA frame; `world` (w*h bytes, 1 = world) may be null for every pixel.
+/// 1 evident, 0 not, -1 bad input.
+/// # Safety
+/// `p` must reference `len` readable bytes and `world`, when not null, `world_len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn veil_menu_evident(
+    p: *const u8,
+    len: usize,
+    w: usize,
+    h: usize,
+    channels: usize,
+    world: *const u8,
+    world_len: usize,
+) -> i32 {
+    if p.is_null() {
+        return -1;
+    }
+    let data = unsafe { std::slice::from_raw_parts(p, len) };
+    let world = (!world.is_null()).then(|| unsafe { std::slice::from_raw_parts(world, world_len) });
+    match veil::menu_background_evident(data, w, h, channels, world) {
+        Ok(e) => e as i32,
+        Err(_) => -1,
+    }
+}
 /// `veil_inverse` of a chosen style: 0 flat gradient, 1 the 1.21 menu background.
 /// # Safety
 /// Pointer must reference len exclusively writable bytes for the duration of this call.

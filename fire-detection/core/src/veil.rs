@@ -373,6 +373,84 @@ pub fn unveil_style_in_place(
         VeilStyle::Menu => unveil_in_place(data, w, h, channels, MENU_ALPHA, MENU_ALPHA, [0; 3]),
     }
 }
+/// The veil a matched screen draws, from the interaction detector's `screen_type` and source `version`.
+/// 1.16 draws the flat gradient behind every screen; 1.21 behind containers, signs and books only, and the menu
+/// background behind other menus. Where a menu's layout is the same in both versions the matched version is
+/// arbitrary, so it is `Unclear`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScreenVeil {
+    /// Containers, signs and books in every version; every 1.16 screen.
+    Flat,
+    /// A 1.21+ menu layout: the 1.21 menu background.
+    Menu,
+    /// A menu that looks the same in 1.16.5 and 1.21.11 (and anything unclassified): decided from the pixels,
+    /// else by the user.
+    Unclear,
+}
+/// Menus whose layout differs between 1.16.5 and 1.21.11, so the matched version is the video's. The pause menu and
+/// the confirm-link screen look the same in both.
+const VERSIONED_LAYOUTS: [&str; 2] = ["options.", "packs."];
+pub fn screen_veil(screen_type: &str, version: &str) -> ScreenVeil {
+    if screen_type.starts_with("inventory.") {
+        ScreenVeil::Flat
+    } else if !VERSIONED_LAYOUTS.iter().any(|p| screen_type.starts_with(p)) {
+        ScreenVeil::Unclear
+    } else if version.starts_with("1.16") {
+        ScreenVeil::Flat
+    } else if version.starts_with("1.21") {
+        ScreenVeil::Menu
+    } else {
+        ScreenVeil::Unclear
+    }
+}
+
+/// How far above the flat veil's brightest possible value (16a + 255(1 - a)) a pixel must be to count: video
+/// compression noise.
+pub const FLAT_CEILING_MARGIN: f64 = 8.0;
+/// The share of world pixels above the flat ceiling from which the screen cannot have the flat veil. Measured with the
+/// app's GUI mask (.board/menu-veil, 2026-10-24): 1.16.5 menus at most 0.0095 (17 frames); 1.21.11 pause menus
+/// median 0.37, 83 of 96 at or above any share from 0.03 to 0.10 (the rest dark scenes); toasts and effect panels
+/// beside 1.21 inventories reach 0.116. The highest of the equally good shares leaves room for such overlays.
+pub const MENU_EVIDENT_SHARE: f64 = 0.10;
+
+/// The share of world pixels (`world` 1, or every pixel) brighter than the flat veil can ever leave the world.
+pub fn flat_veil_excess(
+    data: &[u8],
+    w: usize,
+    h: usize,
+    channels: usize,
+    world: Option<&[u8]>,
+) -> Result<f64, String> {
+    validate(data, w, h, channels)?;
+    if world.is_some_and(|m| m.len() != w * h) {
+        return Err("world mask does not match the frame".into());
+    }
+    let (mut over, mut total) = (0usize, 0usize);
+    for y in 0..h {
+        let a = A_TOP + (A_BOTTOM - A_TOP) * (y as f64 + 0.5) / h as f64;
+        let ceiling = COLOUR * a + 255.0 * (1.0 - a) + FLAT_CEILING_MARGIN;
+        for x in 0..w {
+            if world.is_some_and(|m| m[y * w + x] == 0) {
+                continue;
+            }
+            let p = &data[(y * w + x) * channels..][..3];
+            total += 1;
+            over += (p.iter().copied().max().unwrap_or(0) as f64 > ceiling) as usize;
+        }
+    }
+    Ok(if total == 0 { 0.0 } else { over as f64 / total as f64 })
+}
+/// The world around an open screen is too bright for the flat veil: the screen has the 1.21 menu background.
+/// False is not evidence of the flat veil (a dark world under the menu background looks the same).
+pub fn menu_background_evident(
+    data: &[u8],
+    w: usize,
+    h: usize,
+    channels: usize,
+    world: Option<&[u8]>,
+) -> Result<bool, String> {
+    Ok(flat_veil_excess(data, w, h, channels, world)? >= MENU_EVIDENT_SHARE)
+}
 pub fn unveil_rgb(data: &[u8], w: usize, h: usize) -> Result<Vec<u8>, String> {
     let mut out = data.to_vec();
     unveil_in_place(&mut out, w, h, 3, A_TOP, A_BOTTOM, [COLOUR as u8; 3])?;

@@ -7,8 +7,9 @@ import { DEFAULT_VEIL_OPTIONS } from "./veil.generated";
 import { failureMessage } from "./appErrors";
 export type VeilMode = "off" | "auto" | "on";
 export const VEIL_MODES: VeilMode[] = ["off", "auto", "on"];
-/** How a menu (not an inventory) was veiled: "flat", the 1.16 gradient every screen draws; "blur", the 1.21+ menu
- * background (black at alpha 64 over the world, blurred unless the player turned blur off). The Enhance panel's choice. */
+/** How a pause menu over a dark world is unveiled, when its pixels cannot tell the versions apart: "flat", the 1.16
+ * gradient; "blur", the 1.21+ menu background (black at alpha 64 over the world, blurred unless turned off). Every other
+ * screen's veil is known from its type and pixels. The Enhance panel's choice. */
 export type MenuVeil = "flat" | "blur";
 export const MENU_VEILS: MenuVeil[] = ["flat", "blur"];
 /** Which inverse veil.rs runs (VeilStyle): the flat gradient or the 1.21 menu background. */
@@ -17,7 +18,7 @@ export interface VeilOptions { minShare: number; margin: number; slack: number; 
 type Pixels = Uint8ClampedArray | Uint8Array;
 export type VeilRuntime = { memory: WebAssembly.Memory; veil_alloc(n:number):number; veil_free(p:number,n:number):void;
   portal_fit(...args:number[]):number; portal_inverse(...args:number[]):number;
-  veil_detect(...args:number[]):number; veil_detect_strict(...args:number[]):number; veil_inverse(...args:number[]):number; veil_inverse_style(...args:number[]):number; };
+  veil_detect(...args:number[]):number; veil_detect_strict(...args:number[]):number; veil_inverse(...args:number[]):number; veil_inverse_style(...args:number[]):number; veil_menu_evident(...args:number[]):number; };
 type Native = VeilRuntime;
 let native: Native | undefined;
 let pending: Promise<void> | undefined;
@@ -56,6 +57,18 @@ export function detectVeilStrict(rgba:Pixels,w:number,h:number,o:VeilOptions=DEF
 export function unveilRgba(rgba:Pixels,w:number,h:number,style:VeilStyle="flat"):Uint8ClampedArray {
   return buffer(rgba,w,h,(n,p)=>{if(n.veil_inverse_style(p,rgba.length,w,h,4,style==="menu"?1:0)<0)throw new Error("Invalid veil inverse");
     return new Uint8ClampedArray(new Uint8Array(n.memory.buffer,p,rgba.length));});
+}
+/** The world (`world` 1 per pixel, or every pixel) is too bright for the flat veil: the 1.21 menu background
+ * (veil.rs menu_background_evident). False is not evidence of the flat veil. */
+export function menuBackgroundEvident(rgba:Pixels,w:number,h:number,world?:Uint8Array):boolean {
+  if(world&&world.length!==w*h)throw new Error("World mask does not match the frame");
+  return buffer(rgba,w,h,(n,p)=>{
+    const m=world?n.veil_alloc(world.length):0;
+    try {if(world)new Uint8Array(n.memory.buffer,m,world.length).set(world);
+      const r=n.veil_menu_evident(p,rgba.length,w,h,4,m,world?.length??0);
+      if(r<0)throw new Error("Invalid menu veil check");return r===1;
+    } finally {if(world)n.veil_free(m,world.length);}
+  });
 }
 export interface VeilResult { data: Pixels; applied:boolean; error?:string; }
 export function applyVeil(img:{data:Pixels;width:number;height:number},mode:VeilMode,options:VeilOptions,style:VeilStyle="flat"):VeilResult {

@@ -95,6 +95,8 @@ pub struct GuiMaskReply {
     pub scaled_height: Option<u32>,
     pub notes: Vec<String>,
     pub pieces: Vec<PieceCount>,
+    /// The veil the open screen draws (`fire_core::veil::screen_veil`): "flat", "menu" or "unclear"; None without one.
+    pub screen_veil: Option<&'static str>,
 }
 
 static WIDGETS: &[u8] = include_bytes!(concat!(
@@ -246,18 +248,17 @@ impl GuiAnalyzer {
         h: usize,
         screens: Option<&fire_core::gui_interaction::Detection>,
     ) -> Result<(GuiMaskReply, Vec<u8>), String> {
-        let mut m = match screens {
-            None => self.detector.detect(rgb, w, h)?,
+        let (mut m, found) = match screens {
+            None => self.detector.detect_screens(rgb, w, h)?,
             Some(s) => {
                 same_shape(s, w, h)?;
-                self.detector
-                    .detect_with_screens(rgb, w, h, &s.scaled(w, h))?
+                (self.detector.detect_with_screens(rgb, w, h, &s.scaled(w, h))?, None)
             }
         };
         // Reuse the shared texture-confirmed screen masks. Their hits also let
         // the preview distinguish an open menu/inventory from the normal HUD.
         fire_core::gui_mask::add_screen_masks(rgb, w, h, self.detector.textures(), &mut m)?;
-        Ok(reply_of(m))
+        Ok(reply_of(m, screens.or(found.as_ref())))
     }
 }
 
@@ -294,11 +295,15 @@ pub fn screens_mask(
         notes: vec![],
     };
     screens.scaled(width, height).merge_neutral_panel(&mut m)?;
-    Ok(reply_of(m))
+    Ok(reply_of(m, Some(screens)))
 }
 
 /// The summary and packed pixels the app reads (`gui_mask_frame`).
-fn reply_of(m: fire_core::gui_mask::GuiMask) -> (GuiMaskReply, Vec<u8>) {
+/// `screens`: the open-screen result merged into the mask, which names the screen's veil.
+fn reply_of(
+    m: fire_core::gui_mask::GuiMask,
+    screens: Option<&fire_core::gui_interaction::Detection>,
+) -> (GuiMaskReply, Vec<u8>) {
     let (w, h) = (m.width, m.height);
     {
         let mut counts: BTreeMap<String, usize> = BTreeMap::new();
@@ -345,6 +350,14 @@ fn reply_of(m: fire_core::gui_mask::GuiMask) -> (GuiMaskReply, Vec<u8>) {
             scaled_height: m.fit.map(|f| f.scaled_height),
             notes: m.notes,
             pieces,
+            screen_veil: screens.and_then(|s| s.shown()).map(|p| {
+                use fire_core::veil::ScreenVeil::*;
+                match fire_core::veil::screen_veil(&p.screen_type, &p.version) {
+                    Flat => "flat",
+                    Menu => "menu",
+                    Unclear => "unclear",
+                }
+            }),
         };
         (reply, packed)
     }
