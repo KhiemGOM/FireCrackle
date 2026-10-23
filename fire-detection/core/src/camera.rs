@@ -141,7 +141,7 @@ fn coplanar(points: &[([f64; 3], [f64; 2])]) -> bool {
 }
 
 /// Solves the n×n system `a x = b` (Gaussian elimination, partial pivoting); None when singular.
-fn solve(mut a: Vec<f64>, mut b: Vec<f64>, n: usize) -> Option<Vec<f64>> {
+fn solve_linear(mut a: Vec<f64>, mut b: Vec<f64>, n: usize) -> Option<Vec<f64>> {
     for col in 0..n {
         let piv =
             (col..n).max_by(|&i, &j| a[i * n + col].abs().total_cmp(&a[j * n + col].abs()))?;
@@ -209,7 +209,7 @@ fn levenberg_marquardt(
             for a in 0..n {
                 m[a * n + a] += lambda * jtj[a * n + a].max(1e-12);
             }
-            let Some(delta) = solve(m, jtr.iter().map(|v| -v).collect(), n) else {
+            let Some(delta) = solve_linear(m, jtr.iter().map(|v| -v).collect(), n) else {
                 break;
             };
             let mut trial = c;
@@ -367,6 +367,134 @@ fn refit(
     f
 }
 
+/// Starting cameras over yaw (15° steps), pitch (−75..75°) and FOV (70, 110, 125: the slider and its sprint/effect
+/// multipliers), each placed so the world point `anchor` lies on the ray through pixel `anchor_px` at distance
+/// `dist(fov)`.
+fn start_grid(
+    anchor: [f64; 3],
+    anchor_px: [f64; 2],
+    dist: impl Fn(f64) -> f64,
+    w: usize,
+    h: usize,
+) -> Vec<Camera> {
+    let mut out = Vec::new();
+    for fov in [70.0f64, 110.0, 125.0] {
+        let t = (fov.to_radians() / 2.0).tan();
+        let ray = [
+            (anchor_px[0] / w as f64 * 2.0 - 1.0) * t * w as f64 / h as f64,
+            (1.0 - anchor_px[1] / h as f64 * 2.0) * t,
+            -1.0,
+        ];
+        let len = (ray[0] * ray[0] + ray[1] * ray[1] + 1.0).sqrt();
+        let d = dist(fov);
+        for yi in 0..24 {
+            for pi in 0..11 {
+                let mut c = Camera {
+                    pos: [0.0; 3],
+                    yaw: -180.0 + 15.0 * yi as f64,
+                    pitch: -75.0 + 15.0 * pi as f64,
+                    roll: 0.0,
+                    fov,
+                };
+                let r = c.to_world_dir([ray[0] / len, ray[1] / len, ray[2] / len]);
+                c.pos = [
+                    anchor[0] - d * r[0],
+                    anchor[1] - d * r[1],
+                    anchor[2] - d * r[2],
+                ];
+                out.push(c);
+            }
+        }
+    }
+    out
+}
+
+/// A short fit from every start, on all cores; results sorted by cost.
+fn coarse(
+    starts: Vec<Camera>,
+    short_fit: impl Fn(&Camera) -> (Camera, f64) + Sync,
+) -> Vec<(f64, Camera)> {
+    let threads = std::thread::available_parallelism()
+        .map_or(1, |n| n.get())
+        .min(starts.len())
+        .max(1);
+    let chunk = starts.len().div_ceil(threads).max(1);
+    let mut tried: Vec<(f64, Camera)> = std::thread::scope(|s| {
+        let short_fit = &short_fit;
+        let handles: Vec<_> = starts
+            .chunks(chunk)
+            .map(|part| {
+                s.spawn(move || {
+                    part.iter()
+                        .map(|c| {
+                            let (c, cost) = short_fit(c);
+                            (cost, c)
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().expect("coarse fit"))
+            .collect()
+    });
+    tried.sort_by(|a, b| a.0.total_cmp(&b.0));
+    tried
+}
+
+/// Perspective reversal from any world points and where they appear (e.g. block corners clicked on a frame), with no
+/// starting guess: the start grid is anchored on the points' centroid at the distance their spread implies.
+/// Needs at least 4 points; FOV is held (and flagged) when they all lie on one plane.
+pub fn solve(points: &[([f64; 3], [f64; 2])], w: usize, h: usize) -> Option<Fit> {
+    if points.len() < 4 {
+        return None;
+    }
+    let n = points.len() as f64;
+    let cw = points.iter().fold([0.0; 3], |a, p| {
+        [a[0] + p.0[0] / n, a[1] + p.0[1] / n, a[2] + p.0[2] / n]
+    });
+    let cp = points
+        .iter()
+        .fold([0.0; 2], |a, p| [a[0] + p.1[0] / n, a[1] + p.1[1] / n]);
+    let sw = (points
+        .iter()
+        .map(|p| (p.0[0] - cw[0]).powi(2) + (p.0[1] - cw[1]).powi(2) + (p.0[2] - cw[2]).powi(2))
+        .sum::<f64>()
+        / n)
+        .sqrt();
+    let sp = (points
+        .iter()
+        .map(|p| (p.1[0] - cp[0]).powi(2) + (p.1[1] - cp[1]).powi(2))
+        .sum::<f64>()
+        / n)
+        .sqrt()
+        .max(1.0);
+    let dist = |fov: f64| (sw * (h as f64 / 2.0) / (fov.to_radians() / 2.0).tan() / sp).max(0.5);
+    let fov_free = !coplanar(points);
+    let params: &[usize] = if fov_free {
+        &[0, 1, 2, 3, 4, 5, 6]
+    } else {
+        &[0, 1, 2, 3, 4, 5]
+    };
+    let tried = coarse(start_grid(cw, cp, dist, w, h), |c| {
+        levenberg_marquardt(points, w, h, c, params, 15)
+    });
+    let mut best: Option<Fit> = None;
+    for (_, c) in tried.iter().take(4) {
+        let start = if fov_free {
+            *c
+        } else {
+            Camera { fov: 70.0, ..*c }
+        };
+        let f = fit(points, w, h, &start, true)?;
+        if best.as_ref().is_none_or(|b| f.rms < b.rms) {
+            best = Some(f);
+        }
+    }
+    best
+}
+
 /// The camera of a labelled frame, from its fire blocks alone (no starting guess): a yaw/pitch grid with the
 /// position placed on the ray through the first block's quads at its logged distance, then corner assignment by UV
 /// and nearest projection, then the fit. None without any logged quad.
@@ -389,66 +517,10 @@ pub fn fit_label_frame(blocks: &[LoggedBlock], w: usize, h: usize) -> Option<Fit
         .iter()
         .flat_map(|q| q.corners.iter())
         .fold([0.0, 0.0], |a, c| [a[0] + c[0] / n, a[1] + c[1] / n]);
-    let start_at = |yaw: f64, pitch: f64, fov: f64| {
-        let t = (fov.to_radians() / 2.0).tan();
-        let ray = [
-            (mean[0] / w as f64 * 2.0 - 1.0) * t * w as f64 / h as f64,
-            (1.0 - mean[1] / h as f64 * 2.0) * t,
-            -1.0,
-        ];
-        let len = (ray[0] * ray[0] + ray[1] * ray[1] + 1.0).sqrt();
-        let mut c = Camera {
-            pos: [0.0; 3],
-            yaw,
-            pitch,
-            roll: 0.0,
-            fov,
-        };
-        let d = c.to_world_dir([ray[0] / len, ray[1] / len, ray[2] / len]);
-        c.pos = [
-            centre[0] - first.dist * d[0],
-            centre[1] - first.dist * d[1],
-            centre[2] - first.dist * d[2],
-        ];
-        c
-    };
-    // coarse: every start, a short fit (FOV starts span the slider and its sprint/effect multipliers; FOV is free)
-    let starts: Vec<Camera> = [70.0, 110.0, 125.0]
-        .iter()
-        .flat_map(|&fov| {
-            (0..24).flat_map(move |yi| {
-                (0..11).map(move |pi| (-180.0 + 15.0 * yi as f64, -75.0 + 15.0 * pi as f64, fov))
-            })
-        })
-        .map(|(yaw, pitch, fov)| start_at(yaw, pitch, fov))
-        .collect();
-    let threads = std::thread::available_parallelism()
-        .map_or(1, |n| n.get())
-        .min(starts.len());
-    let chunk = starts.len().div_ceil(threads);
-    let mut tried: Vec<(f64, Camera)> = std::thread::scope(|s| {
-        let handles: Vec<_> = starts
-            .chunks(chunk)
-            .map(|part| {
-                let (blocks, cands) = (&blocks, &cands);
-                s.spawn(move || {
-                    part.iter()
-                        .map(|c| {
-                            let pts = assign(blocks, cands, c, w, h);
-                            let (c, cost) =
-                                levenberg_marquardt(&pts, w, h, c, &[0, 1, 2, 3, 4, 5, 6], 15);
-                            (cost, c)
-                        })
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().expect("coarse fit"))
-            .collect()
+    let tried = coarse(start_grid(centre, mean, |_| first.dist, w, h), |c| {
+        let pts = assign(&blocks, &cands, c, w, h);
+        levenberg_marquardt(&pts, w, h, c, &[0, 1, 2, 3, 4, 5, 6], 15)
     });
-    tried.sort_by(|a, b| a.0.total_cmp(&b.0));
     // fine: the best few, re-assigned and fitted fully
     let mut best: Option<Fit> = None;
     for (_, c) in tried.iter().take(4) {

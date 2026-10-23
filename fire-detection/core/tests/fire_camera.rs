@@ -6,7 +6,7 @@
 //! down, roll covers view bobbing / hurt tilt; projection is `overlay::project`. Ways the solver breaks: wrong
 //! corner pairing (pairing is by UV), a single plane cannot separate FOV from distance (FOV is then held and flagged),
 //! points behind the camera, empty input.
-use fire_core::camera::{fit, fit_label_frame, Camera, LoggedBlock, LoggedQuad};
+use fire_core::camera::{fit, fit_label_frame, solve, Camera, LoggedBlock, LoggedQuad};
 use fire_core::fire_model::{block_candidates, block_quads, Attach};
 
 fn close(a: f64, b: f64, tol: f64) -> bool {
@@ -279,4 +279,122 @@ fn one_corrupted_quad_is_left_out_and_the_camera_is_still_exact() {
         fit_label_frame(&clean, 2560, 1440).unwrap().dropped_quads,
         0
     );
+}
+
+// ---- reversal without fire: any world points (block corners) the user clicks, no starting guess
+
+fn block_corners_in_view(cam: &Camera, w: usize, h: usize) -> Vec<([f64; 3], [f64; 2])> {
+    let mut out = Vec::new();
+    for x in -100..-70 {
+        for y in 76..90 {
+            for z in 120..150 {
+                let p = [x as f64, y as f64, z as f64];
+                let v = cam.to_view(p);
+                if v[2] > -1.5 {
+                    continue;
+                }
+                if let Some((px, py)) = cam.project(p, w, h) {
+                    if px > 20.0 && px < w as f64 - 20.0 && py > 20.0 && py < h as f64 - 20.0 {
+                        out.push((p, [px, py]));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+fn pick(all: &[([f64; 3], [f64; 2])], n: usize, seed: &mut u64) -> Vec<([f64; 3], [f64; 2])> {
+    let mut pool = all.to_vec();
+    let mut out = Vec::new();
+    for _ in 0..n {
+        *seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        out.push(pool.swap_remove((*seed >> 33) as usize % pool.len()));
+    }
+    out
+}
+
+#[test]
+fn clicked_block_corners_alone_give_the_camera_with_no_starting_guess() {
+    for cam in [
+        truth(),
+        Camera {
+            pos: [-80.2, 85.1, 141.7],
+            yaw: -151.0,
+            pitch: -12.0,
+            roll: 0.0,
+            fov: 110.0,
+        },
+        Camera {
+            pos: [-95.5, 79.62, 125.3],
+            yaw: -60.0,
+            pitch: 55.0,
+            roll: -0.4,
+            fov: 70.0,
+        },
+    ] {
+        let all = block_corners_in_view(&cam, 2560, 1440);
+        let mut seed = 5;
+        let pts = pick(&all, 8, &mut seed);
+        let f = solve(&pts, 2560, 1440).expect("solvable");
+        let c = f.camera;
+        let d = ((c.pos[0] - cam.pos[0]).powi(2)
+            + (c.pos[1] - cam.pos[1]).powi(2)
+            + (c.pos[2] - cam.pos[2]).powi(2))
+        .sqrt();
+        assert!(
+            f.rms < 1e-3
+                && d < 1e-3
+                && close(c.yaw, cam.yaw, 1e-3)
+                && close(c.pitch, cam.pitch, 1e-3)
+                && close(c.fov, cam.fov, 1e-3),
+            "{cam:?} -> {f:?}"
+        );
+    }
+}
+
+#[test]
+fn half_pixel_clicks_still_give_the_camera_closely() {
+    let cam = truth();
+    let all = block_corners_in_view(&cam, 2560, 1440);
+    let mut seed = 9;
+    let mut pts = pick(&all, 12, &mut seed);
+    for (k, p) in pts.iter_mut().enumerate() {
+        p.1[0] += if k % 2 == 0 { 0.5 } else { -0.5 };
+        p.1[1] += if k % 3 == 0 { -0.5 } else { 0.5 };
+    }
+    let f = solve(&pts, 2560, 1440).unwrap();
+    let c = f.camera;
+    assert!(
+        close(c.yaw, cam.yaw, 0.1) && close(c.pitch, cam.pitch, 0.1) && close(c.fov, cam.fov, 0.3),
+        "{f:?}"
+    );
+}
+
+#[test]
+fn too_few_points_give_nothing_and_coplanar_clicks_hold_the_fov() {
+    let cam = Camera {
+        fov: 70.0,
+        ..truth()
+    };
+    let all = block_corners_in_view(&cam, 2560, 1440);
+    let mut seed = 1;
+    assert!(solve(&pick(&all, 3, &mut seed), 2560, 1440).is_none());
+    // the four corners of one block face (z = 128 plane)
+    let face: Vec<_> = [
+        [-88.0, 80.0, 128.0],
+        [-87.0, 80.0, 128.0],
+        [-87.0, 81.0, 128.0],
+        [-88.0, 81.0, 128.0],
+    ]
+    .iter()
+    .map(|&p| {
+        let (x, y) = cam.project(p, 2560, 1440).unwrap();
+        (p, [x, y])
+    })
+    .collect();
+    let f = solve(&face, 2560, 1440).unwrap();
+    assert!(f.fov_fixed, "{f:?}");
 }
