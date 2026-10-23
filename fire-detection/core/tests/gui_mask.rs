@@ -785,3 +785,65 @@ fn the_crosshair_mask_has_the_crosshair_shape_not_its_box() {
         assert_ne!(at(gx, gy), cross, "transparent sprite pixel ({gx}, {gy})");
     }
 }
+
+#[test]
+fn the_hud_scale_alone_is_the_full_fits_scale_and_absent_without_a_reliable_hud() {
+    let detector = GuiDetector::new(tex(), GuiOptions::default()).unwrap();
+    for (fb_w, fb_h, g, k) in [
+        (1280, 720, 3, 1.0),
+        (1920, 1080, 4, 2.0 / 3.0),
+        (2560, 1440, 6, 0.5),
+        (1280, 720, 1, 1.0),
+    ] {
+        let s = shot(fb_w, fb_h, g, k, &HudState::default(), 7);
+        let full = detect(&s);
+        let mut hint = GuiFitHint::default();
+        let scale = detector
+            .hud_scale_with_hint(&s.frame, s.w, s.h, &mut hint)
+            .unwrap();
+        assert_eq!(
+            scale,
+            full.fit.map(|f| f.scale),
+            "{fb_w}x{fb_h} gui {g} k {k}"
+        );
+        // the next frame reuses the hint and gives the same answer
+        assert_eq!(
+            detector
+                .hud_scale_with_hint(&s.frame, s.w, s.h, &mut hint)
+                .unwrap(),
+            scale
+        );
+    }
+    let hidden = shot(
+        1280,
+        720,
+        3,
+        1.0,
+        &HudState {
+            hud_hidden: true,
+            ..HudState::default()
+        },
+        10,
+    );
+    assert_eq!(
+        detector
+            .hud_scale_with_hint(
+                &hidden.frame,
+                hidden.w,
+                hidden.h,
+                &mut GuiFitHint::default()
+            )
+            .unwrap(),
+        None
+    );
+    let tiny = shot(1280, 720, 1, 0.5, &HudState::default(), 9);
+    assert_eq!(
+        detector
+            .hud_scale_with_hint(&tiny.frame, tiny.w, tiny.h, &mut GuiFitHint::default())
+            .unwrap(),
+        None
+    );
+    assert!(detector
+        .hud_scale_with_hint(&[0; 5], 10, 10, &mut GuiFitHint::default())
+        .is_err());
+}

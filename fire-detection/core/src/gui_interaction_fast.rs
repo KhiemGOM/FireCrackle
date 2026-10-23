@@ -261,6 +261,41 @@ impl InteractionDetector {
     pub fn detect(&self, rgb: &[u8], width: usize, height: usize) -> Result<Detection, String> {
         self.detect_with_scale(rgb, width, height, None)
     }
+    /// One frame has one GUI scale: vanilla draws the HUD and every screen with it, so a panel at another scale than
+    /// a reliable HUD is not a screen (the HUD's many pieces outvote one panel match). `hud_scale` is only measured
+    /// when a panel was found; on disagreement the search is repeated at the HUD's scale. Same decisions as always
+    /// searching at the HUD scale, at the cost of the HUD fit on positive frames only.
+    pub fn detect_at_hud_scale(
+        &self,
+        rgb: &[u8],
+        width: usize,
+        height: usize,
+        hud_scale: impl FnOnce() -> Result<Option<f64>, String>,
+    ) -> Result<Detection, String> {
+        let first = self.detect_with_scale(rgb, width, height, None)?;
+        let Some(found) = first.alternatives.first() else {
+            return Ok(first);
+        };
+        let Some(scale) = hud_scale()? else {
+            return Ok(first);
+        };
+        let agrees = |sx: f64| (sx - scale).abs() <= SCALE_PRUNE_TOLERANCE;
+        if agrees(found.scale_x) {
+            return Ok(first);
+        }
+        let mut again = self.detect_with_scale(rgb, width, height, Some(scale))?;
+        // the rule holds even with the pose-pruning switch off
+        if again
+            .alternatives
+            .first()
+            .is_some_and(|p| !agrees(p.scale_x))
+        {
+            again.alternatives.clear();
+            again.gui_detected = false;
+            again.reason = "no_known_panel_match";
+        }
+        Ok(again)
+    }
     /// `hud_scale`: the frame's reliable HUD scale; used to restrict the pose
     /// search only while the `SCALE_PRUNE` experiment switch is on.
     pub fn detect_with_scale(
@@ -354,6 +389,15 @@ impl InteractionDetector {
             } else {
                 "no_known_panel_match"
             },
+            tooltips: tips
+                .iter()
+                .map(|t| Rect {
+                    x: t.x as f64,
+                    y: t.y as f64,
+                    width: t.w as f64,
+                    height: t.h as f64,
+                })
+                .collect(),
         })
     }
 }

@@ -47,10 +47,11 @@ pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String>
 
 /// Set on pixels of an open screen (inventory, menu buttons, recipe book), whose ids do not fit the low nibble.
 pub const SCREEN_FLAG: u8 = 0x40;
-const SCREEN_PIECES: [PieceId; 3] = [
+const SCREEN_PIECES: [PieceId; 4] = [
     PieceId::InventoryPanel,
     PieceId::MenuButton,
     PieceId::RecipeBookPanel,
+    PieceId::ItemTooltip,
 ];
 
 /// One byte per pixel: the pixel class (0 none, 1 opaque, 2 translucent, 3 unknown) in bits 4-5, the piece id in
@@ -166,6 +167,18 @@ impl GuiAnalyzer {
         Ok(GuiAnalyzer {
             detector: GuiDetector::new(tex, GuiOptions::default())?,
         })
+    }
+
+    /// The frame's GUI scale from the HUD alone, None without a reliable HUD (`GuiDetector::hud_scale_with_hint`).
+    /// Scans pass it to the interaction detector: one frame has one GUI scale, so a panel at another is not a screen.
+    pub fn hud_scale(
+        &self,
+        rgb: &[u8],
+        width: usize,
+        height: usize,
+        hint: &mut fire_core::gui_mask::GuiFitHint,
+    ) -> Result<Option<f64>, String> {
+        self.detector.hud_scale_with_hint(rgb, width, height, hint)
     }
 
     /// Decode a JPEG frame and mask it: the summary and one packed byte per pixel.

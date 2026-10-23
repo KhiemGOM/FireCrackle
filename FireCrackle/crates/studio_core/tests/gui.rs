@@ -355,3 +355,14 @@ fn the_reply_serialises_for_the_ui() {
     assert_eq!(v["pieces"][0]["piece"], "Hotbar");
     assert_eq!(v["scaled_width"], 427);
 }
+
+#[test]
+fn an_item_tooltip_is_an_open_screen_piece() {
+    use fire_core::gui_mask::PieceId;
+    let packed = studio_core::gui::pack(PieceId::ItemTooltip as u8, 3);
+    assert!(studio_core::gui::is_screen(packed));
+    assert!(!studio_core::gui::is_screen(studio_core::gui::pack(
+        PieceId::SoundCaption as u8,
+        3
+    )));
+}

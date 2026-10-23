@@ -20,7 +20,7 @@ pub(crate) fn pipeline_version() -> &'static str {
         hash.update(std::env::consts::ARCH); hash.update(std::env::consts::OS);
         // Compile-time bytes: changing detector, preprocessing, model or texture assets invalidates results.
         macro_rules! sources { ($($path:literal),+ $(,)?) => { $(hash.update(include_bytes!($path));)+ }; }
-        sources!("scan_cache.rs", "pov.rs", "no_fire.rs", "../runtime/ai/no-fire-v3.onnx",
+        sources!("scan_cache.rs", "pov.rs", "no_fire.rs", "gui_scan.rs", "../runtime/ai/no-fire-v3.onnx",
             "../Cargo.lock", "../../release/no-fire-model.json",
             "../../crates/no_fire_cnn/src/engine.rs", "../../crates/no_fire_cnn/src/policy.rs", "../../crates/no_fire_cnn/src/lib.rs",
             "../../crates/studio_core/src/gui.rs", "../../crates/studio_core/src/import.rs", "../../crates/studio_core/src/proc.rs",

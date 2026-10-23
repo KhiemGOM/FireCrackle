@@ -11,7 +11,7 @@ use tauri::ipc::Response;
 /// The last mask, so the overlay pixels need not be computed twice: project folder, frame, packed pixels.
 static LAST: Mutex<Option<(PathBuf, u32, Vec<u8>)>> = Mutex::new(None);
 
-fn analyzer() -> Result<&'static GuiAnalyzer, String> {
+pub(crate) fn analyzer() -> Result<&'static GuiAnalyzer, String> {
     static A: OnceLock<Result<GuiAnalyzer, String>> = OnceLock::new();
     A.get_or_init(GuiAnalyzer::new)
         .as_ref()

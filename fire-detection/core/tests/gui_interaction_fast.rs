@@ -112,3 +112,159 @@ fn a_partial_border_is_not_enough_even_with_matching_interior() {
     let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
     assert!(!detector.detect(&rgb, 400, 240).unwrap().gui_detected);
 }
+
+/// A 1.21 item tooltip (purple rim, near-black fill) drawn at x0..x1, y0..y1.
+fn paint_tooltip(rgb: &mut [u8], x0: usize, x1: usize, y0: usize, y1: usize) {
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let rim = !(x0 + 2..x1 - 2).contains(&x) || !(y0 + 2..y1 - 2).contains(&y);
+            let colour = if rim { [80, 16, 128] } else { [16, 0, 16] };
+            rgb[(y * 400 + x) * 3..(y * 400 + x) * 3 + 3].copy_from_slice(&colour);
+        }
+    }
+}
+
+fn empty_mask() -> fire_core::gui_mask::GuiMask {
+    fire_core::gui_mask::GuiMask {
+        width: 400,
+        height: 240,
+        piece: vec![0; 400 * 240],
+        class: vec![0; 400 * 240],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    }
+}
+
+#[test]
+fn an_item_tooltip_over_an_open_panel_is_part_of_the_screen_mask_even_outside_the_panel() {
+    let (template, mut rgb) = fixture();
+    // the panel is at x 120..280, y 40..200; the tooltip hangs off its lower right
+    paint_tooltip(&mut rgb, 250, 340, 150, 220);
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let result = detector.detect(&rgb, 400, 240).unwrap();
+    assert!(
+        result.gui_detected,
+        "the tooltip's pixels are neutral, not a mismatch"
+    );
+    assert_eq!(result.tooltips.len(), 1);
+    let mut mask = empty_mask();
+    result.merge_neutral_panel(&mut mask).unwrap();
+    let tooltip = fire_core::gui_mask::PieceId::ItemTooltip as u8;
+    let at = |x: usize, y: usize| (mask.piece[y * 400 + x], mask.class[y * 400 + x]);
+    assert_eq!(at(320, 210), (tooltip, 3), "outside the panel");
+    assert_eq!(
+        at(150, 60).0,
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
+    );
+    assert_eq!(at(10, 10), (0, 0), "the world stays world");
+    assert!(mask
+        .hits
+        .iter()
+        .any(|h| h.piece == fire_core::gui_mask::PieceId::ItemTooltip));
+}
+
+#[test]
+fn a_tooltip_shaped_box_without_an_open_panel_adds_nothing() {
+    let (template, _) = fixture();
+    let mut rgb = vec![180; 400 * 240 * 3];
+    paint_tooltip(&mut rgb, 250, 340, 150, 220);
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let result = detector.detect(&rgb, 400, 240).unwrap();
+    assert!(!result.gui_detected);
+    let mut mask = empty_mask();
+    assert_eq!(result.merge_neutral_panel(&mut mask).unwrap(), 0);
+    assert!(mask.class.iter().all(|&c| c == 0));
+}
+
+#[test]
+fn one_frame_has_one_gui_scale_so_a_panel_at_another_scale_than_the_hud_is_not_a_screen() {
+    // the fixture panel is drawn at 2 video px per GUI px
+    let (template, rgb) = fixture();
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    assert!(
+        detector
+            .detect_with_scale(&rgb, 400, 240, Some(2.0))
+            .unwrap()
+            .gui_detected
+    );
+    assert!(
+        detector
+            .detect_with_scale(&rgb, 400, 240, None)
+            .unwrap()
+            .gui_detected,
+        "no HUD: no constraint"
+    );
+    for hud in [1.0, 3.0, 6.0] {
+        assert!(
+            !detector
+                .detect_with_scale(&rgb, 400, 240, Some(hud))
+                .unwrap()
+                .gui_detected,
+            "HUD at {hud}"
+        );
+    }
+}
+
+#[test]
+fn the_hud_scale_is_only_measured_when_a_panel_was_found_and_a_disagreeing_panel_is_rejected() {
+    let (template, rgb) = fixture();
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let asked = std::cell::Cell::new(0);
+    let hud = |scale: Option<f64>| {
+        let asked = &asked;
+        move || {
+            asked.set(asked.get() + 1);
+            Ok(scale)
+        }
+    };
+    // the panel is at 2 video px per GUI px
+    assert!(
+        detector
+            .detect_at_hud_scale(&rgb, 400, 240, hud(Some(2.0)))
+            .unwrap()
+            .gui_detected
+    );
+    assert!(
+        detector
+            .detect_at_hud_scale(&rgb, 400, 240, hud(None))
+            .unwrap()
+            .gui_detected,
+        "no reliable HUD"
+    );
+    assert!(
+        !detector
+            .detect_at_hud_scale(&rgb, 400, 240, hud(Some(6.0)))
+            .unwrap()
+            .gui_detected,
+        "the HUD majority wins"
+    );
+    assert_eq!(asked.get(), 3);
+    // no panel: the HUD is never measured
+    let world = vec![180; rgb.len()];
+    assert!(
+        !detector
+            .detect_at_hud_scale(&world, 400, 240, hud(Some(2.0)))
+            .unwrap()
+            .gui_detected
+    );
+    assert_eq!(asked.get(), 3);
+    // a failing HUD measurement is an error, not a silent pass
+    assert!(detector
+        .detect_at_hud_scale(&rgb, 400, 240, || Err("bad frame".to_string()))
+        .is_err());
+    // same decision as always restricting to the HUD scale
+    for scale in [Some(2.0), Some(6.0), None] {
+        assert_eq!(
+            detector
+                .detect_at_hud_scale(&rgb, 400, 240, hud(scale))
+                .unwrap()
+                .gui_detected,
+            detector
+                .detect_with_scale(&rgb, 400, 240, scale)
+                .unwrap()
+                .gui_detected
+        );
+    }
+}

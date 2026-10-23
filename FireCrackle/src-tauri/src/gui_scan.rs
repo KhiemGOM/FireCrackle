@@ -189,6 +189,7 @@ impl Jobs {
 }
 fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     let detector = studio_core::gui::interaction_detector()?;
+    let hud = crate::gui::analyzer()?;
     let (w, h) = (job.project.meta.width, job.project.meta.height);
     detector.prepare(w, h)?;
     let mut cache = job.cache.lock().map_err(|_| "GUI cache unavailable")?;
@@ -208,9 +209,10 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
         scan_workers(feed.frame_bytes()),
         &previous,
         Hit::clone,
-        || (),
-        |_, rgb| {
-            let d = detector.detect(rgb, w, h)?;
+        fire_core::gui_mask::GuiFitHint::default,
+        |hint, rgb| {
+            // a screen is drawn at the HUD's GUI scale (measured only when a panel is found)
+            let d = detector.detect_at_hud_scale(rgb, w, h, || hud.hud_scale(rgb, w, h, hint))?;
             Ok(d.alternatives.first().map(|hit| Surface {
                 bounds: [
                     hit.bounds.x,

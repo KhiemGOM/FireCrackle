@@ -211,6 +211,8 @@ pub enum PieceId {
     InventoryPanel = 24,
     MenuButton = 25,
     RecipeBookPanel = 26,
+    /// An item tooltip drawn by the open screen (on top of it, and past its edges).
+    ItemTooltip = 27,
 }
 
 #[repr(u8)]
@@ -1426,9 +1428,53 @@ impl GuiDetector {
             Some(&self.shapes),
             None,
             None,
+            false,
         )?;
         self.merge_interactions(frame, width, height, &mut mask)?;
         Ok(mask)
+    }
+    /// The frame's GUI scale from the HUD fit alone (the hotbar, with the same hint reuse as `detect_with_hint`), or
+    /// None when the HUD is not reliable. One frame has one GUI scale: vanilla draws the HUD and every screen with it.
+    pub fn hud_scale_with_hint(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+        hint: &mut GuiFitHint,
+    ) -> Result<Option<f64>, String> {
+        hint.begin_frame();
+        if width == 0
+            || height == 0
+            || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        {
+            hint.reset();
+            return Err("invalid GUI frame dimensions".into());
+        }
+        let plan = self.plan(width, height);
+        let mask = detect_prepared(
+            frame,
+            width,
+            height,
+            &self.textures,
+            &self.options,
+            &self.hotbar,
+            Some(&plan),
+            Some(&self.shapes),
+            None,
+            Some(&mut *hint),
+            true,
+        );
+        match mask {
+            Ok(mask) if mask.reliable => Ok(mask.fit.map(|fit| fit.scale)),
+            Ok(_) => {
+                hint.reset();
+                Ok(None)
+            }
+            Err(e) => {
+                hint.reset();
+                Err(e)
+            }
+        }
     }
     /// Verify the last successful fit on this frame before using it. If its
     /// current opaque hotbar evidence is weak, run the original full search.
@@ -1460,6 +1506,7 @@ impl GuiDetector {
             Some(&self.shapes),
             Some(&mut times),
             Some(hint),
+            false,
         )
         .and_then(|mut mask| {
             let timer = crate::profile::start(9);
@@ -1518,6 +1565,7 @@ impl GuiDetector {
             Some(&self.shapes),
             Some(&mut times),
             None,
+            false,
         )?;
         if !mask.reliable {
             times.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
@@ -1834,7 +1882,9 @@ pub fn detect_gui(
     opts: &GuiOptions,
 ) -> Result<GuiMask, String> {
     let prepared = HotbarTemplates::new(tex);
-    detect_prepared(frame, w, h, tex, opts, &prepared, None, None, None, None)
+    detect_prepared(
+        frame, w, h, tex, opts, &prepared, None, None, None, None, false,
+    )
 }
 
 #[allow(clippy::too_many_arguments)] // Explicit frame geometry and independent detector inputs.
@@ -1849,6 +1899,7 @@ fn detect_prepared(
     shape_cache: Option<&ShapeCache>,
     mut times: Option<&mut GuiTimings>,
     mut hint: Option<&mut GuiFitHint>,
+    fit_only: bool,
 ) -> Result<GuiMask, String> {
     let begin = std::time::Instant::now();
     let cycles = crate::profile::thread_cycles();
@@ -2176,6 +2227,9 @@ fn detect_prepared(
     if let Some(t) = times.as_deref_mut() {
         t.fit_ms = begin.elapsed().as_secs_f64() * 1000.;
         t.fit_cycles = crate::profile::thread_cycles() - cycles;
+    }
+    if fit_only {
+        return Ok(mask);
     }
     let begin = std::time::Instant::now();
     let cycles = crate::profile::thread_cycles();

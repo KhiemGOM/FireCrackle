@@ -93,6 +93,37 @@ detector files, so rebuilt versions invalidate prior GUI-scan decisions.
 The private final directory contains40 individual blinks and seven gallery
 sheets, per-frame outputs and a source/assets/video hash manifest.
 
+## 2026-10-23: one GUI scale per frame, shortened tooltip rims, tooltips in the screen mask
+
+Owner reports on another downloaded recording (`yt-LNsxw4VRTgQ.mkv`, 2560x1440, 839,408 frames):
+
+- Frame 1743 (snow) was scanned as a creative-inventory tab at 0.75 video px per GUI px, a 146x102 box at the
+  screen centre, while the frame's HUD fits at exactly 3.0. Vanilla draws the HUD and every screen with the
+  window's one GUI scale, so the HUD's many pieces outvote one panel match. The app scan now uses
+  `InteractionDetector::detect_at_hud_scale`: the HUD scale (`GuiDetector::hud_scale_with_hint`, the hotbar fit
+  only) is measured only on frames where a panel was found; on disagreement the search repeats at the HUD scale.
+  Without a reliable HUD nothing changes. The mask path already passed the HUD scale.
+- Frame 12559: an item tooltip over the inventory went undetected at the app's 1280x720 display size, because the
+  faint end of its bottom rim was compressed away (29 px short of the 12 px endpoint slack), so unveil found no
+  screen and brightened the inventory. The bottom rim may now come up short at either end if it lies within the
+  top rim's span and covers 60 % of it; the side, fill and coverage requirements are unchanged.
+- Tooltips found over a matched panel are now part of the screen mask (`ItemTooltip`), so unveil protects them.
+
+Regression check against this document's final results (`misc/dream/recovered-video.mkv`, frames 0-35,999 at
+native size, the stored `final/frames.jsonl`, and the 398 labelled native images):
+
+| Run | Positive frames | Intervals | Snow accepted | Tooltip gap recovered | Changed vs final |
+|---|---:|---:|---:|---:|---:|
+| Shortened-rim tooltip only | 3,483 | 40 | 0/14 | 8/8 | 0 frames |
+| Plus one GUI scale per frame | 3,483 | 40 | 0/14 | 8/8 | 0 frames |
+
+The 398 images: 112/112 GUI, 0 false detections, no decision change in either run. With the tooltip change
+alone one image (#161) kept its decision but matched a small wrong panel first (154x138 instead of the full
+528x498 at scale 3); with the one-scale rule it is the full panel again, so the combination has zero decision or
+position changes. On `yt-LNsxw4VRTgQ.mkv` frame 1743 is now rejected (HUD 3.0) and inventory frames 12520-12550
+are still detected at scale 3.00, including two with tooltips. Speed: no cost on frames without a panel (the HUD
+fit runs only on positives); the comparison runs shared the machine with other work, so no timing is claimed.
+
 ## Historical first relaxation
 
 The first relaxation accepted channel differences up to36

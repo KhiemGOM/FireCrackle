@@ -84,6 +84,8 @@ pub struct Detection {
     pub matched: Option<PanelMatch>,
     pub alternatives: Vec<PanelMatch>,
     pub reason: &'static str,
+    /// Item tooltips found in the frame (video pixels). They belong to the open screen.
+    pub tooltips: Vec<Rect>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -622,6 +624,7 @@ fn detect_impl(
             matched: None,
             alternatives: Vec::new(),
             reason: "insufficient_visible_gui_evidence",
+            tooltips: Vec::new(),
         });
     }
     let count = ((opts.max_scale - opts.min_scale) / opts.scale_step).floor() as usize;
@@ -866,6 +869,7 @@ fn detect_impl(
         },
         alternatives: candidates,
         reason,
+        tooltips: Vec::new(),
     })
 }
 
@@ -891,11 +895,12 @@ impl Detection {
         }
         // One neutral rectangle (video pixels, clipped): Unknown class, never opaque ownership. The screen is drawn
         // over the HUD, so HUD pieces beneath it (the centre crosshair) become the panel's; an earlier screen piece stays.
-        use crate::gui_mask::PieceId::{InventoryPanel, MenuButton, RecipeBookPanel};
+        use crate::gui_mask::PieceId::{InventoryPanel, ItemTooltip, MenuButton, RecipeBookPanel};
         let screen = [
             InventoryPanel as u8,
             MenuButton as u8,
             RecipeBookPanel as u8,
+            ItemTooltip as u8,
         ];
         let mut count = 0;
         let mut fill = |piece: crate::gui_mask::PieceId, x: f64, y: f64, w: f64, h: f64| {
@@ -937,6 +942,11 @@ impl Detection {
             let (bx, by, bw, bh) = fill(book, book_x, b.y, 147. * sx, 166. * sy);
             let (tx, _, tw, _) = fill(book, book_x - 32. * sx, b.y + 3. * sy, 32. * sx, 135. * sy);
             hits.push((book, tx.min(bx), by, bw + tw, bh));
+        }
+        // An item tooltip is drawn by the same screen, over the panel and past its edges.
+        for t in &self.tooltips {
+            let (x, y, w, h) = fill(ItemTooltip, t.x, t.y, t.width, t.height);
+            hits.push((ItemTooltip, x, y, w, h));
         }
         for (piece, x, y, w, h) in hits {
             mask.hits.push(crate::gui_mask::PieceHit {

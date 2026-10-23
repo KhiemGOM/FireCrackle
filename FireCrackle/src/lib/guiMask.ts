@@ -93,6 +93,7 @@ const NAMES: Record<string, string> = {
   InventoryPanel: "Inventory",
   MenuButton: "Menu buttons",
   RecipeBookPanel: "Recipe book",
+  ItemTooltip: "Item tooltip",
 };
 
 /** One line for the panel: the scale and the pieces found, or why nothing was found. */
