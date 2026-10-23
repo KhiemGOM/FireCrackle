@@ -90,3 +90,38 @@ describe("placements", () => {
     for (const l of lines) expect(l).toHaveLength(2);
   });
 });
+
+describe("plane to Label's manual quad", () => {
+  const q = (px: [number, number][], uv: [number, number][]) => ({ world: [], px, uv, sheet: 0 }) as unknown as import("./reversal").FireQuad;
+  it("orders corners by UV (top-left, top-right, bottom-right, bottom-left) in image fractions", async () => {
+    const { planeToManualQuad } = await import("./fireTool");
+    // drawn order bottom-left, bottom-right, top-right, top-left (as the entity fire is), uv v=1 at the bottom
+    const m = planeToManualQuad(q([[100, 500], [300, 500], [300, 100], [100, 100]], [[0, 1], [1, 1], [1, 0], [0, 0]]), 1000, 1000);
+    expect(m).toEqual({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: false });
+  });
+  it("a mirrored UV lands mirrored", async () => {
+    const { planeToManualQuad } = await import("./fireTool");
+    const m = planeToManualQuad(q([[100, 500], [300, 500], [300, 100], [100, 100]], [[1, 1], [0, 1], [0, 0], [1, 0]]), 1000, 1000);
+    // u = 0 is on the right now: the quad is laid out left to right and the sprite flagged mirrored, as the game draws it
+    expect(m).toEqual({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: true });
+  });
+  it("a plane seen from behind still gives a valid quad; one behind the camera gives none", async () => {
+    const { planeToManualQuad } = await import("./fireTool");
+    const back = planeToManualQuad(q([[300, 500], [100, 500], [100, 100], [300, 100]], [[0, 1], [1, 1], [1, 0], [0, 0]]), 1000, 1000);
+    const { validQuad } = await import("./quadMask");
+    expect(validQuad(back!.quad)).toBe(true);
+    expect(back!.mirrored).toBe(true);
+    expect(planeToManualQuad({ world: [], px: null, uv: [[0, 1], [1, 1], [1, 0], [0, 0]], sheet: 0 } as never, 1000, 1000)).toBeNull();
+  });
+  it("block planes from the binding become valid quads", async () => {
+    const { planeToManualQuad } = await import("./fireTool");
+    const { validQuad } = await import("./quadMask");
+    const planes = placementQuads(newFireBlock([6, 64, -7]), cam, W, H).filter(p => p.px);
+    expect(planes.length).toBeGreaterThan(0);
+    for (const p of planes) {
+      const m = planeToManualQuad(p, W, H);
+      if (m) expect(validQuad(m.quad)).toBe(true);
+    }
+    expect(planes.some(p => planeToManualQuad(p, W, H))).toBe(true);
+  });
+});

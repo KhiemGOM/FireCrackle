@@ -5,6 +5,7 @@ import {
   defaultFace, entityFireQuads, entitySize, fireBlockQuads, project, solveCamera, solveGuided,
   type CameraFit, type CameraPose, type Face, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
+import { validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
 
 export type Vec3 = [number, number, number];
 export interface ToolClick { id: number; px: [number, number]; world: Vec3 | null; }
@@ -108,4 +109,20 @@ export function groundGrid(cam: CameraPose, w: number, h: number, centre: Vec3, 
     if (a && b) out.push([a, b]);
   }
   return out;
+}
+
+/** A fire plane as Label's manual quad: corners in image fractions in sprite order (top-left, top-right,
+ * bottom-right, bottom-left, by UV) and whether the sprite shows mirrored. Seen from behind (or with a mirrored UV)
+ * the corners are swapped left to right so the quad stays valid, and `mirrored` says the sprite is drawn flipped, as
+ * the game draws that side. None when a corner is behind the camera. */
+export function planeToManualQuad(q: FireQuad, w: number, h: number): { quad: ManualQuad; mirrored: boolean } | null {
+  if (!q.px || w <= 0 || h <= 0) return null;
+  const slot = (uv: [number, number]) => (uv[1] < 0.5 ? (uv[0] < 0.5 ? 0 : 1) : (uv[0] < 0.5 ? 3 : 2));
+  const ordered: QuadPoint[] = new Array(4);
+  q.uv.forEach((uv, i) => { ordered[slot(uv)] = [q.px![i][0] / w, q.px![i][1] / h]; });
+  if (ordered.some(p => !p)) return null;
+  const quad = ordered as ManualQuad;
+  if (validQuad(quad)) return { quad, mirrored: false };
+  const swapped: ManualQuad = [quad[1], quad[0], quad[3], quad[2]];
+  return validQuad(swapped) ? { quad: swapped, mirrored: true } : null;
 }

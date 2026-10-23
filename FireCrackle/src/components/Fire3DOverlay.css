@@ -1,0 +1,8 @@
+.fire3d-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.fire3d-overlay.picking { pointer-events: all; cursor: crosshair; }
+.fire3d-grid { stroke: rgba(80, 220, 255, 0.5); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fire3d-plane { fill: rgba(255, 140, 20, 0.08); stroke: rgba(255, 154, 42, 0.7); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fire3d-plane.chosen { fill: none; stroke: #f5c542; stroke-width: 2; }
+.fire3d-click circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fire3d-click.pending circle { fill: #888; }
+.fire3d-click text { fill: #fff; font-size: 14px; paint-order: stroke; stroke: #000; stroke-width: 3px; }

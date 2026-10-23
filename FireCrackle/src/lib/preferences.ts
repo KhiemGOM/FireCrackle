@@ -14,7 +14,7 @@ export interface Preferences {
   /** Undo the GUI veil on shown pictures: never, when detected, or always. */
   veilMode: VeilMode;
   portalMode: PortalMode;
-  miscTool: "compare" | "gui" | "fire3d";
+  miscTool: "compare" | "gui";
   miscCompareMode: "original" | "diff" | "blink";
   miscDifferenceGain: number;
   miscGuiMode: "intervals" | "aim";
@@ -38,7 +38,7 @@ export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
     for (const key of ["matchOpen", "matchOnlyFiltered", "matchAdjustQuad", "animationOpen", "animationOnlyFiltered"] as const) if (typeof raw[key] === "boolean") result[key] = raw[key];
     if (VEIL_MODES.includes(raw.veilMode)) result.veilMode = raw.veilMode;
     if (raw.portalMode === "off" || raw.portalMode === "auto") result.portalMode = raw.portalMode;
-    if (raw.miscTool === "compare" || raw.miscTool === "gui" || raw.miscTool === "fire3d") result.miscTool = raw.miscTool;
+    if (raw.miscTool === "compare" || raw.miscTool === "gui") result.miscTool = raw.miscTool;
     if (["original","diff","blink"].includes(raw.miscCompareMode)) result.miscCompareMode = raw.miscCompareMode;
     if (Number.isInteger(raw.miscDifferenceGain) && raw.miscDifferenceGain >= 1 && raw.miscDifferenceGain <= 8) result.miscDifferenceGain = raw.miscDifferenceGain;
     if (raw.miscGuiMode === "intervals" || raw.miscGuiMode === "aim") result.miscGuiMode = raw.miscGuiMode;

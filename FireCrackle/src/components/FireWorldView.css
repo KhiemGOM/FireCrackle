@@ -1,0 +1,11 @@
+.fq-world { width: 100%; height: auto; aspect-ratio: 800 / 560; background: #111; border-radius: 4px; display: block; cursor: grab; touch-action: none; }
+.fq-world-bg { fill: #16181c; }
+.fq-world .fq-grid { stroke: rgba(80, 220, 255, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fq-box { stroke: rgba(255, 255, 255, 0.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.fq-world .fq-quad { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fq-world .fq-quad.block { fill: rgba(255, 140, 20, 0.22); stroke: #ff9a2a; }
+.fq-world .fq-quad.soul { fill: rgba(60, 220, 255, 0.22); stroke: #4be0ff; }
+.fq-world .fq-quad.entity { fill: rgba(255, 230, 60, 0.2); stroke: #ffe23c; }
+.fq-world-click { fill: #ff3b6b; }
+.fq-eye { fill: #fff; }
+.fq-look { stroke: #fff; stroke-width: 2; }

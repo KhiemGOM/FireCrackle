@@ -1,0 +1,10 @@
+.f3-panel { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr); gap: 10px; padding: 6px 8px; }
+@media (max-width: 900px) { .f3-panel { grid-template-columns: 1fr; } }
+.f3-controls { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.f3-row, .f3-placement { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.f3-placement { padding-top: 4px; border-top: 1px solid rgba(127, 127, 127, 0.25); }
+.f3-num { display: inline-flex; align-items: center; gap: 3px; }
+.f3-num input { width: 68px; }
+.f3-faces, .f3-planes { display: inline-flex; gap: 2px; }
+.f3-faces button[aria-pressed="true"], .f3-planes button[aria-pressed="true"] { background: #f5c542; color: #000; }
+.f3-world { min-width: 0; }
