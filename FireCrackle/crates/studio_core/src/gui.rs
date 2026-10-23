@@ -208,26 +208,99 @@ impl GuiAnalyzer {
             jpeg_decoder::PixelFormat::L8 => px.iter().flat_map(|&v| [v, v, v]).collect(),
             other => return Err(format!("unsupported JPEG pixel format {other:?}")),
         };
+        self.analyze_rgb(&rgb, w, h, screens)
+    }
+
+    /// The mask of the native frame (the exact PNG the app decodes for a paused picture): detectors only ever see
+    /// native pictures. `screens`: the GUI scan's result for the frame, used instead of detecting screens again.
+    pub fn analyze_png(
+        &self,
+        png: &[u8],
+        screens: Option<&fire_core::gui_interaction::Detection>,
+    ) -> Result<(GuiMaskReply, Vec<u8>), String> {
+        let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+            .read_info()
+            .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
+        let mut px = vec![0; reader.output_buffer_size().ok_or("the PNG is too large")?];
+        let info = reader
+            .next_frame(&mut px)
+            .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
+        let (w, h) = (info.width as usize, info.height as usize);
+        let rgb = match (info.color_type, info.bit_depth) {
+            (png::ColorType::Rgb, png::BitDepth::Eight) => px[..w * h * 3].to_vec(),
+            (png::ColorType::Rgba, png::BitDepth::Eight) => px[..w * h * 4]
+                .chunks_exact(4)
+                .flat_map(|p| [p[0], p[1], p[2]])
+                .collect(),
+            other => return Err(format!("unsupported PNG format {other:?}")),
+        };
+        self.analyze_rgb(&rgb, w, h, screens)
+    }
+
+    /// The mask of RGB24 pixels: the HUD from them, open screens from `screens` (any size of the same shape) or
+    /// detected on them.
+    pub fn analyze_rgb(
+        &self,
+        rgb: &[u8],
+        w: usize,
+        h: usize,
+        screens: Option<&fire_core::gui_interaction::Detection>,
+    ) -> Result<(GuiMaskReply, Vec<u8>), String> {
         let mut m = match screens {
-            None => self.detector.detect(&rgb, w, h)?,
+            None => self.detector.detect(rgb, w, h)?,
             Some(s) => {
-                // the same picture at another resolution: equal aspect within a pixel of rounding
-                let same_shape =
-                    (s.image_width as f64 * h as f64 - s.image_height as f64 * w as f64).abs()
-                        <= s.image_width.max(s.image_height) as f64;
-                if !same_shape {
-                    return Err(format!(
-                        "the scan's {}x{} result is not this {w}x{h} picture",
-                        s.image_width, s.image_height
-                    ));
-                }
+                same_shape(s, w, h)?;
                 self.detector
-                    .detect_with_screens(&rgb, w, h, &s.scaled(w, h))?
+                    .detect_with_screens(rgb, w, h, &s.scaled(w, h))?
             }
         };
         // Reuse the shared texture-confirmed screen masks. Their hits also let
         // the preview distinguish an open menu/inventory from the normal HUD.
-        fire_core::gui_mask::add_screen_masks(&rgb, w, h, self.detector.textures(), &mut m)?;
+        fire_core::gui_mask::add_screen_masks(rgb, w, h, self.detector.textures(), &mut m)?;
+        Ok(reply_of(m))
+    }
+}
+
+/// A result for the same picture at another resolution: equal aspect within a pixel of rounding.
+fn same_shape(s: &fire_core::gui_interaction::Detection, w: usize, h: usize) -> Result<(), String> {
+    if (s.image_width as f64 * h as f64 - s.image_height as f64 * w as f64).abs()
+        <= s.image_width.max(s.image_height) as f64
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "the scan's {}x{} result is not this {w}x{h} picture",
+            s.image_width, s.image_height
+        ))
+    }
+}
+
+/// A `width` x `height` mask holding only the open screens of the GUI scan's native result: no detector runs (the
+/// gallery, where unveil needs only the screens). The HUD is not read, so the mask is not `reliable`.
+pub fn screens_mask(
+    screens: &fire_core::gui_interaction::Detection,
+    width: usize,
+    height: usize,
+) -> Result<(GuiMaskReply, Vec<u8>), String> {
+    same_shape(screens, width, height)?;
+    let mut m = fire_core::gui_mask::GuiMask {
+        width,
+        height,
+        piece: vec![0; width * height],
+        class: vec![0; width * height],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    screens.scaled(width, height).merge_neutral_panel(&mut m)?;
+    Ok(reply_of(m))
+}
+
+/// The summary and packed pixels the app reads (`gui_mask_frame`).
+fn reply_of(m: fire_core::gui_mask::GuiMask) -> (GuiMaskReply, Vec<u8>) {
+    let (w, h) = (m.width, m.height);
+    {
         let mut counts: BTreeMap<String, usize> = BTreeMap::new();
         for hit in &m.hits {
             *counts.entry(format!("{:?}", hit.piece)).or_insert(0) += 1;
@@ -273,6 +346,6 @@ impl GuiAnalyzer {
             notes: m.notes,
             pieces,
         };
-        Ok((reply, packed))
+        (reply, packed)
     }
 }

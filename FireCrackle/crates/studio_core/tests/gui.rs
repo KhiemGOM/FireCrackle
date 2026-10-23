@@ -432,3 +432,59 @@ fn screens_found_by_the_scan_join_this_pictures_own_hud_mask() {
         .analyze_jpeg_with_screens(&frame, Some(&screens(1000, 1000)))
         .is_err());
 }
+
+/// A JPEG fixture's pixels as a PNG: the same picture, losslessly, like the app's exact native frame.
+fn png_of(jpeg: &[u8]) -> (Vec<u8>, usize, usize) {
+    let mut d = jpeg_decoder::Decoder::new(jpeg);
+    let rgb = d.decode().unwrap();
+    let info = d.info().unwrap();
+    let (w, h) = (info.width as usize, info.height as usize);
+    let mut out = Vec::new();
+    {
+        let mut e = png::Encoder::new(&mut out, w as u32, h as u32);
+        e.set_color(png::ColorType::Rgb);
+        e.set_depth(png::BitDepth::Eight);
+        e.write_header().unwrap().write_image_data(&rgb).unwrap();
+    }
+    (out, w, h)
+}
+
+#[test]
+fn the_mask_of_the_native_png_is_the_mask_of_those_pixels() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let a = GuiAnalyzer::new().unwrap();
+    let (png, w, h) = png_of(&jpeg(1280, 720, true, "hud_native_png"));
+    let (reply, packed) = a.analyze_png(&png, None).unwrap();
+    assert_eq!((reply.width, reply.height), (w, h));
+    assert!(reply.reliable, "the HUD is read from the native picture");
+    // the scan's screens join it, and a non-PNG is an error
+    let (_, with) = a.analyze_png(&png, Some(&screens(1280, 720))).unwrap();
+    assert!(studio_core::gui::is_screen(with[300 * 1280 + 650]));
+    assert!(!studio_core::gui::is_screen(packed[300 * 1280 + 650]));
+    assert!(a.analyze_png(b"not a png", None).is_err());
+}
+
+#[test]
+fn a_mask_from_the_scans_result_alone_runs_no_detector_and_has_only_the_screens() {
+    // the gallery: a preview-sized mask straight from the scan's native result
+    let (reply, packed) = studio_core::gui::screens_mask(&screens(2560, 1440), 1024, 576).unwrap();
+    assert_eq!((reply.width, reply.height), (1024, 576));
+    assert!(reply.mask_available && !reply.reliable, "no HUD was read");
+    assert!(reply.pieces.iter().any(|p| p.piece == "InventoryPanel"));
+    // the 2560x1440 panel at (500, 200) is at (200, 80) on the 1024 preview
+    assert!(studio_core::gui::is_screen(packed[120 * 1024 + 300]));
+    assert!(!studio_core::gui::is_screen(packed[10 * 1024 + 10]));
+    let (none, empty) = studio_core::gui::screens_mask(
+        &fire_core::gui_interaction::Detection::none(2560, 1440),
+        1024,
+        576,
+    )
+    .unwrap();
+    assert!(none.pieces.is_empty() && empty.iter().all(|&b| b == 0));
+    assert!(
+        studio_core::gui::screens_mask(&screens(2560, 1440), 1000, 1000).is_err(),
+        "another shape"
+    );
+}

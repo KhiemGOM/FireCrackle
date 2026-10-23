@@ -27,7 +27,11 @@ the real recordings, and that the next fix will miss. That has happened over and
    not transfer to production. Use the production code from research (the bindings exist for this).
 6. **Register what you add.** A new reusable piece goes into the table below in the same commit, with its one
    entry point.
-7. **Found a duplicate? Don't copy from it.** Note it under "Known duplicates" and fold it into the canonical
+7. **Detectors only ever see native frames.** Never hand a detector (GUI mask, interaction detector, veil, fire,
+   no-fire) the scaled display JPEG, a gallery preview or any other resized or re-compressed copy: use the exact
+   native frame or a result already computed on it (the GUI scan's). An exception needs a real reason, written
+   down where it is made (the no-fire model was trained and validated on its 1080p input).
+8. **Found a duplicate? Don't copy from it.** Note it under "Known duplicates" and fold it into the canonical
    one when you touch that code.
 
 If you truly cannot reuse something (wrong process boundary, licensing), stop and ask the owner before writing
@@ -52,7 +56,7 @@ a second implementation, and record the decision here.
 
 | What | Canonical | Notes |
 |---|---|---|
-| Automatic unveil (veil detection, inverse colour) | `fire-detection/core/src/veil.rs` | Bindings: `veil_abi.rs` → `bench/no_fire/veil_native.py`, `FireCrackle/src/lib/veil.ts`. See `AGENTS.md` and `CLAUDE.md`. |
+| Automatic unveil (veil detection, inverse colour) | `fire-detection/core/src/veil.rs` | Bindings: `veil_abi.rs` → `bench/no_fire/veil_native.py`, `FireCrackle/src/lib/veil.ts`. See `AGENTS.md` and `CLAUDE.md`. The app's Auto (`veilFrame.ts` `processFrame`) unveils only when the GUI detector found an open screen; the colour detector no longer decides there (a dark colourless world looks like the veil). |
 | Portal undo, world-translucency abstention | `fire-detection/core/src/portal.rs` (`veil::portal`) | Binding `bench/no_fire/portal_undo.py`. |
 | GUI-piece mask (scale fit, HUD, screens) | `fire-detection/core/src/gui_mask.rs` | Binding `bench/no_fire/gui_mask_native.py`; app reader `src/lib/guiMask.ts`. Metadata only, no second inverse. App packing `studio_core::gui::pack` flags open-screen pixels (`SCREEN_FLAG`); unveil protects only those (`screenWorld` / `guiScreenCoverage`), never the HUD. The app analyzer uses the shared `studio_core::gui::pov_textures`. |
 | GUI presence / interaction detector | `fire-detection/core/src/gui_interaction_fast.rs` (policy, geometry cache, workers), `gui_screens.rs`, `gui_tooltip.rs` | `PanelMatch::recipe_book` = matched at the recipe-book pose; `merge_neutral_panel` then masks the book, its tabs and any item tooltip (`Detection::tooltips`, piece `ItemTooltip`). One frame has one GUI scale: scans use `detect_at_hud_scale` with `GuiDetector::hud_scale_with_hint` (studio_core `GuiAnalyzer::hud_scale`); the mask path passes the HUD scale itself. The engine's whole answer is `Detection` (optional `serde` feature; `scaled` to another picture size, `none`): the app's GUI scan stores it per frame (`gui_scan.rs` `Surface::screen`, `Jobs::screens`) and the GUI mask reuses it (`GuiAnalyzer::analyze_jpeg_with_screens` → `GuiDetector::detect_with_screens`) instead of detecting screens again on the 720p display picture. Add new screen layouts here, never in a separate matcher. |

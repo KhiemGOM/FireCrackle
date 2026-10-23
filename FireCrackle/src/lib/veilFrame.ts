@@ -2,7 +2,7 @@
 
 import { initVeil, applyVeil, type VeilMode, type VeilOptions } from "./veil";
 import type {PortalImage,PortalResult} from './portal';
-import type {WorldCoverage} from './portalPreview';
+import {fitCoverage,sameShape,type WorldCoverage} from './portalPreview';
 import { bmpFromRgba } from "./bmp";
 import { failureMessage } from "./appErrors";
 import { canvasBlob } from "./canvas";
@@ -33,24 +33,29 @@ export type EnhanceStage = (image: PortalImage) => { data: Uint8ClampedArray; ap
  * the original blob. A portal or enhancement failure preserves the earlier stages. Never throws or returns a blank picture.
  */
 export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: VeilMode, options: VeilOptions, io: FrameIo, portal?: (image:PortalImage)=>Promise<PortalResult>, enhanceStage?: EnhanceStage, screen?: { width: number; height: number }, coverage?:WorldCoverage): Promise<ProcessedFrame> {
-  if (mode === "off" && !portal && !enhanceStage) return { blob: original, applied: false };
+  // Auto decides from the GUI detector alone: no detected open screen, no veil (colour statistics never decide;
+  // a dark colourless world looks exactly like the veil). The colour detector in veil.rs stays for On and research.
+  const veiling = mode === "on" || (mode === "auto" && !!screen);
+  if (!veiling && !portal && !enhanceStage) return { blob: original, applied: false };
   try {
     await initVeil();
     const img = await io.decode(bytes);
     // A confirmed open screen is independent evidence of the game's veil.
     // Its mask must match the decoded picture; Off still wins. Pixel math
     // remains in applyVeil's canonical Rust/WASM inverse.
-    const screenMatches = screen?.width === img.width && screen?.height === img.height;
-    const result = applyVeil(img, mode === "auto" && screenMatches ? "on" : mode, options);
+    // the screen was found on any size of this picture (the native frame): same shape is enough
+    const screenMatches = !!screen && sameShape(screen, img);
+    const result = applyVeil(img, mode === "on" || (mode === "auto" && screenMatches) ? "on" : "off", options);
     if (result.error) return { blob: original, applied: false, error: result.error };
     let data=result.data as Uint8ClampedArray,portalApplied=false,error:string|undefined;
     // Screen's veil is behind foreground GUI pieces (Screen.renderTransparentBackground,
     // Java 1.21.11; 0xC0101010 -> 0xD0101010). Keep supplied GUI coverage untouched in Auto: callers pass the open
     // screen only (the hotbar and HUD sit on the veil too and are unveiled with the world).
     // Always undo deliberately bypasses this exclusion. Inverse/rounding stay in Rust.
-    if(mode==="auto"&&result.applied&&coverage?.width===img.width&&coverage.height===img.height&&coverage.world.length===img.width*img.height){
+    const kept=mode==="auto"&&result.applied?fitCoverage(coverage,img.width,img.height):undefined;
+    if(kept&&kept.world.length===img.width*img.height){
       data=new Uint8ClampedArray(data);
-      for(let i=0;i<coverage.world.length;i++)if(!coverage.world[i])data.set(img.data.subarray(i*4,i*4+4),i*4);
+      for(let i=0;i<kept.world.length;i++)if(!kept.world[i])data.set(img.data.subarray(i*4,i*4+4),i*4);
     }
     if(portal){try{const p=await portal({...img,data});data=p.data;portalApplied=p.applied;}catch(e){error=failureMessage(e);}}
     let enhanced = false;

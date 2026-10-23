@@ -49,7 +49,6 @@ pub async fn gui_mask_frame(
 /// What a mask needs, taken under the workspace lock (cheap handles only): decoding and analysis then run without
 /// it, so masks run in parallel and never hold up the app's other commands.
 struct Source {
-    frames: studio_core::workspace::FrameService,
     project: studio_core::project::Project,
     dir: PathBuf,
     scan: crate::gui_scan::Jobs,
@@ -57,62 +56,32 @@ struct Source {
 impl Source {
     async fn take(state: &State<'_, AppState>) -> Result<Source, String> {
         let scan = state.gui_scan.clone();
-        let (frames, project, dir) = run(state.ws.clone(), |w| {
-            Ok((
-                w.frame_service(),
-                w.automation_project(),
-                w.dir().to_path_buf(),
-            ))
+        let (project, dir) = run(state.ws.clone(), |w| {
+            Ok((w.automation_project(), w.dir().to_path_buf()))
         })
         .await?;
-        Ok(Source {
-            frames,
-            project,
-            dir,
-            scan,
-        })
+        Ok(Source { project, dir, scan })
     }
-    /// The picture to mask: the display frame, or the cached preview of `width`.
-    fn picture(&self, frame: u32, width: Option<u32>) -> Result<Vec<u8>, String> {
-        match width {
-            Some(width) => crate::preview_thumbnail::get_sized(
-                &self.project,
-                &self.dir,
-                frame,
-                width,
-                crate::external_tools::video_tools,
-            ),
-            None => self
-                .frames
-                .get(frame)
-                .map(|b| (*b).clone())
-                .map_err(|e| err(studio_core::workspace::WorkspaceError::Frame(e))),
-        }
-    }
-    /// The frame's GUI mask as the app shows it: the HUD read from that picture, open screens from the GUI scan's
-    /// native-resolution result when the scan has reached this frame (one engine answer everywhere), else detected
-    /// on the picture.
+    /// The frame's GUI mask. Detectors only ever see the native frame: open screens come from the GUI scan's
+    /// native result when the scan has reached the frame, else they are detected on the exact native frame, which
+    /// also gives the HUD. `width` (the gallery): a mask of that preview's size holding only the scan's screens,
+    /// with no detector run at all (unveil needs only the screens).
     fn analyze(&self, frame: u32, width: Option<u32>) -> Result<(GuiMaskReply, Vec<u8>), String> {
-        let jpeg = self.picture(frame, width)?;
-        analyze(&jpeg, &self.scan, &self.project, frame)
-    }
-}
-
-fn analyze(
-    jpeg: &[u8],
-    scan: &crate::gui_scan::Jobs,
-    project: &studio_core::project::Project,
-    frame: u32,
-) -> Result<(GuiMaskReply, Vec<u8>), String> {
-    match scan.screens(project, frame) {
-        // scanned: the scan's answer, an open screen or none at all
-        Some(found) => {
-            let (width, height) = (project.meta.width, project.meta.height);
-            let found =
-                found.unwrap_or_else(|| fire_core::gui_interaction::Detection::none(width, height));
-            analyzer()?.analyze_jpeg_with_screens(jpeg, Some(&found))
+        let (w, h) = (self.project.meta.width, self.project.meta.height);
+        let found = self.scan.screens(&self.project, frame);
+        if let (Some(width), Some(found)) = (width, &found) {
+            let pw = (width as usize).min(w).max(1);
+            let ph = ((h as f64 * pw as f64 / w.max(1) as f64 / 2.).round() as usize * 2).max(2);
+            let screens = found
+                .clone()
+                .unwrap_or_else(|| fire_core::gui_interaction::Detection::none(w, h));
+            return studio_core::gui::screens_mask(&screens, pw, ph);
         }
-        None => analyzer()?.analyze_jpeg(jpeg),
+        let png =
+            crate::exact_frame::get(&self.project, frame, crate::external_tools::video_tools)?;
+        let screens =
+            found.map(|f| f.unwrap_or_else(|| fire_core::gui_interaction::Detection::none(w, h)));
+        analyzer()?.analyze_png(&png, screens.as_ref())
     }
 }
 

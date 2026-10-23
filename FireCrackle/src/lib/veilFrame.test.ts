@@ -76,13 +76,36 @@ describe("processFrame", () => {
     expect(fake.encode).not.toHaveBeenCalled();
   });
 
-  it("auto undoes a veiled frame and encodes the unveiled pixels", async () => {
+  it("auto decides from the GUI detector alone: a veiled-looking frame with no detected screen stays as it is", async () => {
+    // a dark colourless cave looks exactly like the veil; only a detected open screen means the veil is there
+    const fake = io(veiledPixels());
+    const orig = original();
+    const r = await processFrame(bytes, orig, "auto", DEFAULT_VEIL_OPTIONS, fake);
+    expect(r.applied).toBe(false);
+    expect(r.blob).toBe(orig);
+    expect(fake.encode).not.toHaveBeenCalled();
+  });
+
+  it("auto undoes the veil when a screen was detected, and encodes the unveiled pixels", async () => {
     const pixels = veiledPixels();
     const fake = io(pixels);
-    const r = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake);
+    const r = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W, height: H });
     expect(r.applied).toBe(true);
     expect(r.blob.type).toBe("image/png");
     expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+  });
+
+  it("a screen found on the native frame (twice the size, same shape) unveils the display picture and its screen stays", async () => {
+    const pixels = veiledPixels();
+    const fake = io(pixels);
+    // native 80x40 coverage: the left half is the open screen (world 0), the right half world (1)
+    const world = new Uint8Array(W * 2 * H * 2).map((_, i) => (i % (W * 2) < W ? 0 : 1));
+    const r = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W * 2, height: H * 2 }, { width: W * 2, height: H * 2, world });
+    expect(r.applied).toBe(true);
+    const out = fake.encoded[0], unveiled = unveilRgba(pixels, W, H);
+    expect(Array.from(out.subarray(0, 4))).toEqual(Array.from(pixels.subarray(0, 4)));
+    const right = ((H - 1) * W + W - 1) * 4;
+    expect(Array.from(out.subarray(right, right + 4))).toEqual(Array.from(unveiled.subarray(right, right + 4)));
   });
 
   it("auto leaves a normal frame as the original blob (no re-encoding)", async () => {
@@ -94,7 +117,7 @@ describe("processFrame", () => {
     expect(fake.encode).not.toHaveBeenCalled();
   });
 
-  it("uses a size-matched known screen to unveil when the pixel detector rejects", async () => {
+  it("uses a detected screen to unveil a frame the colours alone would not call veiled", async () => {
     const pixels = normalPixels();
     const fake = io(pixels);
     const result = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W, height: H });
@@ -102,8 +125,8 @@ describe("processFrame", () => {
     expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
   });
 
-  it("ignores wrong-size screen evidence and keeps Off authoritative", async () => {
-    for (const [mode, width] of [["auto", W + 1], ["off", W]] as const) {
+  it("ignores screen evidence of another shape and keeps Off authoritative", async () => {
+    for (const [mode, width] of [["auto", W * 3], ["off", W]] as const) {
       const fake = io(normalPixels());
       const orig = original();
       const result = await processFrame(bytes, orig, mode, DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width, height: H });
@@ -136,12 +159,12 @@ describe("processFrame", () => {
     expect(r.error).toContain("no canvas");
   });
 
-  it("invalid thresholds fall back to the original and say why, without encoding", async () => {
-    const fake = io(veiledPixels());
-    const r = await processFrame(bytes, original(), "auto", { ...DEFAULT_VEIL_OPTIONS, minShare: 0 }, fake);
-    expect(r.applied).toBe(false);
-    expect(r.error).toBeTruthy();
-    expect(fake.encode).not.toHaveBeenCalled();
+  it("the colour thresholds no longer change what Auto does: the detected screen decides", async () => {
+    const odd = { ...DEFAULT_VEIL_OPTIONS, minShare: 0 };
+    const none = await processFrame(bytes, original(), "auto", odd, io(veiledPixels()));
+    expect([none.applied, none.error]).toEqual([false, undefined]);
+    const found = await processFrame(bytes, original(), "auto", odd, io(veiledPixels()), undefined, undefined, { width: W, height: H });
+    expect([found.applied, found.error]).toEqual([true, undefined]);
   });
 });
 
@@ -239,9 +262,9 @@ describe("processFrame with an enhancement stage", () => {
     expect(fake.encode).not.toHaveBeenCalled();
   });
 
-  it("does not call the stage when the veil stage fails", async () => {
-    const fake = io(veiledPixels()), stage = vi.fn(brighten);
-    const r = await processFrame(bytes, original(), "auto", { ...DEFAULT_VEIL_OPTIONS, minShare: 0 }, fake, undefined, stage);
+  it("does not call the stage when the picture cannot be read", async () => {
+    const fake = io(veiledPixels(), { decode: vi.fn(async () => { throw new Error("bad jpeg"); }) }), stage = vi.fn(brighten);
+    const r = await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, stage, { width: W, height: H });
     expect(r.error).toBeTruthy();
     expect(stage).not.toHaveBeenCalled();
   });
@@ -262,6 +285,6 @@ it.each(['auto','on'] as const)('preserves supplied GUI coverage only for Auto (
  await processFrame(bytes,original(),mode,DEFAULT_VEIL_OPTIONS,fake,portal,undefined,{width:W,height:H},{width:W,height:H,world});
  expect(fake.encoded[0]).toEqual(expected);expect(portal).toHaveBeenCalledOnce();expect(pixels).toEqual(saved);
 });
-it.each([{width:W+1,height:H,world:new Uint8Array(W*H)},{width:W,height:H,world:new Uint8Array(1)}])('ignores coverage with mismatched decoded dimensions or pixel count',async coverage=>{
- const pixels=veiledPixels(),fake=io(pixels);await processFrame(bytes,original(),'auto',DEFAULT_VEIL_OPTIONS,fake,undefined,undefined,undefined,coverage);expect(fake.encoded[0]).toEqual(unveilRgba(pixels,W,H));
+it.each([{width:W*3,height:H,world:new Uint8Array(W*3*H)},{width:W,height:H,world:new Uint8Array(1)}])('ignores coverage of another shape or with a wrong pixel count',async coverage=>{
+ const pixels=veiledPixels(),fake=io(pixels);await processFrame(bytes,original(),'auto',DEFAULT_VEIL_OPTIONS,fake,undefined,undefined,{width:W,height:H},coverage);expect(fake.encoded[0]).toEqual(unveilRgba(pixels,W,H));
 });

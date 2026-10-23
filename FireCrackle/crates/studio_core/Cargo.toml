@@ -10,6 +10,7 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 # the shared GUI mask (docs/PLAN-GUI-MASK.md) and the decoder for the frames it runs on
 fire_core = { path = "../../../fire-detection/core" }
 jpeg-decoder = "0.3"
+# the exact native frames the GUI mask reads
+png = "0.18"
 
 [dev-dependencies]
-png = "0.18"
