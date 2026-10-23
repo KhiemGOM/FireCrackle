@@ -123,6 +123,11 @@ resized mid-session, so it is per row, never a one-off header.)
 `{"sheet":0,"mirror":false,"row":17,"box":[...],"vis":0.43,"veil":0.0},{"sheet":1,"mirror":true,"row":1,"box":[...],"vis":0.18,"veil":0.75}]}`
 (v3.2: `"veil"` follows `"vis"` in every source and every part: mean GUI alpha over the visible texels, 0..1;
 a source's veil is the visible-texel-weighted mean of its parts.)
+(v3.3: every row whose world was captured ends with `"cam":{"pos":[x,y,z],"view":[16],"proj":[16]}`: the camera's
+world position and the view and projection matrices the labels were projected with, both row-major, values exact
+(`Double.toString`). Block geometry lands at `proj * view * (world - pos)`, then the perspective divide and the
+framebuffer size. View bobbing, hurt tilt and FOV changes (sprint, effects) are inside the matrices. It is the
+answer key for camera solvers (perspective reversal). Rows without a capture have no `cam`.)
 `]}`
 
 - Source `box` = union of its parts' boxes (that one block's / entity's / overlay's fire). Source `vis` = visible

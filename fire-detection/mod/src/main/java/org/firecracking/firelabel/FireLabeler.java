@@ -26,6 +26,7 @@ import net.minecraft.world.BlockView;
 import net.minecraft.world.RaycastContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.firecracking.firelabel.core.CameraPose;
 import org.firecracking.firelabel.core.BBox;
 import org.firecracking.firelabel.core.BoxCulling;
 import org.firecracking.firelabel.core.FirePart;
@@ -154,7 +155,8 @@ final class FireLabeler {
         int w = client.getWindow().getFramebufferWidth();
         int h = client.getWindow().getFramebufferHeight();
         if (world == null || data == null || row0 < 0 || row1 < 0) {
-            return new FrameRecord(frameId, tick, row0, row1, w, h, out);
+            FrameRecord bare = new FrameRecord(frameId, tick, row0, row1, w, h, out);
+            return data == null ? bare : bare.withCamera(camera(data));
         }
         // fire is labelled against what the GUI drew over it; without a trustworthy mask the frame is omitted
         GuiMask.requireReady();
@@ -217,7 +219,12 @@ final class FireLabeler {
         }
         labelEntities(data, w, h, masks, rows, texels, blocks, entities, out);
         labelOverlay(data, w, h, masks, rows, texels, out);
-        return new FrameRecord(frameId, tick, row0, row1, w, h, out, soulRow0, soulRow1, soulOut);
+        return new FrameRecord(frameId, tick, row0, row1, w, h, out, soulRow0, soulRow1, soulOut).withCamera(camera(data));
+    }
+
+    /** The camera this frame's world was rendered with (the same matrices every label is projected with). */
+    private static CameraPose camera(FrameCapture.Frame data) {
+        return CameraPose.fromCapture(data.camera, data.worldView, data.worldProjection);
     }
 
     // ---------------------------------------------------------------- fire blocks

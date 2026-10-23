@@ -25,6 +25,8 @@ public final class FrameRecord {
     public final int s0;
     public final int s1;
     public final boolean hasSoulCapture;
+    /** The camera this frame was rendered with; null when the world was not captured (then not logged). */
+    public final CameraPose camera;
 
     public FrameRecord(int frameId, long tick, int f0, int f1, int width, int height, List<FireSourceLabel> fires) {
         this(frameId, tick, f0, f1, width, height, fires, -1, -1, Collections.<FireSourceLabel>emptyList(), false);
@@ -37,6 +39,11 @@ public final class FrameRecord {
 
     private FrameRecord(int frameId, long tick, int f0, int f1, int width, int height, List<FireSourceLabel> fires,
             int s0, int s1, List<FireSourceLabel> soulFires, boolean hasSoulCapture) {
+        this(frameId, tick, f0, f1, width, height, fires, s0, s1, soulFires, hasSoulCapture, null);
+    }
+
+    private FrameRecord(int frameId, long tick, int f0, int f1, int width, int height, List<FireSourceLabel> fires,
+            int s0, int s1, List<FireSourceLabel> soulFires, boolean hasSoulCapture, CameraPose camera) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("framebuffer size must be positive: " + width + "x" + height);
         }
@@ -51,6 +58,12 @@ public final class FrameRecord {
         this.s0 = s0;
         this.s1 = s1;
         this.hasSoulCapture = hasSoulCapture;
+        this.camera = camera;
+    }
+
+    /** The same record with the frame's camera attached. */
+    public FrameRecord withCamera(CameraPose camera) {
+        return new FrameRecord(frameId, tick, f0, f1, width, height, fires, s0, s1, soulFires, hasSoulCapture, camera);
     }
 
     public List<FireSourceLabel> fires() {

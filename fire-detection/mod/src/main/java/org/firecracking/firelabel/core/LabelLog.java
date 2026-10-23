@@ -40,6 +40,10 @@ public final class LabelLog implements Closeable, Flushable {
             appendSources(sb, r.soulFires());
             sb.append(']');
         }
+        if (r.camera != null) {
+            sb.append(',');
+            r.camera.appendJson(sb);
+        }
         return sb.append('}').toString();
     }
 
