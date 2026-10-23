@@ -253,3 +253,45 @@ frames where it is exact; rotation error after the best quarter turn of yaw; sam
 - **Low-information frames** (dark netherrack, lava, sky) are flagged ambiguous or not answered.
 - **Precision** is about 0.3–0.4° median. Drawing fire to within a pixel needs about 0.05°, which comes from stage 2–3:
   lattice correspondences through `camera::fit`.
+
+## The assistant: automatic guess + a few clicks (`camera::solve_guided`)
+
+The owner's target is the 3D quad, not zero-touch reversal, so the automatic answer is a starting guess that a few
+clicked block corners correct.
+
+**How `solve_guided` works:**
+- For each quarter turn of the guessed yaw, the eye is solved linearly from the clicks with the rotation and FOV held.
+  Each click gives two equations, and the optional eye height gives one more.
+- Then everything is refined with a soft prior keeping the angles near the guess (0.5°, FOV 2°). This uses the existing
+  Levenberg–Marquardt with prior residuals.
+- Answers are ranked by click error plus prior cost, so a wrong quarter turn cannot win by bending the rotation.
+- With 4+ clicks that don't lie on one plane, the clicks-alone `solve` is offered too. It goes first only when the
+  guided answer misses the clicks by more than 3 px, meaning the guess was wrong.
+- Coordinates can be relative: the first clicked corner can be called (0, 0, 0).
+
+**Scoring.** Clicks are simulated: corners of the logged fire blocks, at their base and one block up, projected
+through the answer key with ±1 px of wobble. Every logged fire quad corner of the frame is then compared under the
+guided camera. Same samples as above.
+
+| Recording | Guess + 2 clicks | Guess + 3 | Guess + 4 | 4 clicks, no guess | 1 click + eye height (best of 4 turns) |
+|---|---|---|---|---|---|
+| quad1 p50 / p90 px (≤ 2 px) | 6.7 / 74 (36 %) | 3.2 / 49 (45 %) | 1.8 / 39 (51 %) | 3.1 / 1380 (43 %) | 24 / 225 (29 %) |
+| survival1 | 2.0 / 49 (51 %) | 1.6 / 32 (55 %) | 1.2 / 18 (66 %) | 2.3 / 21 (43 %) | 10 / 207 (21 %) |
+
+**Reading:**
+- The guess makes 4 clicks better than 4 clicks alone: 1.2–1.8 px median against 2.3–3.1 px. A few noisy clicks fit
+  a wrong camera too well, and the soft prior stops that.
+- With 2 clicks the guess's remaining rotation error (0.3–0.6°, a few px) shows; a third or fourth click removes most
+  of it.
+- The p90 tail is frames where the guess itself was wrong (ambiguous frames). There, the tool should ask for more
+  clicks or show the alternatives.
+- One click + eye height is weak: a wrong eye height or a tiny baseline leaves too much free.
+- The simulated clicks sit on the fire blocks, close together. Real clicks spread across the frame will do better,
+  and a ±1 px click is about what a person manages at 1:1 zoom.
+
+**Tests** (`tests/guided.rs`): exact guess + 2 corners gives the exact camera; the clicks pick the quarter turn; a
+0.5°-off guess places a fire within a few px; 1 corner needs the eye height; enough clicks override the 90° pitch swap;
+click noise; degenerate input; points in front.
+- One test was changed after the implementation: "5 exact clicks give the exact camera despite a 0.5°-off guess". The
+  soft prior that wins on the real recordings keeps such an answer about 0.3° towards the guess. The test now asks that
+  the guided answer place a held-out fire at least as well as the clicks alone, with realistic 0.7 px noise.

@@ -6,7 +6,7 @@
 //! down, roll covers view bobbing / hurt tilt; projection is `overlay::project`. Ways the solver breaks: wrong
 //! corner pairing (pairing is by UV), a single plane cannot separate FOV from distance (FOV is then held and flagged),
 //! points behind the camera, empty input.
-use fire_core::camera::{fit, fit_label_frame, solve, Camera, LoggedBlock, LoggedQuad};
+use fire_core::camera::{corner_rms, fit, fit_label_frame, solve, Camera, LoggedBlock, LoggedQuad};
 use fire_core::fire_model::{block_candidates, block_quads, Attach};
 
 fn close(a: f64, b: f64, tol: f64) -> bool {
@@ -397,4 +397,23 @@ fn too_few_points_give_nothing_and_coplanar_clicks_hold_the_fov() {
     .collect();
     let f = solve(&face, 2560, 1440).unwrap();
     assert!(f.fov_fixed, "{f:?}");
+}
+
+/// `corner_rms` measures how well a camera reproduces the logged quads: zero for the camera that drew them, about a
+/// degree's worth of pixels for one a degree off, nothing without quads.
+#[test]
+fn corner_rms_is_zero_for_the_drawing_camera_and_grows_when_it_turns() {
+    let cam = truth();
+    let mut seed = 7;
+    let blocks = vec![logged(&cam, [-87, 80, 128], 0.0, &mut seed)];
+    assert!(corner_rms(&blocks, &cam, 2560, 1440).unwrap() < 1e-6);
+    let turned = Camera {
+        yaw: cam.yaw + 1.0,
+        ..cam
+    };
+    let e = corner_rms(&blocks, &turned, 2560, 1440).unwrap();
+    // 1° at this FOV is about 720 / tan(fov / 2) * tan(1°) px
+    let expect = 720.0 / (cam.fov.to_radians() / 2.0).tan() * 1f64.to_radians().tan();
+    assert!(e > 0.5 * expect && e < 2.0 * expect, "{e} vs {expect}");
+    assert!(corner_rms(&[], &cam, 2560, 1440).is_none());
 }

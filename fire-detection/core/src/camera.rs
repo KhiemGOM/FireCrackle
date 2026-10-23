@@ -168,6 +168,10 @@ fn solve_linear(mut a: Vec<f64>, mut b: Vec<f64>, n: usize) -> Option<Vec<f64>> 
     Some(x)
 }
 
+/// Extra residuals appended after the point residuals (a prior); `NO_PRIOR` for none.
+type Prior<'a> = &'a dyn Fn(&Camera, &mut Vec<f64>);
+const NO_PRIOR: Prior = &|_, _| {};
+
 fn levenberg_marquardt(
     points: &[([f64; 3], [f64; 2])],
     w: usize,
@@ -176,6 +180,23 @@ fn levenberg_marquardt(
     params: &[usize],
     iterations: usize,
 ) -> (Camera, f64) {
+    levenberg_marquardt_with(points, w, h, start, params, iterations, NO_PRIOR)
+}
+
+fn levenberg_marquardt_with(
+    points: &[([f64; 3], [f64; 2])],
+    w: usize,
+    h: usize,
+    start: &Camera,
+    params: &[usize],
+    iterations: usize,
+    prior: Prior,
+) -> (Camera, f64) {
+    let residuals =
+        |points: &[([f64; 3], [f64; 2])], w: usize, h: usize, c: &Camera, out: &mut Vec<f64>| {
+            residuals(points, w, h, c, out);
+            prior(c, out);
+        };
     let n = params.len();
     let mut c = *start;
     let mut r = Vec::new();
@@ -400,6 +421,19 @@ fn assign(
     points
 }
 
+/// RMS pixel distance between every logged quad corner and the matching model corner (nearest model quad per logged
+/// quad, as in `fit_label_frame`) under `c`: how well a camera reproduces what the game drew. None without quads.
+pub fn corner_rms(blocks: &[LoggedBlock], c: &Camera, w: usize, h: usize) -> Option<f64> {
+    let cands: Vec<_> = blocks.iter().map(|b| block_candidates(b.pos)).collect();
+    let points = assign(blocks, &cands, c, w, h);
+    if points.is_empty() {
+        return None;
+    }
+    let mut r = Vec::new();
+    residuals(&points, w, h, c, &mut r);
+    Some((r.iter().map(|v| v * v).sum::<f64>() / points.len() as f64).sqrt())
+}
+
 /// Fit from `c` with corner assignment redone between rounds.
 fn refit(
     blocks: &[LoggedBlock],
@@ -608,4 +642,182 @@ pub fn fit_label_frame(blocks: &[LoggedBlock], w: usize, h: usize) -> Option<Fit
         blocks = fewer;
     }
     Some(best)
+}
+
+/// A rotation + FOV guess for `solve_guided`, as `reversal::orientation` gives it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Guess {
+    pub yaw: f64,
+    pub pitch: f64,
+    pub roll: f64,
+    pub fov: f64,
+    /// Yaw is known only modulo 90° (all four quarter turns are tried).
+    pub yaw_mod_90: bool,
+    /// False when the FOV is a guess (it is then held only loosely).
+    pub fov_known: bool,
+}
+
+/// How firmly the guess is held, in degrees per pixel of click error (the automatic guess is good to about 0.5°).
+const PRIOR_ANGLE: f64 = 0.5;
+const PRIOR_FOV: f64 = 2.0;
+const PRIOR_FOV_UNKNOWN: f64 = 30.0;
+/// Click error (px rms) above which the guided answer counts as missing the clicks: the guess was wrong.
+const GUESS_WRONG_PX: f64 = 3.0;
+
+/// The eye, with rotation and FOV held at `start`'s, from clicked points (each gives two linear equations) and, when
+/// given, the eye height. None when the equations do not fix it or a point falls behind the camera.
+fn eye_from_points(
+    points: &[([f64; 3], [f64; 2])],
+    w: usize,
+    h: usize,
+    start: &Camera,
+    eye_y: Option<f64>,
+) -> Option<Camera> {
+    let rot = Camera {
+        pos: [0.0; 3],
+        ..*start
+    };
+    let f = h as f64 / 2.0 / (start.fov.to_radians() / 2.0).tan();
+    // view = R p + t with t = -R eye; rows of the linear system in t
+    let mut rows: Vec<([f64; 3], f64)> = Vec::new();
+    for (p, px) in points {
+        let rp = rot.to_view(*p);
+        let (xc, yc) = (px[0] - w as f64 / 2.0, h as f64 / 2.0 - px[1]);
+        rows.push(([-f, 0.0, -xc], f * rp[0] + xc * rp[2]));
+        rows.push(([0.0, -f, -yc], f * rp[1] + yc * rp[2]));
+    }
+    if let Some(y) = eye_y {
+        // eye = -R^T t, so eye_y = -(R^T t)_y; weighted like f pixels per block
+        let c: Vec<f64> = (0..3)
+            .map(|k| {
+                let mut e = [0.0; 3];
+                e[k] = 1.0;
+                -rot.view_dir_to_world(e)[1] * f
+            })
+            .collect();
+        rows.push(([c[0], c[1], c[2]], y * f));
+    }
+    let mut a = vec![0.0; 9];
+    let mut b = vec![0.0; 3];
+    for (r, v) in &rows {
+        for i in 0..3 {
+            b[i] += r[i] * v;
+            for j in 0..3 {
+                a[i * 3 + j] += r[i] * r[j];
+            }
+        }
+    }
+    // a well-posed system has three clearly non-zero pivots; compare with its scale
+    let scale = a[0].abs().max(a[4].abs()).max(a[8].abs());
+    let t = solve_linear(a.clone(), b, 3)?;
+    let det = a[0] * (a[4] * a[8] - a[5] * a[7]) - a[1] * (a[3] * a[8] - a[5] * a[6])
+        + a[2] * (a[3] * a[7] - a[4] * a[6]);
+    if det.abs().partial_cmp(&(1e-9 * scale.powi(3))) != Some(std::cmp::Ordering::Greater) {
+        return None;
+    }
+    let e = rot.view_dir_to_world([-t[0], -t[1], -t[2]]);
+    let cam = Camera { pos: e, ..*start };
+    points
+        .iter()
+        .all(|(p, _)| cam.to_view(*p)[2] < -1e-6)
+        .then_some(cam)
+}
+
+fn angle_gap(a: f64, b: f64) -> f64 {
+    (a - b + 180.0).rem_euclid(360.0) - 180.0
+}
+
+/// The camera from the automatic guess plus clicked block corners (world point, pixel): two corners, or one with the
+/// eye height `eye_y`, are enough; with four or more the guess is also allowed to be wrong (the unguided `solve` is
+/// tried too). Answers best first (by click error plus how far the angles moved from the guess); `rms` is the click
+/// error alone. Empty when the clicks do not fix the camera.
+pub fn solve_guided(
+    points: &[([f64; 3], [f64; 2])],
+    w: usize,
+    h: usize,
+    guess: &Guess,
+    eye_y: Option<f64>,
+) -> Vec<Fit> {
+    if w == 0
+        || h == 0
+        || points
+            .iter()
+            .any(|(p, px)| p.iter().chain(px).any(|v| !v.is_finite()))
+        || eye_y.is_some_and(|y| !y.is_finite())
+    {
+        return Vec::new();
+    }
+    let mut distinct: Vec<[f64; 3]> = Vec::new();
+    for (p, _) in points {
+        if distinct
+            .iter()
+            .all(|q| (0..3).any(|k| (q[k] - p[k]).abs() > 1e-9))
+        {
+            distinct.push(*p);
+        }
+    }
+    if 2 * distinct.len() + usize::from(eye_y.is_some()) < 3 {
+        return Vec::new();
+    }
+    let fov_sigma = if guess.fov_known {
+        PRIOR_FOV
+    } else {
+        PRIOR_FOV_UNKNOWN
+    };
+    let turns = if guess.yaw_mod_90 { 4 } else { 1 };
+    let mut out: Vec<(f64, Fit)> = Vec::new();
+    for q in 0..turns {
+        let centre = Camera {
+            pos: [0.0; 3],
+            yaw: guess.yaw + 90.0 * q as f64,
+            pitch: guess.pitch,
+            roll: guess.roll,
+            fov: guess.fov,
+        };
+        let Some(start) = eye_from_points(points, w, h, &centre, eye_y) else {
+            continue;
+        };
+        let prior = |c: &Camera, r: &mut Vec<f64>| {
+            r.push(angle_gap(c.yaw, centre.yaw) / PRIOR_ANGLE);
+            r.push((c.pitch - centre.pitch) / PRIOR_ANGLE);
+            r.push((c.roll - centre.roll) / PRIOR_ANGLE);
+            r.push((c.fov - centre.fov) / fov_sigma);
+            if let Some(y) = eye_y {
+                r.push((c.pos[1] - y) * 100.0);
+            }
+        };
+        let (c, cost) =
+            levenberg_marquardt_with(points, w, h, &start, &[0, 1, 2, 3, 4, 5, 6], 100, &prior);
+        if points.iter().any(|(p, _)| c.to_view(*p)[2] >= 0.0) {
+            continue;
+        }
+        let mut r = Vec::new();
+        residuals(points, w, h, &c, &mut r);
+        let rms = (r.iter().map(|v| v * v).sum::<f64>() / points.len() as f64).sqrt();
+        out.push((
+            (cost / points.len() as f64).sqrt(),
+            Fit {
+                camera: c.normalized(),
+                rms,
+                points: points.len(),
+                fov_fixed: false,
+                dropped_quads: 0,
+            },
+        ));
+    }
+    out.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut fits: Vec<Fit> = out.into_iter().map(|(_, f)| f).collect();
+    // the clicks alone, when they could separate FOV from distance: first only if the guided answer misses the clicks
+    // (the guess was wrong) and they fit better; a few noisy clicks fit a wild camera too well to be trusted otherwise
+    if distinct.len() >= 4 {
+        if let Some(f) = solve(points, w, h).filter(|f| !f.fov_fixed) {
+            let guided = fits.first().map_or(f64::INFINITY, |g| g.rms);
+            if guided > GUESS_WRONG_PX && f.rms < guided {
+                fits.insert(0, f);
+            } else {
+                fits.push(f);
+            }
+        }
+    }
+    fits
 }

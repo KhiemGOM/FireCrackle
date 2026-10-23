@@ -4,9 +4,13 @@
 //! reads only the video frame (plus the GUI mask, which also comes from the frame). The answer key is the camera that
 //! `camera::fit_label_frame` solves from the logged fire quads, used only on frames where it reproduces every logged
 //! corner (rms ≤ 0.06 px, not a single plane). Row n of JOINED is video frame n (fire-decode output).
+//! Also scores the guided solve (`camera::solve_guided`): the automatic guess plus two simulated clicks (fire-block base
+//! corners projected through the answer key, ±1 px), against every logged fire quad corner of the frame.
 //! `--draw N out.json`: for frame N only, write its segments with the axis each supports under the found answer and
 //! under the answer key, and the GUI mask's box, to draw over the frame (`out.json` + `out.rgb`, the raw frame).
-use fire_core::camera::{fit_label_frame, logged_blocks};
+use fire_core::camera::{
+    fit_label_frame, logged_blocks, solve, solve_guided, Camera, Guess, LoggedBlock,
+};
 use fire_core::gui_mask::{add_screen_masks, GuiDetector, GuiOptions, GuiTextures};
 use fire_core::json::{parse, Value};
 use fire_core::reversal::{explain, orientation, rotation_error, Orientation};
@@ -98,6 +102,9 @@ fn main() {
     let (mut rot, mut rot_clear, mut fov_err, mut ms) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut worst: Vec<(f64, u64)> = Vec::new();
+    // guided solve: quad corner error (px) with 2 clicks, 1 click + eye height, and 4 clicks unguided
+    let (mut g2, mut g3, mut g4, mut g1, mut u4) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for (row, line) in std::io::BufReader::new(std::fs::File::open(&joined).expect("joined"))
         .lines()
         .enumerate()
@@ -221,6 +228,32 @@ fn main() {
             continue;
         };
         answered += 1;
+        let (lw, lh) = (lw as usize, lh as usize);
+        let g = Guess {
+            yaw: o.yaw,
+            pitch: o.pitch,
+            roll: o.roll,
+            fov: o.fov,
+            yaw_mod_90: true,
+            fov_known: o.fov_known,
+        };
+        let clicks = simulated_clicks(&blocks, &c, lw, lh);
+        let err = |f: Option<&fire_core::camera::Fit>| {
+            f.map_or(f64::INFINITY, |f| quad_error(&blocks, &f.camera, lw, lh))
+        };
+        if clicks.len() >= 4 {
+            g2.push(err(solve_guided(&clicks[..2], lw, lh, &g, None).first()));
+            g3.push(err(solve_guided(&clicks[..3], lw, lh, &g, None).first()));
+            g4.push(err(solve_guided(&clicks[..4], lw, lh, &g, None).first()));
+            // one click + eye height fits every quarter turn: the user picks among them, so score the best
+            g1.push(
+                solve_guided(&clicks[..1], lw, lh, &g, Some(c.pos[1]))
+                    .iter()
+                    .map(|f| err(Some(f)))
+                    .fold(f64::INFINITY, f64::min),
+            );
+            u4.push(err(solve(&clicks[..4], lw, lh).as_ref()));
+        }
         ambiguous += o.ambiguous as usize;
         fov_known += o.fov_known as usize;
         let e = rotation_error(&o, &c);
@@ -274,9 +307,86 @@ fn main() {
         pct(&mut fov_err, 0.9),
         pct(&mut fov_err, 0.99)
     );
+    let report = |name: &str, v: &mut Vec<f64>| {
+        let n = v.len();
+        let ok = v.iter().filter(|&&e| e <= 2.0).count();
+        println!(
+            "  {name}: {n} frames, quad corner error p50 {:.2}  p90 {:.2} px; <= 2 px {:.1} %",
+            pct(v, 0.5),
+            pct(v, 0.9),
+            100.0 * ok as f64 / n.max(1) as f64
+        );
+    };
+    report("guess + 2 clicks", &mut g2);
+    report("guess + 3 clicks", &mut g3);
+    report("guess + 4 clicks", &mut g4);
+    report(
+        "guess + 1 click + eye height (best of the quarter turns)",
+        &mut g1,
+    );
+    report("4 clicks, no guess", &mut u4);
     worst.sort_by(|a, b| b.0.total_cmp(&a.0));
     println!(
         "  worst clear answers (deg, frame): {:?}",
         &worst[..worst.len().min(10)]
     );
+}
+
+/// Block corners the user could click: corners of the logged fire blocks (base and top, not all on one plane), projected through the answer key
+/// with a deterministic ±1 px wobble, farthest-apart pair first. Corners off screen or behind are skipped.
+fn simulated_clicks(
+    blocks: &[LoggedBlock],
+    c: &Camera,
+    w: usize,
+    h: usize,
+) -> Vec<([f64; 3], [f64; 2])> {
+    let mut pts: Vec<([f64; 3], [f64; 2])> = Vec::new();
+    for b in blocks {
+        for (dx, dy, dz) in [
+            (0, 0, 0),
+            (1, 1, 0),
+            (0, 1, 1),
+            (1, 0, 1),
+            (1, 0, 0),
+            (0, 1, 0),
+        ] {
+            let p = [
+                (b.pos[0] + dx) as f64,
+                (b.pos[1] + dy) as f64,
+                (b.pos[2] + dz) as f64,
+            ];
+            if pts.iter().any(|q| q.0 == p) {
+                continue;
+            }
+            if let Some((x, y)) = c.project(p, w, h) {
+                if c.to_view(p)[2] < 0.0 && x > 0.0 && y > 0.0 && x < w as f64 && y < h as f64 {
+                    let k = pts.len() as f64;
+                    pts.push((p, [x + (k * 0.7).sin(), y + (k * 1.3).cos()]));
+                }
+            }
+        }
+    }
+    // farthest-apart pair first
+    let mut best = (0, 1, -1.0);
+    for i in 0..pts.len() {
+        for j in i + 1..pts.len() {
+            let d = (pts[i].1[0] - pts[j].1[0]).hypot(pts[i].1[1] - pts[j].1[1]);
+            if d > best.2 {
+                best = (i, j, d);
+            }
+        }
+    }
+    if pts.len() >= 2 {
+        let (i, j, _) = best;
+        let (a, b) = (pts[i], pts[j]);
+        pts.retain(|p| p.0 != a.0 && p.0 != b.0);
+        pts.insert(0, b);
+        pts.insert(0, a);
+    }
+    pts
+}
+
+/// RMS pixel distance between every logged fire quad corner and the same model corner under `cam`.
+fn quad_error(blocks: &[LoggedBlock], cam: &Camera, w: usize, h: usize) -> f64 {
+    fire_core::camera::corner_rms(blocks, cam, w, h).unwrap_or(f64::INFINITY)
 }
