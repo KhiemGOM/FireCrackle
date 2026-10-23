@@ -16,8 +16,9 @@ export interface GuiMaskState {
   error: string | null;
 }
 
-/** Detect the mask under the stated vanilla-GUI assumption while the tool is on. */
-export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: boolean): GuiMaskState {
+/** Detect the mask under the stated vanilla-GUI assumption while the tool is on. `settleMs`: ask only once the frame
+ * has stayed that long (each mask decodes the native frame: frames passed by on the way are never analysed). */
+export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: boolean, settleMs = 0): GuiMaskState {
   const supported = !!(backend.guiMaskFrame || (backend.guiMask && backend.guiMaskPixels));
   const [reply, setReply] = useState<GuiMaskReply | null>(null);
   const [maskFrame, setMaskFrame] = useState<number | null>(null);
@@ -32,7 +33,7 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
     if (!supported || !on || !ready) { setBusy(false); return; }
     setBusy(true);
     setError(null);
-    (async () => {
+    const ask = async () => {
       try {
         let r: GuiMaskReply, raw: Uint8Array | null;
         if (backend.guiMaskFrame) {
@@ -53,9 +54,10 @@ export function useGuiMask(backend: Backend, frame: number, ready: boolean, on: 
       } finally {
         if (mine === token.current) setBusy(false);
       }
-    })();
-    return () => { ++token.current; };
-  }, [backend, supported, on, ready, frame]);
+    };
+    const timer = settleMs > 0 ? setTimeout(() => void ask(), settleMs) : (void ask(), undefined);
+    return () => { ++token.current; clearTimeout(timer); };
+  }, [backend, supported, on, ready, frame, settleMs]);
 
   return { supported, reply, maskFrame, pixels, screen, busy, error };
 }

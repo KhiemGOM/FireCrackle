@@ -98,3 +98,142 @@ it('the native frame is the exact PNG, or the display JPEG when exact frames are
   expect(failed.type).toBe("image/jpeg");
   await expect(nativeFrame({ frame: vi.fn(async () => { throw Error("no video"); }) }, 7)).rejects.toThrow("no video");
 });
+
+import { PAUSE_SETTLE_MS, PausedExact } from "./exactFrame";
+describe("the paused frame's full-quality picture across pauses, steps and re-runs", () => {
+  function setup() {
+    const paused = new PausedExact();
+    const load = vi.fn(async (_frame: number) => PNG);
+    const ask = (frame: number, extra: Partial<Parameters<PausedExact["bytes"]>[0]> = {}) =>
+      paused.bytes({ video: "a.mkv", frame, load, signal: new AbortController().signal, isCurrent: () => true, ...extra });
+    return { paused, load, ask };
+  }
+  /** The request, once the pause has settled. */
+  const settled = async <T,>(p: Promise<T>) => { await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS); return p; };
+
+  it("waits only a short settle when playback stops, not a frame step's wait: pausing is not a frame step", async () => {
+    expect(PAUSE_SETTLE_MS).toBeLessThan(EXACT_DELAY_MS / 2);
+    const { paused, load, ask } = setup();
+    paused.playing();
+    const bytes = ask(7);
+    await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS - 1);
+    expect(load).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load).toHaveBeenCalledExactlyOnceWith(7);
+    expect(await bytes).toBe(PNG);
+  });
+
+  it("takes the last playback step landing just after the pause as the paused frame: only it loads, with no step wait", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    const first = new AbortController();
+    const dropped = ask(7, { signal: first.signal });
+    await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS / 2);
+    first.abort(); // the step that was on its way when Space was pressed moved the playhead to 8
+    const landed = ask(8);
+    await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS);
+    expect(load.mock.calls.map(c => c[0])).toEqual([8]);
+    expect([await dropped, await landed]).toEqual([null, PNG]);
+  });
+
+  it("settles the same way for the first frame shown (a video just opened)", async () => {
+    const { load, ask } = setup();
+    void ask(0);
+    await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("still waits when stepping to another frame, so stepping never queues a decode per step", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    await settled(ask(7));
+    const steps = [8, 9, 10].map(frame => { const c = new AbortController(); return { c, got: ask(frame, { signal: c.signal }) }; });
+    steps.slice(0, 2).forEach(s => s.c.abort()); // each step replaces the one before within the wait
+    await vi.advanceTimersByTimeAsync(EXACT_DELAY_MS - 1);
+    expect(load.mock.calls.map(c => c[0])).toEqual([7]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load.mock.calls.map(c => c[0])).toEqual([7, 10]);
+    expect([await steps[0].got, await steps[1].got, await steps[2].got]).toEqual([null, null, PNG]);
+  });
+
+  it("gives a re-run on the same frame (its GUI mask arrived, a setting changed) the picture already fetched, without waiting", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    await settled(ask(7));
+    expect(paused.has("a.mkv", 7)).toBe(true);
+    const again = ask(7);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await again).toBe(PNG);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("shares a load still on its way with the re-run, even though the first run was cancelled", async () => {
+    const { paused, ask } = setup();
+    let finish!: (b: ArrayBuffer) => void;
+    const load = vi.fn((_f: number) => new Promise<ArrayBuffer>(r => { finish = r; }));
+    paused.playing();
+    const first = new AbortController();
+    const dropped = ask(7, { load, signal: first.signal });
+    await vi.advanceTimersByTimeAsync(PAUSE_SETTLE_MS);
+    first.abort(); // the effect re-ran
+    const rerun = ask(7, { load });
+    expect(paused.has("a.mkv", 7)).toBe(true);
+    finish(PNG);
+    expect([await dropped, await rerun]).toEqual([null, PNG]);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("goes back to the frame just fetched at once after a step away", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    await settled(ask(7));
+    const away = new AbortController();
+    void ask(8, { signal: away.signal });
+    away.abort();
+    const back = ask(7);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await back).toBe(PNG);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("never gives one video's picture for another video's frame", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    await settled(ask(7));
+    expect(paused.has("b.mkv", 7)).toBe(false);
+    paused.playing();
+    await settled(ask(7, { video: "b.mkv" }));
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps nothing without a video to tell pictures apart", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    expect(await settled(ask(7, { video: undefined }))).toBe(PNG);
+    expect(paused.has(undefined, 7)).toBe(false);
+    expect(await ask(7, { video: undefined })).toBe(PNG);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps nothing from a failed or invalid decode: the next request tries again", async () => {
+    const { paused, ask } = setup();
+    paused.playing();
+    expect(await settled(ask(7, { load: vi.fn(async () => { throw Error("ffmpeg failed"); }) }))).toBeNull();
+    expect(paused.has("a.mkv", 7)).toBe(false);
+    expect(await ask(7, { load: vi.fn(async () => new Uint8Array([0xff, 0xd8]).buffer) })).toBeNull();
+    expect(paused.has("a.mkv", 7)).toBe(false);
+    const load = vi.fn(async () => PNG);
+    expect(await ask(7, { load })).toBe(PNG);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("drops a picture that is no longer wanted, and never loads for a request cancelled before it began", async () => {
+    const { paused, load, ask } = setup();
+    paused.playing();
+    expect(await settled(ask(7, { isCurrent: () => false }))).toBeNull();
+    const c = new AbortController(); c.abort();
+    paused.playing();
+    expect(await ask(9, { signal: c.signal })).toBeNull();
+    expect(load.mock.calls.map(call => call[0])).toEqual([7]);
+  });
+});

@@ -788,3 +788,53 @@ it("draws a paused frame pixel for pixel and leaves playback pictures as they ar
     expect(Object.keys(JSON.parse(storage.data.get(QUADS_KEY)!)).sort()).toEqual(["10", "11"]);
   });
 }
+
+// ------------------------------------------------------------ the full-quality frame after a pause
+{
+  const png = () => { const b = new Uint8Array(24); b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]); new DataView(b.buffer).setUint32(16, 2560); new DataView(b.buffer).setUint32(20, 1440); return b.buffer; };
+  /** The picture effect of a paused frame with veil Auto, the display picture corrected by `display`, the full-quality
+   * one by a correction that finishes when `finish` is called. Returns the blob behind the shown URL at each moment. */
+  async function pause(display: { applied: boolean; portalApplied?: boolean; error?: string }) {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.spyOn(guiControls, "useGuiMask").mockReturnValue({ supported: false, reply: null, maskFrame: null, pixels: null, screen: null, busy: false, error: null } as unknown as guiControls.GuiMaskState);
+    const blobs = new Map<string, Blob>(); let n = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(blob => { const url = `blob:${++n}`; blobs.set(url, blob as Blob); return url; });
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const backend = createMockBackend();
+    vi.spyOn(backend, "frame").mockResolvedValue(new ArrayBuffer(4));
+    backend.exactFrame = vi.fn(async () => png());
+    const corrected = new Blob(["corrected native"]), correctedDisplay = new Blob(["corrected display"]);
+    let finish!: () => void;
+    vi.spyOn(frameProcessing, "processFrame").mockImplementation(async (bytes, original) => bytes.byteLength === 24
+      ? new Promise(resolve => { finish = () => resolve({ blob: corrected, applied: true }); })
+      : { ...display, blob: display.applied || display.portalApplied ? correctedDisplay : original });
+    const view = { ...(await backend.view()), current: 3 };
+    hooks.stateCursor = hooks.refCursor = 0; hooks.effects = [];
+    VideoPane({ backend, view, onError: vi.fn(), post: postOf({ veil: "auto" }), videoKey: `pause-${Math.random()}` } as Parameters<typeof VideoPane>[0]);
+    const stop = hooks.effects.find(effect => effect.toString().includes("const mine"))!();
+    const shown = () => blobs.get(hooks.states[0] as string);
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); await vi.advanceTimersByTimeAsync(250); for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    return { shown, flush, finish: () => finish(), stop, corrected, correctedDisplay, backend };
+  }
+  afterEach(() => vi.useRealTimers());
+
+  it("shows the full-quality frame the moment it arrives when correcting the display picture changed nothing, then its correction", async () => {
+    const p = await pause({ applied: false });
+    await p.flush();
+    expect(p.backend.exactFrame).toHaveBeenCalledOnce();
+    expect(p.shown()?.type).toBe("image/png"); // the native frame, while its own correction still runs
+    p.finish(); await p.flush();
+    expect(p.shown()).toBe(p.corrected);
+    p.stop?.();
+  });
+
+  it.each([{ applied: true }, { applied: false, portalApplied: true }, { applied: false, error: "portal failed" }])(
+    "keeps the corrected display picture until the full-quality frame is corrected too when the correction did something: %o", async display => {
+      const p = await pause(display);
+      await p.flush();
+      expect(p.shown()?.type).not.toBe("image/png");
+      p.finish(); await p.flush();
+      expect(p.shown()).toBe(p.corrected);
+      p.stop?.();
+    });
+}

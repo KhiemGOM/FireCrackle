@@ -38,7 +38,7 @@ import { copyFormattedComparisonProof, downloadComparisonProof, type ProofMask, 
 import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
-import { exactFrameBytes, nativeFrame, pngSize, showsExactFrame } from "../lib/exactFrame";
+import { nativeFrame, PAUSE_SETTLE_MS, PausedExact, pngSize, showsExactFrame } from "../lib/exactFrame";
 import { canvasFrameIo, losslessFrameIo, processFrame } from "../lib/veilFrame";
 import { portalPreview, guiScreenCoverage, guiWorldCoverage } from "../lib/portalPreview";
 import { correctFrame } from "../lib/comparisonPost";
@@ -116,6 +116,9 @@ interface Props {
   /** Reports the phase and opacity the automatic portal fit found, so the Enhance panel can start the manual values from them. */
   onPortalFit?: (fit: { phase: number; opacity: number }) => void;
 }
+
+// the paused frame's full-quality picture across the picture effect's runs (one Label picture at a time)
+const pausedExact = new PausedExact();
 
 /** The current frame, with its number, time and label over it. */
 export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, view, onError, onFramePresented, previewRef, onPreviewChange, onMatchCandidate, onStep, onGoTo, motion, bufferSettings, atlasFilter, videoKey, atlasEdges = null, onAnimationStart, stillImage, storageScope, stateStorage, veil, post, onPortalStatus, onPortalFit }: Props) {
@@ -215,7 +218,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   const reportPortalStatus = (status: string) => { setPortalStatus(status); onPortalStatus?.(status); };
   // GUI mask: videos only (photos have no project to keep the vanilla answer in)
   const [guiMaskOn, setGuiMaskOn] = useUndoState(false,undoHistory,'video.guiMaskOn');
-  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode === "auto" || veilMode === "auto") && !stillImage);
+  const guiMask = useGuiMask(backend, view.current, !stillImage && !playing && shown === view.current && !!url, (guiMaskOn || portalMode === "auto" || veilMode === "auto") && !stillImage, stillImage ? 0 : PAUSE_SETTLE_MS);
   const veilOptions = veil ?? DEFAULT_VEIL_OPTIONS;
   const veilKey = `${veilOptions.minShare}|${veilOptions.margin}|${veilOptions.slack}`;
 
@@ -372,16 +375,23 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   useEffect(() => {
     const mine = ++token.current;
     const cancel = new AbortController();
-    // a paused, uncorrected picture is then replaced by the lossless full-resolution frame
+    if (playing) pausedExact.playing();
     // a paused video frame is then replaced by the lossless full-resolution frame; corrections run again on it
+    let exactShown = false;
+    // true once correcting the display picture changed nothing: the full-quality frame is then shown as it arrives
+    // (about 0.2 s sooner) and replaced only if its own correction does change it
+    let displayUnchanged = false;
     const upgrade = (frame: number, correcting: boolean) => {
       if (!backend.exactFrame || !showsExactFrame({ playing, stillImage: !!stillImage, corrected: false })) return;
-      void exactFrameBytes({ frame, load: backend.exactFrame, signal: cancel.signal, isCurrent: () => mine === token.current && shownRef.current === frame }).then(async bytes => {
+      void pausedExact.bytes({ video: videoKey, frame, load: backend.exactFrame, signal: cancel.signal, isCurrent: () => mine === token.current }).then(async bytes => {
         const size = bytes && pngSize(bytes);
         if (!bytes || !size) return;
         const png = new Blob([bytes], { type: "image/png" });
+        const plainFirst = correcting && displayUnchanged;
+        if (plainFirst) { exactShown = true; present({ blob: png, applied: false }, true); }
         const made = correcting ? await correct(bytes, png, losslessFrameIo, size) : null;
-        if (mine !== token.current || shownRef.current !== frame) return;
+        if (mine !== token.current || (plainFirst && made?.blob === png)) return;
+        exactShown = true;
         present(made ?? { blob: png, applied: false }, true);
       });
     };
@@ -471,6 +481,13 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
       setEnhanceApplied(!!made.enhanced);
       if (old && !oldFromBuffer) URL.revokeObjectURL(old);
     }
+    // the full-quality frame is fetched at once, beside the display JPEG's correction; a re-run on the frame already
+    // shown (its GUI mask arrived, a setting changed) corrects the fetched one alone, never going back to the JPEG
+    if (!stillImage) {
+      const again = shownRef.current === view.current && pausedExact.has(videoKey, view.current);
+      upgrade(view.current, true);
+      if (again) return () => { ++token.current; cancel.abort(); };
+    }
     // the picture to show: the frame (or photo) as it is, or with the GUI veil undone (the original on any failure)
     const source: Promise<{ bytes: ArrayBuffer; original: Blob; fromBuffer: boolean }> = stillImage
       ? fetch(stillImage.url).then(async (r) => { const original = await r.blob(); return { bytes: await original.arrayBuffer(), original, fromBuffer: false }; })
@@ -479,9 +496,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     source
       .then(async ({ bytes, original }) => {
         const made = await correct(bytes, original, canvasFrameIo);
-        if (mine !== token.current) return; // a newer frame was asked for meanwhile
+        if (mine !== token.current || exactShown) return; // a newer frame was asked for meanwhile, or the full one is up
+        displayUnchanged = !made.applied && !made.portalApplied && !made.enhanced && !made.error;
         present(made, false);
-        if (!stillImage) upgrade(view.current, true);
       })
       .catch((e) => mine === token.current && onError(`Could not decode frame ${view.current}: ${failureMessage(e)}`));
     return () => { ++token.current; cancel.abort(); };

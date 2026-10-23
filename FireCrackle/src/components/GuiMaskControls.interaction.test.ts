@@ -174,3 +174,35 @@ it("says the tool needs the desktop app when the backend cannot do it", async ()
   backend = { mock: true } as unknown as Backend;
   expect(text(await settle())).toContain("desktop app");
 });
+
+it("with a settle, asks only once the frame has stayed put that long: frames passed within it are never analysed", async () => {
+  vi.useFakeTimers();
+  try {
+    backend.guiMaskFrame = vi.fn(async () => ({ reply: REPLY, packed: new Uint8Array([0x11, 0]) }));
+    const at = (frame: number) => { hooks.dirty = false; hooks.si = hooks.ri = hooks.ei = 0; hooks.pending = []; maskState = useGuiMask(backend, frame, true, true, 50); hooks.pending.forEach(run => run()); };
+    at(5);
+    await vi.advanceTimersByTimeAsync(30);
+    at(6); // the playhead moved on within the settle (a step on its way as playback stopped)
+    await vi.advanceTimersByTimeAsync(49);
+    expect(backend.guiMaskFrame).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(backend.guiMaskFrame).toHaveBeenCalledExactlyOnceWith(6);
+    for (let i = 0; i < 6; i++) { at(6); await vi.advanceTimersByTimeAsync(0); }
+    expect(maskState.maskFrame).toBe(6);
+    expect(backend.guiMaskFrame).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+it("with a settle, a tool turned off or a frame no longer ready within it asks for nothing", async () => {
+  vi.useFakeTimers();
+  try {
+    backend.guiMaskFrame = vi.fn(async () => ({ reply: REPLY, packed: new Uint8Array([0x11, 0]) }));
+    const at = (ready: boolean) => { hooks.si = hooks.ri = hooks.ei = 0; hooks.pending = []; maskState = useGuiMask(backend, 5, ready, true, 50); hooks.pending.forEach(run => run()); };
+    at(true);
+    at(false); // playback started again
+    await vi.advanceTimersByTimeAsync(100);
+    at(false); // the state the effect left
+    expect(backend.guiMaskFrame).not.toHaveBeenCalled();
+    expect(maskState.busy).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
