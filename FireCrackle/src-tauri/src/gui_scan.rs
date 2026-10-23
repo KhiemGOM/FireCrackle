@@ -1,14 +1,9 @@
 //! One frame-preserving video pass, shared source detector, resumable local evidence.
-use fire_core::video::{parallel_frames_indexed_with_state, scan_workers};
+use crate::jobs::JobControl;
+use fire_core::video::scan_workers;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{
-    process::Child,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::sync::{Arc, Mutex};
 use studio_core::{import::Tools, project::Project};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -77,8 +72,7 @@ struct Job {
     project: Project,
     cache: Mutex<Cache>,
     state: Mutex<(String, Option<String>)>,
-    cancel: AtomicBool,
-    child: Mutex<Option<Child>>,
+    control: JobControl,
 }
 impl Job {
     fn status(&self) -> Result<Status, String> {
@@ -132,12 +126,7 @@ impl Jobs {
         if let Ok(current) = self.current.lock()
             && let Some(job) = current.as_ref()
         {
-            job.cancel.store(true, Ordering::Relaxed);
-            if let Ok(mut child) = job.child.lock()
-                && let Some(child) = child.as_mut()
-            {
-                let _ = child.kill();
-            }
+            job.control.cancel();
         }
     }
     fn job(&self, project: &Project) -> Result<Arc<Job>, String> {
@@ -148,7 +137,7 @@ impl Jobs {
             }
             // A scan being stopped (e.g. by opening another video) no longer blocks; its worker owns the old job.
             if job.state.lock().map_err(|_| "GUI scan unavailable")?.0 == "running"
-                && !job.cancel.load(Ordering::Relaxed)
+                && !job.control.cancelled()
             {
                 return Err("Pause the GUI scan for the previous video first".into());
             }
@@ -159,8 +148,7 @@ impl Jobs {
             project: project.clone(),
             cache: Mutex::new(cache),
             state: Mutex::new((state.into(), None)),
-            cancel: AtomicBool::new(false),
-            child: Mutex::new(None),
+            control: JobControl::default(),
         });
         *current = Some(job.clone());
         Ok(job)
@@ -170,15 +158,7 @@ impl Jobs {
     }
     pub fn cancel(&self, project: &Project) -> Result<(), String> {
         let job = self.job(project)?;
-        job.cancel.store(true, Ordering::Relaxed);
-        if let Some(child) = job
-            .child
-            .lock()
-            .map_err(|_| "GUI decoder unavailable")?
-            .as_mut()
-        {
-            let _ = child.kill();
-        }
+        job.control.cancel();
         Ok(())
     }
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
@@ -190,23 +170,16 @@ impl Jobs {
                 return job.status();
             }
             *state = ("running".into(), None);
-            job.cancel.store(false, Ordering::Relaxed);
+            job.control.resume();
         }
         let running = job.clone();
         std::thread::spawn(move || {
-            let result =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| scan(&running, &tools)))
-                    .unwrap_or_else(|_| Err("GUI scan worker failed".into()));
-            if let Ok(mut child) = running.child.lock()
-                && let Some(mut child) = child.take()
-            {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
+            let result = crate::jobs::guarded("GUI scan", || scan(&running, &tools));
+            running.control.kill_child();
             if let Ok(mut state) = running.state.lock() {
                 *state = match result {
                     Err(e) => ("error".into(), Some(e)),
-                    Ok(()) if running.cancel.load(Ordering::Relaxed) => ("paused".into(), None),
+                    Ok(()) if running.control.cancelled() => ("paused".into(), None),
                     Ok(()) => ("done".into(), None),
                 };
             }
@@ -222,88 +195,55 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
     // Reread from disk (another window may have scanned meanwhile), then lock the journal for this scan.
     *cache = load_cache(&job.project);
     cache.begin()?;
-    let start = cache
-        .decisions
-        .iter()
-        .position(Option::is_none)
-        .unwrap_or(cache.decisions.len()) as u32;
     let previous = cache.decisions.clone();
     drop(cache);
-    let total = previous.len() as u32;
-    if start < total {
-        let feed = crate::pov::ScanFeed::for_scan(&job.project, tools, None);
-        let (output, diagnostics) =
-            crate::pov::open_scan_decoder(&job.project, tools, start as usize, &job.child, &feed)?;
-        let mut write_error = None;
-        let result = parallel_frames_indexed_with_state(
-            output,
-            feed.frame_bytes(),
-            total - start,
-            scan_workers(feed.frame_bytes()),
-            &job.cancel,
-            Vec::new,
-            |buffer, index, frame| {
-                if let Some(hit) = &previous[(start + index) as usize] {
-                    return Ok(hit.clone());
-                }
-                let rgb = feed.rgb(frame, buffer)?;
-                let d = detector.detect(rgb, w, h)?;
-                Ok(d.alternatives.first().map(|hit| Surface {
-                    bounds: [
-                        hit.bounds.x,
-                        hit.bounds.y,
-                        hit.bounds.width,
-                        hit.bounds.height,
-                    ],
-                    menu: hit.screen_type == "pause_screen"
-                        || hit.screen_type.starts_with("options."),
-                }))
-            },
-            |index, hit| {
-                if write_error.is_some() {
-                    return;
-                }
-                let frame = start + index;
-                if previous[frame as usize].is_some() {
-                    return;
-                }
-                let written = job
-                    .cache
-                    .lock()
-                    .map_err(|_| "GUI cache unavailable".to_string())
-                    .and_then(|mut cache| cache.put(frame, hit));
-                if let Err(e) = written {
-                    write_error = Some(e);
-                    job.cancel.store(true, Ordering::Relaxed);
-                    if let Ok(mut child) = job.child.lock()
-                        && let Some(child) = child.as_mut()
-                    {
-                        let _ = child.kill();
-                    }
-                }
-            },
-        );
-        let status = {
-            let mut slot = job.child.lock().map_err(|_| "GUI decoder unavailable")?;
-            let child = slot.as_mut().ok_or("GUI decoder missing")?;
-            if result.is_err() || job.cancel.load(Ordering::Relaxed) {
-                let _ = child.kill();
+    let feed = crate::pov::ScanFeed::for_scan(&job.project, tools, None);
+    let mut write_error = None;
+    let result = crate::pov::scan_frames(
+        &job.project,
+        tools,
+        job.control.flag(),
+        job.control.slot(),
+        &feed,
+        scan_workers(feed.frame_bytes()),
+        &previous,
+        Hit::clone,
+        || (),
+        |_, rgb| {
+            let d = detector.detect(rgb, w, h)?;
+            Ok(d.alternatives.first().map(|hit| Surface {
+                bounds: [
+                    hit.bounds.x,
+                    hit.bounds.y,
+                    hit.bounds.width,
+                    hit.bounds.height,
+                ],
+                menu: hit.screen_type == "pause_screen" || hit.screen_type.starts_with("options."),
+            }))
+        },
+        |frame, hit| {
+            if write_error.is_some() || previous[frame as usize].is_some() {
+                return;
             }
-            child.wait().map_err(|e| e.to_string())?
-        };
-        let diagnostics = diagnostics.join().unwrap_or_default();
-        if let Some(e) = write_error {
-            return Err(e);
-        }
-        if !job.cancel.load(Ordering::Relaxed) {
-            result?;
-            if !status.success() {
-                return Err(format!("Video decode failed: {diagnostics}"));
+            let written = job
+                .cache
+                .lock()
+                .map_err(|_| "GUI cache unavailable".to_string())
+                .and_then(|mut cache| cache.put(frame, hit));
+            if let Err(e) = written {
+                write_error = Some(e);
+                job.control.cancel();
             }
-        }
+        },
+    );
+    if let Some(e) = write_error {
+        return Err(e);
+    }
+    if !job.control.cancelled() {
+        result?;
     }
     let mut cache = job.cache.lock().map_err(|_| "GUI cache unavailable")?;
-    if job.cancel.load(Ordering::Relaxed) {
+    if job.control.cancelled() {
         cache.close()
     } else {
         cache.finish(0)
@@ -557,8 +497,7 @@ mod tests {
             project: f.project.clone(),
             cache: Mutex::new(cache),
             state: Mutex::new(("paused".into(), None)),
-            cancel: AtomicBool::new(false),
-            child: Mutex::new(None),
+            control: JobControl::default(),
         };
         let status = job.status().unwrap();
         assert_eq!(status.processed, 4);
@@ -575,8 +514,7 @@ mod tests {
             project: a.project.clone(),
             cache: Mutex::new(load_cache(&a.project)),
             state: Mutex::new(("running".into(), None)),
-            cancel: AtomicBool::new(false),
-            child: Mutex::new(None),
+            control: JobControl::default(),
         });
         *jobs.current.lock().unwrap() = Some(old.clone());
         assert!(
@@ -584,7 +522,7 @@ mod tests {
             "a live scan of another video still blocks"
         );
         jobs.shutdown();
-        assert!(old.cancel.load(Ordering::Relaxed));
+        assert!(old.control.cancelled());
         // Its worker has not noticed yet (still "running"), but it is stopping, so the new video may start.
         let status = jobs.status(&b.project).unwrap();
         assert_eq!(status.total, b.project.frames.len() as u32);
@@ -627,8 +565,7 @@ mod tests {
             project: f.project.clone(),
             cache: Mutex::new(cache),
             state: Mutex::new(("running".into(), None)),
-            cancel: AtomicBool::new(false),
-            child: Mutex::new(None),
+            control: JobControl::default(),
         };
         let sealed: Vec<(u32, u32, bool)> = job
             .status()

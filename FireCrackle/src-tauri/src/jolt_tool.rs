@@ -1,13 +1,13 @@
 //! Splosh's JoltCracker (https://splosh.icu/jolt, MIT), integrated with his permission: find a copy on this PC or
 //! download the newest release, then run it on the open video and import its result as the Jolt clock.
-use crate::external_tools;
+use crate::{external_tools, jobs::JobControl};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
     collections::VecDeque,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Child, Stdio},
+    process::Stdio,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -368,8 +368,7 @@ pub struct Status {
 
 struct Job {
     status: Status,
-    cancel: Arc<AtomicBool>,
-    child: Arc<Mutex<Option<Child>>>,
+    control: JobControl,
 }
 
 #[derive(Clone, Default)]
@@ -393,12 +392,7 @@ impl Jobs {
             .lock()
             .map_err(|_| "JoltCracker state unavailable")?;
         if let Some(job) = state.as_ref().filter(|j| j.status.id == id) {
-            job.cancel.store(true, Ordering::Relaxed);
-            if let Ok(mut child) = job.child.lock()
-                && let Some(child) = child.as_mut()
-            {
-                external_tools::kill_tree(child);
-            }
+            job.control.cancel();
         }
         Ok(())
     }
@@ -448,21 +442,19 @@ impl Jobs {
             result: None,
             error: None,
         };
-        let cancel = Arc::new(AtomicBool::new(false));
-        let child = Arc::new(Mutex::new(None));
+        let control = JobControl::default();
         *state = Some(Job {
             status: status.clone(),
-            cancel: cancel.clone(),
-            child: child.clone(),
+            control: control.clone(),
         });
         drop(state);
         let jobs = self.clone();
         std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                run(&jobs, id, &video, &project_dir, &tools, &cancel, &child)
-            }))
-            .unwrap_or_else(|_| Err("JoltCracker integration failed".into()));
-            let cancelled = cancel.load(Ordering::Relaxed);
+            let outcome = crate::jobs::guarded("JoltCracker", || {
+                run(&jobs, id, &video, &project_dir, &tools, &control)
+            });
+            control.kill_child();
+            let cancelled = control.cancelled();
             jobs.update(id, |s| match outcome {
                 _ if cancelled => {
                     s.state = "cancelled".into();
@@ -490,10 +482,9 @@ fn run(
     video: &Path,
     project_dir: &Path,
     tools: &Tools,
-    cancel: &AtomicBool,
-    slot: &Mutex<Option<Child>>,
+    control: &JobControl,
 ) -> Result<String, String> {
-    let found = ensure_latest(cancel)?;
+    let found = ensure_latest(control.flag())?;
     let version = format!("{}.{}", found.version.0, found.version.1);
     jobs.update(id, |s| {
         s.state = "running".into();
@@ -521,7 +512,7 @@ fn run(
         .map_err(|e| format!("Could not start JoltCracker: {e}"))?;
     let stdout = process.stdout.take().ok_or("JoltCracker output missing")?;
     let stderr = process.stderr.take().ok_or("JoltCracker errors missing")?;
-    *slot.lock().map_err(|_| "JoltCracker state unavailable")? = Some(process);
+    control.attach(process)?;
     let errors = std::thread::spawn(move || {
         let mut text = String::new();
         let _ = BufReader::new(stderr)
@@ -538,18 +529,9 @@ fn run(
             s.percent = percent;
         });
     }
-    let code = {
-        let mut slot = slot.lock().map_err(|_| "JoltCracker state unavailable")?;
-        let status = slot
-            .as_mut()
-            .map(Child::wait)
-            .transpose()
-            .map_err(|e| e.to_string())?;
-        *slot = None;
-        status
-    };
+    let code = control.finish_child();
     let stderr = errors.join().unwrap_or_default();
-    if cancel.load(Ordering::Relaxed) {
+    if control.cancelled() {
         return Err("Cancelled".into());
     }
     if !code.is_some_and(|c| c.success()) {

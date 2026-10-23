@@ -1,4 +1,4 @@
-use crate::external_tools;
+use crate::{external_tools, jobs::JobControl};
 use serde::Serialize;
 use std::{
     fs,
@@ -24,7 +24,7 @@ pub struct Status {
 pub struct Jobs {
     inner: Arc<Mutex<Option<Job>>>,
 }
-type Job = (Status, Arc<AtomicBool>);
+type Job = (Status, JobControl);
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
 fn validate_url(url: &str) -> Result<String, String> {
@@ -75,7 +75,7 @@ impl Jobs {
         if let Some((s, c)) = guard.as_ref()
             && s.id == id
         {
-            c.store(true, Ordering::Relaxed);
+            c.cancel();
         }
         Ok(())
     }
@@ -111,7 +111,7 @@ impl Jobs {
             return Err("A video download is already running".into());
         }
         let id = NEXT.fetch_add(1, Ordering::Relaxed);
-        let cancel = Arc::new(AtomicBool::new(false));
+        let control = JobControl::default();
         let status = Status {
             id,
             state: "running".into(),
@@ -119,11 +119,13 @@ impl Jobs {
             path: None,
             error: None,
         };
-        *guard = Some((status.clone(), cancel.clone()));
+        *guard = Some((status.clone(), control.clone()));
         drop(guard);
         let jobs = self.clone();
         std::thread::spawn(move || {
-            let result = jobs.download(id, &url, &folder, &cancel);
+            let result = crate::jobs::guarded("Link download", || {
+                jobs.download(id, &url, &folder, control.flag())
+            });
             if let Ok(mut guard) = jobs.inner.lock()
                 && let Some((s, _)) = guard.as_mut()
                 && s.id == id
@@ -135,7 +137,7 @@ impl Jobs {
                         s.path = Some(path.to_string_lossy().into_owned());
                     }
                     Err(e) => {
-                        s.state = if cancel.load(Ordering::Relaxed) {
+                        s.state = if control.cancelled() {
                             "cancelled"
                         } else {
                             "failed"
@@ -385,7 +387,7 @@ mod tests {
     #[test]
     fn shutdown_cancels_a_running_download_and_waits_for_it() {
         let jobs = Jobs::default();
-        let cancel = Arc::new(AtomicBool::new(false));
+        let control = JobControl::default();
         let running = Status {
             id: 9,
             state: "running".into(),
@@ -393,10 +395,10 @@ mod tests {
             path: None,
             error: None,
         };
-        *jobs.inner.lock().unwrap() = Some((running, cancel.clone()));
+        *jobs.inner.lock().unwrap() = Some((running, control.clone()));
         let worker = jobs.clone();
         std::thread::spawn(move || {
-            while !cancel.load(Ordering::Relaxed) {
+            while !control.cancelled() {
                 std::thread::sleep(Duration::from_millis(5));
             }
             std::thread::sleep(Duration::from_millis(50));

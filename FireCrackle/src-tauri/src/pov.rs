@@ -1,5 +1,5 @@
 //! Optional, cancellable scan with canonical GUI-neutral first-person matching.
-use crate::scan_cache::Journal;
+use crate::{jobs::JobControl, scan_cache::Journal};
 use fire_core::{
     gui_mask::GuiFitHint,
     pov::PovMatcher,
@@ -36,8 +36,7 @@ struct Job {
     project: Project,
     status: Status,
     rows: Vec<(u32, u8)>,
-    cancel: Arc<AtomicBool>,
-    child: Arc<Mutex<Option<Child>>>,
+    control: JobControl,
     cache: Option<Journal>,
 }
 #[derive(Clone, Default)]
@@ -89,8 +88,7 @@ impl Jobs {
             project: project.clone(),
             status: status.clone(),
             rows,
-            cancel: Arc::new(AtomicBool::new(false)),
-            child: Arc::new(Mutex::new(None)),
+            control: JobControl::default(),
             cache: Some(cache),
         });
         Ok(Some(status))
@@ -113,15 +111,7 @@ impl Jobs {
         if job.status.state == "saving" {
             return Err("Scan results are already being saved".into());
         }
-        job.cancel.store(true, Ordering::Relaxed);
-        if let Some(child) = job
-            .child
-            .lock()
-            .map_err(|_| "Decoder state unavailable")?
-            .as_mut()
-        {
-            let _ = child.kill();
-        }
+        job.control.cancel();
         Ok(())
     }
     /// Stop a running scan (opening another video, or exit). A scan that is saving its labels is left to finish.
@@ -129,12 +119,7 @@ impl Jobs {
         if let Ok(state) = self.current.lock()
             && let Some(job) = state.as_ref().filter(|j| j.status.state == "running")
         {
-            job.cancel.store(true, Ordering::Relaxed);
-            if let Ok(mut child) = job.child.lock()
-                && let Some(child) = child.as_mut()
-            {
-                let _ = child.kill();
-            }
+            job.control.cancel();
         }
     }
     pub fn start(&self, project: Project, tools: Tools) -> Result<Status, String> {
@@ -217,14 +202,12 @@ impl Jobs {
             applied: cache.applied,
             error: None,
         };
-        let cancel = Arc::new(AtomicBool::new(false));
-        let child = Arc::new(Mutex::new(None));
+        let control = JobControl::default();
         *state = Some(Job {
             project: project.clone(),
             status: status.clone(),
             rows,
-            cancel: cancel.clone(),
-            child: child.clone(),
+            control: control.clone(),
             cache: Some(cache),
         });
         if status.state == "done" {
@@ -233,6 +216,7 @@ impl Jobs {
         let shared = self.current.clone();
         let jobs = self.clone();
         std::thread::spawn(move || {
+            let (cancel, child) = (control.flag(), control.slot());
             let update = |frame, row| {
                 if let Ok(mut state) = shared.lock()
                     && let Some(job) = state.as_mut().filter(|j| j.status.id == id)
@@ -243,7 +227,7 @@ impl Jobs {
                             Ok(true) => {}
                             Err(error) => {
                                 job.status.error = Some(error);
-                                job.cancel.store(true, Ordering::Relaxed);
+                                job.control.cancel();
                                 return;
                             }
                         }
@@ -255,7 +239,7 @@ impl Jobs {
                     }
                 }
             };
-            let result = guarded(|| {
+            let result = crate::jobs::guarded("Scan", || {
                 if already_finished {
                     Ok(()) // Explicitly reapply completed no-fire results without decoding/inference.
                 } else if decisions.iter().all(Option::is_some) {
@@ -264,8 +248,8 @@ impl Jobs {
                     scan_with_workers_resuming(
                         &project,
                         &tools,
-                        &cancel,
-                        &child,
+                        cancel,
+                        child,
                         1,
                         &decisions,
                         |_| unreachable!("all frames are cached"),
@@ -273,19 +257,14 @@ impl Jobs {
                     )
                 } else if no_fire {
                     crate::no_fire::scan_resuming(
-                        &project, &tools, &cancel, &child, &decisions, update,
+                        &project, &tools, cancel, child, &decisions, update,
                     )
                 } else {
-                    scan_resuming(&project, &tools, &cancel, &child, &decisions, update)
+                    scan_resuming(&project, &tools, cancel, child, &decisions, update)
                 }
             });
-            // Kill and reap on success, failure, cancellation, or premature EOF.
-            if let Ok(mut slot) = child.lock()
-                && let Some(mut process) = slot.take()
-            {
-                let _ = process.kill();
-                let _ = process.wait();
-            }
+            // Stop and reap the decoder on success, failure, cancellation, or premature EOF.
+            control.kill_child();
             let _ = jobs.finish(id, result, complete);
         });
         Ok(status)
@@ -304,7 +283,7 @@ impl Jobs {
                 .as_mut()
                 .filter(|j| j.status.id == id && j.status.state == "running")
                 .ok_or("Scan is no longer running")?;
-            if job.cancel.load(Ordering::Relaxed) {
+            if job.control.cancelled() {
                 if let Some(cache) = job.cache.as_mut()
                     && let Err(error) = cache.close()
                 {
@@ -817,7 +796,40 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
     completed: &[Option<i16>],
     initialize: impl Fn() -> S + Sync,
     process: impl Fn(&mut S, &[u8]) -> Result<Option<u8>, String> + Sync,
-    mut update: impl FnMut(u32, Option<u8>),
+    update: impl FnMut(u32, Option<u8>),
+) -> Result<(), String> {
+    scan_frames(
+        project,
+        tools,
+        cancel,
+        slot,
+        feed,
+        workers,
+        completed,
+        |row| (*row >= 0).then_some(*row as u8),
+        initialize,
+        process,
+        update,
+    )
+}
+
+/// The one exact, resumable, frame-preserving video pass every automatic scan runs on (first-person, no-fire, GUI).
+/// Decoding starts at the first frame without a saved result (`completed`, original frame numbers); frames that
+/// already have one are passed through `cached` instead of being processed again. `update` sees every frame from the
+/// start point on, in any order. The decoder's exit status is checked unless the scan was cancelled.
+#[allow(clippy::too_many_arguments)] // Decoder/resume ownership, worker state factory and the result callbacks.
+pub(crate) fn scan_frames<S, R: Send, C: Sync>(
+    project: &Project,
+    tools: &Tools,
+    cancel: &AtomicBool,
+    slot: &Mutex<Option<Child>>,
+    feed: &ScanFeed,
+    workers: usize,
+    completed: &[Option<C>],
+    cached: impl Fn(&C) -> R + Sync,
+    initialize: impl Fn() -> S + Sync,
+    process: impl Fn(&mut S, &[u8]) -> Result<R, String> + Sync,
+    mut update: impl FnMut(u32, R),
 ) -> Result<(), String> {
     if !completed.is_empty() && completed.len() != project.frames.len() {
         return Err("Scan cache has the wrong frame count".into());
@@ -841,11 +853,12 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
         workers.clamp(1, 12),
         cancel,
         || (initialize(), Vec::new()),
-        |(state, buffer), n, frame| match completed.get(start + n as usize).copied().flatten() {
-            Some(row) => Ok((row >= 0).then_some(row as u8)),
+        |(state, buffer), n, frame| match completed.get(start + n as usize).and_then(Option::as_ref)
+        {
+            Some(saved) => Ok(cached(saved)),
             None => process(state, feed.rgb(frame, buffer)?),
         },
-        |n, row| update(n + start as u32, row),
+        |n, result| update(n + start as u32, result),
     )?;
     if cancel.load(Ordering::Relaxed) {
         return Ok(());
@@ -863,12 +876,6 @@ pub(crate) fn scan_with_worker_state_resuming<S>(
         return Err(format!("FFmpeg failed: {message}"));
     }
     Ok(())
-}
-
-/// Run a scan worker body; a panic becomes an error so the job ends as failed instead of staying "running".
-fn guarded<T>(f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
-        .unwrap_or_else(|_| Err("Scan worker failed".into()))
 }
 
 #[cfg(test)]
@@ -1644,8 +1651,7 @@ mod tests {
             },
             project: p,
             rows: vec![(0, 4)],
-            cancel: Arc::new(AtomicBool::new(false)),
-            child: Arc::new(Mutex::new(None)),
+            control: JobControl::default(),
             cache: None,
         });
         jobs
@@ -1684,8 +1690,8 @@ mod tests {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .cancel
-                .load(Ordering::Relaxed)
+                .control
+                .cancelled()
         );
         assert!(jobs.cancel(2).is_err());
     }
@@ -1697,8 +1703,8 @@ mod tests {
                 .unwrap()
                 .as_ref()
                 .unwrap()
-                .cancel
-                .load(Ordering::Relaxed)
+                .control
+                .cancelled()
         };
         let running = job("running");
         running.shutdown();
@@ -1710,18 +1716,6 @@ mod tests {
             assert!(!cancelled(&jobs), "{state}");
         }
         Jobs::default().shutdown(); // no job: nothing to do, no panic
-    }
-    #[test]
-    fn a_panicking_scan_worker_becomes_an_error_instead_of_a_stuck_scan() {
-        assert_eq!(
-            guarded(|| -> Result<(), String> { panic!("boom") }),
-            Err("Scan worker failed".into())
-        );
-        assert_eq!(guarded(|| Ok::<_, String>(())), Ok(()));
-        assert_eq!(
-            guarded(|| Err::<(), _>("decode".to_string())),
-            Err("decode".into())
-        );
     }
     #[test]
     fn candidate_review_requires_completed_scan_and_keeps_original_frame_numbers() {

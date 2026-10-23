@@ -15,6 +15,7 @@ mod exact_frame;
 mod external_tools;
 mod gui;
 mod gui_scan;
+mod jobs;
 mod jolt;
 mod jolt_tool;
 mod no_fire;
