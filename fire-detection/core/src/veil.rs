@@ -369,7 +369,9 @@ pub fn unveil_style_in_place(
     style: VeilStyle,
 ) -> Result<(), String> {
     match style {
-        VeilStyle::Flat => unveil_in_place(data, w, h, channels, A_TOP, A_BOTTOM, [COLOUR as u8; 3]),
+        VeilStyle::Flat => {
+            unveil_in_place(data, w, h, channels, A_TOP, A_BOTTOM, [COLOUR as u8; 3])
+        }
         VeilStyle::Menu => unveil_in_place(data, w, h, channels, MENU_ALPHA, MENU_ALPHA, [0; 3]),
     }
 }
@@ -438,7 +440,11 @@ pub fn flat_veil_excess(
             over += (p.iter().copied().max().unwrap_or(0) as f64 > ceiling) as usize;
         }
     }
-    Ok(if total == 0 { 0.0 } else { over as f64 / total as f64 })
+    Ok(if total == 0 {
+        0.0
+    } else {
+        over as f64 / total as f64
+    })
 }
 /// The world around an open screen is too bright for the flat veil: the screen has the 1.21 menu background.
 /// False is not evidence of the flat veil (a dark world under the menu background looks the same).
