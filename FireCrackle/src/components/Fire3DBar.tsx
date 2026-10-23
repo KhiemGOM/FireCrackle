@@ -12,9 +12,19 @@ const MODES:[FireMode,string,string][]=[
  ['entity','Entity fire','Fire on a burning entity: its feet (decimals) and type'],
 ];
 
-function Num({label,value,step=1,int=false,onChange}:{label:string;value:number;step?:number;int?:boolean;onChange:(v:number)=>void}){
- return <label className="f3-num"><span>{label}</span><input aria-label={label} type="number" step={step} value={Number.isFinite(value)?Number(value.toFixed(int?0:3)):''}
-  onChange={e=>{const v=e.target.valueAsNumber;if(Number.isFinite(v))onChange(int?Math.trunc(v):v);}}/></label>;
+/** A number typed freely ("-", an empty box, "1.") and applied when done: Enter, leaving the box or an arrow-key step
+ * (like the Enhance panel's number boxes). Escape, or no number, puts the last value back. */
+export function Num({label,value,step=1,int=false,onChange}:{label:string;value:number;step?:number;int?:boolean;onChange:(v:number)=>void}){
+ const shown=Number.isFinite(value)?String(Number(value.toFixed(int?0:3))):'';
+ const done=(t:{value:string})=>{
+  const typed=t.value.trim()===''?NaN:Number(t.value),v=int?Math.trunc(typed):typed;
+  if(!Number.isFinite(v)||(shown!==''&&v===Number(shown))){t.value=shown;return;}
+  onChange(v);
+ };
+ return <label className="f3-num"><span>{label}</span><input key={`${label}:${shown}`} aria-label={label} type="number" step={step} defaultValue={shown} data-owns-keys="true"
+  onBlur={e=>done(e.target)}
+  onKeyDown={e=>{const t=e.target as HTMLInputElement;if(e.key==='Enter'){e.preventDefault();t.blur();}if(e.key==='Escape'){t.value=shown;t.blur();}}}
+  onKeyUp={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown')done(e.target as HTMLInputElement);}}/></label>;
 }
 
 /** The 3D quad tool's bar: Sprite (the same controls as the quad mask) · Camera (corners and the solve) · Fire (one fire
