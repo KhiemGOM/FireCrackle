@@ -889,77 +889,56 @@ impl Detection {
         {
             return Err("GUI mask dimensions do not match buffers".into());
         }
-        let x0 = hit.bounds.x.floor().max(0.) as usize;
-        let y0 = hit.bounds.y.floor().max(0.) as usize;
-        let x1 = (hit.bounds.x + hit.bounds.width)
-            .ceil()
-            .min(mask.width as f64)
-            .max(0.) as usize;
-        let y1 = (hit.bounds.y + hit.bounds.height)
-            .ceil()
-            .min(mask.height as f64)
-            .max(0.) as usize;
+        // One neutral rectangle (video pixels, clipped): Unknown class, never opaque ownership; earlier pieces win.
         let mut count = 0;
+        let mut fill = |piece: crate::gui_mask::PieceId, x: f64, y: f64, w: f64, h: f64| {
+            let x0 = x.floor().max(0.) as usize;
+            let y0 = y.floor().max(0.) as usize;
+            let x1 = (x + w).ceil().min(mask.width as f64).max(0.) as usize;
+            let y1 = (y + h).ceil().min(mask.height as f64).max(0.) as usize;
+            for yy in y0..y1 {
+                for xx in x0..x1 {
+                    let p = yy * mask.width + xx;
+                    if mask.class[p] == 0 {
+                        mask.class[p] = 3;
+                        mask.piece[p] = piece as u8;
+                        count += 1;
+                    }
+                }
+            }
+            (
+                x0,
+                y0,
+                x1.saturating_sub(x0) as u32,
+                y1.saturating_sub(y0) as u32,
+            )
+        };
         let piece_id = if hit.variant.starts_with("fixed_controls") {
             crate::gui_mask::PieceId::MenuButton
         } else {
             crate::gui_mask::PieceId::InventoryPanel
         };
-        let piece = piece_id as u8;
-        for y in y0..y1 {
-            for x in x0..x1 {
-                let p = y * mask.width + x;
-                if mask.class[p] == 0 {
-                    mask.class[p] = 3; // Unknown / neutral, never opaque ownership.
-                    mask.piece[p] = piece;
-                    count += 1;
-                }
-            }
-        }
-        mask.hits.push(crate::gui_mask::PieceHit {
-            piece: piece_id,
-            index: 0,
-            x: x0 as i32,
-            y: y0 as i32,
-            w: x1.saturating_sub(x0) as u32,
-            h: y1.saturating_sub(y0) as u32,
-            score: hit.score,
-            text: None,
-        });
+        let b = hit.bounds;
+        let (x0, y0, w0, h0) = fill(piece_id, b.x, b.y, b.width, b.height);
+        let mut hits = vec![(piece_id, x0, y0, w0, h0)];
         if hit.recipe_book {
             // The open book sits 2 GUI px left of the shifted panel, 147 x 166; its category tabs hang off its left
             // edge (x - 32 for the selected one, 27 px apart from y + 3, up to five). Same screen, same neutrality.
             let (sx, sy) = (hit.scale_x, hit.scale_y);
-            let book_x = hit.bounds.x - 149. * sx;
-            let mut fill = |x: f64, y: f64, w: f64, h: f64| {
-                let (x0, y0) = (x.floor().max(0.) as usize, y.floor().max(0.) as usize);
-                let x1 = (x + w).ceil().min(mask.width as f64).max(0.) as usize;
-                let y1 = (y + h).ceil().min(mask.height as f64).max(0.) as usize;
-                for y in y0..y1 {
-                    for x in x0..x1 {
-                        let p = y * mask.width + x;
-                        if mask.class[p] == 0 {
-                            mask.class[p] = 3;
-                            mask.piece[p] = crate::gui_mask::PieceId::RecipeBookPanel as u8;
-                            count += 1;
-                        }
-                    }
-                }
-            };
-            fill(book_x, hit.bounds.y, 147. * sx, 166. * sy);
-            fill(
-                book_x - 32. * sx,
-                hit.bounds.y + 3. * sy,
-                32. * sx,
-                135. * sy,
-            );
+            let book_x = b.x - 149. * sx;
+            let book = crate::gui_mask::PieceId::RecipeBookPanel;
+            let (bx, by, bw, bh) = fill(book, book_x, b.y, 147. * sx, 166. * sy);
+            let (tx, _, tw, _) = fill(book, book_x - 32. * sx, b.y + 3. * sy, 32. * sx, 135. * sy);
+            hits.push((book, tx.min(bx), by, bw + tw, bh));
+        }
+        for (piece, x, y, w, h) in hits {
             mask.hits.push(crate::gui_mask::PieceHit {
-                piece: crate::gui_mask::PieceId::RecipeBookPanel,
+                piece,
                 index: 0,
-                x: (book_x - 32. * sx).floor().max(0.) as i32,
-                y: y0 as i32,
-                w: (179. * sx).round() as u32,
-                h: (166. * sy).round() as u32,
+                x: x as i32,
+                y: y as i32,
+                w,
+                h,
                 score: hit.score,
                 text: None,
             });

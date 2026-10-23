@@ -54,8 +54,8 @@ a second implementation, and record the decision here.
 |---|---|---|
 | Automatic unveil (veil detection, inverse colour) | `fire-detection/core/src/veil.rs` | Bindings: `veil_abi.rs` → `bench/no_fire/veil_native.py`, `FireCrackle/src/lib/veil.ts`. See `AGENTS.md` and `CLAUDE.md`. |
 | Portal undo, world-translucency abstention | `fire-detection/core/src/portal.rs` (`veil::portal`) | Binding `bench/no_fire/portal_undo.py`. |
-| GUI-piece mask (scale fit, HUD, screens) | `fire-detection/core/src/gui_mask.rs` | Binding `bench/no_fire/gui_mask_native.py`; app reader `src/lib/guiMask.ts`. Metadata only, no second inverse. |
-| GUI presence / interaction detector | `fire-detection/core/src/gui_interaction_fast.rs` (policy, geometry cache, workers), `gui_screens.rs`, `gui_tooltip.rs` | |
+| GUI-piece mask (scale fit, HUD, screens) | `fire-detection/core/src/gui_mask.rs` | Binding `bench/no_fire/gui_mask_native.py`; app reader `src/lib/guiMask.ts`. Metadata only, no second inverse. App packing `studio_core::gui::pack` flags open-screen pixels (`SCREEN_FLAG`); unveil protects only those (`screenWorld` / `guiScreenCoverage`), never the HUD. The app analyzer uses the shared `studio_core::gui::pov_textures`. |
+| GUI presence / interaction detector | `fire-detection/core/src/gui_interaction_fast.rs` (policy, geometry cache, workers), `gui_screens.rs`, `gui_tooltip.rs` | `PanelMatch::recipe_book` = matched at the recipe-book pose; `merge_neutral_panel` then masks the book and its tabs. Add new screen layouts here, never in a separate matcher. |
 | First-person acceptance, on-fire overlay | `fire-detection/core/src/pov.rs`, `overlay.rs` | |
 
 ### Geometry and projection
@@ -79,6 +79,8 @@ a second implementation, and record the decision here.
 | Scan speed / time left | `src/lib/scanSpeed.ts` (`ScanSpeedTracker`) | Scans and downloads. |
 | Per-video UI memory | `src/lib/videoStorage.ts` | |
 | Image / canvas I/O | `src/lib/canvas.ts` | |
+| Picture correction (veil → portal → Enhance) on one frame | `src/lib/veilFrame.ts` (`processFrame`) | Misc-tools comparison and gallery: `src/lib/comparisonPost.ts` (`comparisonPictures`, `unveilPreview`). |
+| Gallery previews (raw and auto-unveiled), movement score | `src/lib/guiThumbnailCache.ts` (`previewFrames`, `unveiledPreviews`, `previewScreen`), `src/lib/guiAimReview.ts` (`previewPixelChange`, `keepMask`) | |
 | Proof export (name, save dialog, download), MB formatting | `src/lib/proofExport.ts` | |
 | Error text and error popup | `src/lib/appErrors.ts` (`failureMessage`, `reportError`) | Never `String(e)`. |
 
@@ -103,3 +105,5 @@ a second implementation, and record the decision here.
 - `fire-detection/hud-cadence` runs its own FFmpeg pipe instead of `fire_core::video`. That is deliberate (it is
   a standalone public tool with no dependency on this repo); do not copy it into FireCrackle.
 - Historical strict-window veil primitives exist only for reproducibility tests (see `AGENTS.md`).
+- `VideoPane.tsx` `correct()` and `comparisonPost.ts` `comparisonPictures` both assemble the `processFrame` call
+  (GUI coverages, screen evidence, portal world). Fold them into one shared helper when either is touched.
