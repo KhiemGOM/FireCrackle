@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const maximumBytes = 5 * 1024 * 1024;
-const wrappers = new Set(['fire-detection/mod/gradle/wrapper/gradle-wrapper.jar', 'fire-detection/mod-gui/gradle/wrapper/gradle-wrapper.jar']);
+const wrappers = new Set(['fire-detection/mod/gradle/wrapper/gradle-wrapper.jar', 'fire-detection/mod-gui/gradle/wrapper/gradle-wrapper.jar', 'fire-detection/mod-hud/gradle/wrapper/gradle-wrapper.jar']);
 const secrets = [
   /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
   /\bgithub_pat_[A-Za-z0-9_]{60,}\b/,
