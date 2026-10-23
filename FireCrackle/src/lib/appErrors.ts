@@ -94,7 +94,9 @@ export function installGlobalErrorHandlers(target: Window): () => void {
     if (event instanceof ErrorEvent) reportError("Application error", event.error || event.message);
     else if (event.target instanceof HTMLElement) {
       const element = event.target;
-      if (["IMG", "SCRIPT", "LINK", "VIDEO", "AUDIO"].includes(element.tagName)) reportError("Load application media", `Could not load ${element.tagName.toLowerCase()}: ${(element.getAttribute("src") || element.getAttribute("href") || "resource").slice(0, 300)}`);
+      // an object URL alone does not say which picture failed: add its alt text and the box it sits in
+      const where = [element.getAttribute("alt") && `"${element.getAttribute("alt")}"`, element.parentElement?.className && `in .${String(element.parentElement.className).trim().split(/\s+/).join(".")}`].filter(Boolean).join(", ");
+      if (["IMG", "SCRIPT", "LINK", "VIDEO", "AUDIO"].includes(element.tagName)) reportError("Load application media", `Could not load ${element.tagName.toLowerCase()}: ${(element.getAttribute("src") || element.getAttribute("href") || "resource").slice(0, 300)}${where ? ` (${where})` : ""}`);
     }
   };
   const rejection = (event: PromiseRejectionEvent) => reportError("Application action", event.reason);

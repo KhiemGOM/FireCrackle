@@ -71,6 +71,36 @@ describe("shared failure reporting", () => {
     expect(errors.getFailures()).toHaveLength(2);
     expect(errors.failureDetails(errors.getFailures()[0])).toContain("Render exploded");
   });
+  it("names the picture that failed to load: its alt text and the box it sits in, not only the object URL", () => {
+    class Element extends EventTarget {
+      tagName = "IMG";
+      parentElement: { className: string } | null = { className: "misc-frame-image" };
+      constructor(private attrs: Record<string, string>) { super(); }
+      getAttribute(name: string) { return this.attrs[name] ?? null; }
+    }
+    vi.stubGlobal("HTMLElement", Element); vi.stubGlobal("ErrorEvent", class extends Event {});
+    const img = new Element({ src: "blob:http://tauri.localhost/338c708a", alt: "After: frame 5" });
+    const cleanup = errors.installGlobalErrorHandlers(img as unknown as Window);
+    img.dispatchEvent(new Event("error"));
+    const [failure] = errors.getFailures();
+    expect(failure.context).toBe("Load application media");
+    expect(failure.message).toContain("Could not load img: blob:http://tauri.localhost/338c708a");
+    expect(failure.message).toContain("After: frame 5");
+    expect(failure.message).toContain("misc-frame-image");
+    cleanup();
+  });
+  it("still reports a failed script or stylesheet without an alt text", () => {
+    class Element extends EventTarget {
+      tagName = "SCRIPT"; parentElement = null;
+      getAttribute(name: string) { return name === "src" ? "/assets/app.js" : null; }
+    }
+    vi.stubGlobal("HTMLElement", Element); vi.stubGlobal("ErrorEvent", class extends Event {});
+    const el = new Element();
+    const cleanup = errors.installGlobalErrorHandlers(el as unknown as Window);
+    el.dispatchEvent(new Event("error"));
+    expect(errors.getFailures().map(x => x.message)).toEqual(["Could not load script: /assets/app.js"]);
+    cleanup();
+  });
   it("blocks background shortcuts while preserving native dialog keys", () => {
     const target = new EventTarget();
     const querySelector = vi.fn().mockReturnValue({});
