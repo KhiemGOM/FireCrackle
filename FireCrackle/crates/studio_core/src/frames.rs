@@ -365,7 +365,13 @@ fn decode_selected(
     );
     let filter = match picture {
         Picture::ExactPng => format!("{trim},showinfo"),
-        _ => format!("{trim},scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width),
+        // browsers read a JPEG as BT.601 full range (JFIF): convert to it from the video's own matrix and range, or a
+        // BT.709 video's saturated colours shift. Measured free (240 frames at 1440p: within run-to-run noise)
+        Picture::Display => format!(
+            "{trim},scale=w=min({}\\,iw):h=-2:out_color_matrix=bt601:out_range=pc,showinfo",
+            cfg.max_width
+        ),
+        Picture::Preview => format!("{trim},scale=w=min({}\\,iw):h=-2,showinfo", cfg.max_width),
     };
     cmd.arg("-i")
         .arg(video)

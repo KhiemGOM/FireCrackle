@@ -1032,3 +1032,95 @@ fn an_exact_frame_carries_no_colour_tags_so_it_shows_the_decoded_values() {
     assert!(png_rgb(&png).0 == reference_rgb(&v, 4));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+// ============================================== display colours (needs ffmpeg)
+
+/// A short solid-colour clip of `rgb`, stored as tv-range YUV with the given matrix and tagged with it.
+fn colour_clip(name: &str, rgb: [u8; 3], matrix: &str) -> (PathBuf, PathBuf, FrameIndex) {
+    let dir = scratch(name);
+    let v = dir.join("clip.mkv");
+    let colour = format!(
+        "color=c=0x{:02X}{:02X}{:02X}:s=320x180:r=30:d=1",
+        rgb[0], rgb[1], rgb[2]
+    );
+    let ok = Command::new("ffmpeg")
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i", &colour])
+        .args([
+            "-vf",
+            &format!("scale=out_color_matrix={matrix}:out_range=tv,format=yuv420p"),
+        ])
+        .args([
+            "-c:v",
+            "libx264",
+            "-crf",
+            "4",
+            "-colorspace",
+            matrix,
+            "-color_range",
+            "tv",
+        ])
+        .arg(&v)
+        .status()
+        .expect("ffmpeg");
+    assert!(ok.success(), "ffmpeg failed to encode the colour clip");
+    let (_, idx) = probe(&Tools::default(), &v, &IndexConfig::default()).unwrap();
+    (dir, v, idx)
+}
+
+/// The mean RGB of a JPEG as a browser shows it (JFIF: BT.601, full range).
+fn mean_rgb(jpeg: &[u8]) -> [f64; 3] {
+    let px = jpeg_decoder::Decoder::new(jpeg)
+        .decode()
+        .expect("a decodable JPEG");
+    let n = (px.len() / 3) as f64;
+    let mut sum = [0.0; 3];
+    for p in px.chunks(3) {
+        for c in 0..3 {
+            sum[c] += p[c] as f64;
+        }
+    }
+    sum.map(|s| s / n)
+}
+
+/// The clip's first frame as ffmpeg converts it to RGB with its own tagged matrix and range (making the clip from an
+/// RGB colour already rounds a few levels, so this, not the requested colour, is the truth).
+fn true_rgb(v: &Path) -> [f64; 3] {
+    let out = Command::new("ffmpeg")
+        .args(["-loglevel", "error", "-i"])
+        .arg(v)
+        .args(["-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+        .output()
+        .expect("ffmpeg");
+    let n = (out.stdout.len() / 3) as f64;
+    let mut sum = [0.0; 3];
+    for p in out.stdout.chunks(3) {
+        for c in 0..3 {
+            sum[c] += p[c] as f64;
+        }
+    }
+    sum.map(|s| s / n)
+}
+
+#[test]
+fn display_frames_show_the_videos_colours_whatever_its_matrix() {
+    // a BT.709 video's display JPEG used to keep BT.709 YCbCr, which browsers read as BT.601: saturated colours shifted
+    if !have_tools() {
+        return;
+    }
+    for (matrix, rgb) in [
+        ("bt709", [200u8, 30, 30]),
+        ("bt709", [40, 170, 60]),
+        ("bt470bg", [200, 30, 30]),
+    ] {
+        let (dir, v, idx) = colour_clip(&format!("colour-{matrix}-{}", rgb[1]), rgb, matrix);
+        let frames = decode(&v, &idx, &job_for(&idx, 10, 0, 0)).unwrap();
+        let (got, want) = (mean_rgb(&frames[0].jpeg), true_rgb(&v));
+        for c in 0..3 {
+            assert!(
+                (got[c] - want[c]).abs() <= 2.0,
+                "{matrix} {rgb:?}: the display frame shows {got:?}, the video is {want:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
