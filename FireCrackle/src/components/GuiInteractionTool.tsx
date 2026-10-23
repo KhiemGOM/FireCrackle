@@ -7,7 +7,7 @@ import {ScanProgressStats} from './ScanProgressStats';
 import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
-import {guiThumbnails,previewFrames,previewScreen,unveiledPreviews} from '../lib/guiThumbnailCache';
+import {cardPreviewWidth,galleryPreviewWidth,guiThumbnails,previewFrames,previewScreen,setGalleryPreviewWidth,unveiledPreviews} from '../lib/guiThumbnailCache';
 import {DEFAULT_VEIL_OPTIONS,type VeilOptions} from '../lib/veil';
 import {guiMotionScores,guiPairFrames,guiRangeKey,guiScoreKey,previewPixelChange,rankGuiRanges,scorableRanges,type GuiPair} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
@@ -22,9 +22,10 @@ type Shown={before:string;after?:string;unveiled?:boolean};
 
 /** The two pictures of a card, shown as they are and then replaced by their Auto-unveiled versions (open GUI kept, HUD unveiled). */
 /** `onShown`: the pictures it displays, whenever they change (the image viewer shows exactly these). */
-function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil,onShown}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions;onShown?:(pictures:Shown)=>void}) {
+/** `width`: the preview width for this card's size on screen (lib/guiThumbnailCache.ts cardPreviewWidth). */
+function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil,onShown,width=galleryPreviewWidth()}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions;onShown?:(pictures:Shown)=>void;width?:number}) {
   guiThumbnails(backend,videoKey,total);
-  const cache=previewFrames(backend,512),unveiled=unveiledPreviews(backend,veil);
+  const cache=previewFrames(backend,width),unveiled=unveiledPreviews(backend,veil,width);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
   const [pictures,setPictures]=useState<Shown|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -76,16 +77,18 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     catch(e){setError(failureMessage(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
-  const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,pair,veil,scorable.map(guiRangeKey)]);
+  // cards, ranking and prefetch use one preview width, set from the cards' size on screen (measured below)
+  const previewWidth=mode==='aim'?galleryPreviewWidth():128;
+  const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,pair,veil,previewWidth,scorable.map(guiRangeKey)]);
   if(status?.total){
     guiThumbnails(backend,videoKey,status.total);
-    previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiPairFrames(range,status.total,pair);return [frames.before,frames.after];}));
+    previewFrames(backend,previewWidth).setTargets(ranges.flatMap(range=>{const frames=guiPairFrames(range,status.total,pair);return [frames.before,frames.after];}));
   }
   useEffect(()=>{
     if(mode!=='aim'||order!=='motion'||!status?.total)return;
     guiThumbnails(backend,videoKey,status.total);
     // ranked on the pictures the cards show: the chosen pair, auto-unveiled, movement outside the open GUI only
-    const cache=unveiledPreviews(backend,veil);
+    const cache=unveiledPreviews(backend,veil,previewWidth);
     const scores=guiMotionScores(cache),total=status.total;
     let cancelled=false,next=0,processed=0;
     const publish=(done=false)=>{if(!cancelled)setRanking({video:videoKey,key:scoreKey,scores:new Map(scorable.map(range=>[guiRangeKey(range),scores.get(guiScoreKey(range,pair))??null])),processed,done});};
@@ -111,6 +114,15 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
   const sorted=mode==='aim'&&order==='motion'&&ranking.video===videoKey?rankGuiRanges(ranges,ranking.scores):ranges;
   // what each card displays, for its enlarge button
   const shown=useRef(new Map<string,Shown>());
+  // the cards' size on screen picks the preview width (a re-render follows a change)
+  const gallery=useRef<HTMLDivElement|null>(null),[,setMeasured]=useState(0);
+  useEffect(()=>{
+    const element=gallery.current;
+    if(!element||mode!=='aim'||typeof ResizeObserver==='undefined')return;
+    const measure=()=>{const before=galleryPreviewWidth();setGalleryPreviewWidth(cardPreviewWidth(element.clientWidth,window.devicePixelRatio||1));if(galleryPreviewWidth()!==before)setMeasured(n=>n+1);};
+    const observer=new ResizeObserver(measure);observer.observe(element);measure();
+    return()=>observer.disconnect();
+  },[mode]);
   // the card's pictures, and the same pictures at native resolution (unveiled like the card, or plain)
   const native=(frame:number,unveiled?:boolean)=>()=>(unveiled?boundaryPicture({backend,frame,veilOptions:veil}):nativeFrame(backend,frame)).then(blob=>URL.createObjectURL(blob));
   const shownImages=(pictures:Shown|undefined,frames:{before:number;after:number}):ViewerImage[]=>!pictures?[]:[
@@ -144,9 +156,9 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     {(error||status?.error)&&<p role="alert">{error||status?.error}</p>}
     <DesktopOnly what="Video scanning" available={!!backend.guiScanStart}/>
     </div>
-    <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
+    <div ref={gallery} className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
       {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <div key={guiRangeKey(range)} className="misc-gui-card"><button aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
-        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil} onShown={pictures=>shown.current.set(guiRangeKey(range),pictures)}/>
+        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil} width={previewWidth} onShown={pictures=>shown.current.set(guiRangeKey(range),pictures)}/>
         {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>

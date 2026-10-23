@@ -1,7 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import * as frameProcessing from './veilFrame';
 import {DEFAULT_POST,STARTING_POST,type PostSettings} from './post/settings';
-import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from './comparisonPost';
+import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,correctFrame,coverageOf,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from './comparisonPost';
 import type {Backend} from './api';
 import type {GuiMaskReply} from './guiMask';
 
@@ -50,6 +50,33 @@ describe('making the compared pictures',()=>{
   expect(call[7]).toEqual({width:2,height:1});
   expect(call[8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
   expect(portal.mock.calls[0][2]).toEqual(new Uint8Array([0,0]));
+ });
+ it('post effects run on the native frame, with the GUI mask fitted to its size, like Label',async()=>{
+  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original,_m,_o,_io,portal)=>{await portal?.({data:new Uint8ClampedArray(32),width:4,height:2});return {blob:original,applied:true};});
+  const portal=vi.fn(async(image:{data:Uint8ClampedArray},_signal?:AbortSignal,_world?:Uint8Array)=>({data:image.data,applied:true,valid:new Uint8Array(8),phase:0,opacity:.5}));
+  const exactFrame=vi.fn(async()=>new Uint8Array([0x89,0x50,0x4e,0x47]).buffer);
+  const b={...backend(),exactFrame} as unknown as Backend;
+  const io={...fakeIo(),decode:vi.fn(async()=>({data:new Uint8ClampedArray(32),width:4,height:2}))};
+  const result=await run(b,on({veil:true,portal:true}),io,STARTING_POST,portal);
+  expect(exactFrame).toHaveBeenCalledTimes(2);
+  expect(b.frame).not.toHaveBeenCalled();
+  expect(result.errors).toEqual([]);
+  const call=process.mock.calls[0];
+  // the 2x1 mask (inventory, hotbar) fitted to the 4x2 native picture
+  expect(call[7]).toEqual({width:4,height:2});
+  expect(call[8]).toEqual({width:4,height:2,world:new Uint8Array([0,0,1,1,0,0,1,1])});
+  expect(portal.mock.calls[0][2]).toEqual(new Uint8Array(8));
+ });
+ it('one correction for Label and the comparison: a mask of another shape than the picture is not used',async()=>{
+  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original,_m,_o,io)=>{await io.decode(new ArrayBuffer(1));return {blob:original,applied:true};});
+  const decode=vi.fn(async()=>({data:new Uint8ClampedArray(12),width:3,height:1}));
+  const mask=coverageOf({reply,packed});
+  const made=await correctFrame({bytes:new ArrayBuffer(4),original:new Blob(['x']),mode:'auto',veil:{minShare:.5,margin:.2,slack:2},io:{decode,encode:vi.fn()},mask,size:{width:3,height:1}});
+  expect(made.applied).toBe(true);
+  expect(decode).toHaveBeenCalledTimes(1);
+  // a 2x1 mask cannot describe a 3x1 picture: unveil runs on detection alone
+  expect(process.mock.calls[0][7]).toBeUndefined();
+  expect(process.mock.calls[0][8]).toBeUndefined();
  });
  it('one full frame as the gallery shows it: auto unveil, or the plain frame when that fails',async()=>{
   const made=new Blob(['unveiled'],{type:'image/png'});

@@ -1,5 +1,5 @@
 import type {Backend} from './api';
-import {guiThumbnails,previewFrames} from './guiThumbnailCache';
+import {galleryPreviewWidth,guiThumbnails,previewFrames} from './guiThumbnailCache';
 import {guiMotionScores,guiRangeKey,guiReviewFrames,previewPixelChange} from './guiAimReview';
 import type {GuiScanStatus} from './guiScan';
 import {backgroundBackend} from './appErrors';
@@ -21,8 +21,8 @@ export function watchGuiPreviewWarmup(backend:Backend,video:string,total:number)
     watchers.set(backend,watcher);
     const warm=async(status:GuiScanStatus)=>{
       guiThumbnails(backend,video,total);
-      const cache=previewFrames(backend,512),scores=guiMotionScores(cache);
-      const current=()=>!stopped&&previewFrames(backend,512)===cache;
+      const cache=previewFrames(backend,galleryPreviewWidth()),scores=guiMotionScores(cache);
+      const current=()=>!stopped&&previewFrames(backend,galleryPreviewWidth())===cache;
       cache.setTargets(status.ranges.flatMap(range=>Object.values(guiReviewFrames(range,total))));
       // Only one background pair is queued at a time. Visible requests promote shared work.
       for(const range of status.ranges){

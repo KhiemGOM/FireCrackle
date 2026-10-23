@@ -20,9 +20,19 @@ fn profile() -> DecodeConfig {
         ..DecodeConfig::default()
     }
 }
+/// The preview width (the frontend's PREVIEW_TIERS in lib/guiThumbnailCache.ts) and its JPEG `-q:v` (2 best, 31
+/// smallest). Gallery sizes are decoded at the card's size and stay good JPEGs; the 128 px list strips stay small.
+fn tier(width: u32) -> (u32, u32) {
+    match width {
+        0..=128 => (128, 10),
+        129..=512 => (512, 4),
+        513..=1024 => (1024, 4),
+        _ => (2048, 4),
+    }
+}
 fn cache_path(project: &Project, dir: &Path, frame: u32, width: u32) -> PathBuf {
     let mut hash = Sha256::new();
-    hash.update(b"exact-preview-jpeg-selected-v2");
+    hash.update(b"exact-preview-jpeg-selected-v3");
     hash.update(width.to_le_bytes());
     hash.update(project.fingerprint.as_bytes());
     hash.update((project.frames.len() as u64).to_le_bytes());
@@ -108,11 +118,7 @@ pub fn get_with_targets(
     targets: &[u32],
     tools: impl FnOnce() -> Result<Tools, String>,
 ) -> Result<Vec<u8>, String> {
-    let width = match width {
-        0..=128 => 128,
-        129..=512 => 512,
-        _ => 1024,
-    };
+    let (width, quality) = tier(width);
     if frame as usize >= project.frames.len() {
         return Err("Thumbnail frame is outside the video".into());
     }
@@ -133,7 +139,7 @@ pub fn get_with_targets(
     wanted.retain(|&n| n == frame || read(&cache_path(project, dir, n, width)).is_none());
     let mut config = profile();
     config.max_width = width;
-    config.jpeg_quality = if width <= 128 { 14 } else { 10 };
+    config.jpeg_quality = quality;
     let job = job_for(&index, wanted[0], *wanted.last().unwrap(), &config);
     // Reuse the shipped timestamp-verified decoder. No playback lookahead or background fill.
     let decoded = decode_preview(
@@ -236,6 +242,21 @@ mod tests {
             assert_eq!(cached, single, "exact frame {frame}");
         }
     }
+    #[test]
+    fn previews_come_in_the_frontends_widths_and_gallery_sizes_are_good_jpegs() {
+        // lib/guiThumbnailCache.ts PREVIEW_TIERS: 128, 512, 1024, 2048
+        let tiers: Vec<u32> = [0, 128, 129, 512, 513, 1024, 1025, 2048, 9999]
+            .iter()
+            .map(|&w| tier(w).0)
+            .collect();
+        assert_eq!(tiers, [128, 128, 512, 512, 1024, 1024, 2048, 2048, 2048]);
+        // ffmpeg -q:v, 2 best .. 31 smallest: gallery sizes are not mush
+        for w in [512, 1024, 2048] {
+            assert!(tier(w).1 <= 4, "{w}");
+        }
+        assert!(tier(128).1 <= 10);
+    }
+
     #[test]
     fn rejects_invalid_frame_before_reading_or_decoding() {
         let fixture = crate::scan_cache::tests::fixture(3);

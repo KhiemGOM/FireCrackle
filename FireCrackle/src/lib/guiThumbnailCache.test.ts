@@ -1,5 +1,5 @@
 import {expect,it,vi} from 'vitest';
-import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails,unveiledPreviews,previewFrames,previewScreen} from './guiThumbnailCache';
+import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails,unveiledPreviews,previewFrames,previewScreen,previewTier,cardPreviewWidth,galleryPreviewWidth,setGalleryPreviewWidth} from './guiThumbnailCache';
 import * as comparisonPost from './comparisonPost';
 import type {Backend} from './api';
 const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
@@ -96,7 +96,7 @@ it('auto-unveiled previews are one cache per veil setting, built on the raw prev
   const unveiled=unveiledPreviews(backend,veil);
   expect(unveiledPreviews(backend,{...veil})).toBe(unveiled);
   expect(unveiledPreviews(backend,{...veil,slack:3})).not.toBe(unveiled);
-  vi.spyOn(previewFrames(backend,512),'get').mockResolvedValue('data:raw');
+  vi.spyOn(previewFrames(backend,galleryPreviewWidth()),'get').mockResolvedValue('data:raw');
   const screen={width:2,height:1,world:new Uint8Array([0,1])};
   const unveil=vi.spyOn(comparisonPost,'unveilPreview').mockImplementation(async options=>{options.onScreen?.(screen);return 'data:clear';});
   expect(await unveiled.get(4)).toBe('data:clear');
@@ -106,4 +106,27 @@ it('auto-unveiled previews are one cache per veil setting, built on the raw prev
   guiThumbnails(backend,'other',100);
   expect(unveiledPreviews(backend,veil)).not.toBe(unveiled);
   vi.restoreAllMocks();
+});
+it('gallery previews are as wide as the card on screen (device pixels), from the fixed preview sizes',()=>{
+  expect([0,NaN,100,128].map(previewTier)).toEqual([128,128,128,128]);
+  expect([129,512].map(previewTier)).toEqual([512,512]);
+  expect([513,825,1024].map(previewTier)).toEqual([1024,1024,1024]);
+  expect([1025,1666,5000].map(previewTier)).toEqual([2048,2048,2048]);
+  // a 640 CSS px card on a 1.29 display needs 826 px
+  expect(cardPreviewWidth(1300,1.29)).toBe(1024);
+  expect(cardPreviewWidth(2000,1.29)).toBe(1024);
+  expect(cardPreviewWidth(1200,1.29)).toBe(2048);
+  expect(cardPreviewWidth(0,1)).toBe(1024);
+});
+it('the gallery, its ranking and warm-up share one preview width, and ask the backend for that size',async()=>{
+  class Reader{result='data:image/jpeg;base64,big';onload:(()=>void)|null=null;readAsDataURL(){this.onload?.();}}
+  vi.stubGlobal('FileReader',Reader);
+  try{
+    setGalleryPreviewWidth(1666);
+    expect(galleryPreviewWidth()).toBe(2048);
+    const previewThumbnail=vi.fn(async()=>new ArrayBuffer(4)),backend={previewThumbnail} as unknown as Backend;
+    await previewFrames(backend,galleryPreviewWidth()).get(3);
+    expect(previewThumbnail).toHaveBeenCalledWith(3,2048,expect.anything());
+    expect(unveiledPreviews(backend,{minShare:.5,margin:.2,slack:2},2048)).not.toBe(unveiledPreviews(backend,{minShare:.5,margin:.2,slack:2},1024));
+  }finally{setGalleryPreviewWidth(826);vi.unstubAllGlobals();}
 });

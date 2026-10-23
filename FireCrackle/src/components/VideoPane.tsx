@@ -10,6 +10,9 @@ import { formatTimecode } from "../lib/timecode";
 import { HudOverlay } from "./HudOverlay";
 import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
+import { Fire3DOverlay } from "./Fire3DOverlay";
+import { Fire3DPanel } from "./Fire3DPanel";
+import { useFire3D } from "../lib/useFire3D";
 import { IconButton } from "./Icon";
 import { DEFAULT_QUAD, type ManualQuad } from "../lib/quadMask";
 import { readFrameQuads, recalledQuad, rememberQuad, sameQuad, writeFrameQuads } from "../lib/frameQuads";
@@ -34,7 +37,8 @@ import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
 import { exactFrameBytes, pngSize, showsExactFrame } from "../lib/exactFrame";
 import { canvasFrameIo, losslessFrameIo, processFrame } from "../lib/veilFrame";
-import { portalPreview, guiScreenCoverage, guiWorldCoverage, fitCoverage, sameShape } from "../lib/portalPreview";
+import { portalPreview, guiScreenCoverage, guiWorldCoverage } from "../lib/portalPreview";
+import { correctFrame } from "../lib/comparisonPost";
 import { enhance, hasEnhancement } from "../lib/post/pipeline";
 import type { PostSettings } from "../lib/post/settings";
 import type { PortalMode } from "../lib/portal";
@@ -425,21 +429,18 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     }
     // Undo veil and portal and enhance one picture. `size` is a full-resolution picture's: the GUI mask and screen
     // evidence, made from the scaled display frame, are stretched to it (another shape gets none).
-    function correct(bytes: ArrayBuffer, original: Blob, io: typeof canvasFrameIo, size?: { width: number; height: number }) {
-      const coverage = size ? fitCoverage(guiCoverage, size.width, size.height) : guiCoverage;
-      const unveilCoverage = size ? fitCoverage(screenCoverage, size.width, size.height) : screenCoverage;
+    // the shared correction (lib/comparisonPost.ts correctFrame), with this frame's GUI mask fitted to the picture
+    async function correct(bytes: ArrayBuffer, original: Blob, io: typeof canvasFrameIo, size?: { width: number; height: number }) {
       const evidence = guiMask.maskFrame === view.current ? veilScreenEvidence(guiMask.reply) : undefined;
-      const screen = evidence && size ? (sameShape(evidence, size) ? size : undefined) : evidence;
-      return processFrame(bytes, original, veilMode, veilOptions, io, runPortal ? async image => {
-        let world: Uint8Array | undefined;
-        if (portalMode === "auto" && coverage && image.width === coverage.width && image.height === coverage.height) {
-          world = coverage.world;
-          guiProtected = true;
-        }
-        const fit = await portalPreview(image, cancel.signal, world, manualPortal);
-        if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
-        return fit;
-      } : undefined, enhanceOn ? image => enhance(image, post!) : undefined, screen, unveilCoverage);
+      const made = await correctFrame({ bytes, original, mode: veilMode, veil: veilOptions, io, size, mask: { evidence, gui: guiCoverage, screen: screenCoverage },
+        portal: runPortal ? async (image, world) => {
+          const fit = await portalPreview(image, cancel.signal, portalMode === "auto" ? world : undefined, manualPortal);
+          if (!manualPortal && mine === token.current) onPortalFit?.({ phase: fit.phase, opacity: fit.opacity });
+          return fit;
+        } : undefined,
+        enhance: enhanceOn ? image => enhance(image, post!) : undefined });
+      guiProtected = made.guiProtected && portalMode === "auto";
+      return made;
     }
     function present(made: Awaited<ReturnType<typeof processFrame>>, exact: boolean) {
       if (made.error) onError(`Picture correction: ${made.error}`);
@@ -557,6 +558,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     } catch (error) { onError(`Comparison proof: ${failureMessage(error)}`); }
     finally { setProofBusy(false); }
   }
+  // 3D quad mode of the manual quad: camera from the automatic guess + clicked corners, fire placed in 3D
+  const [fire3dOn, setFire3dOn] = useState(false);
+  const fire3d = useFire3D(backend, view.current, manualEnabled && fire3dOn && !stillImage);
   const s = view.suggestion;
   return (
     <div className="video-pane">
@@ -585,7 +589,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} zoom={xf.scale} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
           {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} atlas={manualAtlas} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
-            placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
+            placementEnabled={(!ruler.enabled || !rulerSelected) && !(fire3dOn && fire3d.picking)} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
+          {manualEnabled && fire3dOn && !stillImage && shown === view.current && url && imageSize.width > 0 && <Fire3DOverlay fire={fire3d} {...imageSize} />}
           {ruler.enabled && url && imageSize.width > 0 && <VideoRuler {...imageSize} zoom={xf.scale} points={ruler.points} locked={ruler.locked} onSelect={setRulerSelected} onChange={points => setRuler(current => ({ ...current, points }))} />}
           {guiMaskOn && !stillImage && <GuiMaskOverlay state={guiMask} frame={view.current} />}
         </div>
@@ -649,6 +654,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <label>Row <input aria-label="Manual mask row" type="number" min={0} max={manualRows-1} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < manualRows) setManualRow(n); }} /></label>
           <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => (r+1)%manualRows)} />
           <label><input type="checkbox" checked={manualMirrored} onChange={(e) => setManualMirrored(e.target.checked)} /> Mirrored</label>
+          {!stillImage && <button aria-pressed={fire3dOn} title="3D quad: solve the camera from block corners and place the fire in 3D; its plane drives this quad" onClick={() => { setFire3dOn(!fire3dOn); fire3d.setPicking(false); }}>3D</button>}
           <OpacityControl groupLabel="Mask opacity" toggleLabel="Toggle manual mask opacity"
             sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
@@ -669,6 +675,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           </>}
           <IconButton icon="copy" label="Use frame label for manual mask" disabled={!labelSprite(view.label)} onClick={() => {const sprite=labelSprite(view.label);if(sprite)selectPreview(sprite);}} />
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · G: refine alignment · Ctrl+drag: move all · select corner + Alt+click: place</span>
+      </div>}
+      {manualEnabled && fire3dOn && !stillImage && <div className="hud-controls fire3d-controls" aria-label="3D quad settings">
+        <Fire3DPanel fire={fire3d} onUse={(quad, mirrored) => { setManualQuad(quad); setManualMirrored(mirrored); }} />
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}

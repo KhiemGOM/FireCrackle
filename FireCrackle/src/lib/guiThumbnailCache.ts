@@ -74,9 +74,24 @@ export function guiThumbnails(backend:Backend,videoKey:string|undefined,total:nu
 const screens=new WeakMap<GuiThumbnailCache,Map<number,WorldCoverage>>();
 /** The open-screen mask unveil used for a preview of `cache` (unveiledPreviews), for scoring movement outside the GUI. */
 export function previewScreen(cache:GuiThumbnailCache,frame:number):WorldCoverage|undefined{return screens.get(cache)?.get(frame);}
-/** The 512px previews with Auto unveil applied (lib/comparisonPost.ts unveilPreview), one cache per veil setting. */
-export function unveiledPreviews(backend:Backend,veil:VeilOptions):GuiThumbnailCache{
-  const raw=previewFrames(backend,512),owner=caches.get(backend)!,key=`unveil|${veil.minShare}|${veil.margin}|${veil.slack}`;
+/** The backend's preview widths: JPEG, decoded at that width (never wider than the video). */
+export const PREVIEW_TIERS=[128,512,1024,2048] as const;
+/** The smallest preview width covering `px` device pixels. */
+export function previewTier(px:number):number{return PREVIEW_TIERS.find(t=>px<=t)??(Number.isFinite(px)?2048:128);}
+const CARD_MIN=640,CARD_GAP=12; // MiscToolsTab.css .misc-gui-aim-gallery: repeat(auto-fit,minmax(640px,1fr)), gap 12px
+/** The preview width for an aim-gallery card, from the gallery's CSS width and the display's pixel ratio. */
+export function cardPreviewWidth(galleryCss:number,dpr:number):number{
+  const columns=Math.max(1,Math.floor((galleryCss+CARD_GAP)/(CARD_MIN+CARD_GAP)));
+  const card=galleryCss>0?(galleryCss-CARD_GAP*(columns-1))/columns:CARD_MIN;
+  return previewTier(card*(dpr>0?dpr:1));
+}
+let galleryWidth=previewTier(CARD_MIN*(typeof window!=='undefined'?window.devicePixelRatio||1:1));
+/** One width for the gallery's cards, their ranking, warm-up and prefetch, so all of them use the same pictures. */
+export const galleryPreviewWidth=()=>galleryWidth;
+export function setGalleryPreviewWidth(px:number){galleryWidth=previewTier(px);}
+/** The gallery previews with Auto unveil applied (lib/comparisonPost.ts unveilPreview), one cache per veil setting and width. */
+export function unveiledPreviews(backend:Backend,veil:VeilOptions,width=galleryPreviewWidth()):GuiThumbnailCache{
+  const raw=previewFrames(backend,width),owner=caches.get(backend)!,key=`unveil|${previewTier(width)}|${veil.minShare}|${veil.margin}|${veil.slack}`;
   const found=owner.sizes.get(key);if(found)return found;
   const native=backgroundBackend(backend);
   const found_screens=new Map<number,WorldCoverage>();
@@ -91,7 +106,7 @@ export function unveiledPreviews(backend:Backend,veil:VeilOptions):GuiThumbnailC
 }
 /** Shared display previews; never used as matching, mask, difference or export evidence. */
 export function previewFrames(backend:Backend,width=512):GuiThumbnailCache{
-  width=width<=128?128:width<=512?512:1024;
+  width=previewTier(width);
   let owner=caches.get(backend);if(!owner){owner={sizes:new Map()};caches.set(backend,owner);}
   const found=owner.sizes.get(width);if(found)return found;
   const native=backgroundBackend(backend);

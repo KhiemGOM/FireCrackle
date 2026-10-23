@@ -94,11 +94,17 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             if bottom > top + 450 {
                 break;
             }
-            // The bottom rim is the gradient's faint end: compression can cut it short at either end, never make it
-            // longer. It must lie within the top rim's span and cover most of it; the top rim sets the box.
-            if l + ENDPOINT_SLACK_PX < left
-                || r > right + ENDPOINT_SLACK_PX
-                || (r - l + 1) * 100 < (right - left + 1) * BOTTOM_RIM_MIN_PERCENT
+            // The bottom rim is the gradient's faint end: compression can cut it short at either end or break it into
+            // pieces further apart than a run bridges, never make it longer. It must lie within the top rim's span, and
+            // its rim pixels on that row (only real rim pixels, gaps are not credited) must cover most of the span.
+            if l + ENDPOINT_SLACK_PX < left || r > right + ENDPOINT_SLACK_PX {
+                continue;
+            }
+            // An interior break wider than two run gaps is a hole, not compression.
+            let xs: Vec<usize> = (left..=right).filter(|&x| rim(x, bottom)).collect();
+            let hole = xs.windows(2).map(|p| p[1] - p[0] - 1).max().unwrap_or(0);
+            if xs.len() * 100 < (right - left + 1) * BOTTOM_RIM_MIN_PERCENT
+                || hole > 2 * MAX_RIM_GAP_PX
             {
                 continue;
             }
@@ -220,6 +226,23 @@ mod tests {
         let mut right = tooltip();
         erase(&mut right, 205..240, 128..130);
         assert_eq!(detect_tooltips(&right, 320, 180).len(), 1);
+    }
+
+    #[test]
+    fn a_bottom_rim_broken_into_pieces_counts_its_rim_pixels_across_the_gaps() {
+        // the app's 720p display JPEG: the faint bottom rim in two pieces 16 px apart (wider than the run gap), each
+        // under 60 % of the width, together 75 %
+        let mut rgb = tooltip();
+        erase(&mut rgb, 40..70, 128..130);
+        erase(&mut rgb, 130..150, 128..130);
+        let boxes = detect_tooltips(&rgb, 320, 180);
+        assert_eq!(boxes.len(), 1);
+        assert_eq!(mask(&boxes, 320, 180)[80 * 320 + 45], 255);
+        // scattered pieces that add up to too little are still not a tooltip
+        let mut sparse = tooltip();
+        erase(&mut sparse, 40..110, 128..130);
+        erase(&mut sparse, 130..200, 128..130);
+        assert!(detect_tooltips(&sparse, 320, 180).is_empty());
     }
 
     #[test]

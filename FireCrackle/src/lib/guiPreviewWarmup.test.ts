@@ -2,7 +2,7 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import type {Backend} from './api';
 import type {GuiScanStatus} from './guiScan';
 import {watchGuiPreviewWarmup} from './guiPreviewWarmup';
-import {previewFrames,clearGuiThumbnails} from './guiThumbnailCache';
+import {galleryPreviewWidth,previewFrames,clearGuiThumbnails} from './guiThumbnailCache';
 import {guiMotionScores,previewPixelChange} from './guiAimReview';
 import {withErrorReporting,getFailures,dismissFailure} from './appErrors';
 
@@ -21,7 +21,7 @@ beforeEach(()=>{
 afterEach(()=>{getFailures().forEach(failure=>dismissFailure(failure.id));vi.useRealTimers();vi.unstubAllGlobals();});
 
 it('warms completed scans without opening a gallery, including menu intervals, and reuses images and scores',async()=>{
-  const f=fixture(),cache=previewFrames(f.backend,512),requests=vi.spyOn(cache,'get');
+  const f=fixture(),cache=previewFrames(f.backend,galleryPreviewWidth()),requests=vi.spyOn(cache,'get');
   const stop=watchGuiPreviewWarmup(f.backend,'clip.mkv',100);
   await vi.advanceTimersByTimeAsync(0);
   expect(f.previewThumbnail).toHaveBeenCalledTimes(6);
@@ -67,9 +67,9 @@ it('yields to other automatic scans and resumes preparation when they finish',as
 it('isolates cached scores after reopening a video and retries failed speculative images on demand',async()=>{
   const f=fixture();f.previewThumbnail.mockRejectedValueOnce(Error('temporary decode failure'));
   const stop=watchGuiPreviewWarmup(f.backend,'clip.mkv',100);await vi.advanceTimersByTimeAsync(0);
-  const cache=previewFrames(f.backend,512);expect(guiMotionScores(cache).has('2-4')).toBe(false);
+  const cache=previewFrames(f.backend,galleryPreviewWidth());expect(guiMotionScores(cache).has('2-4')).toBe(false);
   await cache.get(1);expect(f.previewThumbnail).toHaveBeenCalledTimes(7);
-  clearGuiThumbnails(f.backend);expect(guiMotionScores(previewFrames(f.backend,512)).size).toBe(0);
+  clearGuiThumbnails(f.backend);expect(guiMotionScores(previewFrames(f.backend,galleryPreviewWidth())).size).toBe(0);
   stop();
 });
 it('never starts expensive full-frame fallback work for backends without preview support',async()=>{

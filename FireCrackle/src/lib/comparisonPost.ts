@@ -1,8 +1,8 @@
-// Post effects on the Misc-tools frame comparison: the Enhance panel's own veil, portal and effect settings, run through
-// the same processFrame as Label, plus an optional open-screen mask so a blink compares only the world.
+// Picture correction of one frame (veil -> portal -> Enhance with its GUI mask fitted to the picture), shared by Label and
+// the Misc-tools comparison, and the comparison's post effects: the Enhance panel's own settings on the native frame.
 import type {Backend} from './api';
-import {processFrame,canvasFrameIo,type FrameIo} from './veilFrame';
-import type {VeilOptions} from './veil';
+import {processFrame,canvasFrameIo,losslessFrameIo,type EnhanceStage,type FrameIo,type ProcessedFrame} from './veilFrame';
+import type {VeilMode,VeilOptions} from './veil';
 import type {PortalImage,PortalManual,PortalResult} from './portal';
 import {fitCoverage,portalPreview,portalWorldMask,sameShape,type WorldCoverage} from './portalPreview';
 import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame} from './guiMask';
@@ -30,11 +30,31 @@ export function comparisonSettings(post:PostSettings,c:ComparePost):PostSettings
 }
 
 type Portal=(image:PortalImage,signal:AbortSignal,world?:Uint8Array,manual?:PortalManual)=>Promise<PortalResult>;
-interface Mask {evidence?:{width:number;height:number};gui?:WorldCoverage;screen?:WorldCoverage}
-function coverages(frame:GuiMaskFrame):Mask{
+/** A frame's GUI mask as the corrections use it: veil evidence, every GUI pixel (portal) and the open screen (unveil). */
+export interface Mask {evidence?:{width:number;height:number};gui?:WorldCoverage;screen?:WorldCoverage}
+export function coverageOf(frame:GuiMaskFrame):Mask{
  const {reply,packed}=frame;
  if(!packed)return {};
  return {evidence:veilScreenEvidence(reply),gui:{width:reply.width,height:reply.height,world:portalWorldMask(overlayRgba(packed,reply.width,reply.height))},screen:{width:reply.width,height:reply.height,world:screenWorld(packed)}};
+}
+
+/**
+ * One frame's picture correction: veil -> portal (GUI pixels protected) -> Enhance, with the frame's GUI mask fitted to
+ * `size` (the picture's, when known; a mask of another shape is not used and detection alone decides). Without a size
+ * the mask is used as made, for the display frame it was made on. Label and the comparison both run this;
+ * `guiProtected` says the portal undo had the GUI mask.
+ */
+export async function correctFrame({bytes,original,mode,veil,io,mask,size,portal,enhance:stage}:{bytes:ArrayBuffer;original:Blob;mode:VeilMode;veil:VeilOptions;io:FrameIo;mask?:Mask;size?:{width:number;height:number};portal?:(image:PortalImage,world?:Uint8Array)=>Promise<PortalResult>;enhance?:EnhanceStage}):Promise<ProcessedFrame&{guiProtected:boolean}>{
+ const fit=(c:WorldCoverage|undefined)=>size?fitCoverage(c,size.width,size.height):c;
+ const gui=fit(mask?.gui),screen=fit(mask?.screen);
+ const evidence=size?(mask?.evidence&&sameShape(mask.evidence,size)?{width:size.width,height:size.height}:undefined):mask?.evidence;
+ let guiProtected=false;
+ const made=await processFrame(bytes,original,mode,veil,io,portal?picture=>{
+  const world=gui&&picture.width===gui.width&&picture.height===gui.height?gui.world:undefined;
+  if(world)guiProtected=true;
+  return portal(picture,world);
+ }:undefined,stage,evidence,screen);
+ return {...made,guiProtected};
 }
 
 /**
@@ -43,13 +63,12 @@ function coverages(frame:GuiMaskFrame):Mask{
  * decides. Returns the preview itself when nothing was unveiled.
  */
 export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob),onScreen}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>;onScreen?:(screen:WorldCoverage|undefined)=>void}):Promise<string>{
- const bytes=await read(url),image=await io.decode(bytes);
+ const bytes=await read(url);
  let found:Mask={};
- if(mask){try{found=coverages(await mask());}catch{/* detection alone */}}
- const evidence=found.evidence&&sameShape(found.evidence,image)?{width:image.width,height:image.height}:undefined;
- const screen=fitCoverage(found.screen,image.width,image.height);
- onScreen?.(screen);
- const result=await processFrame(bytes,new Blob([bytes],{type:'image/jpeg'}),'auto',veil,{decode:async()=>image,encode:io.encode},undefined,undefined,evidence,screen);
+ if(mask){try{found=coverageOf(await mask());}catch{/* detection alone */}}
+ const image=await io.decode(bytes);
+ onScreen?.(fitCoverage(found.screen,image.width,image.height));
+ const result=await correctFrame({bytes,original:new Blob([bytes],{type:'image/jpeg'}),mode:'auto',veil,mask:found,size:image,io:{decode:async()=>image,encode:io.encode}});
  return result.applied?toUrl(result.blob):url;
 }
 
@@ -57,19 +76,20 @@ export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fe
  * The compared frames with the ticked effects, keyed by frame (each frame made once). A failed stage keeps what
  * succeeded and is listed in `errors`; a frame that cannot be read rejects.
  */
-export async function comparisonPictures({backend,frames,post,compare,veilOptions,signal,io=canvasFrameIo,portal=portalPreview}:{backend:Backend;frames:number[];post:PostSettings;compare:ComparePost;veilOptions:VeilOptions;signal:AbortSignal;io?:FrameIo;portal?:Portal}):Promise<{pictures:Map<number,Blob>;errors:string[]}>{
+export async function comparisonPictures({backend,frames,post,compare,veilOptions,signal,io=losslessFrameIo,portal=portalPreview}:{backend:Backend;frames:number[];post:PostSettings;compare:ComparePost;veilOptions:VeilOptions;signal:AbortSignal;io?:FrameIo;portal?:Portal}):Promise<{pictures:Map<number,Blob>;errors:string[]}>{
  const settings=comparisonSettings(post,compare),errors:string[]=[];
  const enhanceOn=hasEnhancement(settings),manual=settings.portal==='manual'?settings.portalManual:undefined;
  const wantsMask=settings.veil==='auto'||settings.portal==='auto';
  const unique=[...new Set(frames)];
  const made=await Promise.all(unique.map(async frame=>{
-  const bytes=await backend.frame(frame),original=new Blob([bytes],{type:'image/jpeg'});
+  // the video's own resolution, like Label's paused picture; the GUI mask (made on the display frame) is fitted to it
+  const original=await nativeFrame(backend,frame),bytes=await original.arrayBuffer();
   let mask:Mask={};
-  if(wantsMask&&backend.guiMaskFrame){try{mask=coverages(await backend.guiMaskFrame(frame));}catch(e){errors.push(`GUI mask of frame ${frame}: ${failureMessage(e)}`);}}
-  const result=await processFrame(bytes,original,settings.veil,veilOptions,io,settings.portal!=='off'?image=>{
-   const world=settings.portal==='auto'&&mask.gui?.width===image.width&&mask.gui.height===image.height?mask.gui.world:undefined;
-   return portal(image,signal,world,manual);
-  }:undefined,enhanceOn?image=>enhance(image,settings):undefined,mask.evidence,mask.screen);
+  if(wantsMask&&backend.guiMaskFrame){try{mask=coverageOf(await backend.guiMaskFrame(frame));}catch(e){errors.push(`GUI mask of frame ${frame}: ${failureMessage(e)}`);}}
+  const image=await io.decode(bytes);
+  const result=await correctFrame({bytes,original,mode:settings.veil,veil:veilOptions,io:{decode:async()=>image,encode:io.encode},mask,size:image,
+   portal:settings.portal!=='off'?(image,world)=>portal(image,signal,settings.portal==='auto'?world:undefined,manual):undefined,
+   enhance:enhanceOn?image=>enhance(image,settings):undefined});
   if(result.error)errors.push(`Frame ${frame}: ${result.error}`);
   return {frame,blob:result.blob};
  }));

@@ -2,16 +2,24 @@ import type {Backend} from './api';
 import {previewFrames} from './guiThumbnailCache';
 import {loadFrameImage} from './frameComparison';
 
-/** Publish a small cached preview first, then the original for detailed inspection. */
+/**
+ * Publish a small cached preview first, then the display frame, then the exact frame at the video's own resolution.
+ * `full` marks the last picture that will come (the native one, or the display frame without exact frames).
+ */
 export function displayFrame(backend:Backend,frame:number,show:(url:string,full:boolean)=>void,fail:(error:unknown)=>void){
-  let cancelled=false,original:string|undefined;
+  let cancelled=false;const made:string[]=[];
+  const url=(bytes:ArrayBuffer,type:string)=>{const u=URL.createObjectURL(new Blob([bytes],{type}));made.push(u);return u;};
   const full=()=>{if(cancelled)return;void backend.frame(frame).then(bytes=>{
-    if(cancelled)return;original=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'}));show(original,true);
+    if(cancelled)return;
+    const display=url(bytes,'image/jpeg');show(display,!backend.exactFrame);
+    if(!backend.exactFrame)return;
+    // a failed native decode keeps the display frame as the detail
+    void backend.exactFrame(frame).then(png=>{if(!cancelled)show(url(png,'image/png'),true);},()=>{if(!cancelled)show(display,true);});
   }).catch(error=>{if(!cancelled)fail(error);});};
   if(backend.previewThumbnail){
     void previewFrames(backend).get(frame,()=>!cancelled).then(url=>{if(!cancelled)show(url,false);},()=>{}).then(full);
   }else full();
-  return()=>{cancelled=true;if(original)URL.revokeObjectURL(original);};
+  return()=>{cancelled=true;made.forEach(u=>URL.revokeObjectURL(u));};
 }
 
 const photoIds=new WeakMap<Blob,number>(),photos=new Map<string,Promise<string>>();
