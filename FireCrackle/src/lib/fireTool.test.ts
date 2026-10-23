@@ -150,3 +150,13 @@ describe("plane to Label's manual quad", () => {
     expect(planes.some(p => planeToManualQuad(p, W, H))).toBe(true);
   });
 });
+
+describe("click or drag", () => {
+  it("a press released within a few screen pixels is a click; a drag pans", async () => {
+    const { isClick } = await import("./fireTool");
+    expect(isClick([100, 100], [102, 101])).toBe(true);
+    expect(isClick([100, 100], [100, 100])).toBe(true);
+    expect(isClick([100, 100], [110, 100])).toBe(false);
+    expect(isClick([100, 100], [100, 96])).toBe(false);
+  });
+});

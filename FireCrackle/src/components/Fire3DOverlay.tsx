@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { manualTexels, screenToQuadPoint } from "../lib/quadMask";
-import { addClick, fireOutline, groundGrid, newFire, placeFire, planeToManualQuad, usableClicks, type Vec3 } from "../lib/fireTool";
+import { addClick, fireOutline, groundGrid, isClick, moveClick, newFire, placeFire, planeToManualQuad, usableClicks, type Vec3 } from "../lib/fireTool";
 import { hitPlaneY, project } from "../lib/reversal";
 import { atlasTile, type AnimationAtlas } from "../lib/animationAtlases";
 import { loadSpriteSheet, spriteShape, spriteSource } from "../lib/spriteSheet";
@@ -42,21 +42,39 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
     if (!m) return [];
     try { return [manualTexels(sheet.rgba, row, m.mirrored !== sprite.mirrored, m.quad, side, rows)]; } catch { return []; }
   }) : [];
-  function down(e: PointerEvent<SVGSVGElement>) {
-    if (fire.click === "none" || e.button !== 0) return;
+  /** Native pixel under a screen point, or null outside the picture. */
+  const nativeAt = (x: number, y: number): [number, number] | null => {
     const m = svg.current?.getScreenCTM();
-    const p = m ? screenToQuadPoint(m, e.clientX, e.clientY, width, height) : null;
-    if (!p || p[0] < 0 || p[1] < 0 || p[0] > 1 || p[1] > 1) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const px: [number, number] = [p[0] * native!.width, p[1] * native!.height];
-    if (fire.click === "corner") {
-      fire.update(s => addClick(s, px));
-      return;
-    }
+    const p = m ? screenToQuadPoint(m, x, y, width, height) : null;
+    return p && p[0] >= 0 && p[1] >= 0 && p[0] <= 1 && p[1] <= 1 ? [p[0] * native!.width, p[1] * native!.height] : null;
+  };
+  function act(px: [number, number]) {
+    if (fire.click === "corner") { fire.update(s => addClick(s, px)); return; }
     if (!cam || y === null) return;
     const at = hitPlaneY(cam, native!.width, native!.height, px[0], px[1], y);
     if (at) fire.update(s => ({ ...s, fire: s.fire ? placeFire(s.fire, at) : newFire(cam, at) }));
+  }
+  // a click adds a corner or places the fire; a drag is left to the picture (pan), so nothing is stopped here
+  function down(e: PointerEvent<SVGSVGElement>) {
+    if (fire.click === "none" || e.button !== 0) return;
+    const start: [number, number] = [e.clientX, e.clientY], px = nativeAt(e.clientX, e.clientY);
+    if (!px) return;
+    const up = (u: globalThis.PointerEvent) => { window.removeEventListener("pointerup", up, true); if (isClick(start, [u.clientX, u.clientY])) act(px); };
+    window.addEventListener("pointerup", up, true);
+  }
+  // a corner marker: click to edit it, drag to move it
+  function grab(e: PointerEvent<SVGGElement>, id: number) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    fire.setSelected(id);
+    const target = e.currentTarget;
+    try { target.setPointerCapture(e.pointerId); } catch { /* moves still arrive while over it */ }
+    const move = (m: globalThis.PointerEvent) => { const px = nativeAt(m.clientX, m.clientY); if (px) fire.update(s => moveClick(s, id, px)); };
+    const up = () => { target.removeEventListener("pointermove", move); target.removeEventListener("pointerup", up); target.removeEventListener("pointercancel", up); };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
   }
   return <svg ref={svg} className={`fire3d-overlay${fire.click !== "none" ? " picking" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet"
     aria-label="3D quad on the picture" onPointerDown={down}>
@@ -67,8 +85,10 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
       return a && b && <line key={`o${i}`} className="fire3d-cell" x1={a[0] * sx} y1={a[1] * sy} x2={b[0] * sx} y2={b[1] * sy} />;
     })}
     {fire.state.clicks.map((c, i) => <g key={c.id} className={`fire3d-click${c.world ? "" : " pending"}${fire.selected === c.id ? " selected" : ""}`}
-      onPointerDown={e => { e.stopPropagation(); fire.setSelected(c.id); }}>
-      <circle cx={c.px[0] * sx} cy={c.px[1] * sy} r={6 / screenScale} /><text x={c.px[0] * sx + 9 / screenScale} y={c.px[1] * sy - 8 / screenScale} fontSize={15 / screenScale}>{i + 1}</text>
+      onPointerDown={e => grab(e, c.id)}>
+      <title>{`Corner ${i + 1}: click to edit its position, drag to move it`}</title>
+      <circle cx={c.px[0] * sx} cy={c.px[1] * sy} r={6 / screenScale} />
+      <text x={c.px[0] * sx + 9 / screenScale} y={c.px[1] * sy - 8 / screenScale} fontSize={15 / screenScale} strokeWidth={3 / screenScale}>{i + 1}</text>
     </g>)}
   </svg>;
 }

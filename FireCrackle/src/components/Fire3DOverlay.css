@@ -2,8 +2,8 @@
 .fire3d-overlay.picking { pointer-events: all; cursor: crosshair; }
 .fire3d-grid { stroke: rgba(80, 220, 255, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .fire3d-cell { stroke: #f5c542; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.fire3d-click { pointer-events: all; cursor: pointer; }
+.fire3d-click { pointer-events: all; cursor: move; touch-action: none; }
 .fire3d-click circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .fire3d-click.pending circle { fill: #888; }
 .fire3d-click.selected circle { fill: #f5c542; }
-.fire3d-click text { fill: #fff; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+.fire3d-click text { fill: #fff; paint-order: stroke; stroke: #000; }

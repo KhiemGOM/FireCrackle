@@ -162,3 +162,10 @@ export function planeToManualQuad(q: FireQuad, w: number, h: number): { quad: Ma
   const swapped: ManualQuad = [quad[1], quad[0], quad[3], quad[2]];
   return validQuad(swapped) ? { quad: swapped, mirrored: true } : null;
 }
+
+/** A press released within this many screen pixels of where it started is a click (adds a corner or places the
+ * fire); anything longer is a drag that pans the picture. */
+export const CLICK_SLOP = 4;
+export function isClick(down: [number, number], up: [number, number]): boolean {
+  return Math.hypot(up[0] - down[0], up[1] - down[1]) < CLICK_SLOP;
+}
