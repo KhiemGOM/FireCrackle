@@ -93,3 +93,11 @@ it('the gallery can pair the frames across the cut where the GUI opens or closes
   card.props.onClick();expect(onCompare).toHaveBeenCalledWith(ranges[0],'open');
   hooks.effects[0]();expect(JSON.parse(raw!).miscGuiPair).toBe('open');
 });
+it('gallery pictures are auto-unveiled with the Enhance veil settings',()=>{
+  const veil={minShare:.4,margin:.2,slack:3};
+  hooks.cursor=0;hooks.effects=[];
+  const root=GuiInteractionTool({backend,videoKey:'video',fps:60,onCompare,veil});
+  const thumbs=find(root,n=>n.props.first!==undefined&&n.props.last!==undefined);
+  expect(thumbs.length).toBeGreaterThan(0);
+  for(const thumb of thumbs)expect(thumb.props.veil).toBe(veil);
+});

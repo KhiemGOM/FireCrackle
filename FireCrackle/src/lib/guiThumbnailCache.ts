@@ -2,6 +2,8 @@ import type {Backend} from './api';
 import {loadFrameImage} from './frameComparison';
 import {backgroundBackend} from './appErrors';
 import {blobDataUrl} from './canvas';
+import {unveilPreview} from './comparisonPost';
+import type {VeilOptions} from './veil';
 
 /** Small JPEGs survive row unmounts and tab switches. Full-size frames are never retained here. */
 export class GuiThumbnailCache {
@@ -61,12 +63,20 @@ export class GuiThumbnailCache {
   }
 }
 
-const caches=new WeakMap<Backend,{video?:string;sizes:Map<number,GuiThumbnailCache>}>();
+const caches=new WeakMap<Backend,{video?:string;sizes:Map<number|string,GuiThumbnailCache>}>();
 export function clearGuiThumbnails(backend:Backend){caches.get(backend)?.sizes.forEach(cache=>cache.clear());caches.delete(backend);}
 export function guiThumbnails(backend:Backend,videoKey:string|undefined,total:number):GuiThumbnailCache{
   const video=JSON.stringify([videoKey,total]),existing=caches.get(backend);
   if(existing?.video!==undefined&&existing.video!==video)clearGuiThumbnails(backend);
   const cache=previewFrames(backend,128);caches.get(backend)!.video=video;return cache;
+}
+/** The 512px previews with Auto unveil applied (lib/comparisonPost.ts unveilPreview), one cache per veil setting. */
+export function unveiledPreviews(backend:Backend,veil:VeilOptions):GuiThumbnailCache{
+  const raw=previewFrames(backend,512),owner=caches.get(backend)!,key=`unveil|${veil.minShare}|${veil.margin}|${veil.slack}`;
+  const found=owner.sizes.get(key);if(found)return found;
+  const native=backgroundBackend(backend);
+  const cache=new GuiThumbnailCache(async frame=>unveilPreview({url:await raw.get(frame),veil,mask:native.guiMaskFrame?()=>native.guiMaskFrame!(frame):undefined}),256);
+  owner.sizes.set(key,cache);return cache;
 }
 /** Shared display previews; never used as matching, mask, difference or export evidence. */
 export function previewFrames(backend:Backend,width=512):GuiThumbnailCache{

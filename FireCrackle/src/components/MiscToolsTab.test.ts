@@ -102,13 +102,13 @@ it('Apply to blink sits beside the view modes of After and needs a post effect',
  expect(after().props.applyToBlink).toBe(true);
  expect(find(root,n=>n.props.title==='Before')[0].props.onApplyToBlink).toBeUndefined();
 });
-it('a GUI boundary opens its two frames with unveil and the GUI mask on',()=>{
+it('a GUI boundary opens its two frames with auto unveil on',()=>{
  let root=render();find(root,n=>n.props.role==='tab'&&n.props.children==='GUI interactions')[0].props.onClick();root=render();
  find(root,n=>typeof n.props.onCompare==='function')[0].props.onCompare({first:20,last:39,menu:false},'open');root=render();
  expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(19);
  expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(20);
  expect(toggle(root,'Unveil comparison frames').props.checked).toBe(true);
- expect(toggle(root,'Mask the open GUI on comparison frames').props.checked).toBe(true);
+ expect(toggle(root,'Mask the open GUI on comparison frames').props.checked).toBe(false);
 });
 it('the After card blinks the processed pictures only with Apply to blink',()=>{
  const root=render(),side=find(root,n=>n.props.title==='After')[0];

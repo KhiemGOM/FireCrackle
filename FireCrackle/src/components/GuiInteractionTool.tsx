@@ -7,15 +7,17 @@ import {ScanProgressStats} from './ScanProgressStats';
 import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
-import {guiThumbnails,previewFrames} from '../lib/guiThumbnailCache';
+import {guiThumbnails,previewFrames,unveiledPreviews} from '../lib/guiThumbnailCache';
+import {DEFAULT_VEIL_OPTIONS,type VeilOptions} from '../lib/veil';
 import {guiMotionScores,guiPairFrames,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges,type GuiPair} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
 
-function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around'}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair}) {
+/** The two pictures of a card, shown as they are and then replaced by their Auto-unveiled versions (open GUI kept, HUD unveiled). */
+function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions}) {
   guiThumbnails(backend,videoKey,total);
-  const cache=previewFrames(backend,512);
+  const cache=previewFrames(backend,512),unveiled=unveiledPreviews(backend,veil);
   const container=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
   const [pictures,setPictures]=useState<{before:string;after?:string}|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -31,17 +33,22 @@ function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,displa
     const frames=guiPairFrames({first,last,menu:false},total,pair);
     const before=cache.get(frames.before,wanted).then(image=>{if(!cancelled)setPictures({before:image});return image;});
     void Promise.all([before,cache.get(frames.after,wanted)])
-      .then(([before,after])=>{if(!cancelled)setPictures({before,after});})
+      .then(([before,after])=>{
+        if(cancelled)return;
+        setPictures({before,after});
+        // a failed unveil keeps the plain pictures
+        void Promise.all([unveiled.get(frames.before,wanted),unveiled.get(frames.after,wanted)]).then(([before,after])=>{if(!cancelled)setPictures({before,after});}).catch(()=>{});
+      })
       .catch(()=>{if(!cancelled)setFailed(true);});
     return()=>{cancelled=true;};
-  },[cache,first,last,total,visible,pair]);
+  },[cache,unveiled,first,last,total,visible,pair]);
   return <span ref={container} className={`misc-gui-thumbnail${large?' misc-gui-aim-picture':''}`} data-display={display} style={{animationDuration:`${FRAME_BLINK_MS*2}ms`}}>
     {pictures?<><img src={pictures.before} alt="Before GUI" draggable={false}/>{pictures.after&&<img className="misc-gui-thumbnail-after" src={pictures.after} alt="After GUI" draggable={false}/>}</>:<span className="dim" role={failed?'alert':undefined} aria-label={failed?'Preview unavailable':'Loading preview'}>{failed?'!':''}</span>}
   </span>;
 }
 
 /** `onCompare` opens a card's two frames in the frame comparison: around the GUI, or across its opening or closing cut. */
-export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange,pair:GuiPair)=>void}) {
+export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_VEIL_OPTIONS}:{backend:Backend;videoKey?:string;fps:number;onCompare:(range:GuiRange,pair:GuiPair)=>void;veil?:VeilOptions}) {
   const [status,setStatus]=useState<GuiScanStatus|null>(null),[error,setError]=useState(''),[menus,setMenus]=useState(()=>readPreferences().miscGuiMenus),[busy,setBusy]=useState(false);
   const [mode,setMode]=useState(()=>readPreferences().miscGuiMode),[display,setDisplay]=useState(()=>readPreferences().miscGuiDisplay);
   const [order,setOrder]=useState(()=>readPreferences().miscGuiOrder);
@@ -123,7 +130,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare}:{backend:Bac
     </div>
     <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
       {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <button key={guiRangeKey(range)} aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
-        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair}/>
+        <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil}/>
         {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>

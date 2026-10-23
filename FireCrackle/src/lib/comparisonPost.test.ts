@@ -28,7 +28,7 @@ describe('comparison settings from the Enhance panel',()=>{
   expect(comparesProcessed(on({gui:true}))).toBe(true);
   expect(comparesProcessed(on({blink:true}))).toBe(false);
  });
- it('boundary comparisons unveil and then mask the open screen',()=>{expect(BOUNDARY_POST).toMatchObject({veil:true,gui:true});});
+ it('boundary comparisons use auto unveil, which already keeps the open screen; no extra black-out',()=>{expect(BOUNDARY_POST).toEqual({veil:true});});
 });
 
 describe('masking the open screen on every compared picture',()=>{
@@ -93,5 +93,34 @@ describe('making the compared pictures',()=>{
  it('a frame that cannot be read fails the comparison',async()=>{
   const b=backend();vi.mocked(b.frame).mockRejectedValue(Error('Decode failed'));
   await expect(run(b,on({veil:true}))).rejects.toThrow('Decode failed');
+ });
+});
+
+import {unveilPreview} from './comparisonPost';
+describe('auto unveil of a gallery preview',()=>{
+ // a 4x2 display-frame mask: the left half of the top row is the open inventory, the right half the hotbar
+ const reply:GuiMaskReply={width:4,height:2,reliable:false,mask_available:true,scale:null,scaled_width:null,scaled_height:null,notes:[],pieces:[{piece:'InventoryPanel',count:1}]};
+ const mask=async()=>({reply,packed:new Uint8Array([0x78,0x78,0x11,0x11,0,0,0,0])});
+ const io=()=>({decode:vi.fn(async()=>({data:new Uint8ClampedArray(8),width:2,height:1})),encode:vi.fn(async()=>new Blob(['x']))});
+ const veil={minShare:.5,margin:.2,slack:2};
+ const run=(m:typeof mask|undefined,i=io())=>unveilPreview({url:'data:preview',mask:m,veil,io:i,read:async()=>new ArrayBuffer(4),toUrl:async()=>'data:unveiled'});
+ it('runs Auto with the open-screen mask and evidence fitted to the preview; the hotbar is not protected',async()=>{
+  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
+  expect(await run(mask)).toBe('data:unveiled');
+  const call=process.mock.calls[0];
+  expect(call[2]).toBe('auto');
+  expect(call[7]).toEqual({width:2,height:1});
+  expect(call[8]).toEqual({width:2,height:1,world:new Uint8Array([0,1])});
+ });
+ it('keeps the preview as it is when nothing was unveiled',async()=>{
+  vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:false}));
+  expect(await run(mask)).toBe('data:preview');
+ });
+ it('without a usable mask it still unveils by detection alone',async()=>{
+  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
+  await run(undefined);
+  await run(async()=>{throw Error('no mask');});
+  await run(async()=>({reply:{...reply,width:3,height:3},packed:new Uint8Array(9)}));
+  for(const call of process.mock.calls){expect(call[2]).toBe('auto');expect(call[7]).toBeUndefined();expect(call[8]).toBeUndefined();}
  });
 });

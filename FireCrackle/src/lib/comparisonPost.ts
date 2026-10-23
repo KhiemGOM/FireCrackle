@@ -4,17 +4,18 @@ import type {Backend} from './api';
 import {processFrame,canvasFrameIo,type FrameIo} from './veilFrame';
 import type {VeilOptions} from './veil';
 import type {PortalImage,PortalManual,PortalResult} from './portal';
-import {portalPreview,portalWorldMask,type WorldCoverage} from './portalPreview';
+import {fitCoverage,portalPreview,portalWorldMask,sameShape,type WorldCoverage} from './portalPreview';
 import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame} from './guiMask';
 import {enhance,hasEnhancement} from './post/pipeline';
 import {DEFAULT_POST,type PostSettings} from './post/settings';
 import {failureMessage} from './appErrors';
+import {blobDataUrl} from './canvas';
 
 /** Which post effects the comparison applies. `blink` also shows them in Blink (off: Blink switches the originals). */
 export interface ComparePost {veil:boolean;portal:boolean;enhance:boolean;gui:boolean;blink:boolean}
 export const NO_COMPARE_POST:ComparePost={veil:false,portal:false,enhance:false,gui:false,blink:false};
-/** A GUI boundary cut: unveil, then mask the open screen, so only the world is compared. */
-export const BOUNDARY_POST:Partial<ComparePost>={veil:true,gui:true};
+/** A GUI boundary cut: auto unveil, which already leaves the open inventory or menu as it is (only the HUD is unveiled). */
+export const BOUNDARY_POST:Partial<ComparePost>={veil:true};
 
 export const comparesProcessed=(c:ComparePost)=>c.veil||c.portal||c.enhance||c.gui;
 
@@ -39,6 +40,20 @@ function coverages(frame:GuiMaskFrame):Mask{
  const {reply,packed}=frame;
  if(!packed)return {};
  return {evidence:veilScreenEvidence(reply),gui:{width:reply.width,height:reply.height,world:portalWorldMask(overlayRgba(packed,reply.width,reply.height))},screen:{width:reply.width,height:reply.height,world:screenWorld(packed)}};
+}
+
+/**
+ * Auto unveil of a small gallery preview, the same as Label's: the frame's GUI mask (made from the display frame) is
+ * fitted to the preview, so only an open inventory or menu is left as it is. Without a usable mask, detection alone
+ * decides. Returns the preview itself when nothing was unveiled.
+ */
+export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob)}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>}):Promise<string>{
+ const bytes=await read(url),image=await io.decode(bytes);
+ let found:Mask={};
+ if(mask){try{found=coverages(await mask());}catch{/* detection alone */}}
+ const evidence=found.evidence&&sameShape(found.evidence,image)?{width:image.width,height:image.height}:undefined;
+ const result=await processFrame(bytes,new Blob([bytes],{type:'image/jpeg'}),'auto',veil,{decode:async()=>image,encode:io.encode},undefined,undefined,evidence,fitCoverage(found.screen,image.width,image.height));
+ return result.applied?toUrl(result.blob):url;
 }
 
 /**

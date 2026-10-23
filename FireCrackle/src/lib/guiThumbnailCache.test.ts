@@ -1,5 +1,6 @@
 import {expect,it,vi} from 'vitest';
-import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails} from './guiThumbnailCache';
+import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails,unveiledPreviews,previewFrames} from './guiThumbnailCache';
+import * as comparisonPost from './comparisonPost';
 import type {Backend} from './api';
 const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
 it('uses the small native JPEG directly without decoding a full-size frame',async()=>{
@@ -87,4 +88,19 @@ it('passes only nearby targets to the loader and reuses their cached images',asy
   cache.setTargets([1,20,239,240,300]);
   await cache.get(20);expect(load).toHaveBeenCalledWith(20,[1,20,239]);
   await cache.get(20);expect(load).toHaveBeenCalledTimes(1);
+});
+
+it('auto-unveiled previews are one cache per veil setting, built on the raw previews and cleared with them',async()=>{
+  const veil={minShare:.5,margin:.2,slack:2},backend={} as Backend;
+  guiThumbnails(backend,'v',100);
+  const unveiled=unveiledPreviews(backend,veil);
+  expect(unveiledPreviews(backend,{...veil})).toBe(unveiled);
+  expect(unveiledPreviews(backend,{...veil,slack:3})).not.toBe(unveiled);
+  vi.spyOn(previewFrames(backend,512),'get').mockResolvedValue('data:raw');
+  const unveil=vi.spyOn(comparisonPost,'unveilPreview').mockResolvedValue('data:clear');
+  expect(await unveiled.get(4)).toBe('data:clear');
+  expect(unveil.mock.calls[0][0]).toMatchObject({url:'data:raw',veil});
+  guiThumbnails(backend,'other',100);
+  expect(unveiledPreviews(backend,veil)).not.toBe(unveiled);
+  vi.restoreAllMocks();
 });
