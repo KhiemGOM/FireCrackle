@@ -49,6 +49,43 @@ function io(pixels: Uint8ClampedArray, over: Partial<FrameIo> = {}): FrameIo & {
 const bytes = new Uint8Array([1, 2, 3]).buffer;
 const original = () => new Blob([bytes], { type: "image/jpeg" });
 
+/** A 1.21 menu: the world under solid black at alpha 64 (inworld_menu_background.png), p(1 - 64/255). */
+function menuPixels(): Uint8ClampedArray {
+  const f = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < f.length; i += 4) f.fill(Math.round(((i / 4) % 200) * (1 - 64 / 255)), i, i + 3), (f[i + 3] = 255);
+  return f;
+}
+
+describe("the menu veil style", () => {
+  const blur = { ...DEFAULT_VEIL_OPTIONS, menu: "blur" as const };
+  it("a detected menu with the blur style (1.21+) gets the menu inverse", async () => {
+    const pixels = menuPixels(), fake = io(pixels);
+    const r = await processFrame(bytes, original(), "auto", blur, fake, undefined, undefined, { width: W, height: H, menu: true });
+    expect(r.applied).toBe(true);
+    expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
+    expect(fake.encoded[0]).not.toEqual(unveilRgba(pixels, W, H));
+  });
+  it("a detected menu with the default style (1.16 flat veil) gets the flat inverse", async () => {
+    const pixels = menuPixels(), fake = io(pixels);
+    await processFrame(bytes, original(), "auto", DEFAULT_VEIL_OPTIONS, fake, undefined, undefined, { width: W, height: H, menu: true });
+    expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+  });
+  it("an inventory gets the flat inverse even with the blur style: containers keep the flat veil in 1.21", async () => {
+    const pixels = veiledPixels(), fake = io(pixels);
+    await processFrame(bytes, original(), "auto", blur, fake, undefined, undefined, { width: W, height: H });
+    expect(fake.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+  });
+  it("Always undo with the blur style uses the menu inverse only where a menu was detected", async () => {
+    const pixels = menuPixels();
+    const none = io(pixels);
+    await processFrame(bytes, original(), "on", blur, none);
+    expect(none.encoded[0]).toEqual(unveilRgba(pixels, W, H));
+    const menu = io(pixels);
+    await processFrame(bytes, original(), "on", blur, menu, undefined, undefined, { width: W, height: H, menu: true });
+    expect(menu.encoded[0]).toEqual(unveilRgba(pixels, W, H, "menu"));
+  });
+});
+
 describe("processFrame", () => {
   it("runs portal correction after unveil, encodes once, and preserves a successful unveil on portal failure", async () => {
     const pixels=veiledPixels(),fake=io(pixels),expected=unveilRgba(pixels,W,H);

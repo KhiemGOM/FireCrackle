@@ -522,7 +522,7 @@ it.each(["menu", "inventory", "hud", "stale", "unreliable"])("auto veil requests
   await runLoad(postOf({ veil: "auto" }), {}, state);
   const calls = vi.mocked(guiControls.useGuiMask).mock.calls;
   expect(calls[calls.length - 1][3]).toBe(true);
-  expect(spy.mock.calls[0][7]).toEqual(["menu", "inventory"].includes(kind) ? { width: 1920, height: 1080 } : undefined);
+  expect(spy.mock.calls[0][7]).toEqual(kind === "menu" ? { width: 1920, height: 1080, menu: true } : kind === "inventory" ? { width: 1920, height: 1080 } : undefined);
 });
 
 it("runs the portal stage when the post settings say Auto, and not otherwise", async () => {

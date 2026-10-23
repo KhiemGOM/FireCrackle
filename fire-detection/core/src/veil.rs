@@ -348,6 +348,31 @@ pub fn unveil_in_place(
     }
     Ok(())
 }
+/// Which veil a screen draws. `Flat`: the gradient above, behind every 1.16 screen and behind 1.21 containers,
+/// signs and books. `Menu`: every other 1.21 screen (pause, options, ...) tiles inworld_menu_background.png,
+/// solid black at alpha 64, over the world (blurred first when menuBackgroundBlurriness > 0; the blur itself
+/// cannot be undone, only the darkening).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VeilStyle {
+    Flat,
+    Menu,
+}
+/// The 1.21 menu background's alpha (inworld_menu_background.png: black, alpha 64).
+pub const MENU_ALPHA: f64 = 64.0 / 255.0;
+
+/// `unveil_in_place` with the style's own alphas and colour.
+pub fn unveil_style_in_place(
+    data: &mut [u8],
+    w: usize,
+    h: usize,
+    channels: usize,
+    style: VeilStyle,
+) -> Result<(), String> {
+    match style {
+        VeilStyle::Flat => unveil_in_place(data, w, h, channels, A_TOP, A_BOTTOM, [COLOUR as u8; 3]),
+        VeilStyle::Menu => unveil_in_place(data, w, h, channels, MENU_ALPHA, MENU_ALPHA, [0; 3]),
+    }
+}
 pub fn unveil_rgb(data: &[u8], w: usize, h: usize) -> Result<Vec<u8>, String> {
     let mut out = data.to_vec();
     unveil_in_place(&mut out, w, h, 3, A_TOP, A_BOTTOM, [COLOUR as u8; 3])?;

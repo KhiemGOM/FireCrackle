@@ -88,6 +88,11 @@ describe('making the compared pictures',()=>{
   expect(process.mock.calls[0][7]).toBeUndefined();
   expect(process.mock.calls[0][8]).toBeUndefined();
  });
+ it('fitting the evidence to the picture keeps whether the screen is a menu',async()=>{
+  const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
+  await correctFrame({bytes:new ArrayBuffer(4),original:new Blob(['x']),mode:'auto',veil:{minShare:.5,margin:.2,slack:2},io:{decode:vi.fn(),encode:vi.fn()},mask:{evidence:{width:4,height:2,menu:true}},size:{width:8,height:4}});
+  expect(process.mock.calls[0][7]).toEqual({width:8,height:4,menu:true});
+ });
  it('one full frame as the gallery shows it: auto unveil, or the plain frame when that fails',async()=>{
   const made=new Blob(['unveiled'],{type:'image/png'});
   const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async()=>({blob:made,applied:true}));

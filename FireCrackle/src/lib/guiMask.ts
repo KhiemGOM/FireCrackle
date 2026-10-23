@@ -35,11 +35,15 @@ export function readGuiMaskFrame(bytes: ArrayBuffer): GuiMaskFrame {
 }
 
 /** A texture-confirmed open screen, not merely the always-visible HUD. */
-export function veilScreenEvidence(reply: GuiMaskReply | null): { width: number; height: number } | undefined {
+export function veilScreenEvidence(reply: GuiMaskReply | null): ScreenEvidence | undefined {
   if (!reply || !(reply.mask_available ?? reply.reliable) || !(reply.width > 0) || !(reply.height > 0)) return undefined;
-  const screen = reply.pieces?.some(p => p.count > 0 && (p.piece === "InventoryPanel" || p.piece === "MenuButton"));
-  return screen ? { width: reply.width, height: reply.height } : undefined;
+  const has = (piece: string) => !!reply.pieces?.some(p => p.count > 0 && p.piece === piece);
+  if (has("InventoryPanel")) return { width: reply.width, height: reply.height };
+  // menu buttons and no inventory: a menu, which 1.21+ veils its own way (the Enhance panel's menu veil)
+  return has("MenuButton") ? { width: reply.width, height: reply.height, menu: true } : undefined;
 }
+/** An open screen the GUI detector found on a picture of this size; `menu` when it is a menu, not an inventory. */
+export interface ScreenEvidence { width: number; height: number; menu?: true }
 
 /** Set on pixels of an open screen (inventory, menu buttons, recipe book): studio_core::gui::SCREEN_FLAG. */
 const SCREEN_FLAG = 0x40;

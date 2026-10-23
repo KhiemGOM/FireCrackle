@@ -5,7 +5,7 @@ beforeAll(async()=>{
   await initVeil(await readFile(new URL("./veil.wasm",import.meta.url)));
 });
 import { beforeAll, describe, expect, it } from "vitest";
-import { A_BOTTOM, A_TOP, DEFAULT_VEIL_OPTIONS, applyVeil, detectVeilStrict, detectVeil, unveilRgba, type VeilOptions } from "./veil";
+import { A_BOTTOM, A_TOP, DEFAULT_VEIL_OPTIONS, MENU_ALPHA, applyVeil, detectVeilStrict, detectVeil, unveilRgba, type VeilOptions } from "./veil";
 
 // The game draws fillGradient(0xC0101010 -> 0xD0101010) behind an open screen: colour (16,16,16), alpha 192/255 at the
 // top row to 208/255 at the bottom row. out = 16a + p(1-a). (Same cases as fire-detection/core/tests/veil.rs.)
@@ -61,6 +61,18 @@ const solid = (v: number, w = W, h = H) => {
   for (let i = 0; i < f.length; i += 4) f.fill(v, i, i + 3), (f[i + 3] = 255);
   return f;
 };
+
+describe("the menu inverse (1.21 menus: black at alpha 64)", () => {
+  it("restores the darkened picture within one level, keeps black and alpha", () => {
+    const f = new Uint8ClampedArray([0, 100, 200, 9, 255, 37, 120, 255]);
+    const dark = f.map((v, i) => (i % 4 === 3 ? v : Math.round(v * (1 - 64 / 255))));
+    const back = unveilRgba(dark, 2, 1, "menu");
+    for (let i = 0; i < f.length; i++) expect(Math.abs(back[i] - f[i])).toBeLessThanOrEqual(1);
+    expect(back[3]).toBe(9);
+    expect(back[0]).toBe(0);
+  });
+  it("is generated from Rust", () => expect(MENU_ALPHA).toBeCloseTo(64 / 255, 12));
+});
 
 describe("constants", () => {
   it("are the game's gradient alphas", () => {

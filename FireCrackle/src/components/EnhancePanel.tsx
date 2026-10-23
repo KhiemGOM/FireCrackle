@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { VEIL_MODES, type VeilMode } from "../lib/veil";
+import { MENU_VEILS, VEIL_MODES, type MenuVeil, type VeilMode } from "../lib/veil";
 import { displayOrder, moveEnabled, rowNumbers } from "../lib/post/order";
 import { allPresets, applyPreset, presetOf, type Preset } from "../lib/post/presets";
 import { PORTAL_FRAMES, STAGE_IDS, clampParam, repairManual, type PostSettings, type RowId, type StageId } from "../lib/post/settings";
@@ -13,6 +13,7 @@ export const ROW_NAMES: Record<RowId, string> = {
   veil: "GUI veil", portal: "Portal", tone: STAGES.tone.name, denoise: STAGES.denoise.name, deblur: STAGES.deblur.name, sharpen: STAGES.sharpen.name, fire: STAGES.fire.name, channels: STAGES.channels.name, edges: STAGES.edges.name,
 };
 const VEIL_LABELS: Record<VeilMode, string> = { off: "Off", auto: "Auto-undo", on: "Always undo" };
+const MENU_VEIL_LABELS: Record<MenuVeil, string> = { flat: "Menus: vignette veil (1.16)", blur: "Menus: blur veil (1.21+)" };
 /** Shown on hover, on the row name, instead of paragraphs in the panel. */
 const ROW_HELP: Partial<Record<RowId, string>> = {
   veil: "Reverses the darkening Minecraft draws behind an open screen. Auto uses veil evidence and preserves detected GUI pixels. Always undo processes every pixel; thresholds are in Settings.",
@@ -120,6 +121,12 @@ export function EnhancePanel({ settings, selected, onSelect, onChange, onReset, 
           <select aria-label="Undo GUI veil" value={settings.veil} onChange={e => VEIL_MODES.includes(e.target.value as VeilMode) && onChange({ ...settings, veil: e.target.value as VeilMode })}>
             {VEIL_MODES.map(m => <option key={m} value={m}>{VEIL_LABELS[m]}</option>)}
           </select>
+          {settings.veil !== "off" ? (
+            <select aria-label="Menu veil" title="How this video's version veils menus (pause, options): inventories always use the flat veil" value={settings.menuVeil}
+              onChange={e => MENU_VEILS.includes(e.target.value as MenuVeil) && onChange({ ...settings, menuVeil: e.target.value as MenuVeil })}>
+              {MENU_VEILS.map(m => <option key={m} value={m}>{MENU_VEIL_LABELS[m]}</option>)}
+            </select>
+          ) : null}
         </div>
       );
     }

@@ -182,7 +182,7 @@ export default function App() {
     lateShow: settingValue(ws.settings, "label.buffer_late_show", 30),
   };
   const typeTimeout = settingValue(ws.settings, "label.row_type_timeout_ms", 700);
-  const veilOptions = veilOptionsFromSettings(ws.settings);
+  const veilOptions = { ...veilOptionsFromSettings(ws.settings), menu: post.settings.menuVeil };
 
   // hotkeys
   useEffect(() => {

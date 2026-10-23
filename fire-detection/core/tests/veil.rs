@@ -331,3 +331,52 @@ fn chat_over_the_left_margin_and_a_hotbar_do_not_hide_the_veil() {
     }
     assert!(detect_veil(&f, W, H, 0).unwrap());
 }
+
+// 1.21 menus (pause, options, ... every screen that is not a container, sign or book) draw the
+// tiled inworld_menu_background.png over the (optionally blurred) world: solid black at alpha 64.
+// out = p(1 - 64/255). Container screens keep the flat gradient in both versions.
+fn menu_veil(frame: &[u8], channels: usize) -> Vec<u8> {
+    frame
+        .chunks_exact(channels)
+        .flat_map(|p| {
+            let mut q = p.to_vec();
+            for v in &mut q[..3] {
+                *v = (*v as f64 * (1.0 - 64.0 / 255.0)).round() as u8;
+            }
+            q
+        })
+        .collect()
+}
+
+#[test]
+fn the_menu_inverse_undoes_the_1_21_menu_background() {
+    let frame = scene(7, 0, 255);
+    let mut out = menu_veil(&frame, 3);
+    fire_core::veil::unveil_style_in_place(&mut out, W, H, 3, fire_core::veil::VeilStyle::Menu).unwrap();
+    // only 8-bit rounding of the darkened picture is lost: at most one level after the inverse
+    for (a, b) in frame.iter().zip(&out) {
+        assert!(a.abs_diff(*b) <= 1, "{a} came back as {b}");
+    }
+    assert!((fire_core::veil::MENU_ALPHA - 64.0 / 255.0).abs() < 1e-12);
+}
+
+#[test]
+fn the_menu_inverse_keeps_black_clips_bright_and_keeps_alpha() {
+    let mut px = vec![0, 0, 0, 7, 191, 192, 255, 99];
+    fire_core::veil::unveil_style_in_place(&mut px, 2, 1, 4, fire_core::veil::VeilStyle::Menu).unwrap();
+    assert_eq!(px, vec![0, 0, 0, 7, 255, 255, 255, 99]);
+}
+
+#[test]
+fn the_flat_style_is_the_existing_inverse() {
+    let frame = veil(&scene(3, 0, 255));
+    let mut out = frame.clone();
+    fire_core::veil::unveil_style_in_place(&mut out, W, H, 3, fire_core::veil::VeilStyle::Flat).unwrap();
+    assert_eq!(out, fire_core::veil::unveil_rgb(&frame, W, H).unwrap());
+}
+
+#[test]
+fn the_styled_inverse_rejects_bad_frames() {
+    let mut px = vec![0; 5];
+    assert!(fire_core::veil::unveil_style_in_place(&mut px, 2, 1, 3, fire_core::veil::VeilStyle::Menu).is_err());
+}

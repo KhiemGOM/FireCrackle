@@ -34,13 +34,18 @@ it("rejects truncated or mismatched atomic mask packets", () => {
 describe("the GUI compatibility assumption", () => {
   it("uses only reliable, texture-confirmed menu/inventory pieces as veil evidence", () => {
     for (const piece of ["InventoryPanel", "MenuButton"]) {
-      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 1 }] }))).toEqual({ width: 4, height: 1 });
+      expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 1 }] }))).toEqual(piece === "MenuButton" ? { width: 4, height: 1, menu: true } : { width: 4, height: 1 });
       expect(veilScreenEvidence(reply({ reliable: false, pieces: [{ piece, count: 1 }] }))).toBeUndefined();
       expect(veilScreenEvidence(reply({ pieces: [{ piece, count: 0 }] }))).toBeUndefined();
     }
     expect(veilScreenEvidence(reply())).toBeUndefined(); // ordinary HUD
     expect(veilScreenEvidence(reply({reliable:false,mask_available:true,pieces:[{piece:'InventoryPanel',count:1}]}))).toEqual({width:4,height:1});
     expect(veilScreenEvidence(null)).toBeUndefined();
+  });
+  it("says a screen is a menu only when no inventory is open (containers draw the flat veil in every version)", () => {
+    expect(veilScreenEvidence(reply({ pieces: [{ piece: "MenuButton", count: 3 }] }))?.menu).toBe(true);
+    expect(veilScreenEvidence(reply({ pieces: [{ piece: "MenuButton", count: 3 }, { piece: "InventoryPanel", count: 1 }] }))?.menu).toBeUndefined();
+    expect(veilScreenEvidence(reply({ pieces: [{ piece: "InventoryPanel", count: 1 }, { piece: "MenuButton", count: 0 }] }))?.menu).toBeUndefined();
   });
   it("distinguishes the HUD reference from independently detected versioned panels", () => {
     expect(GUI_ASSUMPTION).toContain("1.16.5");

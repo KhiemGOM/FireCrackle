@@ -5,7 +5,7 @@ import {processFrame,canvasFrameIo,losslessFrameIo,type EnhanceStage,type FrameI
 import type {VeilMode,VeilOptions} from './veil';
 import type {PortalImage,PortalManual,PortalResult} from './portal';
 import {fitCoverage,portalPreview,portalWorldMask,sameShape,type WorldCoverage} from './portalPreview';
-import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame} from './guiMask';
+import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame,type ScreenEvidence} from './guiMask';
 import {enhance,hasEnhancement} from './post/pipeline';
 import {DEFAULT_POST,type PostSettings} from './post/settings';
 import {nativeFrame} from './exactFrame';
@@ -32,7 +32,7 @@ export function comparisonSettings(post:PostSettings,c:ComparePost):PostSettings
 
 type Portal=(image:PortalImage,signal:AbortSignal,world?:Uint8Array,manual?:PortalManual)=>Promise<PortalResult>;
 /** A frame's GUI mask as the corrections use it: veil evidence, every GUI pixel (portal) and the open screen (unveil). */
-export interface Mask {evidence?:{width:number;height:number};gui?:WorldCoverage;screen?:WorldCoverage}
+export interface Mask {evidence?:ScreenEvidence;gui?:WorldCoverage;screen?:WorldCoverage}
 export function coverageOf(frame:GuiMaskFrame):Mask{
  const {reply,packed}=frame;
  if(!packed)return {};
@@ -48,7 +48,7 @@ export function coverageOf(frame:GuiMaskFrame):Mask{
 export async function correctFrame({bytes,original,mode,veil,io,mask,size,portal,enhance:stage}:{bytes:ArrayBuffer;original:Blob;mode:VeilMode;veil:VeilOptions;io:FrameIo;mask?:Mask;size?:{width:number;height:number};portal?:(image:PortalImage,world?:Uint8Array)=>Promise<PortalResult>;enhance?:EnhanceStage}):Promise<ProcessedFrame&{guiProtected:boolean}>{
  const fit=(c:WorldCoverage|undefined)=>size?fitCoverage(c,size.width,size.height):c;
  const gui=fit(mask?.gui),screen=fit(mask?.screen);
- const evidence=size?(mask?.evidence&&sameShape(mask.evidence,size)?{width:size.width,height:size.height}:undefined):mask?.evidence;
+ const evidence=size?(mask?.evidence&&sameShape(mask.evidence,size)?{...mask.evidence,width:size.width,height:size.height}:undefined):mask?.evidence;
  let guiProtected=false;
  const made=await processFrame(bytes,original,mode,veil,io,portal?picture=>{
   const world=gui&&picture.width===gui.width&&picture.height===gui.height?gui.world:undefined;

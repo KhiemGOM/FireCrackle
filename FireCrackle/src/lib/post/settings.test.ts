@@ -23,6 +23,14 @@ describe("what a fresh install starts with", () => {
     for (const id of STAGE_IDS) expect(STARTING_POST.stages[id].on).toBe(false);
     expect(needsProcessing(STARTING_POST)).toBe(true);
   });
+  it("treats menus as the 1.16 flat veil until the user picks the 1.21+ blur style, and keeps that choice", () => {
+    expect(STARTING_POST.menuVeil).toBe("flat");
+    expect(repairPostSettings({ menuVeil: "blur" }).menuVeil).toBe("blur");
+    for (const bad of [undefined, "vignette", 3, null]) expect(repairPostSettings({ menuVeil: bad }).menuVeil).toBe("flat");
+    const store = memory();
+    writePostSettings({ ...STARTING_POST, menuVeil: "blur" }, store);
+    expect(readPostSettings(store).menuVeil).toBe("blur");
+  });
 
   it("is what is used when nothing is saved, or the saved text is unusable", () => {
     expect(readPostSettings(memory())).toEqual(STARTING_POST);

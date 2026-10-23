@@ -1,5 +1,5 @@
 // Post-processing settings: one global object, repaired on every read so an old, newer or hand-edited file never breaks the app.
-import { VEIL_MODES, type VeilMode } from "../veil";
+import { MENU_VEILS, VEIL_MODES, type MenuVeil, type VeilMode } from "../veil";
 import type { PortalManual, PortalMode } from "../portal";
 import { STAGES, STAGE_IDS, clampParam, repairParams, type Params, type StageId } from "./stages";
 import { DEFAULT_TONE, type ToneParams } from "./tone";
@@ -16,6 +16,8 @@ export interface PostSettings {
   /** The master switch: off shows the untouched picture while every setting below is kept. */
   enabled: boolean;
   veil: VeilMode;
+  /** How menus were veiled: the 1.16 flat veil, or the 1.21+ blur-style menu background (lib/veil.ts MenuVeil). */
+  menuVeil: MenuVeil;
   portal: PortalMode;
   /** The phase and opacity used when the portal mode is Manual. */
   portalManual: PortalManual;
@@ -31,7 +33,7 @@ const neutralStages = (): Record<StageId, StageState> =>
   Object.fromEntries(STAGE_IDS.map(id => [id, { on: false, params: { ...STAGES[id].defaults } }])) as Record<StageId, StageState>;
 
 /** Everything off: the neutral settings that presets and tests start from. */
-export const DEFAULT_POST: PostSettings = { enabled: true, veil: "off", portal: "off", portalManual: { phase: 0, opacity: 0.5 }, order: [...STAGE_IDS], stages: neutralStages() };
+export const DEFAULT_POST: PostSettings = { enabled: true, veil: "off", menuVeil: "flat", portal: "off", portalManual: { phase: 0, opacity: 0.5 }, order: [...STAGE_IDS], stages: neutralStages() };
 
 /** What a fresh install starts with: GUI veil and portal on, in Auto, and every other effect off. */
 export const STARTING_POST: PostSettings = { ...DEFAULT_POST, veil: "auto", portal: "auto" };
@@ -75,6 +77,7 @@ export function repairPostSettings(raw: unknown, legacy?: LegacyPrefs): PostSett
   return {
     enabled: typeof r.enabled === "boolean" ? r.enabled : true,
     veil: veilOf("veil" in r ? r.veil : legacy?.veilMode),
+    menuVeil: MENU_VEILS.includes(r.menuVeil as MenuVeil) ? (r.menuVeil as MenuVeil) : DEFAULT_POST.menuVeil,
     portal: portalOf("portal" in r ? r.portal : legacy?.portalMode),
     portalManual: repairManual(r.portalManual),
     order,
