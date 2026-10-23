@@ -1,5 +1,23 @@
 import {expect,it} from 'vitest';
-import {guiPairFrames,guiReviewFrames,meanPixelChange,rankGuiRanges,scorableRanges} from './guiAimReview';
+import {guiPairFrames,guiReviewFrames,guiScoreKey,keepMask,meanPixelChange,rankGuiRanges,scorableRanges} from './guiAimReview';
+
+it('movement ignores pixels of an open GUI on either side',()=>{
+  const before=new Uint8ClampedArray([0,0,0,255, 0,0,0,255]),after=new Uint8ClampedArray([255,255,255,255, 0,0,0,255]);
+  expect(meanPixelChange(before,after)).toBe(.5);
+  expect(meanPixelChange(before,after,new Uint8Array([0,1]))).toBe(0);
+  expect(meanPixelChange(before,after,new Uint8Array([1,1]))).toBe(.5);
+  expect(meanPixelChange(before,after,new Uint8Array([0,0]))).toBe(0);
+});
+it('combines the open-screen masks of both pictures at the scoring size',()=>{
+  const a={width:2,height:1,world:new Uint8Array([0,1])},b={width:4,height:2,world:new Uint8Array([1,1,0,0, 1,1,0,0])};
+  expect(keepMask([a,b,undefined],2,1)).toEqual(new Uint8Array([0,0]));
+  expect(keepMask([a],4,2)).toEqual(new Uint8Array([0,0,1,1, 0,0,1,1]));
+  expect(keepMask([undefined],2,1)).toBeUndefined();
+});
+it('scores are kept per frame pair',()=>{
+  const range={first:20,last:39,menu:false};
+  expect(new Set(['around','open','close'].map(pair=>guiScoreKey(range,pair as 'around')))).toHaveProperty('size',3);
+});
 
 it('pairs frames around the GUI, at its opening cut and at its closing cut',()=>{
   const range={first:20,last:39,menu:false};

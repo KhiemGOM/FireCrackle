@@ -3,6 +3,7 @@ import {loadFrameImage} from './frameComparison';
 import {backgroundBackend} from './appErrors';
 import {blobDataUrl} from './canvas';
 import {unveilPreview} from './comparisonPost';
+import type {WorldCoverage} from './portalPreview';
 import type {VeilOptions} from './veil';
 
 /** Small JPEGs survive row unmounts and tab switches. Full-size frames are never retained here. */
@@ -70,12 +71,22 @@ export function guiThumbnails(backend:Backend,videoKey:string|undefined,total:nu
   if(existing?.video!==undefined&&existing.video!==video)clearGuiThumbnails(backend);
   const cache=previewFrames(backend,128);caches.get(backend)!.video=video;return cache;
 }
+const screens=new WeakMap<GuiThumbnailCache,Map<number,WorldCoverage>>();
+/** The open-screen mask unveil used for a preview of `cache` (unveiledPreviews), for scoring movement outside the GUI. */
+export function previewScreen(cache:GuiThumbnailCache,frame:number):WorldCoverage|undefined{return screens.get(cache)?.get(frame);}
 /** The 512px previews with Auto unveil applied (lib/comparisonPost.ts unveilPreview), one cache per veil setting. */
 export function unveiledPreviews(backend:Backend,veil:VeilOptions):GuiThumbnailCache{
   const raw=previewFrames(backend,512),owner=caches.get(backend)!,key=`unveil|${veil.minShare}|${veil.margin}|${veil.slack}`;
   const found=owner.sizes.get(key);if(found)return found;
   const native=backgroundBackend(backend);
-  const cache=new GuiThumbnailCache(async frame=>unveilPreview({url:await raw.get(frame),veil,mask:native.guiMaskFrame?()=>native.guiMaskFrame!(frame):undefined}),256);
+  const found_screens=new Map<number,WorldCoverage>();
+  const keep=(frame:number,screen:WorldCoverage|undefined)=>{
+    found_screens.delete(frame);
+    if(screen)found_screens.set(frame,screen);
+    if(found_screens.size>256)found_screens.delete(found_screens.keys().next().value!);
+  };
+  const cache=new GuiThumbnailCache(async frame=>unveilPreview({url:await raw.get(frame),veil,mask:native.guiMaskFrame?()=>native.guiMaskFrame!(frame):undefined,onScreen:screen=>keep(frame,screen)}),256);
+  screens.set(cache,found_screens);
   owner.sizes.set(key,cache);return cache;
 }
 /** Shared display previews; never used as matching, mask, difference or export evidence. */

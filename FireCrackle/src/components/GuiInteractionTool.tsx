@@ -7,9 +7,9 @@ import {ScanProgressStats} from './ScanProgressStats';
 import {formatTimecode} from '../lib/timecode';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import {FRAME_BLINK_MS} from '../lib/frameComparison';
-import {guiThumbnails,previewFrames,unveiledPreviews} from '../lib/guiThumbnailCache';
+import {guiThumbnails,previewFrames,previewScreen,unveiledPreviews} from '../lib/guiThumbnailCache';
 import {DEFAULT_VEIL_OPTIONS,type VeilOptions} from '../lib/veil';
-import {guiMotionScores,guiPairFrames,guiRangeKey,guiReviewFrames,previewPixelChange,rankGuiRanges,scorableRanges,type GuiPair} from '../lib/guiAimReview';
+import {guiMotionScores,guiPairFrames,guiRangeKey,guiScoreKey,previewPixelChange,rankGuiRanges,scorableRanges,type GuiPair} from '../lib/guiAimReview';
 import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
@@ -68,7 +68,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     catch(e){setError(failureMessage(e));}finally{setBusy(false);}
   }
   const ranges=status?.ranges.filter(range=>menus||!range.menu)??[],running=status?.state==='running';
-  const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,scorable.map(guiRangeKey)]);
+  const scorable=scorableRanges(ranges),scoreKey=JSON.stringify([videoKey,status?.total,pair,veil,scorable.map(guiRangeKey)]);
   if(status?.total){
     guiThumbnails(backend,videoKey,status.total);
     previewFrames(backend,512).setTargets(ranges.flatMap(range=>{const frames=guiPairFrames(range,status.total,pair);return [frames.before,frames.after];}));
@@ -76,20 +76,21 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
   useEffect(()=>{
     if(mode!=='aim'||order!=='motion'||!status?.total)return;
     guiThumbnails(backend,videoKey,status.total);
-    const cache=previewFrames(backend,512);
+    // ranked on the pictures the cards show: the chosen pair, auto-unveiled, movement outside the open GUI only
+    const cache=unveiledPreviews(backend,veil);
     const scores=guiMotionScores(cache),total=status.total;
     let cancelled=false,next=0,processed=0;
-    const publish=(done=false)=>{if(!cancelled)setRanking({video:videoKey,key:scoreKey,scores:new Map(scores),processed,done});};
+    const publish=(done=false)=>{if(!cancelled)setRanking({video:videoKey,key:scoreKey,scores:new Map(scorable.map(range=>[guiRangeKey(range),scores.get(guiScoreKey(range,pair))??null])),processed,done});};
     publish();
     const worker=async()=>{
       while(!cancelled&&next<scorable.length){
-        const range=scorable[next++],key=guiRangeKey(range);
+        const range=scorable[next++],key=guiScoreKey(range,pair);
         if(scores.get(key)==null){
           try{
-            const frames=guiReviewFrames(range,total),wanted=()=>!cancelled;
+            const frames=guiPairFrames(range,total,pair),wanted=()=>!cancelled;
             const [before,after]=await Promise.all([cache.get(frames.before,wanted,'background'),cache.get(frames.after,wanted,'background')]);
             if(cancelled)return;
-            const score=await previewPixelChange(before,after);if(cancelled)return;scores.set(key,score);
+            const score=await previewPixelChange(before,after,[previewScreen(cache,frames.before),previewScreen(cache,frames.after)]);if(cancelled)return;scores.set(key,score);
           }catch{if(cancelled)return;scores.set(key,null);}
         }
         processed++;publish();

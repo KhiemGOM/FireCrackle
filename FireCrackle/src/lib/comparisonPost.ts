@@ -47,12 +47,14 @@ function coverages(frame:GuiMaskFrame):Mask{
  * fitted to the preview, so only an open inventory or menu is left as it is. Without a usable mask, detection alone
  * decides. Returns the preview itself when nothing was unveiled.
  */
-export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob)}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>}):Promise<string>{
+export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob),onScreen}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>;onScreen?:(screen:WorldCoverage|undefined)=>void}):Promise<string>{
  const bytes=await read(url),image=await io.decode(bytes);
  let found:Mask={};
  if(mask){try{found=coverages(await mask());}catch{/* detection alone */}}
  const evidence=found.evidence&&sameShape(found.evidence,image)?{width:image.width,height:image.height}:undefined;
- const result=await processFrame(bytes,new Blob([bytes],{type:'image/jpeg'}),'auto',veil,{decode:async()=>image,encode:io.encode},undefined,undefined,evidence,fitCoverage(found.screen,image.width,image.height));
+ const screen=fitCoverage(found.screen,image.width,image.height);
+ onScreen?.(screen);
+ const result=await processFrame(bytes,new Blob([bytes],{type:'image/jpeg'}),'auto',veil,{decode:async()=>image,encode:io.encode},undefined,undefined,evidence,screen);
  return result.applied?toUrl(result.blob):url;
 }
 

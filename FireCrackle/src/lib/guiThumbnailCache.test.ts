@@ -1,5 +1,5 @@
 import {expect,it,vi} from 'vitest';
-import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails,unveiledPreviews,previewFrames} from './guiThumbnailCache';
+import {GuiThumbnailCache,guiThumbnails,clearGuiThumbnails,unveiledPreviews,previewFrames,previewScreen} from './guiThumbnailCache';
 import * as comparisonPost from './comparisonPost';
 import type {Backend} from './api';
 const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
@@ -97,8 +97,11 @@ it('auto-unveiled previews are one cache per veil setting, built on the raw prev
   expect(unveiledPreviews(backend,{...veil})).toBe(unveiled);
   expect(unveiledPreviews(backend,{...veil,slack:3})).not.toBe(unveiled);
   vi.spyOn(previewFrames(backend,512),'get').mockResolvedValue('data:raw');
-  const unveil=vi.spyOn(comparisonPost,'unveilPreview').mockResolvedValue('data:clear');
+  const screen={width:2,height:1,world:new Uint8Array([0,1])};
+  const unveil=vi.spyOn(comparisonPost,'unveilPreview').mockImplementation(async options=>{options.onScreen?.(screen);return 'data:clear';});
   expect(await unveiled.get(4)).toBe('data:clear');
+  expect(previewScreen(unveiled,4)).toEqual(screen);
+  expect(previewScreen(unveiled,5)).toBeUndefined();
   expect(unveil.mock.calls[0][0]).toMatchObject({url:'data:raw',veil});
   guiThumbnails(backend,'other',100);
   expect(unveiledPreviews(backend,veil)).not.toBe(unveiled);

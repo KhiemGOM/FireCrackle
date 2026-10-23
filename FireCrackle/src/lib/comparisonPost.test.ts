@@ -103,10 +103,12 @@ describe('auto unveil of a gallery preview',()=>{
  const mask=async()=>({reply,packed:new Uint8Array([0x78,0x78,0x11,0x11,0,0,0,0])});
  const io=()=>({decode:vi.fn(async()=>({data:new Uint8ClampedArray(8),width:2,height:1})),encode:vi.fn(async()=>new Blob(['x']))});
  const veil={minShare:.5,margin:.2,slack:2};
- const run=(m:typeof mask|undefined,i=io())=>unveilPreview({url:'data:preview',mask:m,veil,io:i,read:async()=>new ArrayBuffer(4),toUrl:async()=>'data:unveiled'});
+ const run=(m:typeof mask|undefined,i=io(),onScreen?:(s:unknown)=>void)=>unveilPreview({url:'data:preview',mask:m,veil,io:i,read:async()=>new ArrayBuffer(4),toUrl:async()=>'data:unveiled',onScreen});
  it('runs Auto with the open-screen mask and evidence fitted to the preview; the hotbar is not protected',async()=>{
   const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
-  expect(await run(mask)).toBe('data:unveiled');
+  const screen=vi.fn();
+  expect(await run(mask,io(),screen)).toBe('data:unveiled');
+  expect(screen).toHaveBeenCalledWith({width:2,height:1,world:new Uint8Array([0,1])});
   const call=process.mock.calls[0];
   expect(call[2]).toBe('auto');
   expect(call[7]).toEqual({width:2,height:1});
