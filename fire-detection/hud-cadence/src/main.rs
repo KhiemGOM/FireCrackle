@@ -4,6 +4,7 @@
 //!     Every frame: change frames of the FPS value and their phase modulo one second.
 use hud_cadence::find::{findings, Finding, Kind};
 use hud_cadence::jolt::{breaks, window, Window, AGREE_FRAMES};
+use hud_cadence::portion::{frame_count, parse_position, seek_seconds};
 use hud_cadence::font::Font;
 use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
@@ -40,10 +41,13 @@ struct Args {
     jolt: Option<String>,
     /// find/report: write the readable Markdown report here (`--out` is the JSON).
     report: Option<String>,
+    /// find: first and last frame (inclusive) to read, as a frame number or a time (see `portion`).
+    from: Option<String>,
+    to: Option<String>,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None, dump_values: false, jolt: None, report: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None, dump_values: false, jolt: None, report: None, from: None, to: None };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -67,6 +71,8 @@ fn args() -> Args {
             "--source" => a.source = Some(v),
             "--jolt" => a.jolt = Some(v),
             "--report" => a.report = Some(v),
+            "--from" => a.from = Some(v),
+            "--to" => a.to = Some(v),
             other => panic!("unknown flag {other}"),
         }
     }
@@ -104,6 +110,23 @@ fn crop_filter(a: &Args) -> String {
     }
 }
 
+/// `find`'s portion: (first frame, frame count or None for the rest of the video), from `--from`/`--to` or the
+/// older `--start`/`--duration` seconds. Exits with a message on bad input.
+fn portion(a: &Args) -> (u32, Option<u32>) {
+    let fail = |m: String| -> ! {
+        eprintln!("{m}");
+        std::process::exit(2)
+    };
+    let at = |flag: &str, v: &Option<String>| v.as_ref().map(|v| parse_position(v, a.fps).unwrap_or_else(|e| fail(format!("{flag}: {e}"))));
+    let first = at("--from", &a.from).unwrap_or((a.start * a.fps as f64).round() as u32);
+    let count = match at("--to", &a.to) {
+        Some(last) => Some(frame_count(first, last).unwrap_or_else(|e| fail(e))),
+        None if a.duration > 0.0 => Some((a.duration * a.fps as f64).round() as u32),
+        None => None,
+    };
+    (first, count)
+}
+
 fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) -> String {
     let (w, h) = crop(a);
     let mut c = Command::new(&a.ffmpeg);
@@ -112,10 +135,17 @@ fn stream(a: &Args, keyframes_only: bool, mut each: impl FnMut(usize, &[u8])) ->
     if keyframes_only {
         c.args(["-skip_frame", "nokey"]);
     }
-    if a.cmd == "scan" || (a.cmd == "find" && a.duration > 0.0) {
+    if a.cmd == "scan" {
         c.args(["-ss", &format!("{}", a.start), "-t", &format!("{}", a.duration)]);
     }
+    let (first, count) = if a.cmd == "find" { portion(a) } else { (0, None) };
+    if first > 0 {
+        c.args(["-ss", &format!("{:.6}", seek_seconds(first, a.fps))]);
+    }
     c.arg("-i").arg(&a.video);
+    if let Some(n) = count {
+        c.args(["-frames:v", &n.to_string()]);
+    }
     c.args(["-an", "-sn", "-dn", "-vf", &crop_filter(a), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
     c.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = c.spawn().expect("start ffmpeg");
@@ -172,7 +202,8 @@ fn note(x: &Finding, fps: u32) -> String {
 struct Report {
     video: serde_json::Value,
     fps: u32,
-    start: f64,
+    /// Video frame of the first frame read; every frame number below is the video's own.
+    first_frame: u32,
     frames: usize,
     readable: usize,
     findings: Vec<Finding>,
@@ -189,13 +220,14 @@ fn signed(d: i32) -> String {
 /// The readable report (Markdown): Jumps in time order, one table per Jolt break, then everything ranked by |ΔFPS|.
 fn markdown(r: &Report) -> String {
     use std::fmt::Write;
-    let time = |frame: u32| r.start + frame as f64 / r.fps as f64;
+    let time = |frame: u32| frame as f64 / r.fps as f64;
     let mut s = String::new();
     writeln!(s, "# hud-cadence report: {}\n", r.video.as_str().unwrap_or("?")).unwrap();
     writeln!(
         s,
-        "{} frames at {} fps; overlay readable on {} ({:.1} %); {} findings.\n",
-        r.frames, r.fps, r.readable, 100.0 * r.readable as f64 / r.frames.max(1) as f64, r.findings.len()
+        "{} frames (video frames {} – {}) at {} fps; overlay readable on {} ({:.1} %); {} findings.\n",
+        r.frames, r.first_frame, (r.first_frame as usize + r.frames).saturating_sub(1), r.fps, r.readable,
+        100.0 * r.readable as f64 / r.frames.max(1) as f64, r.findings.len()
     ).unwrap();
 
     let mut jumps: Vec<&Finding> = r.findings.iter().filter(|x| x.kind == Kind::Jump).collect();
@@ -280,7 +312,7 @@ fn markdown(r: &Report) -> String {
 
 /// `--out`: the machine-readable JSON (findings, change frames, Jolt windows), nothing per-frame.
 fn report_json(r: &Report, scale: usize, prescale: &Option<String>) -> serde_json::Value {
-    let time = |frame: u32| r.start + frame as f64 / r.fps as f64;
+    let time = |frame: u32| frame as f64 / r.fps as f64;
     let findings: Vec<serde_json::Value> = r.findings.iter().map(|x| serde_json::json!({
         "kind": format!("{:?}", x.kind), "time": time(x.frame), "hms": hms(time(x.frame)), "frame": x.frame, "shift": x.shift,
         "before": x.before, "after": x.after, "delta": x.delta, "gap_frames": x.length, "partial_read": x.partial, "unstable": x.unstable
@@ -295,7 +327,7 @@ fn report_json(r: &Report, scale: usize, prescale: &Option<String>) -> serde_jso
         (path.clone(), windows)
     });
     serde_json::json!({
-        "video": r.video, "fps": r.fps, "scale": scale, "prescale": prescale, "start": r.start, "frames": r.frames, "readable": r.readable,
+        "video": r.video, "fps": r.fps, "scale": scale, "prescale": prescale, "start": r.first_frame as f64 / r.fps as f64, "first_frame": r.first_frame, "frames": r.frames, "readable": r.readable,
         "findings": findings,
         "changes": r.changes.as_ref().map(|c| c.iter().map(|(f, v)| serde_json::json!([f, v])).collect::<Vec<_>>()),
         "jolt_report": jolt.as_ref().map(|j| &j.0), "jolt": jolt.map(|j| j.1),
@@ -324,8 +356,18 @@ fn jolt_windows(a: &Args, changes: &Option<Vec<(u32, String)>>, fps: u32) -> Opt
     Some((path.clone(), ws))
 }
 
-fn change_list(values: &[Option<String>]) -> Vec<(u32, String)> {
-    change_frames(values, 20).into_iter().map(|c| (c, values[c as usize].clone().unwrap_or_default())).collect()
+/// Change frames with their readings; `first` is the video frame of `values[0]`.
+fn change_list(values: &[Option<String>], first: u32) -> Vec<(u32, String)> {
+    change_frames(values, 20).into_iter().map(|c| (first + c, values[c as usize].clone().unwrap_or_default())).collect()
+}
+
+/// Findings from a portion's readings, renumbered to the video's frames.
+fn findings_at(values: &[Option<String>], fps: u32, first: u32) -> Vec<Finding> {
+    let mut f = findings(values, fps, 3 * fps, 20);
+    for x in &mut f {
+        x.frame += first;
+    }
+    f
 }
 
 fn pts_times(stderr: &str) -> Vec<f64> {
@@ -443,17 +485,18 @@ fn main() {
             // `--dump-values` file) is re-analysed with the current rules; otherwise the saved findings are formatted.
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&a.video).unwrap()).unwrap();
             let fps = json["fps"].as_u64().map_or(a.fps, |f| f as u32);
-            let start = json["start"].as_f64().unwrap_or(0.0);
+            // Files without `first_frame` (older builds) numbered frames from `start`.
+            let first = json["first_frame"].as_u64().map_or_else(|| (json["start"].as_f64().unwrap_or(0.0) * fps as f64).round() as u32, |f| f as u32);
             let (f, frames, readable, changes) = match json["values"].as_array() {
                 Some(arr) => {
                     let values: Vec<Option<String>> = arr.iter().map(|v| v.as_str().map(str::to_string)).collect();
                     let readable = values.iter().filter(|v| v.is_some()).count();
-                    (findings(&values, fps, 3 * fps, 20), values.len(), readable, Some(change_list(&values)))
+                    (findings_at(&values, fps, first), values.len(), readable, Some(change_list(&values, first)))
                 }
                 None => {
                     let f = json["findings"].as_array().expect("neither values nor findings in this file").iter().map(|x| Finding {
                         kind: match x["kind"].as_str().unwrap_or("") { "Jump" => Kind::Jump, "Drift" => Kind::Drift, "Gap" => Kind::Gap, _ => Kind::Value },
-                        frame: x["frame"].as_u64().unwrap_or(0) as u32,
+                        frame: x["frame"].as_u64().unwrap_or(0) as u32 + if json["first_frame"].is_null() { first } else { 0 },
                         shift: x["shift"].as_i64().unwrap_or(0) as i32,
                         before: x["before"].as_str().map(str::to_string),
                         after: x["after"].as_str().map(str::to_string),
@@ -467,10 +510,10 @@ fn main() {
                 }
             };
             let jolt = jolt_windows(&a, &changes, fps);
-            emit(&a, &Report { video: json["video"].clone(), fps, start, frames, readable, findings: f, changes, jolt });
+            emit(&a, &Report { video: json["video"].clone(), fps, first_frame: first, frames, readable, findings: f, changes, jolt });
         }
         "find" => {
-            // hud-cadence find <video> [--ffmpeg F] [--scale 3] [--fps 60] [--prescale W:H] [--start S --duration S] [--jolt jolt.json]
+            // hud-cadence find <video> [--ffmpeg F] [--scale 3] [--fps 60] [--prescale W:H] [--from F|T --to F|T] [--jolt jolt.json]
             //     [--out report.json] [--report report.md] [--dump-values]
             // Reads the whole video, lists every cadence jump / drift / unreadable gap and the largest value swings,
             // ranked by |ΔFPS| so each item can be checked by other means.
@@ -489,19 +532,20 @@ fn main() {
             });
             let total = values.len();
             let readable = values.iter().filter(|v| v.is_some()).count();
-            let f = findings(&values, a.fps, 3 * a.fps, 20);
+            let first = portion(&a).0;
+            let f = findings_at(&values, a.fps, first);
             eprintln!(
                 "{total} frames in {:.0} s; overlay readable on {readable} ({:.1} %); {} findings",
                 t0.elapsed().as_secs_f64(),
                 100.0 * readable as f64 / total.max(1) as f64,
                 f.len()
             );
-            let changes = Some(change_list(&values));
+            let changes = Some(change_list(&values, first));
             let jolt = jolt_windows(&a, &changes, a.fps);
-            emit(&a, &Report { video: serde_json::Value::String(a.video.clone()), fps: a.fps, start: a.start, frames: total, readable, findings: f, changes, jolt });
+            emit(&a, &Report { video: serde_json::Value::String(a.video.clone()), fps: a.fps, first_frame: first, frames: total, readable, findings: f, changes, jolt });
             if a.dump_values {
                 let path = format!("{}.values.json", a.out.as_ref().expect("--dump-values needs --out"));
-                let json = serde_json::json!({ "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "start": a.start, "values": values });
+                let json = serde_json::json!({ "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "start": first as f64 / a.fps as f64, "first_frame": first, "values": values });
                 std::fs::write(&path, serde_json::to_string(&json).unwrap()).unwrap();
                 eprintln!("wrote {path}");
             }
@@ -591,7 +635,7 @@ fn main() {
             }
             println!("drift events: {}", an.events.iter().filter(|e| e.kind == hud_cadence::phase::Kind::Drift).count());
         }
-        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--jolt jolt.json] [--out report.json] [--report report.md] [--dump-values]\n       hud-cadence report <report.json> [--jolt jolt.json] [--report report.md] [--out report2.json]   (the readable report from a saved JSON)\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
+        _ => eprintln!("usage: hud-cadence find <video> [--ffmpeg PATH] [--scale N] [--fps N] [--prescale W:H] [--from FRAME|TIME] [--to FRAME|TIME] [--jolt jolt.json] [--out report.json] [--report report.md] [--dump-values]\n       hud-cadence report <report.json> [--jolt jolt.json] [--report report.md] [--out report2.json]   (the readable report from a saved JSON)\n       hud-cadence sweep|scan <video> [--ffmpeg PATH] [--scale N] [--fps N] [--start S] [--duration S] [--strip none|bottom-right|top-right|left] [--width PX] [--prescale W:H] [--out FILE]\n       hud-cadence replay <scan.json>\n       hud-cadence truth <scan.json> --log <hudinfo.jsonl>
        hud-cadence labels <scan.json> --log <hudinfo.jsonl> --out <dir> [--source <video> --ffmpeg F]"),
     }
 }

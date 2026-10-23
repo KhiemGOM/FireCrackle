@@ -82,3 +82,45 @@ fn a_findings_only_json_cannot_give_a_jolt_table_and_says_so() {
     assert!(md.contains("no change frames in this file"), "{md}");
     assert!(md.contains("| Jump |"), "the ranked findings are still there: {md}");
 }
+
+#[test]
+fn frame_numbers_from_a_portion_are_the_video_s_own_and_match_jolt() {
+    // the same readings, but the scan started at video frame 1000: every frame in the output is 1000 later,
+    // so Jolt's bracket (1240 - 1360) finds the short pair 1250 -> 1291
+    let d = dir("portion");
+    let mut v = values_json();
+    v["first_frame"] = serde_json::json!(1000);
+    v["start"] = serde_json::json!(1000.0 / 60.0);
+    std::fs::write(d.join("in.json"), v.to_string()).unwrap();
+    let j = serde_json::json!({"breaks": [{"kind": "removed", "jump_seconds": 0.3, "frame_positions": [{"number": 1240}, {"number": 1360}]}]});
+    std::fs::write(d.join("jolt.json"), j.to_string()).unwrap();
+    let st = bin().arg("report").arg(d.join("in.json")).arg("--jolt").arg(d.join("jolt.json"))
+        .arg("--out").arg(d.join("out.json")).arg("--report").arg(d.join("report.md")).status().unwrap();
+    assert!(st.success());
+    let out: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(d.join("out.json")).unwrap()).unwrap();
+    assert_eq!(out["first_frame"], 1000);
+    let jump = out["findings"].as_array().unwrap().iter().find(|f| f["kind"] == "Jump").unwrap();
+    assert_eq!(jump["frame"], 1291);
+    assert_eq!(jump["hms"], "00:00:21.517"); // 1291 / 60
+    assert_eq!(out["changes"][0][0], 1070);
+    assert_eq!(out["jolt"][0]["cadence_missing"], 19);
+    let md = std::fs::read_to_string(d.join("report.md")).unwrap();
+    assert!(md.contains("| 1250 | 1291 | 41 | -19 |"), "{md}");
+    assert!(md.contains("frames 1000 – 1639"), "the header names the portion: {md}");
+
+    // our own --out read back keeps the absolute frames (no second offset)
+    let st = bin().arg("report").arg(d.join("out.json")).arg("--jolt").arg(d.join("jolt.json"))
+        .arg("--report").arg(d.join("again.md")).status().unwrap();
+    assert!(st.success());
+    assert_eq!(std::fs::read_to_string(d.join("again.md")).unwrap(), md);
+}
+
+#[test]
+fn a_bad_portion_is_refused_with_a_message() {
+    let out = bin().args(["find", "nonexistent.mkv", "--from", "500", "--to", "400"]).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--to"), "{}", String::from_utf8_lossy(&out.stderr));
+    let out = bin().args(["find", "nonexistent.mkv", "--from", "abc"]).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--from"), "{}", String::from_utf8_lossy(&out.stderr));
+}

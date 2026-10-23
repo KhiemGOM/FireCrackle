@@ -36,14 +36,18 @@ The binary is `target/release/hud-cadence` (`.exe` on Windows).
 ## Use
 
 ```
-hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescale 2560:1440] [--jolt jolt.json] [--report report.md] [--out report.json]
+hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescale 2560:1440] [--from X] [--to Y] [--jolt jolt.json] [--report report.md] [--out report.json]
 ```
 
 - `--scale`: the GUI scale the game was rendered at (3 = each font pixel is 3×3 video pixels at 1440p).
 - `--fps`: the recording's frame rate (the period of the phase, in frames).
 - `--prescale W:H`: when the recording or upload is smaller than the game's render size (a 1080p upload of a
   1440p game), scale every frame back to the game size before reading, otherwise the glyphs are not integer-sized.
-- `--start S --duration S`: analyse a window instead of the whole file.
+- `--from X --to Y`: analyse only that portion (both ends included). A bare number is a **frame**
+  (`--from 61200 --to 61600`); a time has a colon or an `s` (`--from 17:00 --to 17:06.65`, `0:17:00`, `1020s`).
+  Either end can be left out. Frame numbers in the output stay the video's own, so they line up with a full run
+  and with Jolt. The seek is frame-exact (checked against full runs on two AV1 videos: identical readings).
+  The older `--start S --duration S` (seconds) still works.
 
 The report (printed, and written with `--report`) ends with every finding ranked by |ΔFPS|, highest first:
 
