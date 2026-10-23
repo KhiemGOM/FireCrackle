@@ -121,7 +121,15 @@ existing generator (`prepare_assets.py`), not a separate matcher:
   false clears in `2026-10-15 18-18-16.mkv` (clip2): frames 600, 630, 660, 14430, 14580, 15780, 15840 and 18510
   (options) and 18450 (confirm-link), previously none.
 
-The previous 94 templates are byte-identical in the new bundle. Not covered: advancements, statistics, credits,
+**Screen mask extent.** A fixed-controls match is one button patch, so the merged screen mask covered only
+"Back to Game" and the next row; the lower pause rows and the heading were unveiled as world (reported on
+`2026-10-20 14-22-45.mkv` frame 1682). A source pack may now declare the whole screen (layout fields 5-6, GUI px
+wide x high from the patch top, centred on it): pause 204 x 116 (five rows, 24 px pitch), options 310 wide. The
+reported region is the union of the patch, that extent and the fixed-control anchors (headings); on frame 1682 it
+is x 501-1419, y 180-828, the heading and all five rows. It is masking extent only: no probe, score or decision
+changes.
+
+The previous 94 templates are byte-identical in the new bundle apart from these extent fields. Not covered: advancements, statistics, credits,
 the game-mode switcher (no fixed controls in a source pack) and the modded Sodium video settings screen.
 
 | Check | Before | After |

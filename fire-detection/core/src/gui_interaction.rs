@@ -29,6 +29,9 @@ pub struct PanelTemplate {
     structure: Vec<Probe>,
     presence_structure: Vec<Probe>,
     identity: Vec<Probe>,
+    /// The whole open screen around a fixed-control patch (GUI px wide x high from the patch top, centred on it),
+    /// e.g. the pause menu's five button rows. Masking extent only, never evidence; zero means the patch itself.
+    screen: [f64; 2],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -253,6 +256,7 @@ impl PanelTemplate {
             structure,
             presence_structure,
             identity: Vec::new(),
+            screen: [0.; 2],
         })
     }
 
@@ -326,11 +330,12 @@ impl PanelTemplate {
         let mut identity = Vec::new();
         let mut layout = [0., -1.];
         let mut viewport_y = 0.;
+        let mut screen = [0.; 2];
         let mut identity_viewports = Vec::new();
         if format == "GUIT2" {
             let metadata = line()?;
             let fields: Vec<_> = metadata.split_whitespace().collect();
-            if fields.len() != 3 && fields.len() != 4 {
+            if ![3, 4, 6].contains(&fields.len()) {
                 return Err("bad GUI layout header".into());
             }
             layout[0] = fields[0].parse::<f64>().map_err(|_| "bad GUI offset")?;
@@ -341,12 +346,25 @@ impl PanelTemplate {
             let count = fields[2]
                 .parse::<usize>()
                 .map_err(|_| "bad identity count")?;
-            if fields.len() == 4 {
+            if fields.len() >= 4 {
                 viewport_y = fields[3]
                     .parse::<f64>()
                     .map_err(|_| "bad viewport fraction")?;
                 if !viewport_y.is_finite() || !(0.0..=1.0).contains(&viewport_y) {
                     return Err("invalid viewport fraction".into());
+                }
+            }
+            if fields.len() == 6 {
+                for k in 0..2 {
+                    screen[k] = fields[4 + k]
+                        .parse::<f64>()
+                        .map_err(|_| "bad GUI screen extent")?;
+                }
+                if !screen
+                    .iter()
+                    .all(|v| v.is_finite() && (0.0..=1024.).contains(v))
+                {
+                    return Err("invalid GUI screen extent".into());
                 }
             }
             if count > 4096 {
@@ -394,6 +412,7 @@ impl PanelTemplate {
             Some(layout[1])
         };
         template.viewport_y = viewport_y;
+        template.screen = screen;
         if !identity.is_empty() {
             template.require_identity(&identity)?;
             for (probe, fraction) in template.identity.iter_mut().zip(identity_viewports) {

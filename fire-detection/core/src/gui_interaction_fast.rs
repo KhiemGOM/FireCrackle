@@ -87,6 +87,7 @@ struct PanelKey {
     recipe_shift: bool,
     placement: [u64; 2],
     top_y: Option<u64>,
+    screen: [u64; 2],
     probes: [Vec<ProbeKey>; 4],
 }
 impl From<&PanelTemplate> for PanelKey {
@@ -96,6 +97,7 @@ impl From<&PanelTemplate> for PanelKey {
             recipe_shift: t.recipe_shift,
             placement: [t.offset_x.to_bits(), t.viewport_y.to_bits()],
             top_y: t.top_y.map(f64::to_bits),
+            screen: t.screen.map(f64::to_bits),
             probes: [&t.border, &t.structure, &t.presence_structure, &t.identity]
                 .map(|points| points.iter().map(ProbeKey::from).collect()),
         }
@@ -579,6 +581,42 @@ fn evidence(
     }
 }
 
+/// The open screen a match stands for: the patch, the source pack's declared screen extent (centred on the patch,
+/// from its top) and the fixed-control anchors outside it (a heading above a button grid). Clipped to the frame.
+fn screen_extent(t: &PanelTemplate, pose: &Pose, plan: &Plan) -> Rect {
+    let b = pose.bounds;
+    let (mut x0, mut y0, mut x1, mut y1) = (b.x, b.y, b.x + b.width, b.y + b.height);
+    let [sw, sh] = t.screen;
+    if sw > 0. && sh > 0. {
+        let cx = b.x + b.width / 2.;
+        x0 = x0.min(cx - sw * pose.sx / 2.);
+        x1 = x1.max(cx + sw * pose.sx / 2.);
+        y1 = y1.max(b.y + sh * pose.sy);
+    }
+    for p in &t.identity {
+        let jitter = if p.viewport_y != 0. {
+            pose.jitter_y
+        } else {
+            0.
+        };
+        let x = b.x + p.x * pose.sx;
+        let y = b.y + (p.y - jitter) * pose.sy + p.viewport_y * plan.height as f64;
+        // a glyph texel around its centre
+        x0 = x0.min(x - pose.sx / 2.);
+        x1 = x1.max(x + pose.sx / 2.);
+        y0 = y0.min(y - pose.sy / 2.);
+        y1 = y1.max(y + pose.sy / 2.);
+    }
+    let (x0, y0) = (x0.max(0.), y0.max(0.));
+    let (x1, y1) = (x1.min(plan.width as f64), y1.min(plan.height as f64));
+    Rect {
+        x: x0,
+        y: y0,
+        width: (x1 - x0).max(0.),
+        height: (y1 - y0).max(0.),
+    }
+}
+
 const PREFETCH_DISTANCE: usize = 6;
 
 /// Perf-lab experiment switch: when set, `find` only visits poses whose
@@ -693,7 +731,7 @@ fn find(
                 screen_type: source.screen_type.clone(),
                 version: source.version.clone(),
                 variant: source.variant.clone(),
-                bounds: pose.bounds,
+                bounds: screen_extent(source, pose, plan),
                 scale_x: pose.sx,
                 scale_y: pose.sy,
                 score: border.value.unwrap_or(0.) * 0.3 + structure.value.unwrap_or(0.) * 0.7,
@@ -737,6 +775,7 @@ mod folding {
             structure: vec![p; 16],
             presence_structure: vec![p; 16],
             identity: vec![p; 16],
+            screen: [0.; 2],
         }
     }
     /// Scans at different frame sizes share one detector (the app's first-person,

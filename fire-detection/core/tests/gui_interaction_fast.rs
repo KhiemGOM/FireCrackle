@@ -689,3 +689,57 @@ fn installed_two_button_footers_identify_language_and_pack_screens() {
         );
     }
 }
+
+/// A fixed-controls source pack matches one button patch, but the open screen is the whole control grid and its
+/// heading (pause: five button rows below "Back to Game", "Game Menu" above). The reported region, which the
+/// screen mask fills, spans the declared screen extent and the identity anchors; the decision is unchanged.
+#[test]
+fn a_fixed_controls_match_reports_the_whole_screen_extent_and_its_heading() {
+    let s = 2.25;
+    let (w, h) = (400usize, 300usize);
+    let identity: Vec<_> = (20..44).map(|x| (x as f64 + 0.5, 108.5, -1.)).collect();
+    let nominal_y = h as f64 - 100. * s;
+    let x = (w as f64 - 80. * s) / 2.;
+    let mut rgb = vec![31; w * h * 3];
+    let (_, rgba) = controls_pack("0 -100 {n} 1", &identity);
+    draw(&mut rgb, w, &rgba, 80, 80, x, nominal_y, s);
+    let layer = glyph_row(80, 1, 0, 255, None);
+    let heading_y = nominal_y + 108. * s - h as f64;
+    draw(&mut rgb, w, &layer, 80, 1, x, heading_y + 0.25, s);
+    let found = |layout: &str| {
+        let (template, _) = controls_pack(layout, &identity);
+        let hit = InteractionDetector::with_workers(vec![template], 1)
+            .unwrap()
+            .detect(&rgb, w, h)
+            .unwrap();
+        assert!(hit.gui_detected, "{layout}");
+        hit.alternatives[0].bounds
+    };
+    // basic: without a declared extent the region is the patch and its heading
+    let plain = found("0 -100 {n} 1");
+    assert!((plain.x - x).abs() < 1. && (plain.width - 80. * s).abs() < 1.);
+    assert!(plain.y <= heading_y + 1. && plain.y + plain.height >= nominal_y + 80. * s - 1.);
+    // a declared 120 x 100 GUI px screen, centred on the patch, from its top
+    let screen = found("0 -100 {n} 1 120 100");
+    assert!((screen.x - (w as f64 - 120. * s) / 2.).abs() < 1.);
+    assert!((screen.width - 120. * s).abs() < 1.);
+    assert!(
+        screen.y <= heading_y + 1.,
+        "the heading above the grid is the screen"
+    );
+    assert!((screen.y + screen.height - (nominal_y + 100. * s)).abs() < 1.);
+    // a malformed or out-of-range extent is rejected, never guessed
+    for bad in [
+        "0 -100 {n} 1 120",
+        "0 -100 {n} 1 -5 100",
+        "0 -100 {n} 1 NaN 100",
+        "0 -100 {n} 1 5000 100",
+    ] {
+        let header = format!(
+            "GUIT2\noptions.test_screen\nfixture\nfixed_controls_test\n80 80 0\n{}\n",
+            bad.replace("{n}", "0")
+        );
+        let bytes = [header.as_bytes(), rgba.as_slice()].concat();
+        assert!(PanelTemplate::from_bytes(&bytes).is_err(), "{bad}");
+    }
+}

@@ -88,7 +88,9 @@ def prepare(client, version, output, families=None):
             kind=kind if '.' in kind or kind in ('pause_screen','confirm_link_screen') else 'inventory.'+kind+'_screen'
             width,height=image.size
             header=(f'GUIT2\n{kind}\n{version}\n{variant}\n{width} {height} {int(shift)}\n'
-                    f'{layout[0]} {layout[1]} {len(identity)} {layout[2] if len(layout)>2 else 0}\n'+
+                    f'{layout[0]} {layout[1]} {len(identity)} {layout[2] if len(layout)>2 else 0}'+
+                    # optional whole-screen extent (GUI px, centred on the patch, from its top): mask only
+                    (f' {layout[3]} {layout[4]}' if len(layout)>4 else '')+'\n'+
                     ''.join(f'{p[0]} {p[1]} {p[2][0]} {p[2][1]} {p[2][2]} {p[3] if len(p)>3 else 0}\n' for p in identity)).encode()
             (output/filename).write_bytes(header+image.tobytes())
             rows.append({'file':filename,'screen_type':kind,'version':version,'variant':variant,'width':width,'height':height,'source_sha256':source_hash,
@@ -177,7 +179,7 @@ def prepare(client, version, output, families=None):
                     identity=control('gui.done',width//2,6)
                     identity += [(x,y,rgb,-1) for x,y,rgb in control(key,width//2-offset,38)]
                     save(kind,'fixed_controls_en_us_'+skin,button_patch(width),False,
-                         control_hash,(offset,-26,1),identity)
+                         control_hash,(offset,-26,1)+((310,20) if kind=='options.options_screen' else ()),identity)
                 # LanguageSelectScreen and PackSelectionScreen: a horizontal footer of two
                 # default 150px buttons, 8px apart, in the same 33px footer. Their left
                 # labels are screen-specific; the headings are not placed by the footer.
@@ -189,13 +191,15 @@ def prepare(client, version, output, families=None):
                                      ('packs.pack_selection_screen','pack.openFolder',-26)]:
                     save(kind,'fixed_controls_en_us_'+skin,pair,False,control_hash,(0,top,1),
                          control(key,75,6)+control('gui.done',233,6))
+                # The masked screen is the whole control grid (pause: five rows, 24px pitch,
+                # 204 x 116; options: the 310px wide grid between heading and footer).
                 # PauseScreen's 166px grid is aligned at 1/4 viewport height;
                 # its first button has 50px top padding. The fixed heading
                 # stays at y=40, independent of the grid's viewport position.
                 identity=control('menu.returnToGame',102,6)
                 identity += [(x,y,rgb,-0.25) for x,y,rgb in control('menu.game',102,31.5)]
                 save('pause_screen','fixed_controls_en_us_'+skin,
-                     button_patch(204),False,control_hash,(0,8.5,0.25),identity)
+                     button_patch(204),False,control_hash,(0,8.5,0.25,204,116),identity)
                 # AbstractSignEditScreen has Done at H/4+144 and title at 40.
                 # HangingSignEditScreen inherits those controls; only its
                 # fixed heading differs. User-written sign text is excluded.
@@ -231,7 +235,7 @@ def prepare(client, version, output, families=None):
                 identity=control('gui.done',100,6)
                 identity += [(x,y,rgb,-sixth) for x,y,rgb in control('options.title',100,15-168)]
                 save('options.options_screen','fixed_controls_en_us_'+skin,button_patch([200]),False,
-                     control_hash,(0,168,sixth),identity)
+                     control_hash,(0,168,sixth,310,20),identity)
                 identity=control('chat.link.open',50,6)+control('chat.copy',155,6)+control('gui.cancel',260,6)
                 identity += [(x,y,rgb,-sixth) for x,y,rgb in control('chat.link.confirmTrusted',155,70-96)]
                 save('confirm_link_screen','fixed_controls_en_us_'+skin,button_patch([100,100,100]),False,
@@ -239,7 +243,7 @@ def prepare(client, version, output, families=None):
                 identity=control('menu.returnToGame',102,6)
                 identity += [(x,y,rgb,-0.25) for x,y,rgb in control('menu.game',102,32)]
                 save('pause_screen','fixed_controls_en_us_'+skin,button_patch([204]),False,
-                     control_hash,(0,8,0.25),identity)
+                     control_hash,(0,8,0.25,204,116),identity)
     return rows
 
 
