@@ -36,7 +36,7 @@ The binary is `target/release/hud-cadence` (`.exe` on Windows).
 ## Use
 
 ```
-hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescale 2560:1440] [--out report.json]
+hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescale 2560:1440] [--jolt jolt.json] [--report report.md] [--out report.json]
 ```
 
 - `--scale`: the GUI scale the game was rendered at (3 = each font pixel is 3×3 video pixels at 1440p).
@@ -45,13 +45,13 @@ hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescal
   1440p game), scale every frame back to the game size before reading, otherwise the glyphs are not integer-sized.
 - `--start S --duration S`: analyse a window instead of the whole file.
 
-Output is a ranked table, highest |ΔFPS| first:
+The report (printed, and written with `--report`) ends with every finding ranked by |ΔFPS|, highest first:
 
 ```
-rank  kind          time      frame   shift  before  after   |d|  note
-   1  Jump   00:17:03.467     61408     -19     103    120    17  phase moved -19 frames and stayed: not continuous here
-   2  Value  00:48:12.633    173558             231    159    72  largest value swings (top 1 %): no phase change, listed for cross-checking
-   3  Gap    00:00:00.000         0                                overlay unreadable for 271 frames (4.5 s)
+| rank | kind | time | frame | shift | before | after | \|d\| | note |
+| 1 | Jump | 00:17:03.467 | 61408 | -19 | 103 | 120 | 17 | phase moved -19 frames and stayed: not continuous here |
+| 2 | Value | 00:48:12.633 | 173558 |  | 231 | 159 | 72 | largest value swings (top 1 %): no phase change, listed for cross-checking |
+| 3 | Gap | 00:00:00.000 | 0 |  |  |  |  | overlay unreadable for 271 frames (4.5 s) |
 ```
 
 - **Jump**: the phase moved by three frames or more and stayed. The video is not continuous at this frame.
@@ -63,18 +63,51 @@ rank  kind          time      frame   shift  before  after   |d|  note
 - **Gap**: the overlay was unreadable for more than a second (F3 open, menu, occlusion). The phase is tracked
   separately on each side; a different phase after a gap is not called a jump.
 
-`--out report.json` writes the findings as JSON **and** the same table to `report.json.txt`. The JSON holds no
-per-frame data unless you add `--dump-values` (then `report.json.values.json` is written too, large).
+### Output files
 
-**Got a JSON and want the table back?**
+- `--report report.md`: the **readable report** (Markdown, the same text the terminal prints): Jumps in time
+  order, the Jolt tables below (with `--jolt`), then everything ranked by |ΔFPS|.
+- `--out report.json`: the **machine JSON** only: findings, every change frame with its reading, and the Jolt
+  windows. No per-frame data unless you add `--dump-values` (then `report.json.values.json` too, large).
+
+### Cross-check with JoltCracker (`--jolt`)
+
+JoltCracker (by Splosh) brackets a removal to a window of a few seconds from the
+hunger/heart-bar ticks. Give it its JSON report (`--jolt jolt.json`) and the report gets, for every Jolt break:
+
+- a summary row: Jolt's missing frames, the cadence's missing frames (±2), and whether they **agree** (modulo one
+  second, within ±3 frames: the cadence cannot see whole seconds);
+- every pair of consecutive FPS changes overlapping the bracket, plus one exact pair on each side for context,
+  with its spacing and deviation from a whole second. The pair holding the cut is the one that is not 60
+  (`41`, deviation `-19` = 19 frames missing). Pairs longer than 3 s cross an unreadable stretch and are shown
+  but not counted.
+
+Example (a real removal; JoltCracker 2.5 on the same video):
 
 ```
-hud-cadence report report.json
+| # | kind | bracket (frames) | time | Jolt missing | cadence missing | agree |
+| 2 | removed | 61270 – 61409 | 00:17:01.167 | 17 f | 19 f (±2) | yes |
+| 3 | removed | 171397 – 171498 | 00:47:36.617 | 46 f | 47 f (±2; +13 modulo 1 s) | yes |
+
+| from | to | spacing | deviation | before | after | where | note |
+| 61187 | 61247 | 60 | 0 | 109 | 94 | context |  |
+| 61247 | 61307 | 60 | 0 | 94 | 106 | inside |  |
+| 61307 | 61367 | 60 | 0 | 106 | 103 | inside |  |
+| 61367 | 61408 | 41 | -19 | 103 | 120 | inside | **19 frames missing** |
+| 61408 | 61468 | 60 | 0 | 120 | 113 | inside |  |
+| 61468 | 61529 | 61 | +1 | 113 | 123 | context | jitter (within read error) |
 ```
 
-prints it (Jumps first, in time order, then everything ranked by |ΔFPS|). If the file still contains every
-frame's reading (`values`: reports from older builds, or `--dump-values`), the findings are recomputed with the
-current rules first, so old reports pick up newer flags such as `UNSTABLE READINGS`.
+### Got a JSON and want the report back?
+
+```
+hud-cadence report report.json [--jolt jolt.json] [--report report.md]
+```
+
+prints it (and writes the Markdown). A JSON from this version carries the change frames, so `--jolt` works on
+it without re-reading the video; a findings-only JSON from older builds says so instead. If the file contains
+every frame's reading (`values`: reports from older builds, or `--dump-values`), the findings are recomputed
+with the current rules first, so old reports pick up newer flags such as `UNSTABLE READINGS`.
 
 Two flags to read before trusting a Jump: **UNSTABLE READINGS** means the digits flicker in that stretch
 (something drawn over them, or a glyph at the edge of the template margin); phase findings there are not reliable.
@@ -94,7 +127,7 @@ the digits are intact. Other overlays with a different label would need a differ
 ```
 hud-cadence sweep  VIDEO --ffmpeg F [--scale 3] [--out sweep.json]
 hud-cadence scan   VIDEO --ffmpeg F --start S --duration S [--fps 60] [--strip bottom-right --width 2560] [--prescale 2560:1440] [--out scan.json]
-hud-cadence report report.json
+hud-cadence report report.json [--jolt jolt.json] [--report report.md] [--out report2.json]
 hud-cadence replay scan.json
 hud-cadence truth  scan.json --log <run/hudinfo/session.jsonl>
 hud-cadence labels scan.json --log <run/hudinfo/session.jsonl> --out <dir> [--source VIDEO --ffmpeg F]
