@@ -376,6 +376,7 @@ pub struct Placed {
     pub h: u32,
     pub layers: Vec<Layer>,
     /// Part of the rectangle (relative) whose content cannot be predicted (item, effect sprite, inverted world).
+    /// With sprite layers, only the sprite's drawn pixels are unknown (the crosshair keeps its cross shape).
     pub unknown: Option<(i32, i32, u32, u32)>,
 }
 
@@ -825,7 +826,10 @@ pub fn compose_hud(
                         && gx < (ux as i64 + uw as i64)
                         && gy < (uy as i64 + uh as i64)
                 });
-                if in_unknown {
+                // the same rule as gui_class: with a sprite, only its drawn pixels are the piece
+                let drawn =
+                    p.layers.is_empty() || img[gy as usize * p.w as usize + gx as usize][3] > 0;
+                if in_unknown && drawn {
                     match p.piece {
                         PieceId::Crosshair => {
                             let c = img[gy as usize * p.w as usize + gx as usize];
@@ -849,6 +853,9 @@ pub fn compose_hud(
                     }
                     truth.piece[i] = p.piece as u8;
                     truth.class[i] = PixelClass::Unknown as u8;
+                    continue;
+                }
+                if in_unknown {
                     continue;
                 }
                 let c = img[gy as usize * p.w as usize + gx as usize];
@@ -2648,7 +2655,13 @@ fn gui_class(img: &[[u8; 4]], p: &Placed, gx: i64, gy: i64) -> PixelClass {
             && gx < (ux as i64 + uw as i64)
             && gy < (uy as i64 + uh as i64)
         {
-            return PixelClass::Unknown;
+            // the colour is unpredictable, but a sprite still fixes where it is drawn
+            let drawn = p.layers.is_empty() || img[gy as usize * p.w as usize + gx as usize][3] > 0;
+            return if drawn {
+                PixelClass::Unknown
+            } else {
+                PixelClass::None
+            };
         }
     }
     match img[gy as usize * p.w as usize + gx as usize][3] {

@@ -769,3 +769,19 @@ fn invalid_options_are_an_error() {
         assert!(detect_gui(&f, 320, 240, &tex(), &o).is_err(), "{o:?}");
     }
 }
+
+#[test]
+fn the_crosshair_mask_has_the_crosshair_shape_not_its_box() {
+    // Its colour is the inverted world (inverting blend), but its shape is the sprite's (icons.png 0,0 15x15).
+    let s = shot(1280, 720, 3, 1.0, &HudState::default(), 30);
+    let m = detect(&s);
+    let cross = PieceId::Crosshair as u8;
+    let (x0, y0) = (206 * 3, 112 * 3); // GUI ((427 - 15) / 2, (240 - 15) / 2) at 3 px per GUI px
+    let at = |gx: usize, gy: usize| m.piece[(y0 + gy * 3 + 1) * s.w + x0 + gx * 3 + 1];
+    assert_eq!(at(7, 7), cross, "centre");
+    assert_eq!(at(7, 4), cross, "vertical bar");
+    assert_eq!(at(4, 7), cross, "horizontal bar");
+    for (gx, gy) in [(0, 0), (14, 0), (0, 14), (14, 14), (3, 3)] {
+        assert_ne!(at(gx, gy), cross, "transparent sprite pixel ({gx}, {gy})");
+    }
+}
