@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  grabsPlayhead,
   clampViewport,
   ensureVisible,
   fitViewport,
@@ -300,5 +301,21 @@ describe("thumbnails", () => {
   it("clamps frames at the end of a short video", () => {
     const f = thumbnailFrames({ start: 0, pxPerFrame: 100 }, 1000, 100, 3);
     expect(f.every((x) => x >= 0 && x <= 2)).toBe(true);
+  });
+});
+
+describe("grabbing the playhead", () => {
+  const vp = { start: 100, pxPerFrame: 2 }; // frame 150 is drawn at x = 100..102, centre 101
+  it("a press on or near the playhead line grabs it", () => {
+    expect(grabsPlayhead(vp, 150, 101, 6)).toBe(true);
+    expect(grabsPlayhead(vp, 150, 106, 6)).toBe(true);
+    expect(grabsPlayhead(vp, 150, 96, 6)).toBe(true);
+  });
+  it("a press further away pans or seeks as before", () => {
+    expect(grabsPlayhead(vp, 150, 108, 6)).toBe(false);
+    expect(grabsPlayhead(vp, 150, 20, 6)).toBe(false);
+  });
+  it("a playhead outside the visible part cannot be grabbed by a press at the edge", () => {
+    expect(grabsPlayhead(vp, 10, 0, 6)).toBe(false);
   });
 });

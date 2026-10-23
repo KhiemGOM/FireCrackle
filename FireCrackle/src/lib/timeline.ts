@@ -170,3 +170,9 @@ export function thumbnailFrames(vp: Viewport, width: number, thumbWidthPx: numbe
   }
   return frames;
 }
+
+/** Whether a press at `x` grabs the playhead of frame `current` (drawn at the middle of its frame) to drag it. */
+export function grabsPlayhead(vp: Viewport, current: number, x: number, tolerancePx: number): boolean {
+  const centre = frameToX(vp, current) + vp.pxPerFrame / 2;
+  return Math.abs(x - centre) <= tolerancePx;
+}

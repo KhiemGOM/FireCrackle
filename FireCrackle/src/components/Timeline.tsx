@@ -7,6 +7,7 @@ import {
   fitViewport,
   frameToX,
   pan,
+  grabsPlayhead,
   rulerTicks,
   visibleRange,
   xToFrame,
@@ -54,7 +55,10 @@ interface Props {
   onSeek: (frame: number) => void;
 }
 
-/** Editor-style timeline: wheel scrolls, Ctrl+wheel zooms, drag pans. */
+/** Pixels either side of the playhead line that still grab it for dragging. */
+const PLAYHEAD_GRAB_PX = 6;
+
+/** Editor-style timeline: wheel scrolls, Ctrl+wheel zooms, drag pans, dragging the playhead scrubs. */
 export function Timeline({ backend, view, flags, version, settings, onSeek, videoKey }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -62,7 +66,8 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
   const total = view.frame_count;
   const [vp, setVp] = useState<Viewport>(() => readTimelineView(videoKey, "timeline", total, 900));
   const [buckets, setBuckets] = useState<{ first: number; len: number; list: Bucket[] }>({ first: 0, len: 1, list: [] });
-  const drag = useRef<{ x0: number; start0: number; moved: boolean } | null>(null);
+  // "pan" drags the view; "scrub" drags the playhead itself (pressed on or near its line).
+  const drag = useRef<{ x0: number; start0: number; moved: boolean; mode: "pan" | "scrub"; frame: number } | null>(null);
   const [thumbStatus, setThumbStatus] = useState<ThumbStatus>({ state: "idle", count: 0, error: null });
   const [nearest, setNearest] = useState<{ key: string; frames: Array<number | null> }>({ key: "", frames: [] });
   const images = useRef(new Map<number, HTMLImageElement | "loading" | "failed">());
@@ -334,20 +339,31 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-          drag.current = { x0: localX(e), start0: vp.start, moved: false };
+          const x = localX(e);
+          const scrub = grabsPlayhead(vp, view.current, x, PLAYHEAD_GRAB_PX);
+          drag.current = { x0: x, start0: vp.start, moved: false, mode: scrub ? "scrub" : "pan", frame: view.current };
         }}
         onPointerMove={(e) => {
           const d = drag.current;
-          if (!d) return;
+          if (!d) {
+            // Show that the playhead can be grabbed.
+            (e.currentTarget as HTMLElement).style.cursor = grabsPlayhead(vp, view.current, localX(e), PLAYHEAD_GRAB_PX) ? "ew-resize" : "";
+            return;
+          }
           const dx = localX(e) - d.x0;
-          if (!d.moved && Math.abs(dx) < dragThreshold) return;
+          if (!d.moved && Math.abs(dx) < (d.mode === "scrub" ? 1 : dragThreshold)) return;
           d.moved = true;
+          if (d.mode === "scrub") {
+            const frame = xToFrame(vp, localX(e), total);
+            if (frame !== d.frame) { d.frame = frame; onSeek(frame); }
+            return;
+          }
           setVp(pan({ start: d.start0, pxPerFrame: vp.pxPerFrame }, dx, width, total));
         }}
         onPointerUp={(e) => {
           const d = drag.current;
           drag.current = null;
-          if (d && !d.moved) onSeek(xToFrame(vp, localX(e), total));
+          if (d && !d.moved && d.mode === "pan") onSeek(xToFrame(vp, localX(e), total));
         }}
         onDoubleClick={() => setVp(fitViewport(total, width))}
         onPointerCancel={() => { drag.current = null; }}
@@ -360,7 +376,7 @@ export function Timeline({ backend, view, flags, version, settings, onSeek, vide
         <span style={{whiteSpace:"nowrap"}}><i aria-hidden="true" style={{display:"inline-block",width:16,height:12,marginRight:4,background:COLORS.noFire}} />No fire</span>
         {AUTOMATIC_TOOLS.map(tool=><span key={tool.source} style={{whiteSpace:"nowrap"}}><i aria-hidden="true" style={{display:"inline-block",boxSizing:"border-box",width:24,height:16,marginRight:4,backgroundColor:tool.source==="no_fire"?COLORS.noFire:COLORS.fire,borderTop:`3px solid ${tool.color}`,borderBottom:`3px solid ${tool.color}`}} />{tool.name}</span>)}
         <span style={{whiteSpace:"nowrap"}}>Human checked: plain colour</span>
-        <span className="timeline-hint" style={{margin:0}}>scroll: move timeline · Ctrl+scroll: zoom · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</span>
+        <span className="timeline-hint" style={{margin:0}}>scroll: move timeline · Ctrl+scroll: zoom · drag the playhead: scrub · drag: pan · click: seek · double-click: show all · {vp.pxPerFrame.toFixed(3)} px/frame</span>
       </div>
     </div>
   );
