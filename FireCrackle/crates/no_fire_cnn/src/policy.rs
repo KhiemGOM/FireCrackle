@@ -5,11 +5,7 @@ mod fragments;
 #[path = "../../../../fire-detection/bench/no_fire/retention_rules.rs"]
 #[allow(dead_code)]
 mod retention;
-use fire_core::{
-    gui_mask::{GuiDetector, GuiFitHint, GuiOptions, GuiTextures},
-    veil::{Options, detect_pixels, unveil_rgb},
-};
-use std::borrow::Cow;
+use fire_core::gui_mask::{GuiDetector, GuiFitHint, GuiOptions, GuiTextures};
 pub fn candidate(
     rgb: &[u8],
     w: usize,
@@ -63,23 +59,11 @@ fn candidate_prepared_inner(
     let raw = fragments::mask(rgb, w, h);
     drop(timer);
     let timer = stage(23);
-    let mut rules = !fragments::reaches(&raw, w, h, 4, 2198);
+    let rules = !fragments::reaches(&raw, w, h, 4, 2198);
     drop(timer);
-    let timer = stage(11);
-    let (used, share) = detect_pixels(rgb, w, h, 3, 12, Options::default())?;
-    drop(timer);
-    if !used && share >= 0.80 {
-        return Ok(false);
-    }
-    let timer = stage(22);
-    let fixed = if used {
-        Cow::Owned(unveil_rgb(rgb, w, h)?)
-    } else {
-        Cow::Borrowed(rgb)
-    };
-    rules &= !used || !fragments::reaches(&fragments::mask(&fixed, w, h), w, h, 4, 2198);
-    drop(timer);
-    let auto = used.then_some(fixed.as_ref());
+    // The veil is decided by the GUI detector alone: an open screen abstains below. Veil colour statistics never
+    // decide (a dark colourless world looks exactly like the veil), so no frame is colour-unveiled here.
+    let auto: Option<&[u8]> = None;
     let timer = stage(12);
     let cnn = if rules { None } else { Some(infer(rgb, auto)?) };
     drop(timer);
@@ -117,16 +101,8 @@ fn candidate_prepared_inner(
         .zip(&gui.piece)
         .map(|(&class, &piece)| (!(class == 1 || class == 2 || [4, 5, 11].contains(&piece))) as u8)
         .collect();
-    if material(&fixed, &world, w, h) {
+    if material(rgb, &world, w, h) {
         return Ok(false);
-    }
-    if rules
-        && used
-        && retention::components(&fixed, &world, w, h)
-            .iter()
-            .any(|c| c.0 >= 128 && c.3 - c.1 >= 24 && c.4 - c.2 >= 8)
-    {
-        rules = false;
     }
     if rules {
         Ok(true)
@@ -141,15 +117,7 @@ pub fn cnn_needed(rgb: &[u8], w: usize, h: usize) -> Result<Option<bool>, String
         return Err("AI no-fire requires native 1920×1080 RGB".into());
     }
     let raw = fragments::mask(rgb, w, h);
-    let mut rules = !fragments::reaches(&raw, w, h, 4, 2198);
-    let (used, share) = detect_pixels(rgb, w, h, 3, 12, Options::default())?;
-    if !used && share >= 0.80 {
-        return Ok(None);
-    }
-    if used {
-        let fixed = unveil_rgb(rgb, w, h)?;
-        rules &= !fragments::reaches(&fragments::mask(&fixed, w, h), w, h, 4, 2198);
-    }
+    let rules = !fragments::reaches(&raw, w, h, 4, 2198);
     Ok(Some(!rules))
 }
 /// Material-patches-v3, matching translucency.py: sampled 48px patches, conservative veto.

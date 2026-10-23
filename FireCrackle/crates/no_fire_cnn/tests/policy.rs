@@ -45,3 +45,34 @@ fn prepared_gui_preserves_candidate_decisions() {
         );
     }
 }
+#[test]
+fn veil_colour_statistics_never_decide_the_model_sees_the_frame_as_it_is() {
+    // an orange scene under the GUI veil's formula (16a + p(1 - a)), with no open screen detected: the colour
+    // detector would call it veiled, but only the GUI detector decides (and a detected screen abstains anyway)
+    let tex = GuiTextures::from_rgba(
+        vec![0; 256 * 256 * 4],
+        vec![0; 256 * 256 * 4],
+        vec![0; 256 * 256 * 4],
+    )
+    .unwrap();
+    let a = 0.76;
+    let veiled: Vec<u8> = [180.0, 110.0, 20.0]
+        .map(|p: f64| (16.0 * a + p * (1.0 - a)).round() as u8)
+        .into_iter()
+        .cycle()
+        .take(1920 * 1080 * 3)
+        .collect();
+    assert!(
+        fire_core::veil::detect_pixels(&veiled, 1920, 1080, 3, 12, fire_core::veil::Options::default())
+            .unwrap()
+            .0,
+        "the colour detector does call this veiled"
+    );
+    let mut unveiled_inputs = 0;
+    let _ = candidate(&veiled, 1920, 1080, &tex, |_, auto| {
+        unveiled_inputs += auto.is_some() as usize;
+        Ok(true)
+    })
+    .unwrap();
+    assert_eq!(unveiled_inputs, 0, "no colour-unveiled copy reaches the model");
+}
