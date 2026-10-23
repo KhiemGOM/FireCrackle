@@ -1,8 +1,6 @@
-import {getWaterTint,renderWaterAtlases,subscribeWaterTint} from "../lib/waterTint";
-import {ANIMATION_ATLASES,atlasSource,atlasTile,type AnimationAtlas} from "../lib/animationAtlases";
+import {ANIMATION_ATLASES,atlasTile,type AnimationAtlas} from "../lib/animationAtlases";
+import { loadSpriteSheet, spriteSource } from "../lib/spriteSheet";
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
-import fire0 from "../assets/fire_0.png";
-import fire1 from "../assets/fire_1.png";
 import { manualTexels, moveQuadCorner, screenToQuadPoint, translateQuad, type ManualQuad, type QuadPoint } from "../lib/quadMask";
 import "./FireQuadMask.css";
 import { FireTexels } from "./FireTexels";
@@ -35,7 +33,7 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
   const [selectedCorner, setSelectedCorner] = useState<number | null>(null);
   const latestQuad = useRef(quad);
   latestQuad.current = quad;
-  const source=atlas?atlasSource(atlas):sheet === 0 ? fire0 : fire1;
+  const source=spriteSource(atlas,sheet);
   const [loaded, setRgba] = useState<{source:string;rgba:Uint8ClampedArray} | null>(null);
   const rgba=loaded?.source===source?loaded.rgba:null;
   const [error, setError] = useState(false);
@@ -43,36 +41,11 @@ export function FireQuadMask({ atlas, width, height, sheet, row, mirrored, opaci
   const [shiftHeld, setShiftHeld] = useState(false);
   const [transformActive, setTransformActive] = useState(false);
   const transformDrag = useRef<{ quad: ManualQuad; pointerId: number; start: QuadPoint; handle: BoxHandle | null; matrix: DOMMatrix; width: number; height: number } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    setRgba(null);
-    setError(false);
-    if(atlas==="water_still"||atlas==="water_flow"){
-      let generation=0;
-      const update=()=>{const mine=++generation;setRgba(null);setError(false);
-        void renderWaterAtlases(getWaterTint()).then(sheets=>{if(!cancelled&&mine===generation)setRgba({source,rgba:sheets[atlas].rgba});}).catch(()=>{if(!cancelled&&mine===generation)setError(true);});};
-      update();const unsubscribe=subscribeWaterTint(update);
-      return()=>{cancelled=true;unsubscribe();};
-    }
-    const image = new Image();
-    image.onload = () => {
-      if (cancelled) return;
-      try {
-        const side=atlas?ANIMATION_ATLASES[atlas].side:16,rows=atlas?ANIMATION_ATLASES[atlas].rows:32;
-        if (image.naturalWidth !== side || image.naturalHeight !== side*rows) throw new Error("Invalid sprite sheet");
-        const canvas = document.createElement("canvas");
-        canvas.width = side;
-        canvas.height = side*rows;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("Canvas unavailable");
-        ctx.drawImage(image, 0, 0);
-        setRgba({source,rgba:ctx.getImageData(0, 0, side, side*rows).data});
-      } catch { setError(true); }
-    };
-    image.onerror = () => { if (!cancelled) setError(true); };
-    image.src = source;
-    return () => { cancelled = true; };
-  }, [sheet,atlas,source]);
+  useEffect(() => loadSpriteSheet(atlas, source, {
+    reset: () => { setRgba(null); setError(false); },
+    ready: rgba => setRgba({ source, rgba }),
+    failed: () => setError(true),
+  }), [sheet,atlas,source]);
   const texels = useMemo(() => rgba ? manualTexels(rgba, atlas?atlasTile(atlas,row):row, mirrored, quad,atlas?ANIMATION_ATLASES[atlas].side:16,atlas?ANIMATION_ATLASES[atlas].rows:32) : [], [rgba, row, mirrored, quad,atlas]);
   const delivery = compression ? compressionGeometry(width,height,compression.height,quad) : null;
   const points = (p: Array<[number, number]>) => p.map(([x, y]) => `${x * width},${y * height}`).join(" ");

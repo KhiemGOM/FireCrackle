@@ -43,6 +43,26 @@ impl Camera {
         project_view(self.to_view(p), self.fov, w, h)
     }
 
+    /// Unit world direction of the ray through pixel (`x`, `y`) of a `w`×`h` frame (the inverse of `project`).
+    pub fn pixel_ray(self, x: f64, y: f64, w: usize, h: usize) -> [f64; 3] {
+        let f = h as f64 / 2.0 / (self.fov.to_radians() / 2.0).tan();
+        let d = self.view_dir_to_world([x - w as f64 / 2.0, h as f64 / 2.0 - y, -f]);
+        let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+        [d[0] / len, d[1] / len, d[2] / len]
+    }
+
+    /// Where the ray through pixel (`x`, `y`) meets the plane at height `plane_y` in front of the camera (a click on
+    /// the video placed on a floor); None when the ray runs parallel or away from it.
+    pub fn hit_plane_y(self, x: f64, y: f64, w: usize, h: usize, plane_y: f64) -> Option<[f64; 3]> {
+        let d = self.pixel_ray(x, y, w, h);
+        if d[1].abs() < 1e-12 {
+            return None;
+        }
+        let t = (plane_y - self.pos[1]) / d[1];
+        (t > 0.0 && t.is_finite())
+            .then(|| [self.pos[0] + d[0] * t, plane_y, self.pos[2] + d[2] * t])
+    }
+
     /// A camera looking at `target` from `dist` blocks back along `yaw` / `pitch` (the 3D view's orbit camera). None for
     /// a distance or FOV that cannot make a picture.
     pub fn orbit(target: [f64; 3], yaw: f64, pitch: f64, dist: f64, fov: f64) -> Option<Camera> {
@@ -685,8 +705,8 @@ pub struct Guess {
 }
 
 /// How firmly the guess is held, in degrees per pixel of click error (the automatic guess is good to about 0.5°).
-const PRIOR_ANGLE: f64 = 0.5;
-const PRIOR_FOV: f64 = 2.0;
+const PRIOR_ANGLE: f64 = 1.5;
+const PRIOR_FOV: f64 = 5.0;
 const PRIOR_FOV_UNKNOWN: f64 = 30.0;
 /// Click error (px rms) above which the guided answer counts as missing the clicks: the guess was wrong.
 const GUESS_WRONG_PX: f64 = 3.0;
@@ -786,6 +806,7 @@ pub fn solve_guided(
     if 2 * distinct.len() + usize::from(eye_y.is_some()) < 3 {
         return Vec::new();
     }
+    let angle_sigma = PRIOR_ANGLE;
     let fov_sigma = if guess.fov_known {
         PRIOR_FOV
     } else {
@@ -805,9 +826,9 @@ pub fn solve_guided(
             continue;
         };
         let prior = |c: &Camera, r: &mut Vec<f64>| {
-            r.push(angle_gap(c.yaw, centre.yaw) / PRIOR_ANGLE);
-            r.push((c.pitch - centre.pitch) / PRIOR_ANGLE);
-            r.push((c.roll - centre.roll) / PRIOR_ANGLE);
+            r.push(angle_gap(c.yaw, centre.yaw) / angle_sigma);
+            r.push((c.pitch - centre.pitch) / angle_sigma);
+            r.push((c.roll - centre.roll) / angle_sigma);
             r.push((c.fov - centre.fov) / fov_sigma);
             if let Some(y) = eye_y {
                 r.push((c.pos[1] - y) * 100.0);
@@ -847,4 +868,74 @@ pub fn solve_guided(
         }
     }
     fits
+}
+
+/// Minecraft's player model scale (the renderer draws it at 15/16).
+const PLAYER_SCALE: f64 = 0.9375;
+/// Eye above the feet, standing.
+const EYE_HEIGHT: f64 = 1.62;
+
+/// The boxes (8 corners each) of a player whose eye is `cam`: left leg, right leg, body, left arm, right arm, head, in
+/// model pixels (16 per block, × 0.9375) as the player model draws them; body turned to the yaw, head also tilted by
+/// the pitch about the neck. For the 3D quad tool's world view.
+pub fn player_boxes(cam: &Camera) -> Vec<[[f64; 3]; 8]> {
+    let s = PLAYER_SCALE / 16.0;
+    let feet = [cam.pos[0], cam.pos[1] - EYE_HEIGHT, cam.pos[2]];
+    // local +z is where the player faces (yaw 0 looks +z); turn by -yaw about +y
+    let (sy, cy) = (-cam.yaw).to_radians().sin_cos();
+    let (sp, cp) = cam.pitch.to_radians().sin_cos();
+    let parts: [([f64; 3], [f64; 3], bool); 6] = [
+        ([-4.0, 0.0, -2.0], [0.0, 12.0, 2.0], false),
+        ([0.0, 0.0, -2.0], [4.0, 12.0, 2.0], false),
+        ([-4.0, 12.0, -2.0], [4.0, 24.0, 2.0], false),
+        ([-8.0, 12.0, -2.0], [-4.0, 24.0, 2.0], false),
+        ([4.0, 12.0, -2.0], [8.0, 24.0, 2.0], false),
+        ([-4.0, 24.0, -4.0], [4.0, 32.0, 4.0], true),
+    ];
+    parts
+        .iter()
+        .map(|(lo, hi, head)| {
+            let mut out = [[0.0; 3]; 8];
+            for (i, c) in out.iter_mut().enumerate() {
+                let mut p = [
+                    if i & 1 == 0 { lo[0] } else { hi[0] },
+                    if i & 2 == 0 { lo[1] } else { hi[1] },
+                    if i & 4 == 0 { lo[2] } else { hi[2] },
+                ];
+                if *head {
+                    // tilt about the neck (y = 24): looking down moves the face (+z) down
+                    let (y, z) = (p[1] - 24.0, p[2]);
+                    p[1] = 24.0 + y * cp - z * sp;
+                    p[2] = y * sp + z * cp;
+                }
+                let (x, y, z) = (p[0] * s, p[1] * s, p[2] * s);
+                *c = [
+                    feet[0] + x * cy + z * sy,
+                    feet[1] + y,
+                    feet[2] - x * sy + z * cy,
+                ];
+            }
+            out
+        })
+        .collect()
+}
+
+/// The far corners of the camera's view cone, `depth` blocks along the rays through the frame's corners (top-left,
+/// top-right, bottom-right, bottom-left).
+pub fn view_cone(cam: &Camera, w: usize, h: usize, depth: f64) -> [[f64; 3]; 4] {
+    let corner = |x: f64, y: f64| {
+        let d = cam.pixel_ray(x, y, w, h);
+        [
+            cam.pos[0] + d[0] * depth,
+            cam.pos[1] + d[1] * depth,
+            cam.pos[2] + d[2] * depth,
+        ]
+    };
+    let (w2, h2) = (w as f64, h as f64);
+    [
+        corner(0.0, 0.0),
+        corner(w2, 0.0),
+        corner(w2, h2),
+        corner(0.0, h2),
+    ]
 }

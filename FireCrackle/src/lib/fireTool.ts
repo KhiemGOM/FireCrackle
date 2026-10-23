@@ -1,21 +1,33 @@
-// The 3D fire tool's state and rules: clicked block corners (the first is the origin, so no F3 coordinates are
-// needed), the camera solve (automatic guess + clicks, clicks alone as the fallback), fire placements and their quads.
-// Every camera, pixel and fire corner comes from Rust through lib/reversal.ts.
+// The 3D quad tool's state and rules: clicked block corners (the first is the origin, so no F3 coordinates are
+// needed), the camera solve (automatic guess + clicks, clicks alone as the fallback), and ONE fire in one of three
+// modes: a fire block, a burning block (the fire cell's planes on its burning neighbours' faces) or fire on an entity.
+// Soul fire is the soul atlas, not a mode. Every camera, pixel and fire corner comes from Rust through lib/reversal.ts.
 import {
   defaultFace, entityFireQuads, entitySize, fireBlockQuads, project, solveCamera, solveGuided,
-  type CameraFit, type CameraPose, type Face, type FireFaces, type FireQuad, type Orientation,
+  type CameraFit, type CameraPose, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
 import { validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
 
 export type Vec3 = [number, number, number];
 export interface ToolClick { id: number; px: [number, number]; world: Vec3 | null; }
-export interface BlockFire { id: number; kind: "block"; pos: Vec3; faces: FireFaces; soul: boolean; }
-export interface EntityFire { id: number; kind: "entity"; feet: Vec3; entity: string; width: number; height: number; }
-export type Placement = BlockFire | EntityFire;
+export type FireMode = "block" | "burning" | "entity";
+/** The faces a burning block's fire draws on (its flammable neighbours); the floor shape is the fire block mode. */
+export interface BurnFaces { north: boolean; east: boolean; south: boolean; west: boolean; up: boolean; }
+export type BurnFace = keyof BurnFaces;
+/** The one fire: `cell` for the block modes, `feet` + hitbox for entity fire; both kept so switching mode keeps it. */
+export interface Fire3DShape {
+  mode: FireMode;
+  cell: Vec3;
+  faces: BurnFaces;
+  feet: Vec3;
+  entity: string;
+  width: number;
+  height: number;
+}
 export interface ToolState {
   frame: number;
   clicks: ToolClick[];
-  placements: Placement[];
+  fire: Fire3DShape | null;
   /** The automatic guess for this frame (yaw modulo 90°). */
   guess: Orientation | null;
   /** Eye height when known (standing on the ground: floor + 1.62). */
@@ -28,11 +40,11 @@ export interface ToolState {
 let nextId = 1;
 const id = () => nextId++;
 export const NO_FACES: FireFaces = { floor: false, north: false, east: false, south: false, west: false, up: false };
-/** Entity size when the type is "custom" (a player's hitbox). */
-export const CUSTOM_ENTITY: [number, number] = [0.6, 1.8];
+export const NO_BURN: BurnFaces = { north: false, east: false, south: false, west: false, up: false };
+export const DEFAULT_ENTITY = "minecraft:blaze";
 
 export function emptyTool(frame: number): ToolState {
-  return { frame, clicks: [], placements: [], guess: null, eyeY: null, camera: null, candidates: [] };
+  return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [] };
 }
 
 /** A click on the frame: the first one is the origin (0, 0, 0); later ones wait for their coordinates. */
@@ -52,12 +64,6 @@ export function usableClicks(s: ToolState) {
   return s.clicks.filter((c): c is ToolClick & { world: Vec3 } => c.world !== null).map(c => ({ world: c.world, px: c.px }));
 }
 
-/** Floor (the fire block shape) and the five faces exclude each other; faces combine. */
-export function toggleFace(faces: FireFaces, face: Face): FireFaces {
-  if (face === "floor") return faces.floor ? { ...NO_FACES } : { ...NO_FACES, floor: true };
-  return { ...faces, floor: false, [face]: !faces[face] };
-}
-
 /** Solve the camera from the guess and the clicks (clicks alone once there are 4 or more and no guess fits). Keeps
  * the camera as it was when the clicks do not fix it. */
 export function solveTool(s: ToolState, w: number, h: number): ToolState {
@@ -74,23 +80,53 @@ export function solveTool(s: ToolState, w: number, h: number): ToolState {
   return candidates.length ? { ...s, candidates, camera: candidates[0].camera } : { ...s, candidates };
 }
 
-export function newFireBlock(pos: Vec3, soul = false): BlockFire {
-  return { id: id(), kind: "block", pos: pos.map(Math.floor) as Vec3, faces: { ...NO_FACES, floor: true }, soul };
-}
-/** A burning block's face: the fire cell `pos`, with the side pointing away from the camera chosen. */
-export function newBurningFace(cam: CameraPose, pos: Vec3): BlockFire {
-  const cell = pos.map(Math.floor) as Vec3;
-  return { id: id(), kind: "block", pos: cell, faces: { ...NO_FACES, [defaultFace(cam, cell)]: true }, soul: false };
-}
-export function newEntityFire(feet: Vec3, entity: string): EntityFire {
-  const [width, height] = entity === "custom" ? CUSTOM_ENTITY : entitySize(entity) ?? CUSTOM_ENTITY;
-  return { id: id(), kind: "entity", feet, entity, width, height };
-}
+const floorCell = (p: Vec3): Vec3 => [Math.floor(p[0]), Math.floor(p[1]), Math.floor(p[2])];
 
-export function placementQuads(p: Placement, cam: CameraPose, w: number, h: number): FireQuad[] {
-  return p.kind === "block"
-    ? fireBlockQuads(cam, w, h, p.pos, p.faces, p.soul)
-    : entityFireQuads(cam, w, h, p.feet, p.width, p.height);
+/** A new fire: a fire block at `cell`. */
+export function newFire(cam: CameraPose, cell: Vec3): Fire3DShape {
+  const c = floorCell(cell);
+  const [width, height] = entitySize(DEFAULT_ENTITY) ?? [0.6, 1.8];
+  return { mode: "block", cell: c, faces: burnFacesAway(cam, c), feet: [c[0] + 0.5, c[1], c[2] + 0.5], entity: DEFAULT_ENTITY, width, height };
+}
+/** The face of the fire cell pointing away from the camera: the first guess of which neighbour burns. */
+function burnFacesAway(cam: CameraPose, cell: Vec3): BurnFaces {
+  const f = defaultFace(cam, cell);
+  return { ...NO_BURN, ...(f !== "floor" ? { [f]: true } : { north: true }) };
+}
+/** Switch mode keeping the fire in place: the entity stands at the cell's centre, a block takes the cell under the
+ * feet; entering burning mode starts with the face away from the camera when none is set. */
+export function setMode(f: Fire3DShape, mode: FireMode, cam: CameraPose): Fire3DShape {
+  if (mode === f.mode) return f;
+  if (mode === "entity") return { ...f, mode, feet: f.mode === "entity" ? f.feet : [f.cell[0] + 0.5, f.cell[1], f.cell[2] + 0.5] };
+  const cell = f.mode === "entity" ? floorCell(f.feet) : f.cell;
+  const faces = mode === "burning" ? burnFacesAway(cam, cell) : f.faces;
+  return { ...f, mode, cell, faces };
+}
+/** Put the fire where a click landed (a point on the floor plane): the cell there, or the entity's feet. */
+export function placeFire(f: Fire3DShape, at: Vec3): Fire3DShape {
+  return f.mode === "entity" ? { ...f, feet: at } : { ...f, cell: floorCell(at) };
+}
+export function toggleBurnFace(faces: BurnFaces, face: BurnFace): BurnFaces {
+  return { ...faces, [face]: !faces[face] };
+}
+export function setEntity(f: Fire3DShape, entity: string): Fire3DShape {
+  const size = entitySize(entity);
+  return size ? { ...f, entity, width: size[0], height: size[1] } : { ...f, entity };
+}
+/** The fire's planes under `cam`: the fire block shape (floor planes only for soul fire), the burning faces, or the
+ * entity's fire (always normal fire). */
+export function fireQuads(f: Fire3DShape, soul: boolean, cam: CameraPose, w: number, h: number): FireQuad[] {
+  if (f.mode === "entity") return entityFireQuads(cam, w, h, f.feet, f.width, f.height);
+  const faces: FireFaces = f.mode === "block" ? { ...NO_FACES, floor: true } : { ...NO_FACES, ...f.faces };
+  return fireBlockQuads(cam, w, h, f.cell, faces, soul && f.mode === "block");
+}
+/** The wireframe that shows where the fire is: its cell, or the entity's hitbox (12 edges). */
+export function fireOutline(f: Fire3DShape): [Vec3, Vec3][] {
+  const [x0, y0, z0, x1, y1, z1] = f.mode === "entity"
+    ? [f.feet[0] - f.width / 2, f.feet[1], f.feet[2] - f.width / 2, f.feet[0] + f.width / 2, f.feet[1] + f.height, f.feet[2] + f.width / 2]
+    : [f.cell[0], f.cell[1], f.cell[2], f.cell[0] + 1, f.cell[1] + 1, f.cell[2] + 1];
+  const c: Vec3[] = [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]];
+  return [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]].map(([a, b]) => [c[a], c[b]]);
 }
 
 /** Block-edge lines of the plane y = `centre[1]` within `radius` blocks of `centre`, as projected segments. Lines are

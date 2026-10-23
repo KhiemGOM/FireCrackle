@@ -1,11 +1,16 @@
 .fq-world { width: 100%; height: auto; aspect-ratio: 800 / 560; background: #111; border-radius: 4px; display: block; cursor: grab; touch-action: none; }
+.fq-world-empty { padding: 24px 8px; text-align: center; }
 .fq-world-bg { fill: #16181c; }
-.fq-world .fq-grid { stroke: rgba(80, 220, 255, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.fq-box { stroke: rgba(255, 255, 255, 0.45); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
-.fq-world .fq-quad { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.fq-world .fq-quad.block { fill: rgba(255, 140, 20, 0.22); stroke: #ff9a2a; }
-.fq-world .fq-quad.soul { fill: rgba(60, 220, 255, 0.22); stroke: #4be0ff; }
-.fq-world .fq-quad.entity { fill: rgba(255, 230, 60, 0.2); stroke: #ffe23c; }
-.fq-world-click { fill: #ff3b6b; }
-.fq-eye { fill: #fff; }
-.fq-look { stroke: #fff; stroke-width: 2; }
+.fq-world .fq-grid { stroke: rgba(80, 220, 255, 0.4); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fq-box { stroke: #f5c542; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fq-world .fq-quad { stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fq-world .fq-quad.block { fill: rgba(255, 140, 20, 0.45); stroke: #ff9a2a; }
+.fq-world .fq-quad.soul { fill: rgba(60, 220, 255, 0.45); stroke: #4be0ff; }
+.fq-world .fq-quad.entity { fill: rgba(255, 230, 60, 0.4); stroke: #ffe23c; }
+.fq-cone line, .fq-cone polygon { stroke: rgba(255, 255, 255, 0.55); stroke-width: 1; fill: rgba(255, 255, 255, 0.04); vector-effect: non-scaling-stroke; }
+.fq-player { stroke: rgba(0, 0, 0, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fq-player.fq-skin { fill: #c89b6d; }
+.fq-player.fq-body { fill: #2fb3c6; }
+.fq-player.fq-leg { fill: #3c44aa; }
+.fq-world-corner circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1; }
+.fq-world-corner text { fill: #fff; font-size: 13px; paint-order: stroke; stroke: #000; stroke-width: 3px; }

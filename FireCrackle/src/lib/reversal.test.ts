@@ -5,7 +5,7 @@
 import { vi as reversalTest } from "vitest";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation, orbitCamera, defaultFace,
+  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation, orbitCamera, defaultFace, hitPlaneY, playerBoxes, viewCone,
   type CameraPose,
 } from "./reversal";
 
@@ -127,6 +127,27 @@ describe("tool helpers", () => {
   it("the default face points away from the camera", () => {
     expect(defaultFace({ ...cam, x: 10.5, z: 20 }, [10, 64, 10])).toBe("north");
     expect(defaultFace({ ...cam, x: 0, z: 10.4 }, [10, 64, 10])).toBe("east");
+  });
+});
+
+describe("world view and placing by click", () => {
+  it("a click lands on the floor plane where that point is drawn", () => {
+    const p: [number, number, number] = [6.5, 64, -7.25];
+    const [px] = project(cam, [p], W, H);
+    const hit = hitPlaneY(cam, W, H, px![0], px![1], 64)!;
+    hit.forEach((v, k) => expect(v).toBeCloseTo(p[k], 6));
+    expect(hitPlaneY({ ...cam, pitch: 0 }, W, H, W / 2, 5, 60)).toBeNull();
+  });
+  it("the player model stands 1.62 below the eye; the cone's corners are the frame's corners", () => {
+    const boxes = playerBoxes(cam);
+    expect(boxes).toHaveLength(6);
+    const ys = boxes.flat().map(c => c[1]);
+    expect(Math.min(...ys)).toBeCloseTo(cam.y - 1.62, 9);
+    const cone = viewCone(cam, W, H, 5);
+    const px = project(cam, cone, W, H);
+    expect(px[0]![0]).toBeCloseTo(0, 6);
+    expect(px[2]![0]).toBeCloseTo(W, 6);
+    expect(px[2]![1]).toBeCloseTo(H, 6);
   });
 });
 

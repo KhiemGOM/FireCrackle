@@ -1,7 +1,6 @@
 import {useRef,useState,type PointerEvent} from 'react';
 import {clampSideWidth,SIDE_DEFAULT} from '../lib/splitPane';
 import type {Fire3D} from '../lib/useFire3D';
-import type {Vec3} from '../lib/fireTool';
 import {FireWorldView} from './FireWorldView';
 import './Fire3DWorldPane.css';
 
@@ -18,8 +17,6 @@ export function Fire3DWorldPane({fire}:{fire:Fire3D}){
  const [side,setSide]=useState(readSide);
  const pane=useRef<HTMLElement>(null),drag=useRef<{x:number;width:number;space:number}|null>(null);
  const set=(v:{width:number;collapsed:boolean})=>{setSide(v);writeSide(v);};
- const {state}=fire,cam=state.camera,p=state.placements[0];
- const target:Vec3=p?(p.kind==='block'?[p.pos[0]+0.5,p.pos[1],p.pos[2]+0.5]:p.feet):state.clicks.find(c=>c.world)?.world??(cam?[cam.x,cam.y-1.62,cam.z]:[0,0,0]);
  if(side.collapsed)return <aside className="fire3d-side collapsed" aria-label="3D world (collapsed)">
   <button title="Show the 3D world" aria-label="Show the 3D world" onClick={()=>set({...side,collapsed:false})}>‹ 3D</button>
  </aside>;
@@ -36,9 +33,9 @@ export function Fire3DWorldPane({fire}:{fire:Fire3D}){
   <div className="fire3d-divider" role="separator" aria-orientation="vertical" aria-label="Resize the 3D world" title="Drag to resize · double-click to reset"
    onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={()=>set({...side,width:SIDE_DEFAULT})}/>
   <div className="fire3d-side-body">
-   <div className="fire3d-side-head"><strong>3D world</strong><span className="dim">drag to turn · wheel to zoom</span>
+   <div className="fire3d-side-head"><strong>3D overview</strong><span className="dim">drag to turn · wheel to zoom</span>
     <button title="Collapse the 3D world" aria-label="Collapse the 3D world" onClick={()=>set({...side,collapsed:true})}>›</button></div>
-   {fire.ready?<FireWorldView state={state} target={target}/>:<span className="dim">Loading…</span>}
+   {fire.ready?<FireWorldView fire={fire}/>:<span className="dim">Loading…</span>}
   </div>
  </aside>;
 }

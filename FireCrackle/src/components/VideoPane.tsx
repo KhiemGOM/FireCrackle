@@ -11,7 +11,7 @@ import { HudOverlay } from "./HudOverlay";
 import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
 import { Fire3DOverlay } from "./Fire3DOverlay";
-import { Fire3DPanel } from "./Fire3DPanel";
+import { Fire3DBar } from "./Fire3DBar";
 import { Fire3DWorldPane } from "./Fire3DWorldPane";
 import { useFire3D } from "../lib/useFire3D";
 import { IconButton } from "./Icon";
@@ -36,7 +36,7 @@ import { copyFormattedComparisonProof, downloadComparisonProof, type ProofMask, 
 import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
-import { exactFrameBytes, pngSize, showsExactFrame } from "../lib/exactFrame";
+import { exactFrameBytes, nativeFrame, pngSize, showsExactFrame } from "../lib/exactFrame";
 import { canvasFrameIo, losslessFrameIo, processFrame } from "../lib/veilFrame";
 import { portalPreview, guiScreenCoverage, guiWorldCoverage } from "../lib/portalPreview";
 import { correctFrame } from "../lib/comparisonPost";
@@ -259,7 +259,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   function toggleQuad() {
     setManualEnabled(!manualEnabled);
-    if (manualEnabled) setFire3dOn(false);
+    if (!manualEnabled) setFire3dOn(false);
     if (manualEnabled) setMatchingEnabled(false);
     if (manualEnabled) setAnimationOpen(false);
     if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
@@ -277,13 +277,13 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
     setFindToken(n => n + 1);
   }
-  /** 3D quad: its own tool; it drives the quad mask, so turning it on turns the mask on. */
+  /** 3D quad: its own tool, drawing its own textured planes instead of the quad mask (they share the sprite). */
   function toggleFire3d() {
-    if (stillImage) return;
     const next = !fire3dOn;
     setFire3dOn(next);
-    fire3d.setPicking(false);
-    if (next && !manualEnabled) toggleQuad();
+    if (!next) return;
+    if (!manualEnabled) { const p = framePreview(view); if (p) { setManualAtlas(p.atlas); setManualSheet(p.sheet); setManualRow(p.row); setManualMirrored(p.mirrored); } }
+    setManualEnabled(false); setMatchingEnabled(false); setAnimationOpen(false); setHudEnabled(false);
   }
   const runTool = (action: ToolAction) => {
     if (action.type === "quad") toggleQuad();
@@ -571,8 +571,22 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   // 3D quad mode of the manual quad: camera from the automatic guess + clicked corners, fire placed in 3D
   const [fire3dOn, setFire3dOn] = useState(false);
-  const fire3d = useFire3D(backend, view.current, manualEnabled && fire3dOn && !stillImage);
+  const fire3d = useFire3D(stillImage ? stillImage.url : String(view.current),
+    () => stillImage ? (stillImage.file ? Promise.resolve(stillImage.file) : fetch(stillImage.url).then(r => r.blob())) : nativeFrame(backend, view.current),
+    fire3dOn, !!manualAtlas && soulFire(manualAtlas));
   const s = view.suggestion;
+  // the sprite: shared by the quad mask and the 3D quad
+  const spriteControls = <>
+          {manualAtlas&&<><strong>{ANIMATION_ATLASES[manualAtlas].name}</strong><button onClick={()=>setManualAtlas(undefined)}>Fire atlas</button></>}
+          <label>Sheet <select aria-label="Manual mask sheet" value={manualSheet} onChange={(e) => {const next=spriteWithSheet({atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored},Number(e.target.value) as 0|1);setManualAtlas(next.atlas);setManualSheet(next.sheet);setManualRow(next.row);}}><option value={0}>{manualAtlas?.startsWith("water")||manualAtlas?.startsWith("lava")?"Still":"0"}</option><option value={1}>{manualAtlas?.startsWith("water")||manualAtlas?.startsWith("lava")?"Flowing":"1"}</option></select></label>
+          <IconButton icon="left" label="Previous manual mask row" onClick={() => setManualRow((r) => (r-1+manualRows)%manualRows)} />
+          <label>Row <input aria-label="Manual mask row" type="number" min={0} max={manualRows-1} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < manualRows) setManualRow(n); }} /></label>
+          <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => (r+1)%manualRows)} />
+          <label><input type="checkbox" checked={manualMirrored} onChange={(e) => setManualMirrored(e.target.checked)} /> Mirrored</label>
+          <OpacityControl groupLabel="Mask opacity" toggleLabel="Toggle manual mask opacity"
+            sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
+          <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
+  </>;
   return (
     <div className="video-pane">
       <div className="video-split">
@@ -601,8 +615,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           {hudEnabled && shown === view.current && url && imageSize.width > 0 && <HudOverlay {...imageSize} zoom={xf.scale} row={hudRow} fov={hudFov} opacity={hudOpacity} pixelGrid={pixelGrid} />}
           {manualEnabled && shown === view.current && url && imageSize.width > 0 && <FireQuadMask {...imageSize} atlas={manualAtlas} sheet={manualSheet} row={manualRow} mirrored={manualMirrored}
             opacity={manualOpacity} quad={manualQuad} onQuad={setManualQuad} pixelGrid={pixelGrid} zoom={xf.scale}
-            placementEnabled={(!ruler.enabled || !rulerSelected) && !(fire3dOn && fire3d.picking)} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
-          {manualEnabled && fire3dOn && !stillImage && shown === view.current && url && imageSize.width > 0 && <Fire3DOverlay fire={fire3d} {...imageSize} />}
+            placementEnabled={!ruler.enabled || !rulerSelected} frameUrl={url} compression={compressionEnabled && !manualAtlas ? {height:compressionHeight,quality:compressionQuality} : undefined} />}
+          {fire3dOn && (stillImage || shown === view.current) && url && imageSize.width > 0 && <Fire3DOverlay fire={fire3d} {...imageSize} zoom={xf.scale}
+            sprite={{ atlas: manualAtlas, sheet: manualSheet, row: manualRow, mirrored: manualMirrored, opacity: manualOpacity, pixelGrid }} />}
           {ruler.enabled && url && imageSize.width > 0 && <VideoRuler {...imageSize} zoom={xf.scale} points={ruler.points} locked={ruler.locked} onSelect={setRulerSelected} onChange={points => setRuler(current => ({ ...current, points }))} />}
           {guiMaskOn && !stillImage && <GuiMaskOverlay state={guiMask} frame={view.current} />}
         </div>
@@ -624,11 +639,11 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           </div>
         )}
       </div>
-      {fire3dOn && !stillImage && <Fire3DWorldPane fire={fire3d} />}
+      {fire3dOn && <Fire3DWorldPane fire={fire3d} />}
       </div>
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
-        {!stillImage && <IconButton icon="cube" label="Toggle 3D quad" title="3D quad · D: solve the camera from block corners, place the fire in 3D; its plane drives the quad mask" aria-pressed={fire3dOn} aria-expanded={fire3dOn} onClick={toggleFire3d}>3D quad <kbd>D</kbd></IconButton>}
+        <IconButton icon="cube" label="Toggle 3D quad" title="3D quad · D: solve the camera from block corners and place the fire in 3D; its planes are drawn with the chosen sprite" aria-pressed={fire3dOn} aria-expanded={fire3dOn} onClick={toggleFire3d}>3D quad <kbd>D</kbd></IconButton>
         <IconButton icon="fire" label="Toggle first-person fire" disabled={!firstPersonAllowed} title={firstPersonAllowed ? "First-person fire · H" : "First-person burning uses normal fire only"} aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
         <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas&&!soulFire(manualAtlas)} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
@@ -663,15 +678,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
       </div>}
       {manualEnabled && <div className="hud-controls" aria-label="Quad mask settings" onKeyDown={(e) => e.stopPropagation()}>
-          {manualAtlas&&<><strong>{ANIMATION_ATLASES[manualAtlas].name}</strong><button onClick={()=>setManualAtlas(undefined)}>Fire atlas</button></>}
-          <label>Sheet <select aria-label="Manual mask sheet" value={manualSheet} onChange={(e) => {const next=spriteWithSheet({atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored},Number(e.target.value) as 0|1);setManualAtlas(next.atlas);setManualSheet(next.sheet);setManualRow(next.row);}}><option value={0}>{manualAtlas?.startsWith("water")||manualAtlas?.startsWith("lava")?"Still":"0"}</option><option value={1}>{manualAtlas?.startsWith("water")||manualAtlas?.startsWith("lava")?"Flowing":"1"}</option></select></label>
-          <IconButton icon="left" label="Previous manual mask row" onClick={() => setManualRow((r) => (r-1+manualRows)%manualRows)} />
-          <label>Row <input aria-label="Manual mask row" type="number" min={0} max={manualRows-1} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < manualRows) setManualRow(n); }} /></label>
-          <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => (r+1)%manualRows)} />
-          <label><input type="checkbox" checked={manualMirrored} onChange={(e) => setManualMirrored(e.target.checked)} /> Mirrored</label>
-          <OpacityControl groupLabel="Mask opacity" toggleLabel="Toggle manual mask opacity"
-            sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
-          <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
+          {spriteControls}
           <IconButton icon="reset" label="Reset quad corners" onClick={() => setManualQuad(DEFAULT_QUAD)} />
           <IconButton icon="parallel" label="Make quad a parallelogram" title="Make a parallelogram · P · keeps the center" onClick={() => setManualQuad(parallelizeQuad)} />
           <IconButton icon="fit" label="Refine alignment" title="Refine alignment · G · keeps the selected sprite" disabled={!canRefine||refineBusy===refineKey} aria-busy={refineBusy===refineKey} onClick={()=>void refineSelected()} />
@@ -690,8 +697,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <IconButton icon="copy" label="Use frame label for manual mask" disabled={!labelSprite(view.label)} onClick={() => {const sprite=labelSprite(view.label);if(sprite)selectPreview(sprite);}} />
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · G: refine alignment · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
-      {manualEnabled && fire3dOn && !stillImage && <div className="hud-controls fire3d-controls" aria-label="3D quad settings">
-        <Fire3DPanel fire={fire3d} onUse={(quad, mirrored) => { setManualQuad(quad); setManualMirrored(mirrored); }} />
+      {fire3dOn && <div className="hud-controls fire3d-controls" aria-label="3D quad settings">
+        <Fire3DBar fire={fire3d} sprite={spriteControls} />
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}

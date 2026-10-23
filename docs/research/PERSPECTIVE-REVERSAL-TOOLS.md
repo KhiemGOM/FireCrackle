@@ -295,3 +295,49 @@ click noise; degenerate input; points in front.
 - One test was changed after the implementation: "5 exact clicks give the exact camera despite a 0.5°-off guess". The
   soft prior that wins on the real recordings keeps such an answer about 0.3° towards the guess. The test now asks that
   the guided answer place a held-out fire at least as well as the clicks alone, with realistic 0.7 px noise.
+
+## 3D quad tool, redesigned and tested on a real frame (2026-10-24)
+
+The first version passed every test but was unusable. The owner's review:
+- it drew the 2D quad mask instead of its own quads;
+- it had "+ fire / soul / entity" spawn buttons, although there are three modes and soul fire is the atlas;
+- the controls were a pile on the left;
+- nothing on the picture let you check the camera;
+- the 3D view was an empty grid.
+
+The redesign:
+- **3D quad is its own Label tool** (toolbar, D). It draws its own planes, textured with the chosen sprite; the quad
+  mask is off while it is on. The two share the sprite settings.
+- **One fire, three modes,** each with its own coordinate entry: fire block (block x y z), burning block (cell +
+  faces, defaulting to the side away from the camera), entity fire (feet x y z + entity type). Place by click lands
+  on the floor plane.
+- **Corners are typed where they are added:** the newest corner's x y z editor opens in the bar. The bar is two
+  fixed rows (Sprite | Fire, Camera), so the picture never moves under the cursor.
+- **The picture shows a block grid and the fire's cell (or hitbox) wireframe** to judge the camera by.
+- **The 3D overview shows the player** whose eye is the camera (box model, `camera::player_boxes`), its view cone
+  (`camera::view_cone`), the fire and the corners.
+
+**Real-frame test** (quad1 frame 1367, 1920×1080):
+- Five corners clicked on the floor around two fires (their footprint corners), positions typed relative to the
+  first.
+- The solved camera matches the answer key (`fit_label_frame`):
+  - eye within 0.003 blocks;
+  - yaw 0.03°, pitch 0.06°, FOV 0.12°;
+  - corners fit to 0.03 px.
+- The fire block placed one block over lands on the game's real fire: its 32 plane corners are 0.33 px median,
+  0.54 px max from where the game drew them.
+
+Bugs found by using it, now fixed:
+- adding a corner made the bar wrap and moved the picture under the cursor;
+- the status asked for more corners when it needed typed positions;
+- there was no way to clear corners;
+- at a narrow window the overview squeezed the video to zero width;
+- a stale "solved" status remained after Clear.
+
+**Guided solve prior loosened** (angles 0.5° → 1.5°, FOV 2° → 5°): the automatic guess is often 1–2° off even when
+confident, and five exact corners on one plane could not overcome a 0.5° hold.
+- Real frame: fire corner error 4.6 → 0.33 px.
+- Simulated noisy clicks (±1 px on fire-block corners): 4 clicks 1.8 → 1.8 px median (quad1) and 1.16 → 1.31 px median
+  but a 12 px rather than 18 px p90 (survival1).
+- A version that let 4+ corners override the guess almost entirely was worse (4-click quad1 median 2.3 px, p90 155 px)
+  and was dropped.

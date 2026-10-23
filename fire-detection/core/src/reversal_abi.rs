@@ -392,3 +392,73 @@ pub extern "C" fn rev_facing_away(ex: f64, ey: f64, ez: f64, x: i32, y: i32, z: 
         fire_model::Attach::Floor => 1,
     }
 }
+
+/// Where a click at pixel (x, y) lands on the plane at height `plane_y` (`Camera::hit_plane_y`), into `out`
+/// (3 numbers). 1 = hit, 0 = the ray never meets it.
+///
+/// # Safety
+/// `cam` holds 7 f64, `out` 3.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)] // flat C ABI
+pub unsafe extern "C" fn rev_hit_plane_y(
+    cam: *const f64,
+    w: usize,
+    h: usize,
+    x: f64,
+    y: f64,
+    plane_y: f64,
+    out: *mut f64,
+) -> i32 {
+    if cam.is_null() {
+        return -1;
+    }
+    match camera_from(f64s(cam, 7)).hit_plane_y(x, y, w, h, plane_y) {
+        Some(p) => {
+            f64s_mut(out, 3).copy_from_slice(&p);
+            1
+        }
+        None => 0,
+    }
+}
+
+/// The player model under `cam` (`camera::player_boxes`): 6 boxes of 8 corners (x, y, z), 144 numbers.
+///
+/// # Safety
+/// `cam` holds 7 f64, `out` 144.
+#[no_mangle]
+pub unsafe extern "C" fn rev_player_boxes(cam: *const f64, out: *mut f64) -> i32 {
+    if cam.is_null() {
+        return -1;
+    }
+    let boxes = camera::player_boxes(&camera_from(f64s(cam, 7)));
+    let out = f64s_mut(out, 144);
+    for (b, bx) in boxes.iter().enumerate() {
+        for (c, p) in bx.iter().enumerate() {
+            out[(b * 8 + c) * 3..(b * 8 + c) * 3 + 3].copy_from_slice(p);
+        }
+    }
+    boxes.len() as i32
+}
+
+/// The view cone's far corners (`camera::view_cone`), 12 numbers.
+///
+/// # Safety
+/// `cam` holds 7 f64, `out` 12.
+#[no_mangle]
+pub unsafe extern "C" fn rev_view_cone(
+    cam: *const f64,
+    w: usize,
+    h: usize,
+    depth: f64,
+    out: *mut f64,
+) -> i32 {
+    if cam.is_null() {
+        return -1;
+    }
+    let cone = camera::view_cone(&camera_from(f64s(cam, 7)), w, h, depth);
+    let out = f64s_mut(out, 12);
+    for (k, p) in cone.iter().enumerate() {
+        out[k * 3..k * 3 + 3].copy_from_slice(p);
+    }
+    4
+}

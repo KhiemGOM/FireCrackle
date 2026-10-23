@@ -440,3 +440,81 @@ fn an_orbit_camera_puts_its_target_at_the_centre() {
     assert!(Camera::orbit(target, 0.0, 0.0, 0.0, 70.0).is_none());
     assert!(Camera::orbit(target, 0.0, 0.0, 5.0, 0.0).is_none());
 }
+
+/// A pixel's ray goes back through the world point drawn there, and a click on the screen lands on the plane y = Y
+/// where that plane is drawn: the 3D quad tool places fire by clicking the video.
+#[test]
+fn a_pixel_ray_and_a_plane_click_invert_the_projection() {
+    let cam = truth();
+    let (w, h) = (2560, 1440);
+    for p in [
+        [-88.0, 79.0, 128.0],
+        [-85.5, 80.0, 129.25],
+        [-90.2, 78.0, 131.0],
+    ] {
+        let (x, y) = cam.project(p, w, h).expect("in front");
+        let d = cam.pixel_ray(x, y, w, h);
+        let to = [p[0] - cam.pos[0], p[1] - cam.pos[1], p[2] - cam.pos[2]];
+        let len = (to[0] * to[0] + to[1] * to[1] + to[2] * to[2]).sqrt();
+        let dot = (d[0] * to[0] + d[1] * to[1] + d[2] * to[2]) / len;
+        assert!((dot - 1.0).abs() < 1e-9, "{d:?} vs {to:?}");
+        let hit = cam.hit_plane_y(x, y, w, h, p[1]).expect("plane in front");
+        assert!(
+            (0..3).all(|k| (hit[k] - p[k]).abs() < 1e-6),
+            "{hit:?} vs {p:?}"
+        );
+    }
+    // the sky above the horizon never meets a floor below the eye
+    let level = Camera { pitch: 0.0, ..cam };
+    assert!(level
+        .hit_plane_y(1280.0, 10.0, w, h, cam.pos[1] - 5.0)
+        .is_none());
+}
+
+/// The 3D quad's world view shows the player whose eye is the camera: a box model (legs, body, arms, head) at the
+/// game's 0.9375 scale, feet 1.62 below the eye, body turned to the yaw, head tilted by the pitch. Its view cone's
+/// far corners are the frame's corner rays.
+#[test]
+fn the_simulated_player_stands_under_the_camera_and_looks_where_it_looks() {
+    use fire_core::camera::{player_boxes, view_cone};
+    let cam = Camera {
+        pos: [10.5, 65.62, -3.5],
+        yaw: 0.0,
+        pitch: 0.0,
+        roll: 0.0,
+        fov: 70.0,
+    };
+    let boxes = player_boxes(&cam);
+    assert_eq!(boxes.len(), 6, "2 legs, body, 2 arms, head");
+    let ys: Vec<f64> = boxes.iter().flat_map(|b| b.iter().map(|c| c[1])).collect();
+    let (lo, hi) = (
+        ys.iter().cloned().fold(f64::MAX, f64::min),
+        ys.iter().cloned().fold(f64::MIN, f64::max),
+    );
+    assert!((lo - (cam.pos[1] - 1.62)).abs() < 1e-9, "feet {lo}");
+    assert!((hi - lo - 1.875).abs() < 1e-9, "height {}", hi - lo);
+    // yaw 0 looks +z: the head's front face is the +z one
+    let head = boxes[5];
+    let zmax = head.iter().map(|c| c[2]).fold(f64::MIN, f64::max);
+    assert!((zmax - (cam.pos[2] + 0.25 * 0.9375)).abs() < 1e-9, "{zmax}");
+    // looking down tilts the head's front down
+    let down = player_boxes(&Camera { pitch: 60.0, ..cam });
+    let front_low = down[5].iter().map(|c| c[1]).fold(f64::MAX, f64::min);
+    assert!(front_low < head.iter().map(|c| c[1]).fold(f64::MAX, f64::min));
+    // turned 90 (looking -x): the body is turned too
+    let turned = player_boxes(&Camera { yaw: 90.0, ..cam });
+    let xmin = turned[5].iter().map(|c| c[0]).fold(f64::MAX, f64::min);
+    assert!((xmin - (cam.pos[0] - 0.25 * 0.9375)).abs() < 1e-9, "{xmin}");
+    // the cone: 4 far corners, each `depth` along its corner ray, projecting back onto the frame's corners
+    let cone = view_cone(&cam, 1920, 1080, 5.0);
+    for (k, (x, y)) in [(0.0, 0.0), (1920.0, 0.0), (1920.0, 1080.0), (0.0, 1080.0)]
+        .iter()
+        .enumerate()
+    {
+        let (px, py) = cam.project(cone[k], 1920, 1080).unwrap();
+        assert!(
+            (px - x).abs() < 1e-6 && (py - y).abs() < 1e-6,
+            "corner {k}: {px},{py}"
+        );
+    }
+}

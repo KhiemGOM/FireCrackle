@@ -26,6 +26,9 @@ type Runtime = {
   rev_entity_count(): number; rev_entity(i: number, name: number, cap: number, dims: number): number;
   rev_orbit(tx: number, ty: number, tz: number, yaw: number, pitch: number, dist: number, fov: number, out: number): number;
   rev_facing_away(ex: number, ey: number, ez: number, x: number, y: number, z: number): number;
+  rev_hit_plane_y(cam: number, w: number, h: number, x: number, y: number, planeY: number, out: number): number;
+  rev_player_boxes(cam: number, out: number): number;
+  rev_view_cone(cam: number, w: number, h: number, depth: number, out: number): number;
 };
 let native: Runtime | undefined;
 let pending: Promise<void> | undefined;
@@ -171,5 +174,35 @@ export type Face = keyof FireFaces;
 export function defaultFace(cam: CameraPose, cell: [number, number, number]): Face {
   const bit = rt().rev_facing_away(cam.x, cam.y, cam.z, cell[0], cell[1], cell[2]);
   return ({ 1: "floor", 2: "north", 4: "east", 8: "south", 16: "west", 32: "up" } as Record<number, Face>)[bit] ?? "north";
+}
+
+type V3 = [number, number, number];
+const triples = (v: number[]) => Array.from({ length: v.length / 3 }, (_, i) => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]] as V3);
+
+/** Where a click at pixel (x, y) lands on the plane at height `planeY` (placing fire by clicking the video). */
+export function hitPlaneY(cam: CameraPose, w: number, h: number, x: number, y: number, planeY: number): V3 | null {
+  return withBuffers([56, 24], (n, [c, out]) => {
+    f64In(n, c, camArray(cam));
+    return n.rev_hit_plane_y(c, w, h, x, y, planeY, out) === 1 ? triples(f64Out(n, out, 3))[0] : null;
+  });
+}
+
+/** The player model whose eye is `cam`: 6 boxes (legs, body, arms, head) of 8 corners. */
+export function playerBoxes(cam: CameraPose): V3[][] {
+  return withBuffers([56, 144 * 8], (n, [c, out]) => {
+    f64In(n, c, camArray(cam));
+    const k = n.rev_player_boxes(c, out);
+    const all = triples(f64Out(n, out, 144));
+    return Array.from({ length: Math.max(k, 0) }, (_, b) => all.slice(b * 8, b * 8 + 8));
+  });
+}
+
+/** The camera's view cone: the far corners `depth` blocks out (top-left, top-right, bottom-right, bottom-left). */
+export function viewCone(cam: CameraPose, w: number, h: number, depth: number): V3[] {
+  return withBuffers([56, 96], (n, [c, out]) => {
+    f64In(n, c, camArray(cam));
+    n.rev_view_cone(c, w, h, depth, out);
+    return triples(f64Out(n, out, 12));
+  });
 }
 

@@ -1,12 +1,13 @@
-// The 3D fire tool's rules (lib/fireTool.ts): clicks (the first is the origin), face choice (floor and faces exclude
-// each other), the solve (guess + clicks, clicks alone as fallback), placements and their quads, the ground grid.
+// The 3D quad tool's rules (lib/fireTool.ts): clicks (the first is the origin), the solve (guess + clicks, clicks
+// alone as fallback), ONE fire in one of three modes (fire block, burning block, entity fire) that keeps its place when
+// the mode changes and is placed by clicking the video, soul fire from the atlas, its wireframe, the ground grid.
 // All geometry goes through the reversal WASM binding.
 import { vi as toolTest } from "vitest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { initReversal, project, type CameraPose, type Orientation } from "./reversal";
 import {
-  addClick, setClickWorld, removeClick, usableClicks, toggleFace, solveTool, newFireBlock, newBurningFace, newEntityFire,
-  placementQuads, groundGrid, emptyTool, type ToolState,
+  addClick, setClickWorld, removeClick, usableClicks, solveTool, groundGrid, emptyTool, newFire, setMode, placeFire,
+  toggleBurnFace, fireQuads, fireOutline, type ToolState,
 } from "./fireTool";
 
 beforeAll(async () => {
@@ -31,16 +32,6 @@ describe("clicks", () => {
     s = removeClick(s, s.clicks[0].id);
     expect(s.clicks).toHaveLength(1);
     expect(s.clicks[0].world).toEqual([1, 0, 0]);
-  });
-});
-
-describe("faces", () => {
-  const none = { floor: false, north: false, east: false, south: false, west: false, up: false };
-  it("floor and faces exclude each other; faces combine", () => {
-    expect(toggleFace({ ...none, north: true, up: true }, "floor")).toEqual({ ...none, floor: true });
-    expect(toggleFace({ ...none, floor: true }, "east")).toEqual({ ...none, east: true });
-    expect(toggleFace({ ...none, east: true }, "up")).toEqual({ ...none, east: true, up: true });
-    expect(toggleFace({ ...none, east: true }, "east")).toEqual(none);
   });
 });
 
@@ -70,22 +61,56 @@ describe("solve", () => {
   });
 });
 
-describe("placements", () => {
-  it("a fire block is the floor shape; a burning face defaults to the side away from the camera", () => {
-    expect(newFireBlock([6, 64, -7]).faces.floor).toBe(true);
-    const f = newBurningFace({ ...cam, x: 10.5, z: 20 }, [10, 64, 10]);
-    expect(f.faces).toMatchObject({ floor: false, north: true });
+describe("one fire, three modes", () => {
+  const cell: [number, number, number] = [6, 64, -7];
+  it("a new fire is a fire block at the cell; burning starts with the face away from the camera", () => {
+    const f = newFire(cam, cell);
+    expect(f.mode).toBe("block");
+    expect(f.cell).toEqual(cell);
+    const burning = setMode(f, "burning", { ...cam, x: 6.5, z: 0 });
+    // the camera is south of the cell (bigger z): the burning block is north of the fire cell
+    expect(burning.faces).toEqual({ north: true, east: false, south: false, west: false, up: false });
   });
-  it("quads come from the binding, entity sizes from the game", () => {
-    expect(placementQuads(newFireBlock([6, 64, -7]), cam, W, H).length).toBeGreaterThan(0);
-    const blaze = newEntityFire([6.5, 64, -7.5], "minecraft:blaze");
-    expect([blaze.width, blaze.height]).toEqual([0.6, 1.8]);
-    expect(placementQuads(blaze, cam, W, H)).toHaveLength(5);
-    const custom = newEntityFire([6.5, 64, -7.5], "custom");
-    expect(custom.width).toBeGreaterThan(0);
+  it("switching modes keeps the fire where it is", () => {
+    const f = newFire(cam, cell);
+    const e = setMode(f, "entity", cam);
+    expect(e.feet).toEqual([6.5, 64, -6.5]);
+    expect(setMode({ ...e, feet: [8.7, 63.2, -2.1] }, "block", cam).cell).toEqual([8, 63, -3]);
+  });
+  it("a click places it: block modes on the clicked cell, entity fire at the clicked point", () => {
+    const f = newFire(cam, cell);
+    expect(placeFire(f, [9.3, 64, -4.6]).cell).toEqual([9, 64, -5]);
+    const e = placeFire(setMode(f, "entity", cam), [9.3, 64, -4.6]);
+    expect(e.feet).toEqual([9.3, 64, -4.6]);
+  });
+  it("burning faces toggle; none left is allowed (draws nothing)", () => {
+    const none = { north: false, east: false, south: false, west: false, up: false };
+    expect(toggleBurnFace({ ...none, north: true }, "up")).toEqual({ ...none, north: true, up: true });
+    expect(toggleBurnFace({ ...none, north: true }, "north")).toEqual(none);
+  });
+  it("quads: the fire block shape, its soul version (floor only), burning faces, entity fire", () => {
+    const f = newFire(cam, cell);
+    const block = fireQuads(f, false, cam, W, H).length, soul = fireQuads(f, true, cam, W, H).length;
+    expect(block).toBeGreaterThan(soul);
+    expect(soul).toBeGreaterThan(0);
+    const north = fireQuads({ ...setMode(f, "burning", cam), faces: { north: true, east: false, south: false, west: false, up: false } }, false, cam, W, H);
+    expect(north.length).toBeGreaterThan(0);
+    expect(north.every(q => q.world.every(c => Math.abs(c[2] - cell[2]) < 0.01))).toBe(true);
+    const blaze = { ...setMode(f, "entity", cam), entity: "minecraft:blaze", width: 0.6, height: 1.8 };
+    expect(fireQuads(blaze, false, cam, W, H)).toHaveLength(5);
+  });
+  it("the wireframe is the fire cell, or the entity's hitbox", () => {
+    const f = newFire(cam, cell);
+    const edges = fireOutline(f);
+    expect(edges).toHaveLength(12);
+    const xs = edges.flat().map(p => p[0]);
+    expect([Math.min(...xs), Math.max(...xs)]).toEqual([6, 7]);
+    const e = { ...setMode(f, "entity", cam), width: 0.6, height: 1.8 };
+    const ys = fireOutline(e).flat().map(p => p[1]);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(1.8, 9);
   });
   it("the ground grid is projected line segments around a point", () => {
-    const lines = groundGrid(cam, W, H, [6, 64, -7], 3);
+    const lines = groundGrid(cam, W, H, cell, 3);
     expect(lines.length).toBeGreaterThan(0);
     for (const l of lines) expect(l).toHaveLength(2);
   });
@@ -116,7 +141,7 @@ describe("plane to Label's manual quad", () => {
   it("block planes from the binding become valid quads", async () => {
     const { planeToManualQuad } = await import("./fireTool");
     const { validQuad } = await import("./quadMask");
-    const planes = placementQuads(newFireBlock([6, 64, -7]), cam, W, H).filter(p => p.px);
+    const planes = fireQuads(newFire(cam, [6, 64, -7]), false, cam, W, H).filter(p => p.px);
     expect(planes.length).toBeGreaterThan(0);
     for (const p of planes) {
       const m = planeToManualQuad(p, W, H);

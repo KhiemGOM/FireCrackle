@@ -1,0 +1,20 @@
+/* two rows of fixed height (Sprite | Fire, then Camera): adding corners or switching modes never moves the picture
+   under the cursor; only a long corner list scrolls inside its row */
+.f3-bar { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 34px 34px; grid-template-areas: "sprite fire" "camera camera"; gap: 2px 0; padding: 3px 6px; white-space: nowrap; }
+.f3-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 0 10px; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.f3-group[aria-label="Sprite"] { grid-area: sprite; padding-left: 2px; }
+.f3-group[aria-label="Fire"] { grid-area: fire; border-left: 1px solid rgba(127, 127, 127, 0.3); }
+.f3-group[aria-label="Camera"] { grid-area: camera; padding-left: 2px; border-top: 1px solid rgba(127, 127, 127, 0.2); }
+.f3-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+.f3-status { font-variant-numeric: tabular-nums; }
+.f3-status.bad { color: #ff7a7a; }
+.f3-chip { font-variant-numeric: tabular-nums; }
+.f3-chip.pending { opacity: 0.7; font-style: italic; }
+.f3-chip[aria-pressed="true"], .f3-modes button[aria-checked="true"], .f3-faces button[aria-pressed="true"] { background: #f5c542; color: #000; }
+.f3-edit { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; border: 1px solid #f5c542; border-radius: 4px; }
+.f3-num { display: inline-flex; align-items: center; gap: 3px; }
+.f3-num input { width: 64px; }
+.f3-modes, .f3-faces { display: inline-flex; gap: 2px; }
+.f3-entity { width: 170px; }
+.f3-values summary { cursor: pointer; }
+.f3-values[open] { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
