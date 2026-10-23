@@ -1,6 +1,6 @@
 import { inTauri } from "./api";
 import { blobDataUrl, canvasBlob as encodeCanvas, loadImage as loadPicture } from "./canvas";
-import { askSavePath, blobBytes, downloadBlob, proofExtension } from "./proofExport";
+import { askSavePath, blobBytes, copyPicture, downloadBlob, proofExtension } from "./proofExport";
 
 export interface ProofRect { x: number; y: number; width: number; height: number }
 export interface ProofMask { svg: SVGSVGElement; description: string; opacity: number; details?: string; bounds?: ProofRect }
@@ -146,7 +146,7 @@ export async function createComparisonProof(picture: HTMLImageElement, masks: Pr
 
 /** Animated copies carry the actual file so pasting into Discord preserves every frame. */
 export async function copyFormattedComparisonProof(picture: HTMLImageElement, masks: ProofMask[], source: string, format: ProofFormat): Promise<void> {
-  if (format === "png") return copyComparisonProof(createComparisonProof(picture, masks, source));
+  if (format === "png") return copyPicture(createComparisonProof(picture, masks, source));
   if (!inTauri()) throw Error("Use the desktop app to copy this format, or use its save button.");
   const {image, base} = await renderProof(picture, masks, source, format === "gif" || format === "webp");
   const {invoke} = await import("@tauri-apps/api/core");
@@ -171,21 +171,4 @@ export async function downloadComparisonProof(picture: HTMLImageElement, masks: 
     downloadBlob((await pending).image, filename);
   }
   return true;
-}
-
-/** Copy only: never open a save dialog or silently download a file. */
-export async function copyComparisonProof(proof: Blob | Promise<Blob>): Promise<void> {
-  if (inTauri()) {
-    const blob = await proof;
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("copy_comparison_proof", { png: await blobBytes(blob) });
-    return;
-  }
-  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
-    // Observe render failures even when the browser cannot copy images.
-    void Promise.resolve(proof).catch(() => {});
-    throw Error("Image clipboard is unavailable. Use the desktop app to copy the comparison proof.");
-  }
-  // Start the clipboard write in the click handler so rendering retains user activation.
-  await navigator.clipboard.write([new ClipboardItem({ "image/png": Promise.resolve(proof) })]);
 }

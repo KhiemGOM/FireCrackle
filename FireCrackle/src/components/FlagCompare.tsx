@@ -8,6 +8,8 @@ import { flagText, priorityHint } from "../lib/flagText";
 import { IconButton } from "./Icon";
 import {displayFrame} from '../lib/imagePreview';
 import "./FlagCompare.css";
+import { Viewable } from "./ImageViewer";
+import { nativeFrame } from "../lib/exactFrame";
 
 interface Props {
   backend: Backend;
@@ -37,7 +39,7 @@ function Side({ title, point, reference, fps, backend, onOpen }: { title: string
     <figure className={`compare-side${point ? "" : " empty"}`}>
       <figcaption className="compare-title">{title}</figcaption>
       <div className="compare-frame">
-        {point ? url ? <img src={url} alt={`${title}: frame ${point.frame}`} draggable={false} /> : <span className="dim">loading frame…</span> : <span className="dim">no fire evidence here</span>}
+        {point ? url ? <Viewable className="compare-picture" images={[{ src: () => nativeFrame(backend, point.frame).then(blob => URL.createObjectURL(blob)), title, detail: `Frame ${point.frame}`, thumb: url }]}><img src={url} alt={`${title}: frame ${point.frame}`} draggable={false} /></Viewable> : <span className="dim">loading frame…</span> : <span className="dim">no fire evidence here</span>}
         {point && (
           <span
             className="compare-sprite"

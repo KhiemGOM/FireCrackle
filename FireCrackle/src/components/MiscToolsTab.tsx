@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useRef,useState,type ReactNode,type RefObject} from 'react';
 import type {Backend,View} from '../lib/api';
 import {readReviewInterval,saveReviewInterval,comparisonFrames,reviewInterval,type ReviewInterval} from '../lib/miscTools';
 import {FRAME_BLINK_MS,exportFrameProof,frameDifference} from '../lib/frameComparison';
@@ -9,6 +9,9 @@ import {GuiInteractionTool} from './GuiInteractionTool';
 import {displayFrame} from '../lib/imagePreview';
 import {readPreferences,writePreferences} from '../lib/preferences';
 import './MiscToolsTab.css';
+import {Viewable,type ViewerImage} from './ImageViewer';
+import {canvasBlob} from '../lib/canvas';
+import {nativeFrame} from '../lib/exactFrame';
 import { failureMessage } from '../lib/appErrors';
 import {BOUNDARY_POST,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from '../lib/comparisonPost';
 import {guiPairFrames} from '../lib/guiAimReview';
@@ -43,8 +46,8 @@ function usePostPictures(backend:Backend,frames:(number|null)[],post:PostSetting
  const ready=made?.key===key?made:undefined,error=failure?.key===key?failure.text:undefined;
  return {active,busy:active&&!ready&&!error,urls:ready?.urls,blobs:ready?.blobs,errors:ready?.errors??[],error};
 }
-function DifferencePicture({before,after,gain}:{before:string;after:string;gain:number}){
- const canvas=useRef<HTMLCanvasElement>(null),[error,setError]=useState('');
+function DifferencePicture({before,after,gain,canvasRef}:{before:string;after:string;gain:number;canvasRef?:RefObject<HTMLCanvasElement|null>}){
+ const own=useRef<HTMLCanvasElement>(null),canvas=canvasRef??own,[error,setError]=useState('');
  useEffect(()=>{
   let cancelled=false;setError('');
   const load=(src:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Could not load difference frames.'));image.src=src;});
@@ -60,6 +63,10 @@ function DifferencePicture({before,after,gain}:{before:string;after:string;gain:
   return()=>{cancelled=true;};
  },[before,after,gain]);
  return error?<span role="alert">{error}</span>:<canvas ref={canvas} role="img" aria-label={`Absolute RGB difference between before and after, brightness ${gain} times`}/>;
+}
+/** The picture area: opens the image viewer on its last picture (this side) once there is one. */
+function pictureBox(images:ViewerImage[]|null,children:ReactNode){
+ return images?<Viewable className="misc-frame-image" images={images} index={images.length-1}>{children}</Viewable>:<div className="misc-frame-image">{children}</div>;
 }
 /** `processed`: the post-processed pictures of this frame and of the one it is compared with, when post effects are on. */
 function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null,processed,applyToBlink=false,onApplyToBlink,postActive=false}:{backend:Backend;frame:number|null;title:string;fps:number;onOpen:(frame:number)=>void;compareFrame?:number|null;processed?:{url?:string;compareUrl?:string};applyToBlink?:boolean;onApplyToBlink?:(on:boolean)=>void;postActive?:boolean}){
@@ -78,15 +85,21 @@ function ReviewFrame({backend,frame,title,fps,onOpen,compareFrame=null,processed
  const both=!!processed?.url&&!!processed.compareUrl,usePost=!!processed?.url&&(!blinking||applyToBlink&&both);
  const shown=usePost?processed!.url!:image.url,shownBefore=blinking&&applyToBlink&&both?processed!.compareUrl!:comparison.url;
  const diffPictures=both?{before:processed!.compareUrl!,after:processed!.url!}:diffReady?{before:comparison.url!,after:image.url!}:undefined;
+ const diffCanvas=useRef<HTMLCanvasElement>(null),showsDiff=inspect&&mode==='diff';
+ const at=(f:number)=>`Frame ${f} · ${formatTimecode(f/fps,fps)}`,native=(f:number)=>()=>nativeFrame(backend,f).then(blob=>URL.createObjectURL(blob));
+ // the image viewer: this side, after the frame it is compared with; the difference picture on its own
+ const viewerImages:ViewerImage[]|null=frame===null||!image.url?null:showsDiff?diffPictures?[{title:`Difference ×${gain}`,detail:`${at(compareFrame??frame)} → ${at(frame)}`,src:()=>diffCanvas.current?canvasBlob(diffCanvas.current).then(blob=>URL.createObjectURL(blob)):Promise.reject(Error('The difference picture is not ready.'))}]:null
+  :[...(inspect&&compareFrame!==null&&comparison.url?[{title:'Before',detail:`${at(compareFrame)}${both&&usePost?' · post effects':''}`,src:both&&usePost?processed!.compareUrl!:native(compareFrame),thumb:comparison.url}]:[]),
+    {title,detail:`${at(frame)}${usePost?' · post effects':''}`,src:usePost?shown!:native(frame),thumb:shown}];
  return <figure className="misc-review-frame">
   <figcaption><strong>{title}</strong>{frame!==null&&<span>Frame {frame} · {formatTimecode(frame/fps,fps)}</span>}</figcaption>
-  <div className="misc-frame-image">
-   {frame===null?<span>No frame on this side of the video.</span>:!image.url?<span role={image.error?'alert':'status'}>{image.error?`Could not load frame: ${image.error}`:'Loading frame…'}</span>:inspect&&mode==='diff'?diffPictures?<DifferencePicture before={diffPictures.before} after={diffPictures.after} gain={gain}/>:<span>Loading full detail…</span>:<>
+  {pictureBox(viewerImages,<>
+   {frame===null?<span>No frame on this side of the video.</span>:!image.url?<span role={image.error?'alert':'status'}>{image.error?`Could not load frame: ${image.error}`:'Loading frame…'}</span>:inspect&&mode==='diff'?diffPictures?<DifferencePicture before={diffPictures.before} after={diffPictures.after} gain={gain} canvasRef={diffCanvas}/>:<span>Loading full detail…</span>:<>
     <img src={shown} alt={`${title}: frame ${frame}`} draggable={false}/>
     {blinking&&<img className={`misc-blink-layer ${displayBefore?'visible':''}`} src={shownBefore} alt={`Before: frame ${compareFrame}`} draggable={false} aria-hidden={!displayBefore}/>}
    </>}
    {inspect&&image.url&&<span className="misc-image-badge">{mode==='diff'&&ready?`Difference ×${gain}`:displayBefore?`Before · ${compareFrame}`:`After · ${frame}`}</span>}
-  </div>
+  </>)}
   <div className="misc-frame-actions">
    <button disabled={frame===null} onClick={()=>frame!==null&&onOpen(frame)}>Open in Label</button>
    {inspect&&<div className="misc-view-modes" role="group" aria-label="After frame view">

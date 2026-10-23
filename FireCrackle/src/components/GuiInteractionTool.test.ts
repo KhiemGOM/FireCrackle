@@ -111,3 +111,14 @@ it('gallery pictures are auto-unveiled with the Enhance veil settings',()=>{
   expect(thumbs.length).toBeGreaterThan(0);
   for(const thumb of thumbs)expect(thumb.props.veil).toBe(veil);
 });
+it('every aim card has an enlarge button showing its two frames at full size, separate from the card click',()=>{
+  const root=aim();
+  const gallery=find(root,n=>n.props['aria-label']==='Aim jump images')[0];
+  const enlarge=find(gallery,n=>typeof n.type==='function'&&n.type.name==='ViewButton');
+  expect(enlarge).toHaveLength(2);
+  const images=enlarge[0].props.images;
+  expect(images.map((i:any)=>i.title)).toEqual(['Before GUI','After GUI']);
+  expect(images.map((i:any)=>i.detail)).toEqual([expect.stringContaining('Frame 19 '),expect.stringContaining('Frame 40 ')]); // around: the frames either side of the GUI
+  expect(typeof images[0].src).toBe('function');
+  expect(onCompare).not.toHaveBeenCalled();
+});

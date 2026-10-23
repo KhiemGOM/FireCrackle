@@ -84,7 +84,10 @@ a second implementation, and record the decision here.
 | Image / canvas I/O | `src/lib/canvas.ts` | |
 | Picture correction (veil → portal → Enhance) on one frame | `src/lib/veilFrame.ts` (`processFrame`) | Misc-tools comparison and gallery: `src/lib/comparisonPost.ts` (`comparisonPictures`, `unveilPreview`). |
 | Gallery previews (raw and auto-unveiled), movement score | `src/lib/guiThumbnailCache.ts` (`previewFrames`, `unveiledPreviews`, `previewScreen`), `src/lib/guiAimReview.ts` (`previewPixelChange`, `keepMask`) | |
-| Proof export (name, save dialog, download), MB formatting | `src/lib/proofExport.ts` | |
+| Proof export (name, save dialog, download), MB formatting; copy / save any PNG picture | `src/lib/proofExport.ts` (`copyPicture`, `savePicture`) | |
+| Image viewer (click a picture: zoom, pan, native size, pixel colour, copy, save) | `src/components/ImageViewer.tsx` (`Viewable`, `ViewButton`, `ImageViewerProvider`), logic `src/lib/imageViewer.ts` | **Every picture opens here**; only the Label/Images video viewer is its own tool. Pan/zoom math is `lib/zoom.ts`. |
+| A frame at the video's own resolution | `src/lib/exactFrame.ts` (`nativeFrame`; `exactFrameUrl` for the paused Label picture) | `backend.frame` is the scaled display JPEG. Native unveiled gallery frame: `comparisonPost.ts` `boundaryPicture`. |
+| Modal guard for hotkeys | `src/lib/shortcutFocus.ts` (`modalOpen`) | Any `aria-modal` dialog owns the keyboard. |
 | Error text and error popup | `src/lib/appErrors.ts` (`failureMessage`, `reportError`) | Never `String(e)`. |
 
 ### Training data

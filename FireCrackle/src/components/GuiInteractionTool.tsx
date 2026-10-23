@@ -13,6 +13,12 @@ import {guiMotionScores,guiPairFrames,guiRangeKey,guiScoreKey,previewPixelChange
 import { failureMessage } from '../lib/appErrors';
 import {startPolling} from '../lib/poll';
 import {DesktopOnly} from './DesktopOnly';
+import {ViewButton,type ViewerImage} from './ImageViewer';
+import {boundaryPicture} from '../lib/comparisonPost';
+
+/** A gallery frame at full size, unveiled like its card. */
+const fullFrame=(backend:Backend,veil:VeilOptions,frame:number,title:string,fps:number):ViewerImage=>({title,detail:`Frame ${frame} · ${formatTimecode(frame/fps,fps)} · auto unveil`,
+  src:()=>boundaryPicture({backend,frame,veilOptions:veil}).then(blob=>URL.createObjectURL(blob))});
 
 /** The two pictures of a card, shown as they are and then replaced by their Auto-unveiled versions (open GUI kept, HUD unveiled). */
 function GuiBlinkThumbnail({backend,videoKey,first,last,total,large=false,display='blink',pair='around',veil}:{backend:Backend;videoKey?:string;first:number;last:number;total:number;large?:boolean;display?:'blink'|'before'|'after';pair?:GuiPair;veil:VeilOptions}) {
@@ -130,14 +136,14 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     <DesktopOnly what="Video scanning" available={!!backend.guiScanStart}/>
     </div>
     <div className={`misc-gui-ranges${mode==='aim'?' misc-gui-aim-gallery':''}`} aria-label={mode==='aim'?'Aim jump images':'GUI intervals'}>
-      {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <button key={guiRangeKey(range)} aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
+      {sorted.map(range=>{const frames=guiPairFrames(range,status!.total,pair);return <div key={guiRangeKey(range)} className="misc-gui-card"><button aria-label={`Compare frames ${frames.before} and ${frames.after}`} title={`${formatTimecode(range.first/fps,fps)} – ${formatTimecode(range.last/fps,fps)} · Click to inspect`} onClick={()=>onCompare(range,pair)}>
         <GuiBlinkThumbnail backend={backend} videoKey={videoKey} first={range.first} last={range.last} total={status!.total} large={mode==='aim'} display={mode==='aim'?display:'blink'} pair={pair} veil={veil}/>
         {mode==='intervals'&&<>
         <span>{formatTimecode(range.first/fps,fps)} – {formatTimecode(range.last/fps,fps)}</span>
         <span className="dim">{range.menu?'Menu':'GUI'} · {range.last-range.first+1} frames</span>
         <span>Inspect</span>
         </>}
-      </button>;})}
+      </button><ViewButton label={`Enlarge frames ${frames.before} and ${frames.after}`} images={[fullFrame(backend,veil,frames.before,'Before GUI',fps),fullFrame(backend,veil,frames.after,'After GUI',fps)]}/></div>;})}
     </div>
     {status?.state==='done'&&!ranges.length&&<p>No supported GUI intervals detected.</p>}
   </section>;

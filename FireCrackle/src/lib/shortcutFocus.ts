@@ -11,9 +11,14 @@ export function blocksVideoToolKeys(target: ShortcutTarget | null | undefined): 
     || !!target?.closest?.('[data-owns-keys="true"], [role="textbox"], [role="combobox"]');
 }
 
+/** A modal (the image viewer, Credits, ...) owns the keyboard while it is open. */
+export function modalOpen(doc: Pick<Document, "querySelector"> | undefined = globalThis.document): boolean {
+  return !!doc?.querySelector('.modal-backdrop, [role="dialog"][aria-modal="true"]');
+}
+
 /** Both families of video-tool shortcuts use the same visible-pane/modal guard. */
 export function videoToolContextAvailable(pane: { offsetParent: unknown } | null, doc: Pick<Document, "querySelector">): boolean {
-  return !!pane && pane.offsetParent !== null && !doc.querySelector('.modal-backdrop, [role="dialog"][aria-modal="true"]');
+  return !!pane && pane.offsetParent !== null && !modalOpen(doc);
 }
 
 /** Panning/overlay drags prevent the browser's normal focus change, so focus the viewer during capture first. */

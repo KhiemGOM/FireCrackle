@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { blocksVideoToolKeys, focusVideoViewport, videoToolContextAvailable, type ShortcutTarget } from "./shortcutFocus";
+import { blocksVideoToolKeys, focusVideoViewport, modalOpen, videoToolContextAvailable, type ShortcutTarget } from "./shortcutFocus";
 
 it("lets video letter shortcuts through non-typing controls, but protects fields and owned-key ancestors", () => {
   for (const target of [null, {tagName: "DIV"}, {tagName: "BUTTON"}, ...["range", "checkbox", "radio", "color"].map(type => ({tagName: "INPUT", type}))]) expect(blocksVideoToolKeys(target)).toBe(false);
@@ -25,4 +25,11 @@ it("disables tools for hidden/unmounted viewers and modal dialogs", () => {
   expect(videoToolContextAvailable({offsetParent: null}, doc)).toBe(false);
   doc.querySelector.mockReturnValue({} as never);
   expect(videoToolContextAvailable({offsetParent: {}}, doc)).toBe(false);
+});
+
+it('a modal dialog (the image viewer, Credits) is open when either modal marker is in the page',()=>{
+  const doc=(found:string|null)=>({querySelector:(selector:string)=>found&&selector.includes(found)?{}:null});
+  expect(modalOpen(doc('[role="dialog"][aria-modal="true"]'))).toBe(true);
+  expect(modalOpen(doc('.modal-backdrop'))).toBe(true);
+  expect(modalOpen(doc(null))).toBe(false);
 });

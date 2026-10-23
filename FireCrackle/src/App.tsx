@@ -42,7 +42,7 @@ import { veilOptionsFromSettings } from "./lib/veil";
 import { failureMessage,  getFailures, reportError, reportVideoFailure, subscribeFailures, withErrorReporting } from "./lib/appErrors";
 import { wouldConsumeToolKey } from "./lib/toolKeys";
 import { actionFor, reservedGlobally } from "./lib/keymap";
-import { blocksVideoToolKeys } from "./lib/shortcutFocus";
+import { blocksVideoToolKeys, modalOpen } from "./lib/shortcutFocus";
 import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
 
@@ -199,7 +199,7 @@ export default function App() {
   useEffect(() => {
     if (!view || home || tab !== "label" || showAutomation || showLink) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing) return;
+      if (e.defaultPrevented || e.isComposing || modalOpen()) return;
       // A video tool key (Q H M U, or the 1-3 that follow M) belongs to the video pane: do not read it as a row digit.
       const t = e.target as HTMLElement | null;
       if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==="z"&&!isTypingTarget(t)){

@@ -1,9 +1,9 @@
 import type {Backend} from './api';
 import {inTauri} from './api';
-import {copyComparisonProof,type ProofAction} from './comparisonProof';
+import type {ProofAction} from './comparisonProof';
 import {formatTimecode} from './timecode';
 import {canvasBlob as encodeCanvas,loadImageBytes} from './canvas';
-import {askSavePath,blobBytes,downloadBlob,proofExtension} from './proofExport';
+import {askSavePath,blobBytes,copyPicture,downloadBlob,proofExtension} from './proofExport';
 
 export const FRAME_BLINK_MS=640;
 /** Absolute RGB difference, amplified only for inspection. Alpha is always opaque. */
@@ -49,7 +49,7 @@ export async function exportFrameProof(backend:Backend,proof:FrameProof,action:P
   .then(bytes=>Promise.all(bytes.map(loadFrameImage)))
   .then(([before,after])=>renderFrameProof(before,after,proof,animated,!native&&action.format==='jpeg'?'image/jpeg':'image/png'));
  void pending.catch(()=>{});
- if(action.destination==='copy'&&action.format==='png'){await copyComparisonProof(pending.then(p=>p.image));return true;}
+ if(action.destination==='copy'&&action.format==='png'){await copyPicture(pending.then(p=>p.image));return true;}
  const filename=`frame-comparison-${proof.before}-${proof.after}.${proofExtension(action.format)}`;
  if(native){
   let path:string|null=null;

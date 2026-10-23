@@ -8,6 +8,7 @@ import {fitCoverage,portalPreview,portalWorldMask,sameShape,type WorldCoverage} 
 import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame} from './guiMask';
 import {enhance,hasEnhancement} from './post/pipeline';
 import {DEFAULT_POST,type PostSettings} from './post/settings';
+import {nativeFrame} from './exactFrame';
 import {failureMessage} from './appErrors';
 import {blobDataUrl} from './canvas';
 
@@ -88,4 +89,14 @@ export async function comparisonPictures({backend,frames,post,compare,veilOption
   }));
  }
  return {pictures,errors};
+}
+/** One frame at the video's own resolution as the GUI gallery shows it (auto unveil, the GUI mask fitted to it);
+ * the plain frame when unveil fails or changes nothing. */
+export async function boundaryPicture({backend,frame,veilOptions,io=canvasFrameIo}:{backend:Backend;frame:number;veilOptions:VeilOptions;io?:FrameIo}):Promise<Blob>{
+ const plain=await nativeFrame(backend,frame),bytes=await plain.arrayBuffer();
+ let made:Blob|undefined;
+ try{
+  await unveilPreview({url:'',read:async()=>bytes,mask:backend.guiMaskFrame?()=>backend.guiMaskFrame!(frame):undefined,veil:veilOptions,io,toUrl:async blob=>{made=blob;return '';}});
+ }catch{/* the plain frame */}
+ return made??plain;
 }

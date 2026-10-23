@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { copyComparisonProof, copyFormattedComparisonProof, createComparisonProof, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, squareProofCrop, type ProofMask } from "./comparisonProof";
+import { copyFormattedComparisonProof, createComparisonProof, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, squareProofCrop, type ProofMask } from "./comparisonProof";
+import { copyPicture } from "./proofExport";
 const native = vi.hoisted(() => ({ save: vi.fn(), invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: native.save }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
@@ -49,24 +50,24 @@ it("shows a temporarily hidden mask in proof and keeps a visible mask's chosen o
 });
 it("copies generated PNG bytes through the native clipboard with no save dialog", async () => {
   vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); native.invoke.mockResolvedValue(undefined);
-  await copyComparisonProof(new Blob([new Uint8Array([137,80,78,71])],{type:"image/png"}));
+  await copyPicture(new Blob([new Uint8Array([137,80,78,71])],{type:"image/png"}));
   expect(native.invoke).toHaveBeenCalledWith("copy_comparison_proof",{png:[137,80,78,71]});
   expect(native.save).not.toHaveBeenCalled();
 });
 it("surfaces clipboard errors without falling back to file saving", async () => {
   vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });native.invoke.mockRejectedValue(Error("Clipboard busy"));
-  await expect(copyComparisonProof(new Blob(["image"]))).rejects.toThrow("Clipboard busy");
+  await expect(copyPicture(new Blob(["image"]))).rejects.toThrow("Clipboard busy");
   expect(native.save).not.toHaveBeenCalled();
 });
 it("starts browser image copying while the proof is still rendering",async()=>{
   vi.stubGlobal("window",{});const write=vi.fn(async()=>{});vi.stubGlobal("navigator",{clipboard:{write}});
   const item=vi.fn(function(this:any,data:any){this.data=data;});vi.stubGlobal("ClipboardItem",item);
-  const pending=new Promise<Blob>(()=>{});await copyComparisonProof(pending);
+  const pending=new Promise<Blob>(()=>{});await copyPicture(pending);
   expect(item).toHaveBeenCalledWith({"image/png":pending});expect(write).toHaveBeenCalledOnce();expect(native.save).not.toHaveBeenCalled();
 });
 it("reports unsupported clipboard rather than downloading a file",async()=>{
   vi.stubGlobal("window",{});vi.stubGlobal("ClipboardItem",undefined);
-  await expect(copyComparisonProof(new Blob(["image"]))).rejects.toThrow("clipboard is unavailable");expect(native.save).not.toHaveBeenCalled();
+  await expect(copyPicture(new Blob(["image"]))).rejects.toThrow("clipboard is unavailable");expect(native.save).not.toHaveBeenCalled();
 });
 
 function downloadFixture() {

@@ -123,3 +123,15 @@ it('the After card blinks the processed pictures only with Apply to blink',()=>{
  expect(srcs(true)).toEqual(['blob:after-post','blob:before-post']);
  expect(srcs(false)).toEqual(['blob:after','blob:before']);
 });
+it('a compared picture opens the image viewer with Before and After, starting on the clicked side',async()=>{
+ const side=find(render(),n=>n.props.title==='After')[0];hooks.values=[];hooks.cursor=0;hooks.effects=[];
+ vi.stubGlobal('URL',{createObjectURL:vi.fn(()=> 'blob:review'),revokeObjectURL:vi.fn()});
+ (side.type as Function)(side.props);const cleanups=hooks.effects.map(effect=>effect());await Promise.resolve();await Promise.resolve();
+ hooks.cursor=0;hooks.effects=[];const child=(side.type as Function)(side.props);
+ const viewable=find(child,n=>typeof n.type==='function'&&n.type.name==='Viewable')[0];
+ expect(viewable).toBeTruthy();
+ const images=typeof viewable.props.images==='function'?viewable.props.images():viewable.props.images;
+ expect(images.map((i:any)=>i.title)).toEqual(['Before','After']);
+ expect(images[viewable.props.index].detail).toContain(`Frame ${side.props.frame}`);
+ cleanups.forEach(cleanup=>cleanup?.());
+});
