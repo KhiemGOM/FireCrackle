@@ -24,6 +24,16 @@ it('restores nested GUI review choices from local storage after remount',()=>{
  hooks.effects[0]();hooks.values=[];root=render();hooks.values[0]={state:'done',total:100,processed:100,ranges};root=render();
  expect(find(root,n=>n.props.large===true)[0].props.display).toBe('before');
 });
+it('opens on aim jumps by default, listed before intervals, and still restores a saved intervals choice',()=>{
+  let root=render();
+  expect(find(root,n=>n.props['aria-label']==='Aim jump images')).toHaveLength(1);
+  const modes=find(root,n=>n.props.children==='Aim jumps'||n.props.children==='Intervals').map(n=>n.props.children);
+  expect(modes).toEqual(['Aim jumps','Intervals']);
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?JSON.stringify({miscGuiMode:'intervals'}):null,setItem:()=>{}});
+  hooks.values=[];root=render();hooks.values[0]={state:'done',total:100,processed:100,ranges};root=render();
+  expect(find(root,n=>n.props['aria-label']==='Aim jump images')).toHaveLength(0);
+  expect(find(root,n=>n.props.children==='Intervals')[0].props['aria-pressed']).toBe(true);
+});
 it('shows image-only large cards in aim mode, and clicks open the original GUI interval',()=>{
   let root=render();find(root,n=>n.props.children==='Aim jumps')[0].props.onClick();root=render();
   const gallery=find(root,n=>n.props['aria-label']==='Aim jump images')[0];

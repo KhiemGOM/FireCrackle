@@ -27,7 +27,7 @@ export interface Preferences {
   miscGuiPair: "around" | "open" | "close";
 }
 export const PREFERENCES_KEY = "firecrackle.preferences.v1";
-export const DEFAULT_PREFERENCES: Preferences = { tab: "label", atlasFilter: { left: null, right: null }, matchOpen: false, matchOnlyFiltered: true, matchAdjustQuad: true, animationOpen: false, animationOnlyFiltered: true, animationDelayMs: 250, veilMode: "off", portalMode: "off", miscTool:"compare", miscCompareMode:"original", miscDifferenceGain:3, miscGuiMode:"intervals", miscGuiDisplay:"blink", miscGuiOrder:"motion", miscGuiMenus:false, miscComparePost:{ veil:false, portal:false, enhance:false, gui:false, blink:false }, miscGuiPair:"around" };
+export const DEFAULT_PREFERENCES: Preferences = { tab: "label", atlasFilter: { left: null, right: null }, matchOpen: false, matchOnlyFiltered: true, matchAdjustQuad: true, animationOpen: false, animationOnlyFiltered: true, animationDelayMs: 250, veilMode: "off", portalMode: "off", miscTool:"compare", miscCompareMode:"original", miscDifferenceGain:3, miscGuiMode:"aim", miscGuiDisplay:"blink", miscGuiOrder:"motion", miscGuiMenus:false, miscComparePost:{ veil:false, portal:false, enhance:false, gui:false, blink:false }, miscGuiPair:"around" };
 type Store = Pick<Storage, "getItem" | "setItem">;
 export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
   const result = { ...DEFAULT_PREFERENCES, atlasFilter: { ...DEFAULT_PREFERENCES.atlasFilter }, miscComparePost: { ...DEFAULT_PREFERENCES.miscComparePost } };

@@ -106,8 +106,8 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
     <div className="misc-compare-toolbar">
       <strong>GUI interactions</strong>
       <div className="misc-view-modes" role="group" aria-label="GUI review mode">
-        <button aria-pressed={mode==='intervals'} onClick={()=>setMode('intervals')}>Intervals</button>
         <button aria-pressed={mode==='aim'} onClick={()=>setMode('aim')}>Aim jumps</button>
+        <button aria-pressed={mode==='intervals'} onClick={()=>setMode('intervals')}>Intervals</button>
       </div>
       <button disabled={busy||!backend.guiScanStart||status?.state==='done'} onClick={()=>void action(!running)}>
         {running?'Pause scan':status?.processed?'Resume scan':'Scan video'}
@@ -115,7 +115,7 @@ export function GuiInteractionTool({backend,videoKey,fps,onCompare,veil=DEFAULT_
       <label><input type="checkbox" checked={menus} onChange={e=>setMenus(e.target.checked)}/> Include menus</label>
     </div>
     {mode==='intervals'&&<p className="dim">Scan once, then inspect before and after each detected GUI interval. Results are saved with this video.</p>}
-    {status&&(mode==='intervals'||running)&&<><progress value={status.processed} max={status.total||1}/><span className="dim"> {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames · {scanStateLabel(status.state,status.processed)} · {ranges.length} intervals</span>{running&&<> · <ScanProgressStats key={status.video_path} progress={guiScanProgress(status)}/></>}</>}
+    {status&&(mode==='intervals'||running||status.state==='error'||status.state==='paused')&&<><progress value={status.processed} max={status.total||1}/><span className="dim"> {status.processed.toLocaleString()} / {status.total.toLocaleString()} frames · {scanStateLabel(status.state,status.processed)} · {ranges.length} intervals</span>{running&&<> · <ScanProgressStats key={status.video_path} progress={guiScanProgress(status)}/></>}</>}
     {mode==='aim'&&<div className="misc-aim-controls">
       <div className="misc-view-modes" role="group" aria-label="Gallery image view">
         {(['blink','before','after'] as const).map(value=><button key={value} aria-pressed={display===value} onClick={()=>setDisplay(value)}>{value==='blink'?'Blink':value==='before'?'Before':'After'}</button>)}

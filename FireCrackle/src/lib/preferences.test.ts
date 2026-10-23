@@ -17,6 +17,10 @@ it('restores the comparison post toggles and the gallery pair, repairing bad one
  raw=JSON.stringify({miscComparePost:{veil:'yes',portal:true},miscGuiPair:'sideways'});
  expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:false,portal:true,enhance:false,gui:false,blink:false},miscGuiPair:'around'});
 });
+it('defaults the GUI tool to aim jumps',()=>{
+ expect(DEFAULT_PREFERENCES.miscGuiMode).toBe('aim');
+ expect(readPreferences({getItem:()=>null}).miscGuiMode).toBe('aim');
+});
 it('restores the current-video Misc tools tab',()=>{
  expect(readPreferences({getItem:()=>'{"tab":"misc"}'}).tab).toBe('misc');
 });
