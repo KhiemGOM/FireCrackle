@@ -14,3 +14,8 @@
 .fq-player.fq-leg { fill: #3c44aa; }
 .fq-world-corner circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1; }
 .fq-world-corner text { fill: #fff; font-size: 13px; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+.fq-axis line { stroke-width: 2.5; }
+.fq-axis.x line { stroke: #ff4d4d; } .fq-axis.y line { stroke: #4dff6a; } .fq-axis.z line { stroke: #4da3ff; }
+.fq-axis text { font-size: 13px; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+.fq-axis.x text { fill: #ff8a8a; } .fq-axis.y text { fill: #8aff9b; } .fq-axis.z text { fill: #8ac4ff; }
+.fq-world { cursor: grab; }

@@ -12,8 +12,13 @@ const MODES:[FireMode,string,string][]=[
  ['entity','Entity fire','Fire on a burning entity: its feet (decimals) and type'],
 ];
 
-/** A number typed freely ("-", an empty box, "1.") and applied when done: Enter, leaving the box or an arrow-key step
- * (like the Enhance panel's number boxes). Escape, or no number, puts the last value back. */
+/** Which way + is on Minecraft's axes, for the x y z boxes. */
+const AXIS_TITLES:Record<string,string>={x:'x: + east, − west',y:'y: + up, − down',z:'z: + south, − north'};
+
+/** A number typed freely ("-", an empty box, "1.") and applied when done: Enter or leaving the box (like the Enhance
+ * panel's number boxes). A step of the box's up/down buttons or arrow keys applies at once. Escape, or no number, puts
+ * the last value back. The element stays while the value changes (a held up/down button keeps stepping); its text
+ * follows the value whenever it is not being edited. */
 export function Num({label,value,step=1,int=false,onChange}:{label:string;value:number;step?:number;int?:boolean;onChange:(v:number)=>void}){
  const shown=Number.isFinite(value)?String(Number(value.toFixed(int?0:3))):'';
  const done=(t:{value:string})=>{
@@ -21,10 +26,12 @@ export function Num({label,value,step=1,int=false,onChange}:{label:string;value:
   if(!Number.isFinite(v)||(shown!==''&&v===Number(shown))){t.value=shown;return;}
   onChange(v);
  };
- return <label className="f3-num"><span>{label}</span><input key={`${label}:${shown}`} aria-label={label} type="number" step={step} defaultValue={shown} data-owns-keys="true"
+ return <label className="f3-num" title={AXIS_TITLES[label]}><span>{label}</span><input aria-label={label} type="number" step={step} defaultValue={shown} data-owns-keys="true"
+  ref={el=>{if(el&&el.ownerDocument.activeElement!==el&&el.value!==shown)el.value=shown;}}
+  // typing is an InputEvent with an inputType; a step of the up/down buttons or arrow keys is a plain input event
+  onChange={e=>{if(!(e.nativeEvent as InputEvent).inputType)done(e.target);}}
   onBlur={e=>done(e.target)}
-  onKeyDown={e=>{const t=e.target as HTMLInputElement;if(e.key==='Enter'){e.preventDefault();t.blur();}if(e.key==='Escape'){t.value=shown;t.blur();}}}
-  onKeyUp={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown')done(e.target as HTMLInputElement);}}/></label>;
+  onKeyDown={e=>{const t=e.target as HTMLInputElement;if(e.key==='Enter'){e.preventDefault();t.blur();}if(e.key==='Escape'){t.value=shown;t.blur();}}}/></label>;
 }
 
 /** The 3D quad tool's bar: Sprite (the same controls as the quad mask) · Camera (corners and the solve) · Fire (one fire
@@ -51,7 +58,7 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
   <section className="f3-group" aria-label="Camera">
    <span className="f3-title">Camera</span>
    <span className={`f3-status${cam&&(best?.rms??0)>3?' bad':''}`} role="status">{status}</span>
-   <button aria-pressed={click==='corner'} title="Click block corners on the picture; type each one's position (the first is 0, 0, 0)" onClick={()=>setClick(click==='corner'?'none':'corner')}>Add corners</button>
+   <button className="f3-pick" aria-pressed={click==='corner'} title="Cursor mode: a click on the picture adds a block corner; type each one's position (the first is 0, 0, 0). Click again to stop" onClick={()=>setClick(click==='corner'?'none':'corner')}>Add corners</button>
    {state.clicks.length>0&&<button title="Remove every corner (the camera stays until corners solve it again)" onClick={()=>{update(s=>({...s,clicks:[],candidates:[]}));setSelected(null);}}>Clear</button>}
    {state.clicks.map((c,i)=><button key={c.id} className={`f3-chip${c.world?'':' pending'}`} aria-pressed={selected===c.id} onClick={()=>setSelected(selected===c.id?null:c.id)}
     title="Edit this corner">{i+1}{c.world?` · ${c.world.join(', ')}`:' · ?'}</button>)}
@@ -59,6 +66,8 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
     {(['x','y','z'] as const).map((k,j)=><Num key={k} label={k} int value={sel.world?.[j]??NaN} onChange={v=>update(s=>setClickWorld(s,sel.id,(sel.world??[0,0,0]).map((q,m)=>m===j?v:q) as Vec3))}/>)}
     <button aria-label="Remove this corner" onClick={()=>{update(s=>removeClick(s,sel.id));setSelected(null);}}>Remove</button>
    </span>}
+   <label title="The block grid on the picture"><input type="checkbox" aria-label="Grid" checked={fire.showGrid} onChange={e=>fire.setShowGrid(e.target.checked)}/> Grid</label>
+   <label title="The fire's block (or hitbox) outline on the picture"><input type="checkbox" aria-label="Box" checked={fire.showBox} onChange={e=>fire.setShowBox(e.target.checked)}/> Box</label>
    <label title="The player stands on the block under the eye: the eye is 1.62 above the floor at this height"><input type="checkbox" checked={state.eyeY!==null} onChange={e=>update(s=>({...s,eyeY:e.target.checked?(corners[0]?.world[1]??0)+1.62:null}))}/> On ground</label>
    {state.candidates.length>1&&<select aria-label="Camera answer" title="Other cameras that fit the corners (a quarter turn apart)" value={state.candidates.findIndex(c=>c.camera===cam)} onChange={e=>update(s=>({...s,camera:s.candidates[Number(e.target.value)].camera}))}>
     {state.candidates.map((c,i)=><option key={i} value={i}>answer {i+1} · {fmt(c.rms,2)} px</option>)}
@@ -77,7 +86,7 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
      <datalist id="f3-entities">{sizes.map(s=><option key={s} value={`minecraft:${s}`}/>)}</datalist>
      <span className="dim">{fmt(f.width,3)} × {fmt(f.height,3)}</span>
     </>}
-    <button aria-pressed={click==='fire'} title="Click the picture to put the fire there (on the floor at this height)" onClick={()=>setClick(click==='fire'?'none':'fire')}>Place by click</button>
+    <button className="f3-pick" aria-pressed={click==='fire'} title="Cursor mode: a click on the picture puts the fire there (on the floor at this height). Click again to stop" onClick={()=>setClick(click==='fire'?'none':'fire')}>Place by click</button>
    </>}
    {!f&&<span className="dim">{cam?'Place by click to put the fire':'Solve the camera first'}</span>}
    {fire.soul&&<span className="dim">Soul fire: fire block shape only</span>}

@@ -28,3 +28,14 @@ export function focusVideoViewport(e: { button: number; target: ShortcutTarget |
     || e.target?.closest?.('input, textarea, select, button, a[href], [role="button"], [role="slider"]')) return;
   e.currentTarget.focus({ preventScroll: true });
 }
+
+/** E (the sprite overlay's opacity 0/100 %) and P (parallelize the quad mask). The 3D quad draws with the quad mask's
+ * sprite and opacity, so E toggles that one while it is on. `blocked`: the key went to a typing or key-owning field. */
+export function maskShortcut(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; repeat: boolean; blocked: boolean },
+  tools: { manualEnabled: boolean; hudEnabled: boolean; fire3dOn: boolean }): "manualOpacity" | "hudOpacity" | "parallel" | null {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || e.blocked) return null;
+  const key = e.key.toLowerCase();
+  if (key === "p") return tools.manualEnabled ? "parallel" : null;
+  if (key !== "e") return null;
+  return tools.manualEnabled || tools.fire3dOn ? "manualOpacity" : tools.hudEnabled ? "hudOpacity" : null;
+}

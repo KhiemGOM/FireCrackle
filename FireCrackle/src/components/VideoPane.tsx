@@ -53,7 +53,7 @@ import {photoPreview} from "../lib/imagePreview";
 import { shouldShowLate } from "../lib/lateFrame";
 import { correctsNow } from "../lib/correctionGate";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
-import { blocksVideoToolKeys, focusVideoViewport, videoToolContextAvailable } from "../lib/shortcutFocus";
+import { blocksVideoToolKeys, focusVideoViewport, maskShortcut, videoToolContextAvailable } from "../lib/shortcutFocus";
 import { failureMessage } from "../lib/appErrors";
 
 export interface VideoPreviewHandle {
@@ -168,12 +168,11 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (e.defaultPrevented || e.isComposing || !videoToolContextAvailable(frameRef.current, document)) return;
-      const shortcut = e.key.toLowerCase();
-      if (!["p", "e"].includes(shortcut) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || blocksVideoToolKeys(target)) return;
-      if (shortcut === "p" && !manualEnabled) return;
+      const shortcut = maskShortcut({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, repeat: e.repeat, blocked: blocksVideoToolKeys(target) }, { manualEnabled, hudEnabled, fire3dOn: false });
+      if (!shortcut) return;
       e.preventDefault();
-      if (shortcut === "e") (manualEnabled ? setManualOpacity : setHudOpacity)(current => current > 0 ? 0 : 1);
-      else setManualQuad(parallelizeQuad);
+      if (shortcut === "parallel") setManualQuad(parallelizeQuad);
+      else (shortcut === "manualOpacity" ? setManualOpacity : setHudOpacity)(current => current > 0 ? 0 : 1);
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
@@ -573,7 +572,19 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   const [fire3dOn, setFire3dOn] = useState(false);
   const fire3d = useFire3D(stillImage ? stillImage.url : String(view.current),
     () => stillImage ? (stillImage.file ? Promise.resolve(stillImage.file) : fetch(stillImage.url).then(r => r.blob())) : nativeFrame(backend, view.current),
-    fire3dOn, !!manualAtlas && soulFire(manualAtlas));
+    fire3dOn, !!manualAtlas && soulFire(manualAtlas), { history: undoHistory, video: stillImage ? undefined : videoKey, storage: toolStorage });
+  // E toggles the 3D quad's sprite opacity (the quad mask's, which it draws with); the effect above serves the quad mask and HUD
+  useEffect(() => {
+    if (!fire3dOn || manualEnabled || hudEnabled) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || !videoToolContextAvailable(frameRef.current, document)) return;
+      if (maskShortcut({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, repeat: e.repeat, blocked: blocksVideoToolKeys(e.target as HTMLElement | null) }, { manualEnabled, hudEnabled, fire3dOn }) !== "manualOpacity") return;
+      e.preventDefault();
+      setManualOpacity(current => current > 0 ? 0 : 1);
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [fire3dOn, manualEnabled, hudEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
   const s = view.suggestion;
   // the sprite: shared by the quad mask and the 3D quad
   const spriteControls = <>

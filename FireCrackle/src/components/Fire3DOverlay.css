@@ -7,3 +7,10 @@
 .fire3d-click.pending circle { fill: #888; }
 .fire3d-click.selected circle { fill: #f5c542; }
 .fire3d-click text { fill: #fff; paint-order: stroke; stroke: #000; }
+.fire3d-axis line { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.fire3d-axis.x line { stroke: #ff4d4d; }
+.fire3d-axis.y line { stroke: #4dff6a; }
+.fire3d-axis.z line { stroke: #4da3ff; }
+.fire3d-axis text, .fire3d-mode { fill: #fff; paint-order: stroke; stroke: #000; }
+.fire3d-axis.x text { fill: #ff8a8a; } .fire3d-axis.y text { fill: #8aff9b; } .fire3d-axis.z text { fill: #8ac4ff; }
+.fire3d-mode { font-weight: 600; fill: #ffb366; }

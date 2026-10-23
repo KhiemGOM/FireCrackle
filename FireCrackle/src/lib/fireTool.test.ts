@@ -3,7 +3,7 @@
 // the mode changes and is placed by clicking the video, soul fire from the atlas, its wireframe, the ground grid.
 // All geometry goes through the reversal WASM binding.
 import { vi as toolTest } from "vitest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initReversal, project, type CameraPose, type Orientation } from "./reversal";
 import {
   addClick, setClickWorld, removeClick, usableClicks, solveTool, groundGrid, emptyTool, newFire, setMode, placeFire,
@@ -243,4 +243,76 @@ it("the hook's guesses go through one latestOnly queue", async () => {
   const hook = await readFile(new URL("./useFire3D.ts", import.meta.url), "utf8");
   expect(hook).toMatch(/latestOnly\(\)/);
   expect(hook).toMatch(/if \(made === null\) return/);
+});
+
+// ---- the overview's mouse, the axes legend, and what a new picture shows
+
+import { axisLines, orbitDrag, panTarget, pictureState, type Vec3 } from "./fireTool";
+import { pixelRay } from "./reversal";
+
+describe("axes legend (which way is + on each axis)", () => {
+  const south: CameraPose = { x: 0.5, y: 65.62, z: -4, yaw: 0, pitch: 20, roll: 0, fov: 70 };
+  it("Minecraft's axes: facing south, +X (east) points left, +Y up, +Z (south) away from the camera", () => {
+    const lines = axisLines(south, [0.5, 64, 0.5], W, H);
+    const by = Object.fromEntries(lines.map(l => [l.axis, l]));
+    expect(lines.map(l => l.label)).toEqual(["+X east", "+Y up", "+Z south"]);
+    expect(by.x.to[0]).toBeLessThan(by.x.from[0]);
+    expect(by.y.to[1]).toBeLessThan(by.y.from[1]);
+    expect(by.z.to[1]).toBeLessThan(by.z.from[1]); // further away is higher on the screen when looking down
+    expect(Math.abs(by.z.to[0] - by.z.from[0])).toBeLessThan(1);
+  });
+  it("an origin behind the camera draws nothing", () => {
+    expect(axisLines(south, [0.5, 64, -10], W, H)).toEqual([]);
+  });
+});
+
+describe("the 3D overview's mouse", () => {
+  it("right-drag turns with the mouse: dragging right turns right (yaw up); pitch stays in range", () => {
+    expect(orbitDrag({ yaw: -135, pitch: 30 }, 50, 0).yaw).toBeGreaterThan(-135);
+    expect(orbitDrag({ yaw: -135, pitch: 30 }, -50, 0).yaw).toBeLessThan(-135);
+    expect(orbitDrag({ yaw: 0, pitch: 30 }, 0, 10000).pitch).toBe(89);
+    expect(orbitDrag({ yaw: 0, pitch: 30 }, 0, -10000).pitch).toBe(-85);
+  });
+  it("left-drag pans: the point under the cursor at the target's depth stays under the cursor", () => {
+    const view: CameraPose = { x: 6, y: 72, z: -9, yaw: 30, pitch: 35, roll: 0, fov: 60 };
+    const target: Vec3 = [2, 64, -2], from: [number, number] = [300, 350], to: [number, number] = [520, 230];
+    const eye: Vec3 = [view.x, view.y, view.z], dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const fwd = pixelRay(view, 800, 560, 400, 280), ray = pixelRay(view, 800, 560, ...from);
+    const depth = dot(target.map((v, i) => v - eye[i]), fwd);
+    const grabbed = eye.map((v, i) => v + ray[i] * depth / dot(ray, fwd)) as Vec3;
+    const moved = panTarget(view, target, from, to, 800, 560), shift = moved.map((v, i) => v - target[i]);
+    // the view moves with its target, so the grabbed point must now project under `to`
+    const px = project({ ...view, x: eye[0] + shift[0], y: eye[1] + shift[1], z: eye[2] + shift[2] }, [grabbed], 800, 560)[0]!;
+    expect(px[0]).toBeCloseTo(to[0], 6);
+    expect(px[1]).toBeCloseTo(to[1], 6);
+  });
+  it("no movement, no pan", () => {
+    const view: CameraPose = { x: 6, y: 72, z: -9, yaw: 30, pitch: 35, roll: 0, fov: 60 };
+    expect(panTarget(view, [2, 64, -2], [10, 10], [10, 10], 800, 560)).toEqual([2, 64, -2]);
+  });
+});
+
+describe("a new picture", () => {
+  // made in each test: the Rust runtime is ready only once the tests run
+  let solved: ToolState;
+  beforeEach(() => { solved = { ...emptyTool(0), camera: cam, fire: newFire(cam, [1, 64, 2]), clicks: [{ id: 1, px: [5, 6], world: [0, 64, 0] }], eyeY: 65.62 }; });
+  it("a frame with its own saved work shows exactly that, with the new guess", () => {
+    const saved = { clicks: [{ id: 9, px: [1, 2] as [number, number], world: [3, 64, 4] as Vec3 }], fire: null, eyeY: null, camera: { ...cam, yaw: 10 } };
+    const next = pictureState(solved, false, guess, saved);
+    expect(next.camera).toEqual(saved.camera);
+    expect(next.fire).toBeNull();
+    expect(next.eyeY).toBeNull();
+    expect(next.clicks.map(c => [c.px, c.world])).toEqual([[[1, 2], [3, 64, 4]]]);
+    expect(next.guess).toEqual(guess);
+  });
+  it("an unsaved frame keeps the last fire and camera to line up from, without the last frame's corners", () => {
+    const next = pictureState(solved, false, guess, undefined);
+    expect(next.fire).toEqual(solved.fire);
+    expect(next.camera).toEqual(solved.camera);
+    expect(next.eyeY).toBe(65.62);
+    expect(next.clicks).toEqual([]);
+  });
+  it("the same picture again only updates the guess", () => {
+    expect(pictureState(solved, true, guess, undefined)).toEqual({ ...solved, guess });
+  });
 });

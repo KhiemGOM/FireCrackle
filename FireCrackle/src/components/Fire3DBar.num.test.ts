@@ -24,7 +24,7 @@ it("typing changes nothing until the edit is done: '-', an empty box and '1.' ar
   const { el, onChange } = box(0, { int: true });
   expect(el.props.value).toBeUndefined(); // not held to the last good number on every key
   expect(el.props.defaultValue).toBe("0");
-  for (const typed of ["-", "", "-1", "1."]) el.props.onChange?.({ target: target(typed), currentTarget: target(typed) });
+  for (const typed of ["-", "", "-1", "1."]) el.props.onChange?.({ target: target(typed), currentTarget: target(typed), nativeEvent: { type: "input", inputType: "insertText" } });
   expect(onChange).not.toHaveBeenCalled();
 });
 
@@ -66,14 +66,26 @@ it("the same value left as it was is not applied again", () => {
   expect(onChange).not.toHaveBeenCalled();
 });
 
-it("arrow-key steps apply at once, so the camera and fire follow the stepping", () => {
-  const { el, onChange } = box(2, { int: true }), t = target("3"); // the browser has already stepped it
-  el.props.onKeyUp(key("ArrowUp", t));
+it("the box's up/down buttons and arrow keys apply each step at once; typed text still waits", () => {
+  // a step is an input event that is not typing (no inputType); typing is an InputEvent with one
+  const { el, onChange } = box(2, { int: true }), t = target("3");
+  el.props.onChange({ target: t, currentTarget: t, nativeEvent: { type: "input" } });
   expect(onChange).toHaveBeenCalledExactlyOnceWith(3);
+  const typed = box(2, { int: true }), u = target("-");
+  typed.el.props.onChange({ target: u, currentTarget: u, nativeEvent: { type: "input", inputType: "insertText" } });
+  const v = target("");
+  typed.el.props.onChange({ target: v, currentTarget: v, nativeEvent: { type: "input", inputType: "deleteContentBackward" } });
+  expect(typed.onChange).not.toHaveBeenCalled();
 });
 
-it("a new value from outside (a solve, a click) shows in the box", () => {
-  expect(box(1).el.key).not.toBe(box(2).el.key);
+it("a new value from outside (a solve, a click) shows in the box, but never over what is being typed", () => {
+  // the same element stays (a held up/down button keeps stepping); its text follows the value while not focused
+  const input = { value: "1", ownerDocument: { activeElement: null as unknown } };
+  box(2).el.props.ref(input);
+  expect(input.value).toBe("2");
+  input.value = "-"; input.ownerDocument.activeElement = input;
+  box(3).el.props.ref(input);
+  expect(input.value).toBe("-");
   expect(box(NaN).el.props.defaultValue).toBe("");
 });
 

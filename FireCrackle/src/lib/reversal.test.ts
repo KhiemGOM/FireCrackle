@@ -5,7 +5,7 @@
 import { vi as reversalTest } from "vitest";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation, orbitCamera, defaultFace, hitPlaneY, playerBoxes, viewCone,
+  initReversal, project, solveGuided, solveCamera, fireBlockQuads, entityFireQuads, entitySize, orientation, orbitCamera, defaultFace, hitPlaneY, pixelRay, playerBoxes, viewCone,
   type CameraPose,
 } from "./reversal";
 
@@ -151,3 +151,17 @@ describe("world view and placing by click", () => {
   });
 });
 
+
+describe("pixel rays (the overview's pan)", () => {
+  it("the centre ray is the Minecraft look direction: yaw 0 looks south (+Z), yaw 90 west (-X), pitch 90 down", () => {
+    const at = (yaw: number, pitch: number) => pixelRay({ x: 0, y: 0, z: 0, yaw, pitch, roll: 0, fov: 70 }, W, H, W / 2, H / 2);
+    const cases: [number[], number[]][] = [[at(0, 0), [0, 0, 1]], [at(90, 0), [-1, 0, 0]], [at(0, 90), [0, -1, 0]]];
+    for (const [ray, want] of cases) ray.forEach((v, i) => expect(near(v, want[i], 1e-9)).toBe(true));
+  });
+  it("a pixel's ray meets a floor where hitPlaneY says", () => {
+    const ray = pixelRay(cam, W, H, 700, 900), t = (64 - cam.y) / ray[1];
+    const hit = hitPlaneY(cam, W, H, 700, 900, 64)!;
+    [cam.x + t * ray[0], 64, cam.z + t * ray[2]].forEach((v, i) => expect(near(v, hit[i], 1e-9)).toBe(true));
+    expect(Math.hypot(...ray)).toBeCloseTo(1, 12);
+  });
+});

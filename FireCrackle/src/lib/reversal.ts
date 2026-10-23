@@ -27,6 +27,7 @@ type Runtime = {
   rev_orbit(tx: number, ty: number, tz: number, yaw: number, pitch: number, dist: number, fov: number, out: number): number;
   rev_facing_away(ex: number, ey: number, ez: number, x: number, y: number, z: number): number;
   rev_hit_plane_y(cam: number, w: number, h: number, x: number, y: number, planeY: number, out: number): number;
+  rev_pixel_ray(cam: number, w: number, h: number, x: number, y: number, out: number): number;
   rev_player_boxes(cam: number, out: number): number;
   rev_view_cone(cam: number, w: number, h: number, depth: number, out: number): number;
 };
@@ -184,6 +185,15 @@ export function hitPlaneY(cam: CameraPose, w: number, h: number, x: number, y: n
   return withBuffers([56, 24], (n, [c, out]) => {
     f64In(n, c, camArray(cam));
     return n.rev_hit_plane_y(c, w, h, x, y, planeY, out) === 1 ? triples(f64Out(n, out, 3))[0] : null;
+  });
+}
+
+/** The unit direction of the ray through pixel (x, y) of a `w` × `h` picture. */
+export function pixelRay(cam: CameraPose, w: number, h: number, x: number, y: number): V3 {
+  return withBuffers([56, 24], (n, [c, out]) => {
+    f64In(n, c, camArray(cam));
+    if (n.rev_pixel_ray(c, w, h, x, y, out) !== 1) throw new Error("Invalid camera");
+    return triples(f64Out(n, out, 3))[0];
   });
 }
 

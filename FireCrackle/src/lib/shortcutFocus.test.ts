@@ -33,3 +33,25 @@ it('a modal dialog (the image viewer, Credits) is open when either modal marker 
   expect(modalOpen(doc('.modal-backdrop'))).toBe(true);
   expect(modalOpen(doc(null))).toBe(false);
 });
+
+// ---- E (opacity) and P (parallelize) for the sprite overlays
+
+import { maskShortcut } from "./shortcutFocus";
+
+it("E toggles the 3D quad's sprite opacity too (the quad mask's opacity it shares), not only the quad mask's", () => {
+  expect(maskShortcut({ key: "e", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false },
+    { manualEnabled: false, hudEnabled: false, fire3dOn: true })).toBe("manualOpacity");
+  expect(maskShortcut({ key: "E", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false },
+    { manualEnabled: true, hudEnabled: false, fire3dOn: false })).toBe("manualOpacity");
+  expect(maskShortcut({ key: "e", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false },
+    { manualEnabled: false, hudEnabled: true, fire3dOn: false })).toBe("hudOpacity");
+});
+it("P parallelizes only the quad mask; no tool, a modifier, a repeat or typing does nothing", () => {
+  const tools = { manualEnabled: true, hudEnabled: false, fire3dOn: false };
+  const key = (k: string, extra = {}) => maskShortcut({ key: k, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false, ...extra }, tools);
+  expect(key("p")).toBe("parallel");
+  expect(maskShortcut({ key: "p", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false }, { manualEnabled: false, hudEnabled: false, fire3dOn: true })).toBeNull();
+  expect(maskShortcut({ key: "e", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, blocked: false }, { manualEnabled: false, hudEnabled: false, fire3dOn: false })).toBeNull();
+  for (const extra of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { shiftKey: true }, { repeat: true }, { blocked: true }]) expect(key("e", extra)).toBeNull();
+  expect(key("x")).toBeNull();
+});

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { manualTexels, screenToQuadPoint } from "../lib/quadMask";
-import { addClick, fireOutline, groundGrid, isClick, moveClick, newFire, placeFire, planeToManualQuad, usableClicks, type Vec3 } from "../lib/fireTool";
+import { addClick, axisLines, fireOutline, groundGrid, isClick, moveClick, newFire, placeFire, planeToManualQuad, usableClicks, type Vec3 } from "../lib/fireTool";
 import { hitPlaneY, project } from "../lib/reversal";
 import { atlasTile, type AnimationAtlas } from "../lib/animationAtlases";
 import { loadSpriteSheet, spriteShape, spriteSource } from "../lib/spriteSheet";
@@ -32,8 +32,11 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
   const sx = width / native.width, sy = height / native.height;
   const y = workingY(fire);
   const centre: Vec3 | null = fire.state.fire ? (fire.state.fire.mode === "entity" ? fire.state.fire.feet : fire.state.fire.cell) : usableClicks(fire.state)[0]?.world ?? null;
-  const grid = cam && centre && y !== null ? groundGrid(cam, native.width, native.height, [centre[0], y, centre[2]], 8) : [];
-  const outline = cam && fire.state.fire ? fireOutline(fire.state.fire) : [];
+  const grid = fire.showGrid && cam && centre && y !== null ? groundGrid(cam, native.width, native.height, [centre[0], y, centre[2]], 8) : [];
+  const outline = fire.showBox && cam && fire.state.fire ? fireOutline(fire.state.fire) : [];
+  // which way + is: Minecraft's axes from the origin corner (else the fire)
+  const origin = usableClicks(fire.state)[0]?.world ?? centre;
+  const axes = cam && origin ? axisLines(cam, origin, native.width, native.height) : [];
   const outlinePx = cam ? project(cam, outline.flat(), native.width, native.height) : [];
   const { side, rows } = spriteShape(sprite.atlas);
   const row = sprite.atlas ? atlasTile(sprite.atlas, sprite.row) : sprite.row;
@@ -84,6 +87,12 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
       const a = outlinePx[2 * i], b = outlinePx[2 * i + 1];
       return a && b && <line key={`o${i}`} className="fire3d-cell" x1={a[0] * sx} y1={a[1] * sy} x2={b[0] * sx} y2={b[1] * sy} />;
     })}
+    {axes.map(a => <g key={a.axis} className={`fire3d-axis ${a.axis}`}>
+      <line x1={a.from[0] * sx} y1={a.from[1] * sy} x2={a.to[0] * sx} y2={a.to[1] * sy} />
+      <text className="fire3d-axis-label" x={a.to[0] * sx + 4 / screenScale} y={a.to[1] * sy - 4 / screenScale} fontSize={13 / screenScale} strokeWidth={3 / screenScale}>{a.label}</text>
+    </g>)}
+    {fire.click !== "none" && <text className="fire3d-mode" x={width / 2} y={22 / screenScale} fontSize={15 / screenScale} strokeWidth={3 / screenScale} textAnchor="middle">
+      {fire.click === "corner" ? "Click: add a block corner" : "Click: place the fire"}</text>}
     {fire.state.clicks.map((c, i) => <g key={c.id} className={`fire3d-click${c.world ? "" : " pending"}${fire.selected === c.id ? " selected" : ""}`}
       onPointerDown={e => grab(e, c.id)}>
       <title>{`Corner ${i + 1}: click to edit its position, drag to move it`}</title>

@@ -3,7 +3,7 @@
 // modes: a fire block, a burning block (the fire cell's planes on its burning neighbours' faces) or fire on an entity.
 // Soul fire is the soul atlas, not a mode. Every camera, pixel and fire corner comes from Rust through lib/reversal.ts.
 import {
-  defaultFace, entityFireQuads, entitySize, fireBlockQuads, initReversal, orientation, project, solveCamera, solveGuided,
+  defaultFace, entityFireQuads, entitySize, fireBlockQuads, initReversal, orientation, pixelRay, project, solveCamera, solveGuided,
   type CameraFit, type CameraPose, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
 import { validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
@@ -75,6 +75,43 @@ export const DEFAULT_ENTITY = "minecraft:blaze";
 
 export function emptyTool(frame: number): ToolState {
   return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [] };
+}
+
+/** What is kept of a frame's work (fire3dMemory): the corners, the fire, the eye height and the camera. */
+export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera">;
+
+/** The state for a newly shown picture: its own saved work when there is some; otherwise the last fire and camera to
+ * line up from, without the last picture's corners. The same picture again only takes the new guess. */
+export function pictureState(s: ToolState, samePicture: boolean, guess: Orientation | null, saved: SavedTool | undefined): ToolState {
+  if (samePicture) return { ...s, guess };
+  if (saved) return { ...emptyTool(0), ...saved, clicks: saved.clicks.map(c => ({ ...c, id: id() })), guess };
+  return { ...emptyTool(0), fire: s.fire, eyeY: s.eyeY, camera: s.camera, guess };
+}
+
+/** Minecraft's axes from `origin`, one block long, for the legend: which way + is on each (null ends are left out). */
+export function axisLines(cam: CameraPose, origin: Vec3, w: number, h: number, length = 1): { axis: "x" | "y" | "z"; label: string; from: [number, number]; to: [number, number] }[] {
+  const ends: Vec3[] = [[length, 0, 0], [0, length, 0], [0, 0, length]].map(d => [origin[0] + d[0], origin[1] + d[1], origin[2] + d[2]]);
+  const [o, ...px] = project(cam, [origin, ...ends], w, h);
+  if (!o) return [];
+  return (["x", "y", "z"] as const).flatMap((axis, i) => px[i] ? [{ axis, label: AXIS_LABELS[i], from: o, to: px[i]! }] : []);
+}
+const AXIS_LABELS = ["+X east", "+Y up", "+Z south"];
+
+/** The overview turned by a right-drag of `dx`, `dy` screen pixels: dragging right turns right. */
+export function orbitDrag(o: { yaw: number; pitch: number }, dx: number, dy: number): { yaw: number; pitch: number } {
+  return { yaw: o.yaw + dx * 0.4, pitch: Math.max(-85, Math.min(89, o.pitch + dy * 0.4)) };
+}
+
+/** The overview's target after a left-drag from pixel `from` to `to` (of a `w` × `h` view): the point under the cursor
+ * at the target's depth stays under the cursor (rays from Rust's Camera::pixel_ray). */
+export function panTarget(view: CameraPose, target: Vec3, from: [number, number], to: [number, number], w: number, h: number): Vec3 {
+  if (from[0] === to[0] && from[1] === to[1]) return target;
+  const eye: Vec3 = [view.x, view.y, view.z], fwd = pixelRay(view, w, h, w / 2, h / 2);
+  const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const depth = dot([target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]], fwd);
+  const at = (p: [number, number]) => { const r = pixelRay(view, w, h, p[0], p[1]), t = depth / dot(r, fwd); return r.map(v => v * t) as Vec3; };
+  const a = at(from), b = at(to);
+  return [target[0] + a[0] - b[0], target[1] + a[1] - b[1], target[2] + a[2] - b[2]];
 }
 
 /** A click on the frame: the first one is the origin (0, 0, 0); later ones wait for their coordinates. */

@@ -18,3 +18,5 @@
 .f3-entity { width: 170px; }
 .f3-values summary { cursor: pointer; }
 .f3-values[open] { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+/* a cursor mode (a click on the picture adds a corner or places the fire) is unmistakable while it is on */
+.f3-pick[aria-pressed="true"] { background: #ff8a1f; color: #000; font-weight: 600; box-shadow: 0 0 0 2px #ffd29a; }

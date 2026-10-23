@@ -421,6 +421,26 @@ pub unsafe extern "C" fn rev_hit_plane_y(
     }
 }
 
+/// The unit direction of the ray through pixel (x, y) (`Camera::pixel_ray`), into `out` (3 numbers).
+///
+/// # Safety
+/// `cam` holds 7 f64, `out` 3.
+#[no_mangle]
+pub unsafe extern "C" fn rev_pixel_ray(
+    cam: *const f64,
+    w: usize,
+    h: usize,
+    x: f64,
+    y: f64,
+    out: *mut f64,
+) -> i32 {
+    if cam.is_null() || out.is_null() {
+        return -1;
+    }
+    f64s_mut(out, 3).copy_from_slice(&camera_from(f64s(cam, 7)).pixel_ray(x, y, w, h));
+    1
+}
+
 /// The player model under `cam` (`camera::player_boxes`): 6 boxes of 8 corners (x, y, z), 144 numbers.
 ///
 /// # Safety
