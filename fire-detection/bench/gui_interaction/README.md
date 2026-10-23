@@ -176,4 +176,4 @@ the panel candidates. Downsampling tiny GUI scales can destroy one-pixel
 bevels, so the final check retains native resolution.
 
 Any future AI fitting/model comparison still requires the owner's concrete run
-plan agreement under AGENTS.md. This deterministic implementation is not such a run.
+plan agreement. This deterministic implementation is not such a run.

@@ -1,6 +1,6 @@
 # Video training data catalogue
 
-This is the canonical, growing register for FireCrackle/fire-detection video research. Every AI training, fine-tuning, distillation, calibration and model-comparison run must read it and account for **all available relevant sources**, rather than silently choosing a convenient old subset. The policy is also required by the root `AGENTS.md`.
+This is the canonical, growing register for FireCrackle/fire-detection video research. Every AI training, fine-tuning, distillation, calibration and model-comparison run must read it and account for **all available relevant sources**, rather than silently choosing a convenient old subset.
 
 Initial audit: 19 October 2026. With the evening soul-fire and evaluation recordings, the 14 original files total 4,467.508 seconds (74.5 minutes), including unqualified pilots; this is not 74.5 minutes of independently labelled fire.
 
