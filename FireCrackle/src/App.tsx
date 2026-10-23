@@ -16,6 +16,7 @@ import { ImagesTab } from "./components/ImagesTab";
 import { MiscToolsTab } from "./components/MiscToolsTab";
 import { Picker } from "./components/Picker";
 import { ProjectsHome } from "./components/ProjectsHome";
+import { projectName } from "./lib/projects";
 import { Credits } from "./components/Credits";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { UpdatesDialog, statusOf } from "./components/UpdatesDialog";
@@ -326,6 +327,7 @@ export default function App() {
           FireCrackle
           <span className="tag" title={`FireCrackle version ${appVersion}`}>v{appVersion}</span>
           {backend.mock && <span className="tag mock">mock backend</span>}
+          {ws.videoPath && <span className="project-title" title={ws.videoPath}>{projectName(ws.videoPath)}</span>}
         </div>
         <nav className="tabs" aria-label="Workspace tabs">
           <button className={tab !== "images" && (!view || home) ? "on" : ""} onClick={() => { setTab("label"); setHome(true); }}><Icon name="home" /> Home</button>

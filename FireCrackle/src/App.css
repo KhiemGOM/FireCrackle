@@ -112,6 +112,16 @@ input {
   gap: 8px;
   align-items: center;
 }
+/* the open video, so it is clear which project this is */
+.project-title {
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.85;
+  max-width: 28vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .brand-icon {
   width: 24px;
   height: 24px;
