@@ -64,15 +64,22 @@ export async function processFrame(bytes: ArrayBuffer, original: Blob, mode: Vei
   }
 }
 
-/** The real canvas-backed implementation (the desktop webview and any browser). */
+/** A drawing surface: OffscreenCanvas where there is one (also inside web workers), else a page canvas. */
+function surface(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
+  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(width, height);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+/** The real canvas-backed implementation (the desktop webview, any browser, and web workers). */
 export const canvasFrameIo: FrameIo = {
   async decode(bytes) {
     const bitmap = await createImageBitmap(new Blob([bytes]));
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const g = canvas.getContext("2d", { willReadFrequently: true });
+      const canvas = surface(bitmap.width, bitmap.height);
+      const g = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
       if (!g) throw new Error("no 2D canvas");
       g.drawImage(bitmap, 0, 0);
       const { data, width, height } = g.getImageData(0, 0, bitmap.width, bitmap.height);
@@ -82,12 +89,11 @@ export const canvasFrameIo: FrameIo = {
     }
   },
   async encode(data, width, height) {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const g = canvas.getContext("2d");
+    const canvas = surface(width, height);
+    const g = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (!g) throw new Error("no 2D canvas");
     g.putImageData(new ImageData(new Uint8ClampedArray(data), width, height), 0, 0);
+    if ("convertToBlob" in canvas) return await canvas.convertToBlob({ type: "image/jpeg", quality: 0.95 });
     return await canvasBlob(canvas, "image/jpeg", 0.95, "could not encode the picture");
   },
 };

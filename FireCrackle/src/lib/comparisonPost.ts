@@ -9,6 +9,7 @@ import {overlayRgba,screenWorld,veilScreenEvidence,type GuiMaskFrame} from './gu
 import {enhance,hasEnhancement} from './post/pipeline';
 import {DEFAULT_POST,type PostSettings} from './post/settings';
 import {nativeFrame} from './exactFrame';
+import {pictureTask} from './pictureWorker';
 import {failureMessage} from './appErrors';
 import {blobDataUrl} from './canvas';
 
@@ -62,21 +63,29 @@ export async function correctFrame({bytes,original,mode,veil,io,mask,size,portal
  * fitted to the preview, so only an open inventory or menu is left as it is. Without a usable mask, detection alone
  * decides. Returns the preview itself when nothing was unveiled.
  */
-export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob),onScreen}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>;onScreen?:(screen:WorldCoverage|undefined)=>void}):Promise<string>{
+export async function unveilPreview({url,mask,veil,io,read=src=>fetch(src).then(r=>r.arrayBuffer()),toUrl=blob=>blobDataUrl(blob),onScreen}:{url:string;mask?:()=>Promise<GuiMaskFrame>;veil:VeilOptions;io?:FrameIo;read?:(url:string)=>Promise<ArrayBuffer>;toUrl?:(blob:Blob)=>Promise<string>;onScreen?:(screen:WorldCoverage|undefined)=>void}):Promise<string>{
  const bytes=await read(url);
  let found:Mask={};
  if(mask){try{found=coverageOf(await mask());}catch{/* detection alone */}}
+ // the pixel work runs off the UI thread unless the caller supplies its own picture I/O
+ const made=io?await unveilPicture({bytes,mask:found,veil,io}):await pictureTask('unveil',{bytes,mask:found,veil});
+ onScreen?.(made.screen);
+ return made.blob?toUrl(made.blob):url;
+}
+
+/** The pixel half of unveilPreview (worker-safe): decode, fit the mask to the picture, Auto unveil, encode. */
+export async function unveilPicture({bytes,mask,veil,io=canvasFrameIo}:{bytes:ArrayBuffer;mask:Mask;veil:VeilOptions;io?:FrameIo}):Promise<{blob?:Blob;screen?:WorldCoverage}>{
  const image=await io.decode(bytes);
- onScreen?.(fitCoverage(found.screen,image.width,image.height));
- const result=await correctFrame({bytes,original:new Blob([bytes],{type:'image/jpeg'}),mode:'auto',veil,mask:found,size:image,io:{decode:async()=>image,encode:io.encode}});
- return result.applied?toUrl(result.blob):url;
+ const screen=fitCoverage(mask.screen,image.width,image.height);
+ const result=await correctFrame({bytes,original:new Blob([bytes],{type:'image/jpeg'}),mode:'auto',veil,mask,size:image,io:{decode:async()=>image,encode:io.encode}});
+ return {blob:result.applied?result.blob:undefined,screen};
 }
 
 /**
  * The compared frames with the ticked effects, keyed by frame (each frame made once). A failed stage keeps what
  * succeeded and is listed in `errors`; a frame that cannot be read rejects.
  */
-export async function comparisonPictures({backend,frames,post,compare,veilOptions,signal,io=losslessFrameIo,portal=portalPreview}:{backend:Backend;frames:number[];post:PostSettings;compare:ComparePost;veilOptions:VeilOptions;signal:AbortSignal;io?:FrameIo;portal?:Portal}):Promise<{pictures:Map<number,Blob>;errors:string[]}>{
+export async function comparisonPictures({backend,frames,post,compare,veilOptions,signal,io,portal}:{backend:Backend;frames:number[];post:PostSettings;compare:ComparePost;veilOptions:VeilOptions;signal:AbortSignal;io?:FrameIo;portal?:Portal}):Promise<{pictures:Map<number,Blob>;errors:string[]}>{
  const settings=comparisonSettings(post,compare),errors:string[]=[];
  const enhanceOn=hasEnhancement(settings),manual=settings.portal==='manual'?settings.portalManual:undefined;
  const wantsMask=settings.veil==='auto'||settings.portal==='auto';
@@ -86,18 +95,27 @@ export async function comparisonPictures({backend,frames,post,compare,veilOption
   const original=await nativeFrame(backend,frame),bytes=await original.arrayBuffer();
   let mask:Mask={};
   if(wantsMask&&backend.guiMaskFrame){try{mask=coverageOf(await backend.guiMaskFrame(frame));}catch(e){errors.push(`GUI mask of frame ${frame}: ${failureMessage(e)}`);}}
-  const image=await io.decode(bytes);
-  const result=await correctFrame({bytes,original,mode:settings.veil,veil:veilOptions,io:{decode:async()=>image,encode:io.encode},mask,size:image,
-   portal:settings.portal!=='off'?(image,world)=>portal(image,signal,settings.portal==='auto'?world:undefined,manual):undefined,
-   enhance:enhanceOn?image=>enhance(image,settings):undefined});
+  const job:CorrectJob={bytes,type:original.type,mode:settings.veil,veil:veilOptions,mask,portal:settings.portal,manual,enhance:enhanceOn,settings};
+  // the pixel work runs off the UI thread unless the caller supplies its own picture I/O or portal
+  const result=io||portal?await correctPicture(job,io,portal?(image,world,manual)=>portal(image,signal,world,manual):undefined):await pictureTask('correct',job);
+  if(signal.aborted)throw Error('cancelled');
   if(result.error)errors.push(`Frame ${frame}: ${result.error}`);
   return {frame,blob:result.blob};
  }));
  return {pictures:new Map(made.map(m=>[m.frame,m.blob])),errors};
 }
+/** One frame's post effects as plain data, so they can run in the picture worker (lib/pictureTasks.ts). */
+export interface CorrectJob {bytes:ArrayBuffer;type:string;mode:VeilMode;veil:VeilOptions;mask:Mask;portal:PostSettings['portal'];manual?:PortalManual;enhance:boolean;settings:PostSettings}
+/** The pixel work of one comparison frame (worker-safe): decode once, then the shared correctFrame on the native picture, lossless. */
+export async function correctPicture(job:CorrectJob,io:FrameIo=losslessFrameIo,portal:(image:PortalImage,world?:Uint8Array,manual?:PortalManual)=>Promise<PortalResult>=(image,world,manual)=>portalPreview(image,new AbortController().signal,world,manual)):Promise<ProcessedFrame&{guiProtected:boolean}>{
+ const image=await io.decode(job.bytes);
+ return correctFrame({bytes:job.bytes,original:new Blob([job.bytes],{type:job.type}),mode:job.mode,veil:job.veil,io:{decode:async()=>image,encode:io.encode},mask:job.mask,size:image,
+  portal:job.portal!=='off'?(picture,world)=>portal(picture,job.portal==='auto'?world:undefined,job.manual):undefined,
+  enhance:job.enhance?picture=>enhance(picture,job.settings):undefined});
+}
 /** One frame at the video's own resolution as the GUI gallery shows it (auto unveil, the GUI mask fitted to it);
  * the plain frame when unveil fails or changes nothing. */
-export async function boundaryPicture({backend,frame,veilOptions,io=canvasFrameIo}:{backend:Backend;frame:number;veilOptions:VeilOptions;io?:FrameIo}):Promise<Blob>{
+export async function boundaryPicture({backend,frame,veilOptions,io}:{backend:Backend;frame:number;veilOptions:VeilOptions;io?:FrameIo}):Promise<Blob>{
  const plain=await nativeFrame(backend,frame),bytes=await plain.arrayBuffer();
  let made:Blob|undefined;
  try{

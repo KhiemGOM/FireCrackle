@@ -1,5 +1,5 @@
 import type {GuiRange} from './guiScan';
-import {loadImage} from './canvas';
+import {pictureTask} from './pictureWorker';
 import {fitCoverage,type WorldCoverage} from './portalPreview';
 
 const motionScores=new WeakMap<object,Map<string,number|null>>();
@@ -41,15 +41,26 @@ export function keepMask(screens:(WorldCoverage|undefined)[],width:number,height
   for(let i=0;i<keep.length;i++)keep[i]=fitted.every(s=>s.world[i])?1:0;
   return keep;
 }
-export async function previewPixelChange(before:string,after:string,screens:(WorldCoverage|undefined)[]=[]):Promise<number>{
-  const load=(src:string)=>loadImage(src,'Could not load motion preview');
+/** The movement score of two previews, worked out off the UI thread (lib/pictureWorker.ts). */
+export function previewPixelChange(before:string,after:string,screens:(WorldCoverage|undefined)[]=[]):Promise<number>{
+  return pictureTask('change',{before,after,screens});
+}
+/** The score itself, at 128 px wide; worker-safe (no document). */
+export async function motionChange(before:string,after:string,screens:(WorldCoverage|undefined)[]=[]):Promise<number>{
+  const load=async(src:string)=>{
+    const response=await fetch(src);if(!response.ok)throw Error('Could not load motion preview');
+    return createImageBitmap(await response.blob());
+  };
   const [a,b]=await Promise.all([load(before),load(after)]);
-  if(a.naturalWidth!==b.naturalWidth||a.naturalHeight!==b.naturalHeight)throw Error('Motion previews have different dimensions.');
-  const canvas=document.createElement('canvas');canvas.width=Math.min(128,a.naturalWidth);canvas.height=Math.max(1,Math.round(canvas.width*a.naturalHeight/a.naturalWidth));
-  const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw Error('Motion preview unavailable');
-  context.drawImage(a,0,0,canvas.width,canvas.height);const left=context.getImageData(0,0,canvas.width,canvas.height);
-  context.drawImage(b,0,0,canvas.width,canvas.height);const right=context.getImageData(0,0,canvas.width,canvas.height);
-  return meanPixelChange(left.data,right.data,keepMask(screens,canvas.width,canvas.height));
+  try{
+    if(a.width!==b.width||a.height!==b.height)throw Error('Motion previews have different dimensions.');
+    const width=Math.min(128,a.width),height=Math.max(1,Math.round(width*a.height/a.width));
+    const canvas=new OffscreenCanvas(width,height),context=canvas.getContext('2d',{willReadFrequently:true});
+    if(!context)throw Error('Motion preview unavailable');
+    context.drawImage(a,0,0,width,height);const left=context.getImageData(0,0,width,height);
+    context.drawImage(b,0,0,width,height);const right=context.getImageData(0,0,width,height);
+    return meanPixelChange(left.data,right.data,keepMask(screens,width,height));
+  }finally{a.close();b.close();}
 }
 /** Only sealed ranges have a stable `first-last` key, so only they are scored and cached. */
 export const scorableRanges=(ranges:GuiRange[])=>ranges.filter(range=>range.sealed!==false);

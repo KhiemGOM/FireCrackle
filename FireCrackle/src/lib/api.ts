@@ -130,7 +130,8 @@ export interface Backend {
   guiAnswerGet?(): Promise<GuiAnswer | null>;
   guiAnswerSet?(answer: GuiAnswer): Promise<void>;
   /** Atomic mask metadata and packed pixels from one analysis. */
-  guiMaskFrame?(frame: number): Promise<GuiMaskFrame>;
+  /** `width`: the mask of that cached preview picture (the gallery's), instead of the display frame. */
+  guiMaskFrame?(frame: number, width?: number): Promise<GuiMaskFrame>;
   /** Legacy two-step mask APIs. */
   guiMask?(frame: number): Promise<GuiMaskReply>;
   guiMaskPixels?(frame: number): Promise<ArrayBuffer>;
@@ -182,7 +183,7 @@ export async function createBackend(): Promise<Backend> {
     povApply: (id) => invoke<View>("pov_apply",{id}),
     guiAnswerGet: () => invoke<GuiAnswer | null>("gui_answer_get"),
     guiAnswerSet: (answer) => invoke<void>("gui_answer_set", { answer }),
-    guiMaskFrame: async (frame) => readGuiMaskFrame(await invoke<ArrayBuffer>("gui_mask_frame", { frame })),
+    guiMaskFrame: async (frame, width) => readGuiMaskFrame(await invoke<ArrayBuffer>("gui_mask_frame", { frame, width })),
     guiMask: (frame) => invoke<GuiMaskReply>("gui_mask", { frame }),
     guiMaskPixels: (frame) => invoke<ArrayBuffer>("gui_mask_pixels", { frame }),
     guiScanStart: () => invoke<GuiScanStatus>("gui_scan_start"),

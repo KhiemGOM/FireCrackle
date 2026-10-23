@@ -100,7 +100,7 @@ export function unveiledPreviews(backend:Backend,veil:VeilOptions,width=galleryP
     if(screen)found_screens.set(frame,screen);
     if(found_screens.size>256)found_screens.delete(found_screens.keys().next().value!);
   };
-  const cache=new GuiThumbnailCache(async frame=>unveilPreview({url:await raw.get(frame),veil,mask:native.guiMaskFrame?()=>native.guiMaskFrame!(frame):undefined,onScreen:screen=>keep(frame,screen)}),256);
+  const cache=new GuiThumbnailCache(async frame=>unveilPreview({url:await raw.get(frame),veil,mask:native.guiMaskFrame?()=>native.guiMaskFrame!(frame,previewTier(width)):undefined,onScreen:screen=>keep(frame,screen)}),256);
   screens.set(cache,found_screens);
   owner.sizes.set(key,cache);return cache;
 }

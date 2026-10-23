@@ -31,34 +31,88 @@ pub async fn gui_answer_set(state: State<'_, AppState>, answer: GuiAnswer) -> Re
 /// Metadata and pixels are returned from the same analysis, without a shared
 /// "last mask" lookup that another frame can replace between IPC requests.
 #[tauri::command]
-pub async fn gui_mask_frame(state: State<'_, AppState>, frame: u32) -> Result<Response, String> {
-    let scan = state.gui_scan.clone();
-    run(state.ws.clone(), move |w| {
-        let (reply, packed) = analyze(w, &scan, frame)?;
+/// `width`: the mask of that cached preview picture (the gallery's), instead of the display frame.
+pub async fn gui_mask_frame(
+    state: State<'_, AppState>,
+    frame: u32,
+    width: Option<u32>,
+) -> Result<Response, String> {
+    let source = Source::take(&state).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (reply, packed) = source.analyze(frame, width)?;
         mask_packet(&reply, &packed).map(Response::new)
     })
     .await
+    .map_err(err)?
 }
 
-/// The frame's GUI mask as the app shows it: the HUD read from the display picture, open screens from the GUI
-/// scan's native-resolution result when the scan has reached this frame (one engine answer everywhere), else
-/// detected on the display picture.
+/// What a mask needs, taken under the workspace lock (cheap handles only): decoding and analysis then run without
+/// it, so masks run in parallel and never hold up the app's other commands.
+struct Source {
+    frames: studio_core::workspace::FrameService,
+    project: studio_core::project::Project,
+    dir: PathBuf,
+    scan: crate::gui_scan::Jobs,
+}
+impl Source {
+    async fn take(state: &State<'_, AppState>) -> Result<Source, String> {
+        let scan = state.gui_scan.clone();
+        let (frames, project, dir) = run(state.ws.clone(), |w| {
+            Ok((
+                w.frame_service(),
+                w.automation_project(),
+                w.dir().to_path_buf(),
+            ))
+        })
+        .await?;
+        Ok(Source {
+            frames,
+            project,
+            dir,
+            scan,
+        })
+    }
+    /// The picture to mask: the display frame, or the cached preview of `width`.
+    fn picture(&self, frame: u32, width: Option<u32>) -> Result<Vec<u8>, String> {
+        match width {
+            Some(width) => crate::preview_thumbnail::get_sized(
+                &self.project,
+                &self.dir,
+                frame,
+                width,
+                crate::external_tools::video_tools,
+            ),
+            None => self
+                .frames
+                .get(frame)
+                .map(|b| (*b).clone())
+                .map_err(|e| err(studio_core::workspace::WorkspaceError::Frame(e))),
+        }
+    }
+    /// The frame's GUI mask as the app shows it: the HUD read from that picture, open screens from the GUI scan's
+    /// native-resolution result when the scan has reached this frame (one engine answer everywhere), else detected
+    /// on the picture.
+    fn analyze(&self, frame: u32, width: Option<u32>) -> Result<(GuiMaskReply, Vec<u8>), String> {
+        let jpeg = self.picture(frame, width)?;
+        analyze(&jpeg, &self.scan, &self.project, frame)
+    }
+}
+
 fn analyze(
-    w: &studio_core::workspace::Workspace,
+    jpeg: &[u8],
     scan: &crate::gui_scan::Jobs,
+    project: &studio_core::project::Project,
     frame: u32,
 ) -> Result<(GuiMaskReply, Vec<u8>), String> {
-    let jpeg = w.frame_jpeg(frame).map_err(err)?;
-    let project = w.automation_project();
-    match scan.screens(&project, frame) {
+    match scan.screens(project, frame) {
         // scanned: the scan's answer, an open screen or none at all
         Some(found) => {
             let (width, height) = (project.meta.width, project.meta.height);
             let found =
                 found.unwrap_or_else(|| fire_core::gui_interaction::Detection::none(width, height));
-            analyzer()?.analyze_jpeg_with_screens(&jpeg, Some(&found))
+            analyzer()?.analyze_jpeg_with_screens(jpeg, Some(&found))
         }
-        None => analyzer()?.analyze_jpeg(&jpeg),
+        None => analyzer()?.analyze_jpeg(jpeg),
     }
 }
 
@@ -76,13 +130,14 @@ fn mask_packet(reply: &GuiMaskReply, packed: &[u8]) -> Result<Vec<u8>, String> {
 /// Mask the frame as the app shows it; the pixels are kept for `gui_mask_pixels`.
 #[tauri::command]
 pub async fn gui_mask(state: State<'_, AppState>, frame: u32) -> Result<GuiMaskReply, String> {
-    let scan = state.gui_scan.clone();
-    run(state.ws.clone(), move |w| {
-        let (reply, packed) = analyze(w, &scan, frame)?;
-        *LAST.lock().map_err(err)? = Some((w.dir().to_path_buf(), frame, packed));
+    let source = Source::take(&state).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (reply, packed) = source.analyze(frame, None)?;
+        *LAST.lock().map_err(err)? = Some((source.dir.clone(), frame, packed));
         Ok(reply)
     })
     .await
+    .map_err(err)?
 }
 
 /// The packed pixels (`class << 4 | piece`, one byte each) of the last `gui_mask` of this frame, sent raw.

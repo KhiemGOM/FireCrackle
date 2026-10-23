@@ -130,3 +130,16 @@ it('the gallery, its ranking and warm-up share one preview width, and ask the ba
     expect(unveiledPreviews(backend,{minShare:.5,margin:.2,slack:2},2048)).not.toBe(unveiledPreviews(backend,{minShare:.5,margin:.2,slack:2},1024));
   }finally{setGalleryPreviewWidth(826);vi.unstubAllGlobals();}
 });
+it('a gallery picture is unveiled with the GUI mask of that same preview, not a fresh decode of the video frame',async()=>{
+  const veil={minShare:.5,margin:.2,slack:2};
+  const guiMaskFrame=vi.fn(async()=>({reply:{} as never,packed:null}));
+  const backend={guiMaskFrame} as unknown as Backend;
+  guiThumbnails(backend,'w',100);
+  const unveiled=unveiledPreviews(backend,veil,1024);
+  vi.spyOn(previewFrames(backend,1024),'get').mockResolvedValue('data:raw');
+  const unveil=vi.spyOn(comparisonPost,'unveilPreview').mockImplementation(async options=>{await options.mask?.();return 'data:clear';});
+  await unveiled.get(9);
+  expect(guiMaskFrame).toHaveBeenCalledWith(9,1024);
+  vi.restoreAllMocks();
+  void unveil;
+});

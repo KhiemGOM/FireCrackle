@@ -3,6 +3,7 @@ import * as frameProcessing from './veilFrame';
 import {DEFAULT_POST,STARTING_POST,type PostSettings} from './post/settings';
 import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,correctFrame,coverageOf,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from './comparisonPost';
 import type {Backend} from './api';
+import * as pictureWorker from './pictureWorker';
 import type {GuiMaskReply} from './guiMask';
 
 afterEach(()=>vi.restoreAllMocks());
@@ -66,6 +67,15 @@ describe('making the compared pictures',()=>{
   expect(call[7]).toEqual({width:4,height:2});
   expect(call[8]).toEqual({width:4,height:2,world:new Uint8Array([0,0,1,1,0,0,1,1])});
   expect(portal.mock.calls[0][2]).toEqual(new Uint8Array(8));
+ });
+ it('without its own picture I/O, the comparison hands the pixel work of each frame to the picture worker',async()=>{
+  const task=vi.spyOn(pictureWorker,'pictureTask').mockResolvedValue({blob:new Blob(['made']),applied:true,guiProtected:false} as never);
+  const b=backend();
+  const result=await comparisonPictures({backend:b,frames:[3,7],post:STARTING_POST,compare:on({veil:true}),veilOptions:{minShare:.5,margin:.2,slack:2},signal:new AbortController().signal});
+  expect(task).toHaveBeenCalledTimes(2);
+  expect(task.mock.calls[0][0]).toBe('correct');
+  expect(task.mock.calls[0][1]).toMatchObject({mode:'auto',portal:'off',enhance:false});
+  expect(await result.pictures.get(3)!.text()).toBe('made');
  });
  it('one correction for Label and the comparison: a mask of another shape than the picture is not used',async()=>{
   const process=vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original,_m,_o,io)=>{await io.decode(new ArrayBuffer(1));return {blob:original,applied:true};});
