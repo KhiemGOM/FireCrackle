@@ -1,7 +1,7 @@
 // State of Label's 3D quad mode: the camera (automatic guess for the shown frame + clicked block corners), the fire
 // placements and which of their planes is Label's manual quad. Pixels are the video's native ones (the camera is
 // solved in them); the overlay scales them to the displayed picture.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Backend } from "./api";
 import { nativeFrame } from "./exactFrame";
 import { canvasFrameIo } from "./veilFrame";
@@ -57,10 +57,11 @@ export function useFire3D(backend: Backend, frame: number, active: boolean): Fir
     return () => { cancelled = true; };
   }, [backend, frame, active, ready]);
   const w = size?.width ?? 0, h = size?.height ?? 0;
-  const planes = useMemo(() => ready && state.camera && w > 0
+  // a few WASM calls per render; no memo (VideoPane's tests mock React's hooks by call order)
+  const planes = ready && state.camera && w > 0
     ? state.placements.map(p => ({ placement: p.id, quads: placementQuads(p, state.camera!, w, h) }))
-    : [], [ready, state.camera, state.placements, w, h]);
+    : [];
   const chosen = choice ? planes.find(p => p.placement === choice.placement)?.quads[choice.plane] : undefined;
-  const manual = useMemo(() => chosen ? planeToManualQuad(chosen, w, h) : null, [chosen, w, h]);
+  const manual = chosen ? planeToManualQuad(chosen, w, h) : null;
   return { ready, error, busy, size, state, setState: f => setRaw(s => f(s)), picking, setPicking, choice, setChoice, planes, manual };
 }
