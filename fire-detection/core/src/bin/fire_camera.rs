@@ -6,37 +6,9 @@
 //! (`{"label": {...}}`). `--grid N out.json`: solve only joined row `n` = N and write the block grid of the ground the
 //! player stands on (lines at every block edge, ±10 blocks around the camera), projected through the solved camera, to draw over that
 //! video frame as a check that does not involve the fire.
-use fire_core::camera::{fit_label_frame, LoggedBlock, LoggedQuad};
+use fire_core::camera::{fit_label_frame, logged_blocks};
 use fire_core::json::{parse, Value};
 use std::io::{BufRead, Write};
-
-fn quads(source: &Value) -> Vec<LoggedQuad> {
-    let mut out = Vec::new();
-    for q in source.get("quads").and_then(Value::arr).unwrap_or(&[]) {
-        let (Some(c), Some(uv)) = (
-            q.get("c").and_then(Value::arr),
-            q.get("uv").and_then(Value::arr),
-        ) else {
-            continue;
-        };
-        if c.len() != 8 || uv.len() != 8 {
-            continue;
-        }
-        let n = |a: &[Value], i: usize| a[i].num().unwrap_or(f64::NAN);
-        let mut lq = LoggedQuad {
-            corners: [[0.0; 2]; 4],
-            uv: [[0.0; 2]; 4],
-        };
-        for i in 0..4 {
-            lq.corners[i] = [n(c, 2 * i), n(c, 2 * i + 1)];
-            lq.uv[i] = [n(uv, 2 * i), n(uv, 2 * i + 1)];
-        }
-        if lq.corners.iter().flatten().all(|v| v.is_finite()) {
-            out.push(lq);
-        }
-    }
-    out
-}
 
 fn pct(v: &mut [f64], p: f64) -> f64 {
     if v.is_empty() {
@@ -150,23 +122,7 @@ fn main() {
         ) else {
             continue;
         };
-        let blocks: Vec<LoggedBlock> = label
-            .get("fires")
-            .and_then(Value::arr)
-            .unwrap_or(&[])
-            .iter()
-            .filter(|s| s.get("src").and_then(Value::str) == Some("block"))
-            .filter_map(|s| {
-                let p = s.get("pos")?.arr()?;
-                let pos = [p[0].num()? as i32, p[1].num()? as i32, p[2].num()? as i32];
-                Some(LoggedBlock {
-                    pos,
-                    dist: s.get("dist")?.num()?,
-                    quads: quads(s),
-                })
-            })
-            .filter(|b| !b.quads.is_empty())
-            .collect();
+        let blocks = logged_blocks(label);
         if blocks.is_empty() {
             continue;
         }

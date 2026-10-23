@@ -283,6 +283,57 @@ pub struct LoggedBlock {
     pub quads: Vec<LoggedQuad>,
 }
 
+/// The quads of one logged fire source (`"quads": [{"c": [8 numbers], "uv": [8 numbers]}, ...]`); malformed ones skipped.
+pub fn logged_quads(source: &crate::json::Value) -> Vec<LoggedQuad> {
+    use crate::json::Value;
+    let mut out = Vec::new();
+    for q in source.get("quads").and_then(Value::arr).unwrap_or(&[]) {
+        let (Some(c), Some(uv)) = (
+            q.get("c").and_then(Value::arr),
+            q.get("uv").and_then(Value::arr),
+        ) else {
+            continue;
+        };
+        if c.len() != 8 || uv.len() != 8 {
+            continue;
+        }
+        let n = |a: &[Value], i: usize| a[i].num().unwrap_or(f64::NAN);
+        let mut lq = LoggedQuad {
+            corners: [[0.0; 2]; 4],
+            uv: [[0.0; 2]; 4],
+        };
+        for i in 0..4 {
+            lq.corners[i] = [n(c, 2 * i), n(c, 2 * i + 1)];
+            lq.uv[i] = [n(uv, 2 * i), n(uv, 2 * i + 1)];
+        }
+        if lq.corners.iter().flatten().all(|v| v.is_finite()) {
+            out.push(lq);
+        }
+    }
+    out
+}
+
+/// The fire blocks of one label row (`label.fires` with `src: "block"`) that have drawn quads.
+pub fn logged_blocks(label: &crate::json::Value) -> Vec<LoggedBlock> {
+    use crate::json::Value;
+    label
+        .get("fires")
+        .and_then(Value::arr)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|s| s.get("src").and_then(Value::str) == Some("block"))
+        .filter_map(|s| {
+            let p = s.get("pos")?.arr()?;
+            Some(LoggedBlock {
+                pos: [p[0].num()? as i32, p[1].num()? as i32, p[2].num()? as i32],
+                dist: s.get("dist")?.num()?,
+                quads: logged_quads(s),
+            })
+        })
+        .filter(|b| !b.quads.is_empty())
+        .collect()
+}
+
 /// World points of a model quad in the logged quad's corner order, matched by UV; None if the UVs differ.
 #[allow(clippy::needless_range_loop)] // corners are indexed in step across model, log and output
 fn pair(model: &crate::fire_model::ModelQuad, q: &LoggedQuad) -> Option<[[f64; 3]; 4]> {

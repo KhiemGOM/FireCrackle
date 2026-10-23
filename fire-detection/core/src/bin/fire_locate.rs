@@ -4,38 +4,10 @@
 //! frame (`camera::fit_label_frame`, kept only when it reproduces their quads exactly), then the held-out fire is
 //! located from its logged box alone. Only fully visible fires (vis >= 0.95) with a box clear of the screen edges are
 //! held out, because a partly hidden fire's box is smaller than its outline.
-use fire_core::camera::{fit_label_frame, LoggedBlock, LoggedQuad};
+use fire_core::camera::{fit_label_frame, logged_quads, LoggedBlock};
 use fire_core::fire_locate::{locate, predicted_box};
 use fire_core::json::{parse, Value};
 use std::io::BufRead;
-
-fn quads(source: &Value) -> Vec<LoggedQuad> {
-    let mut out = Vec::new();
-    for q in source.get("quads").and_then(Value::arr).unwrap_or(&[]) {
-        let (Some(c), Some(uv)) = (
-            q.get("c").and_then(Value::arr),
-            q.get("uv").and_then(Value::arr),
-        ) else {
-            continue;
-        };
-        if c.len() != 8 || uv.len() != 8 {
-            continue;
-        }
-        let n = |a: &[Value], i: usize| a[i].num().unwrap_or(f64::NAN);
-        let mut lq = LoggedQuad {
-            corners: [[0.0; 2]; 4],
-            uv: [[0.0; 2]; 4],
-        };
-        for i in 0..4 {
-            lq.corners[i] = [n(c, 2 * i), n(c, 2 * i + 1)];
-            lq.uv[i] = [n(uv, 2 * i), n(uv, 2 * i + 1)];
-        }
-        if lq.corners.iter().flatten().all(|v| v.is_finite()) {
-            out.push(lq);
-        }
-    }
-    out
-}
 
 struct Source {
     block: LoggedBlock,
@@ -96,7 +68,7 @@ fn main() {
                     block: LoggedBlock {
                         pos: [p[0].num()? as i32, p[1].num()? as i32, p[2].num()? as i32],
                         dist: s.get("dist")?.num()?,
-                        quads: quads(s),
+                        quads: logged_quads(s),
                     },
                     vis: s.get("vis")?.num()?,
                     bbox: [b[0].num()?, b[1].num()?, b[2].num()?, b[3].num()?],

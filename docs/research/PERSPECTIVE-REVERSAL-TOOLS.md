@@ -105,10 +105,10 @@ of the frame, then a fully visible fire (vis ≥ 0.95, box clear of the screen e
 
 | Recording | Fires | Same drawn outline (every edge ≤ 1 px) | Right block first | Right block in top 3 |
 |---|---|---|---|---|
-| quad1 (every 10th frame) | 151 | 39.1 % | 48.3 % | 72.8 % |
-| survival1 (every 20th frame) | 600 | 36.2 % | 42.7 % | 70.0 % |
+| quad1 (every 10th frame) | 169 | 39.1 % | 47.3 % | 74.0 % |
+| survival1 (every 20th frame) | 906 | 37.0 % | 44.6 % | 71.5 % |
 
-Best at 4–8 blocks (53–100 % same outline). Beyond 16 blocks a fire is a few pixels wide and depth is a guess.
+Best at 4–8 blocks. (Rerun 2026-10-23 with the committed held-out filter; an earlier draft of this table came from a run before it.) Beyond 16 blocks a fire is a few pixels wide and depth is a guess.
 Two kinds of miss can't be fixed from a box:
 - a side fire and the neighbouring block's opposite-side fire are the same plane, 0.0012 blocks apart;
 - a fire with two or more flammable neighbours draws several side planes; those combinations are not candidates yet.
@@ -201,3 +201,55 @@ each recording. Samples are checked by eye (grid overlay) before any full run.
 4. Video tracking and FOV snapping.
 5. The F3 reader.
 6. The WASM binding and the app's automatic overlay, with the manual correction tool.
+
+## Stage 1 built: rotation and FOV from the picture (`fire_core::lines`, `fire_core::reversal`)
+
+**How it works:**
+- **Segments.** `lines::segments` is an LSD-style detector. It grows regions of pixels whose gradient directions agree
+  within 22.5°, strongest first, and takes each region's principal axis as its direction. Minecraft draws without
+  antialiasing, so a slanted edge is a staircase, and single-pixel or small-window gradients sit near 0°/90°. The
+  region's axis still gives the true direction.
+  - The first version used structure-tensor pixels. At the true camera, 42 % of those pixels were more than 6° off,
+    and the answer was biased by 1–1.5°.
+- **Score.** `reversal::orientation` scores a rotation + FOV by the length of segments that point at one of the three
+  axis vanishing points (Coughlan & Yuille's "Manhattan world"). Each segment's own direction uncertainty
+  (1.5 px / length) is part of its kernel.
+  - The search starts from a coarse grid (yaw 0–90 in 3° steps, pitch ±88° in 4° steps, FOV 40–140), then runs a
+    pattern search with a narrowing kernel.
+  - It then refines the classic confusions (yaw + 45°, the 90° pitch swap, FOV × 0.6 / × 1.4), so the reported
+    `margin` over the best rival more than 5° away is honest.
+- **What the real recordings forced:**
+
+  | Change | Why |
+  |---|---|
+  | Hand zones left out (bottom corners) | The first-person arm and held item are big boxes drawn with their own projection. |
+  | Segments shorter than 16 px dropped | Netherrack and lava texture noise. |
+  | Weight capped at 60 px | A few long non-world edges must not outvote the world. |
+  | Segments within 1° of exactly screen-horizontal/vertical count ×0.1 | Screen-space drawing: menus the GUI mask missed, chat, the label mod's debug overlay. Random videos add facecams, subtitles and logos. Otherwise they pull the answer to a level, axis-aligned camera with a narrow FOV. |
+  | Roll limited to ±6° | A larger roll is how a 90° pitch swap fakes a fit. |
+  | FOV floor 45° | |
+
+  The GUI comes from the shared mask: `GuiDetector::detect` + `add_screen_masks`, as in `pov`.
+- **Synthetic tests** (`tests/reversal.rs`, `tests/lines.rs`) use ray-cast block worlds with 16×16-texel faces at
+  1080p. They cover exact rotation/FOV, yaw modulo 90°, masked GUI, the arms, text, compression blocks, blur and noise,
+  flat frames, the level-axis case (FOV unknown) and bad sizes.
+  - These worlds are easier than the real recordings. Every real-data failure above passed the synthetic test written
+    for it, so **the evidence for those changes is the recording evaluation below, not the unit tests.**
+
+**On the recordings** (`fire_reversal`; the reversal reads only the video frame; the answer key is `fit_label_frame` on
+frames where it is exact; rotation error after the best quarter turn of yaw; sample every 20th / 120th keyed frame):
+
+| Recording | Frames | Clear (margin ≥ 0.1) | Clear: rotation p50 / p90 | ≤ 0.5° / ≤ 2° | Clear: FOV error p50 / p90 | All answers: rotation p50 | Time |
+|---|---|---|---|---|---|---|---|
+| quad1 (nether, 1080p) | 174 | 55 % | 0.42° / 1.79° | 55 % / 92 % | 0.75° / 2.85° | 0.60° | 270 ms |
+| survival1 (nether + overworld, 1080p) | 182 | 56 % | 0.27° / 0.97° | 75 % / 96 % | 0.39° / 2.01° | 0.47° | 170–330 ms |
+
+**What remains, and where it is fixed:**
+- **4–8 % of clear answers are more than 2° off.** Example: riding a strider (survival1 frame 5031), where the mount's
+  box edges dominate and the answer is the strider's yaw. Fix: tracking (stage 4). Things that move with the camera
+  (mount, hand, overlays) are screen-static while the world moves.
+- **The 90° pitch swap.** Near axis-aligned yaw, pitch p and p − 90° explain the edges equally (margin 0). This is
+  flagged, never guessed, and resolved by tracking once the yaw moves off the axis.
+- **Low-information frames** (dark netherrack, lava, sky) are flagged ambiguous or not answered.
+- **Precision** is about 0.3–0.4° median. Drawing fire to within a pixel needs about 0.05°, which comes from stage 2–3:
+  lattice correspondences through `camera::fit`.
