@@ -3,9 +3,8 @@
 2026-10-23. Sources:
 - **Fire blocks:** the game's own model files and `BakedQuadFactory` rules, read in 1.16.5. The fire models and
   blockstate are identical in 1.21.11. Implemented and tested in `fire_core::fire_model`.
-- **Entity fire:** from the newer game's renderer (`FireCommandRenderer`). **Not yet checked line by line against
-  1.16.5** (`EntityRenderDispatcher.renderFire`, which the label mod hooks). The old labelled recordings logged entity
-  fire quads (181 in quad1) to check it against.
+- **Entity fire:** 1.16.5 `EntityRenderDispatcher.renderFire`, read from the game source, implemented in
+  `fire_core::fire_model::entity_quads` and checked against the label log (section 2).
 
 ## 1. Fire block: block grid, integer coordinates
 
@@ -18,6 +17,10 @@ What it draws depends only on which neighbours can burn (the blockstate's `north
 | Flammable block above | 2 hanging planes, plus 2 from the alternate variant | fire licking a ceiling |
 | Soul fire | the floor shape only | blue fire block |
 
+In the tool these are six choices: floor, or any of the five faces (north, east, south, west, up). Picking floor
+turns the others off. The default face is the one pointing away from the camera: the fire cell is in front of the
+burning block, and its plane lies on that block's face.
+
 **"A block on fire" is not its own thing.** A burning plank is fire blocks in the air cells next to it, each drawing a
 plane hugging the plank's face. So to place a burning block you place fire blocks in its neighbouring cells with side
 or up attachments, all on whole-block coordinates.
@@ -28,23 +31,41 @@ From a picture they are the same.
 Not modelled yet: fire with two or more flammable neighbours at once (several side planes together). The locator
 doesn't offer those combinations.
 
-## 2. Entity on fire: continuous position
+## 2. Entity on fire: continuous position (verified)
 
-- **Shape:** a stack of quads at the entity's position, turned to face the camera, but only around the vertical axis.
-- **Size:**
-  - width = hitbox width × 1.4;
-  - each layer is 1.4 tall, steps up 0.45, gets 0.9× as wide and shifts slightly back;
-  - layers repeat until the stack covers the hitbox height.
-- **Which entity matters only through its hitbox (width × height):**
-  - player 0.6 × 1.8
-  - zombie 0.6 × 1.95
-  - skeleton 0.6 × 1.99
-  - blaze 0.6 × 1.8
-  - babies smaller
-  - big mobs (ravager, ghast) much bigger
-- **Input for placing it:** feet position (decimals, not the grid) plus a hitbox preset.
-- **Blaze:** its fire quads appear only while it is set on fire (when it charges an attack), not all the time.
-- **Status:** not in `fire_model` yet.
+`fire_model::entity_quads(feet, width, height, camera_yaw)` is the 1.16.5 `EntityRenderDispatcher.renderFire`, read
+from the game source. With f = width × 1.4, the stack:
+- is scaled by f and turned to face the camera about the vertical axis (−camera yaw);
+- starts (−0.3 + ⌊height / f⌋ · 0.02) towards the camera;
+- has layers 1.4 tall, each 0.45 higher, 0.9× as wide and 0.03 further from the camera (all in units of f), while
+  the remaining height (starting at height / f) stays above 0;
+- alternates sprites fire_0 / fire_1, mirrored on layers 0, 1, 4, 5, ….
+
+**Checked against the label log** (`cargo run --release --bin fire_entity <joined.jsonl>`: camera from the frame's
+fire blocks, the entity's feet fitted to its logged quads). Every type reproduces the logged corners to their
+rounding:
+
+| Recording | Fires checked | Types | Corner error p50 |
+|---|---|---|---|
+| quad1 | 119 | blaze, small fireball | 0.035–0.037 px |
+| survival1 | 4,353 | blaze, small fireball, fireball, player, cow, item, piglin, potion | 0.033–0.045 px (one potion 0.23) |
+
+**Which entity:** only its hitbox matters. `fire_model::entity_size` has every 1.16.5 type (`EntityType` source).
+- player 0.6 × 1.8
+- zombie 0.6 × 1.95
+- blaze 0.6 × 1.8
+- small fireball 0.3125
+- ghast fireball 1.0
+- cow 0.9 × 1.4
+- ghast 4 × 4
+
+**Runtime sizes are the caller's:** babies are half size, slimes and magma cubes × 0.255 × size, a sneaking player is
+1.5 tall, and a swimming or gliding one 0.6.
+
+**Not only mobs:** blaze and ghast fireballs, thrown items, pearls and potions burn too. In these recordings small
+fireballs (6,955 entries) are the second commonest entity fire, after blazes (17,231).
+
+**Input for placing one:** feet position (decimals) plus a type (or width × height) and the camera yaw.
 
 ## 3. You on fire: the screen overlay
 

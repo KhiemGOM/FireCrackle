@@ -218,3 +218,185 @@ pub fn block_candidates(pos: [i32; 3]) -> Vec<ModelQuad> {
     }
     out
 }
+
+/// A quad of fire on an entity: world corners, UV within the sprite, and which sprite (0 = fire_0, 1 = fire_1).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EntityQuad {
+    pub corners: [[f64; 3]; 4],
+    pub uv: [[f64; 2]; 4],
+    pub sheet: u8,
+}
+
+/// The fire drawn on a burning entity (1.16.5 `EntityRenderDispatcher.renderFire`) with its feet at `feet`, hitbox
+/// `width` × `height`, seen by a camera with `camera_yaw`: scaled by width × 1.4, turned to face the camera about the
+/// vertical axis, layers 1.4 tall stepping up 0.45, 0.9× as wide and 0.03 further from the camera each, from a start
+/// (−0.3 + ⌊height / scale⌋ · 0.02) towards it (scaled units). Empty for a hitbox of no size.
+pub fn entity_quads(feet: [f64; 3], width: f64, height: f64, camera_yaw: f64) -> Vec<EntityQuad> {
+    if !(width > 0.0 && height > 0.0 && width.is_finite() && height.is_finite()) {
+        return Vec::new();
+    }
+    let f = width * 1.4;
+    // rotation by −yaw about +y: local x → (cos θ, 0, −sin θ), local z → (sin θ, 0, cos θ), θ = −yaw
+    let (s, c) = (-camera_yaw).to_radians().sin_cos();
+    let world = |x: f64, y: f64, z: f64| {
+        let (x, y, z) = (x * f, y * f, z * f);
+        [
+            feet[0] + x * c + z * s,
+            feet[1] + y,
+            feet[2] - x * s + z * c,
+        ]
+    };
+    let mut i = height / f;
+    let start = -0.3 + (i as i64) as f64 * 0.02;
+    let (mut g, mut j, mut k) = (0.5, 0.0, 0.0);
+    let mut out = Vec::new();
+    let mut l = 0usize;
+    while i > 0.0 {
+        // sprite u runs min → max from corner 1 to corner 0, mirrored on layers 0, 1, 4, 5, …
+        let (u0, u1) = if (l / 2).is_multiple_of(2) {
+            (0.0, 1.0)
+        } else {
+            (1.0, 0.0)
+        };
+        let z = start + k;
+        out.push(EntityQuad {
+            corners: [
+                world(g, -j, z),
+                world(-g, -j, z),
+                world(-g, 1.4 - j, z),
+                world(g, 1.4 - j, z),
+            ],
+            uv: [[u0, 1.0], [u1, 1.0], [u1, 0.0], [u0, 0.0]],
+            sheet: (l % 2) as u8,
+        });
+        i -= 0.45;
+        j -= 0.45;
+        g *= 0.9;
+        k += 0.03;
+        l += 1;
+    }
+    out
+}
+
+/// Hitbox width × height of an entity type (`minecraft:` optional), from 1.16.5 `EntityType` (`setDimensions`).
+/// Runtime changes are the caller's: babies are half size, slimes and magma cubes × 0.255 × size, a sneaking
+/// player is 1.5 tall and a swimming or gliding one 0.6.
+pub fn entity_size(kind: &str) -> Option<(f64, f64)> {
+    let name = kind.strip_prefix("minecraft:").unwrap_or(kind);
+    ENTITY_SIZES
+        .iter()
+        .find(|e| e.0 == name)
+        .map(|e| (e.1, e.2))
+}
+
+/// Every entity type's hitbox in 1.16.5 (`EntityType.register(..).setDimensions(w, h)`).
+pub const ENTITY_SIZES: &[(&str, f64, f64)] = &[
+    ("area_effect_cloud", 6.0, 0.5),
+    ("armor_stand", 0.5, 1.975),
+    ("arrow", 0.5, 0.5),
+    ("bat", 0.5, 0.9),
+    ("bee", 0.7, 0.6),
+    ("blaze", 0.6, 1.8),
+    ("boat", 1.375, 0.5625),
+    ("cat", 0.6, 0.7),
+    ("cave_spider", 0.7, 0.5),
+    ("chicken", 0.4, 0.7),
+    ("cod", 0.5, 0.3),
+    ("cow", 0.9, 1.4),
+    ("creeper", 0.6, 1.7),
+    ("dolphin", 0.9, 0.6),
+    ("donkey", 1.3964844, 1.5),
+    ("dragon_fireball", 1.0, 1.0),
+    ("drowned", 0.6, 1.95),
+    ("elder_guardian", 1.9975, 1.9975),
+    ("end_crystal", 2.0, 2.0),
+    ("ender_dragon", 16.0, 8.0),
+    ("enderman", 0.6, 2.9),
+    ("endermite", 0.4, 0.3),
+    ("evoker", 0.6, 1.95),
+    ("evoker_fangs", 0.5, 0.8),
+    ("experience_orb", 0.5, 0.5),
+    ("eye_of_ender", 0.25, 0.25),
+    ("falling_block", 0.98, 0.98),
+    ("firework_rocket", 0.25, 0.25),
+    ("fox", 0.6, 0.7),
+    ("ghast", 4.0, 4.0),
+    ("giant", 3.6, 12.0),
+    ("guardian", 0.85, 0.85),
+    ("hoglin", 1.3964844, 1.4),
+    ("horse", 1.3964844, 1.6),
+    ("husk", 0.6, 1.95),
+    ("illusioner", 0.6, 1.95),
+    ("iron_golem", 1.4, 2.7),
+    ("item", 0.25, 0.25),
+    ("item_frame", 0.5, 0.5),
+    ("fireball", 1.0, 1.0),
+    ("leash_knot", 0.5, 0.5),
+    ("lightning_bolt", 0.0, 0.0),
+    ("llama", 0.9, 1.87),
+    ("llama_spit", 0.25, 0.25),
+    ("magma_cube", 2.04, 2.04),
+    ("minecart", 0.98, 0.7),
+    ("chest_minecart", 0.98, 0.7),
+    ("command_block_minecart", 0.98, 0.7),
+    ("furnace_minecart", 0.98, 0.7),
+    ("hopper_minecart", 0.98, 0.7),
+    ("spawner_minecart", 0.98, 0.7),
+    ("tnt_minecart", 0.98, 0.7),
+    ("mule", 1.3964844, 1.6),
+    ("mooshroom", 0.9, 1.4),
+    ("ocelot", 0.6, 0.7),
+    ("painting", 0.5, 0.5),
+    ("panda", 1.3, 1.25),
+    ("parrot", 0.5, 0.9),
+    ("phantom", 0.9, 0.5),
+    ("pig", 0.9, 0.9),
+    ("piglin", 0.6, 1.95),
+    ("piglin_brute", 0.6, 1.95),
+    ("pillager", 0.6, 1.95),
+    ("polar_bear", 1.4, 1.4),
+    ("tnt", 0.98, 0.98),
+    ("pufferfish", 0.7, 0.7),
+    ("rabbit", 0.4, 0.5),
+    ("ravager", 1.95, 2.2),
+    ("salmon", 0.7, 0.4),
+    ("sheep", 0.9, 1.3),
+    ("shulker", 1.0, 1.0),
+    ("shulker_bullet", 0.3125, 0.3125),
+    ("silverfish", 0.4, 0.3),
+    ("skeleton", 0.6, 1.99),
+    ("skeleton_horse", 1.3964844, 1.6),
+    ("slime", 2.04, 2.04),
+    ("small_fireball", 0.3125, 0.3125),
+    ("snow_golem", 0.7, 1.9),
+    ("snowball", 0.25, 0.25),
+    ("spectral_arrow", 0.5, 0.5),
+    ("spider", 1.4, 0.9),
+    ("squid", 0.8, 0.8),
+    ("stray", 0.6, 1.99),
+    ("strider", 0.9, 1.7),
+    ("egg", 0.25, 0.25),
+    ("ender_pearl", 0.25, 0.25),
+    ("experience_bottle", 0.25, 0.25),
+    ("potion", 0.25, 0.25),
+    ("trident", 0.5, 0.5),
+    ("trader_llama", 0.9, 1.87),
+    ("tropical_fish", 0.5, 0.4),
+    ("turtle", 1.2, 0.4),
+    ("vex", 0.4, 0.8),
+    ("villager", 0.6, 1.95),
+    ("vindicator", 0.6, 1.95),
+    ("wandering_trader", 0.6, 1.95),
+    ("witch", 0.6, 1.95),
+    ("wither", 0.9, 3.5),
+    ("wither_skeleton", 0.7, 2.4),
+    ("wither_skull", 0.3125, 0.3125),
+    ("wolf", 0.6, 0.85),
+    ("zoglin", 1.3964844, 1.4),
+    ("zombie", 0.6, 1.95),
+    ("zombie_horse", 1.3964844, 1.6),
+    ("zombie_villager", 0.6, 1.95),
+    ("zombified_piglin", 0.6, 1.95),
+    ("player", 0.6, 1.8),
+    ("fishing_bobber", 0.25, 0.25),
+];
