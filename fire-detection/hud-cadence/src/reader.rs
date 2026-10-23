@@ -4,6 +4,11 @@ use crate::font::{render, Bitmap, Font};
 pub const THRESHOLD: u8 = 170;
 pub const ANCHOR_TEXT: &str = "FPS: ";
 
+/// Share of the label's pixels that must be lit for the anchor to match. Footage stored at another size than it was drawn
+/// (a 1440p game in a 1080p file, resampled back) comes out soft, with 90 to 95 % of the strokes still above the
+/// threshold; the old 97 % read nothing there. Native footage is unaffected (identical readings, REPORT.md).
+pub const COVERAGE_PCT: usize = 80;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reading {
     /// Top-left of the anchor text in strip pixels.
@@ -74,7 +79,7 @@ fn find_anchor(b: &Bitmap, tpl: &Bitmap, scale: usize, near: Option<(usize, usiz
         (sat[y1 * w1 + x1] + sat[y * w1 + x]) as usize - (sat[y * w1 + x1] + sat[y1 * w1 + x]) as usize
     };
     let tl = tpl.lit();
-    let min_hit = tl * 97 / 100;
+    let min_hit = tl * COVERAGE_PCT / 100;
     let mut best: Option<(i64, usize, usize)> = None;
     for &y in &ys {
         for &x in &xs {
@@ -107,7 +112,7 @@ fn find_anchor_brute(b: &Bitmap, tpl: &Bitmap, scale: usize, near: Option<(usize
         // The HUD is laid out in GUI units, so the label sits on the `scale` grid: search it in steps of `scale`.
         None => ((0..=max_x).step_by(scale).collect(), (0..=max_y).step_by(scale).collect()),
     };
-    let min_hit = tpl.lit() * 97 / 100;
+    let min_hit = tpl.lit() * COVERAGE_PCT / 100;
     let mut best: Option<(i64, usize, usize)> = None;
     for &y in &ys {
         for &x in &xs {

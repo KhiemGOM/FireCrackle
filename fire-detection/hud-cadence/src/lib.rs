@@ -6,3 +6,4 @@ pub mod truth;
 pub mod find;
 pub mod jolt;
 pub mod portion;
+pub mod autoscale;

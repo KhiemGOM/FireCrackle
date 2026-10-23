@@ -138,3 +138,50 @@ fn digits_still_read_when_the_label_is_covered_and_the_position_is_known() {
     assert!(read_strip(&f, &g, w, h, 3, None).is_none());
     assert_eq!(read_strip(&f, &g, w, h, 3, Some((ax, ay))).unwrap().value, "138");
 }
+
+/// Footage stored at another size than it was drawn is resampled back before reading (here: drawn at 1440p, stored at
+/// 1080p, scaled up again). The strokes come back soft with ringing, with the same shapes. The reader used to demand
+/// 97 % of the template lit and read nothing at all.
+#[test]
+fn a_label_that_went_down_to_three_quarters_and_back_up_still_reads() {
+    let f = font();
+    let (g, w, h) = strip(&f, "XYZ: 1 | FPS: 116", 300, 3, true);
+    // down to 3/4 by exact area averaging, up again by a Catmull-Rom cubic (it rings, as lanczos does)
+    let (dw, dh) = (w * 3 / 4, h * 3 / 4);
+    let mut down = vec![0f64; dw * dh];
+    for y in 0..dh {
+        for x in 0..dw {
+            let (x0, y0) = (x as f64 * 4.0 / 3.0, y as f64 * 4.0 / 3.0);
+            let (mut sum, mut ws) = (0.0, 0.0);
+            for sy in y0.floor() as usize..((y0 + 4.0 / 3.0).ceil() as usize).min(h) {
+                let wy = ((y0 + 4.0 / 3.0).min(sy as f64 + 1.0) - y0.max(sy as f64)).max(0.0);
+                for sx in x0.floor() as usize..((x0 + 4.0 / 3.0).ceil() as usize).min(w) {
+                    let wx = ((x0 + 4.0 / 3.0).min(sx as f64 + 1.0) - x0.max(sx as f64)).max(0.0);
+                    sum += g[sy * w + sx] as f64 * wx * wy;
+                    ws += wx * wy;
+                }
+            }
+            down[y * dw + x] = sum / ws;
+        }
+    }
+    let cubic = |p: [f64; 4], t: f64| 0.5 * (2.0 * p[1] + (-p[0] + p[2]) * t + (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3]) * t * t + (-p[0] + 3.0 * p[1] - 3.0 * p[2] + p[3]) * t * t * t);
+    let at = |x: isize, y: isize| down[(y.clamp(0, dh as isize - 1) as usize) * dw + x.clamp(0, dw as isize - 1) as usize];
+    let mut soft = vec![0u8; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = ((x as f64 + 0.5) * 0.75 - 0.5, (y as f64 + 0.5) * 0.75 - 0.5);
+            let (ix, iy, tx, ty) = (fx.floor() as isize, fy.floor() as isize, fx - fx.floor(), fy - fy.floor());
+            let rows: Vec<f64> = (-1..3).map(|dy| cubic([at(ix - 1, iy + dy), at(ix, iy + dy), at(ix + 1, iy + dy), at(ix + 2, iy + dy)], tx)).collect();
+            soft[y * w + x] = cubic([rows[0], rows[1], rows[2], rows[3]], ty).round().clamp(0.0, 255.0) as u8;
+        }
+    }
+    let r = read_strip(&f, &soft, w, h, 3, None).expect("a soft label reads");
+    assert_eq!(r.value, "116");
+    // and the looser coverage does not turn scene texture into a label
+    let (mut seed, mut noise) = (7u64, vec![0u8; w * h]);
+    for p in noise.iter_mut() {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *p = 60 + (seed >> 60) as u8 * 12;
+    }
+    assert!(read_strip(&f, &noise, w, h, 3, None).is_none());
+}

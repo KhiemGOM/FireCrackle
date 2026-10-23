@@ -5,6 +5,7 @@
 use hud_cadence::find::{findings, Finding, Kind};
 use hud_cadence::jolt::{breaks, window, Window, AGREE_FRAMES};
 use hud_cadence::portion::{frame_count, parse_position, seek_seconds};
+use hud_cadence::autoscale::{self, Band};
 use hud_cadence::font::Font;
 use hud_cadence::phase::{analyse, change_frames, Period};
 use hud_cadence::reader::{Reading, Templates};
@@ -44,10 +45,16 @@ struct Args {
     /// find: first and last frame (inclusive) to read, as a frame number or a time (see `portion`).
     from: Option<String>,
     to: Option<String>,
+    /// find: the font pixel size in video pixels, found from the footage when neither `--scale` nor `--prescale` is given.
+    glyph: Option<f64>,
+    /// The video's size, known once the size was probed (automatic mode).
+    video_size: (usize, usize),
+    /// `--scale` or `--prescale` was given: use them as they are.
+    explicit: bool,
 }
 
 fn args() -> Args {
-    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None, dump_values: false, jolt: None, report: None, from: None, to: None };
+    let mut a = Args { cmd: String::new(), video: String::new(), ffmpeg: "ffmpeg".into(), scale: 3, fps: 60, start: 0.0, duration: 0.0, out: None, strip: "none".into(), width: 2560, log: None, prescale: None, source: None, dump_values: false, jolt: None, report: None, from: None, to: None, glyph: None, video_size: (0, 0), explicit: false };
     let mut it = std::env::args().skip(1);
     a.cmd = it.next().unwrap_or_default();
     a.video = it.next().unwrap_or_default();
@@ -59,7 +66,10 @@ fn args() -> Args {
         let v = it.next().unwrap_or_default();
         match flag.as_str() {
             "--ffmpeg" => a.ffmpeg = v,
-            "--scale" => a.scale = v.parse().expect("--scale"),
+            "--scale" => {
+                a.scale = v.parse().expect("--scale");
+                a.explicit = true;
+            }
             "--fps" => a.fps = v.parse().expect("--fps"),
             "--start" => a.start = v.parse().expect("--start"),
             "--duration" => a.duration = v.parse().expect("--duration"),
@@ -67,7 +77,10 @@ fn args() -> Args {
             "--strip" => a.strip = v,
             "--width" => a.width = v.parse().expect("--width"),
             "--log" => a.log = Some(v),
-            "--prescale" => a.prescale = Some(v),
+            "--prescale" => {
+                a.prescale = Some(v);
+                a.explicit = true;
+            }
             "--source" => a.source = Some(v),
             "--jolt" => a.jolt = Some(v),
             "--report" => a.report = Some(v),
@@ -86,7 +99,10 @@ fn crop(a: &Args) -> (usize, usize) {
         "bottom-right" => (a.width, STRIP_H + 3 * a.scale),
         "top-right" => (a.width, STRIP_H.max((strip::HUD_STRIP_Y + 3) * a.scale)),
         "left" => (STRIP_W.max(strip::width(a.scale)), STRIP_H),
-        _ => (STRIP_W, STRIP_H),
+        _ => a.glyph.map_or((STRIP_W, STRIP_H), |g| {
+            let (_, _, ow, oh) = autoscale::geometry(g, a.video_size.0, a.video_size.1);
+            (ow, oh)
+        }),
     }
 }
 
@@ -101,6 +117,12 @@ const GRAY: &str = "format=yuv420p,format=gray";
 fn crop_filter(a: &Args) -> String {
     let info = if a.cmd == "sweep" { ",showinfo" } else { "" };
     let (w, h) = crop(a);
+    if let Some(g) = a.glyph {
+        // automatic size: crop the band, then scale it so a font pixel is 3 px (no scale when it already is)
+        let (cw, ch, ow, oh) = autoscale::geometry(g, a.video_size.0, a.video_size.1);
+        let scale = if (cw, ch) == (ow, oh) { String::new() } else { format!("scale={ow}:{oh}:flags=lanczos,") };
+        return format!("crop={cw}:{ch}:0:0,{scale}{GRAY}{info}");
+    }
     let pre = a.prescale.as_ref().map_or(String::new(), |wh| format!("scale={wh}:flags=lanczos,"));
     if a.strip == "bottom-right" {
         let sh = 3 * a.scale;
@@ -311,7 +333,7 @@ fn markdown(r: &Report) -> String {
 }
 
 /// `--out`: the machine-readable JSON (findings, change frames, Jolt windows), nothing per-frame.
-fn report_json(r: &Report, scale: usize, prescale: &Option<String>) -> serde_json::Value {
+fn report_json(r: &Report, scale: usize, prescale: &Option<String>, glyph: Option<f64>) -> serde_json::Value {
     let time = |frame: u32| frame as f64 / r.fps as f64;
     let findings: Vec<serde_json::Value> = r.findings.iter().map(|x| serde_json::json!({
         "kind": format!("{:?}", x.kind), "time": time(x.frame), "hms": hms(time(x.frame)), "frame": x.frame, "shift": x.shift,
@@ -327,7 +349,7 @@ fn report_json(r: &Report, scale: usize, prescale: &Option<String>) -> serde_jso
         (path.clone(), windows)
     });
     serde_json::json!({
-        "video": r.video, "fps": r.fps, "scale": scale, "prescale": prescale, "start": r.first_frame as f64 / r.fps as f64, "first_frame": r.first_frame, "frames": r.frames, "readable": r.readable,
+        "video": r.video, "fps": r.fps, "scale": scale, "prescale": prescale, "glyph": glyph, "start": r.first_frame as f64 / r.fps as f64, "first_frame": r.first_frame, "frames": r.frames, "readable": r.readable,
         "findings": findings,
         "changes": r.changes.as_ref().map(|c| c.iter().map(|(f, v)| serde_json::json!([f, v])).collect::<Vec<_>>()),
         "jolt_report": jolt.as_ref().map(|j| &j.0), "jolt": jolt.map(|j| j.1),
@@ -339,7 +361,7 @@ fn emit(a: &Args, r: &Report) {
     let md = markdown(r);
     print!("{md}");
     if let Some(path) = &a.out {
-        std::fs::write(path, serde_json::to_string_pretty(&report_json(r, a.scale, &a.prescale)).unwrap()).unwrap();
+        std::fs::write(path, serde_json::to_string_pretty(&report_json(r, a.scale, &a.prescale, a.glyph)).unwrap()).unwrap();
         eprintln!("wrote {path}");
     }
     if let Some(path) = &a.report {
@@ -374,9 +396,55 @@ fn pts_times(stderr: &str) -> Vec<f64> {
     stderr.lines().filter_map(|l| l.split("pts_time:").nth(1)?.split_whitespace().next()?.parse().ok()).collect()
 }
 
+/// `ffmpeg -i VIDEO`'s banner (it exits with an error for want of an output; the banner is on stderr).
+fn probe(a: &Args) -> Option<(usize, usize, f64)> {
+    let out = Command::new(&a.ffmpeg).args(["-hide_banner", "-i", &a.video]).stdin(Stdio::null()).output().ok()?;
+    autoscale::parse_probe(&String::from_utf8_lossy(&out.stderr))
+}
+
+/// One frame's top-left band at the video's own resolution, `at` seconds in.
+fn sample(a: &Args, at: f64, w: usize, h: usize) -> Option<Band> {
+    let out = Command::new(&a.ffmpeg)
+        .args(["-v", "error", "-ss", &format!("{at:.3}"), "-i", &a.video, "-frames:v", "1", "-an", "-sn", "-dn", "-vf"])
+        .arg(format!("crop={w}:{h}:0:0,{GRAY}"))
+        .args(["-f", "rawvideo", "-"])
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    (out.stdout.len() == w * h).then(|| Band { gray: out.stdout, width: w, height: h })
+}
+
+/// Neither `--scale` nor `--prescale` given: find the font pixel size from sample frames (16 spread over the video, then
+/// 64), so any resolution reads. Exits with advice when the overlay is not found at any size.
+fn autodetect(a: &mut Args, font: &Font) {
+    let fail = |m: &str| -> ! {
+        eprintln!("{m}");
+        std::process::exit(2)
+    };
+    let (w, h, secs) = probe(a).unwrap_or_else(|| fail("could not read the video's size and length with ffmpeg; give --scale and --prescale"));
+    let (bw, bh) = (w.min(4000), h.min(128));
+    for n in [16usize, 64] {
+        let bands: Vec<Band> = (0..n).filter_map(|k| sample(a, secs * (k as f64 + 0.5) / n as f64, bw, bh)).collect();
+        if let Some(d) = autoscale::detect(font, &bands, h) {
+            eprintln!("auto: font pixel {:.3} px ({}x{} video; resampled x{:.3}); overlay read in {} of {} samples", d.glyph, w, h, d.factor, d.reads, bands.len());
+            a.scale = 3;
+            a.glyph = Some(d.glyph);
+            a.video_size = (w, h);
+            return;
+        }
+    }
+    fail("the FPS overlay was not found at any size in 64 sample frames. Is it on screen (F3 or the overlay mod) and the FPS varying? Otherwise give --scale and --prescale.");
+}
+
 fn main() {
-    let a = args();
+    let mut a = args();
     let font = Font::load(include_bytes!("../assets/ascii.png")).unwrap();
+    if a.cmd == "find" {
+        portion(&a); // a bad --from/--to is refused before any video is touched
+        if !a.explicit {
+            autodetect(&mut a, &font);
+        }
+    }
     let tpl = Templates::new(&font, a.scale);
     let t0 = std::time::Instant::now();
     match a.cmd.as_str() {
@@ -545,7 +613,7 @@ fn main() {
             emit(&a, &Report { video: serde_json::Value::String(a.video.clone()), fps: a.fps, first_frame: first, frames: total, readable, findings: f, changes, jolt });
             if a.dump_values {
                 let path = format!("{}.values.json", a.out.as_ref().expect("--dump-values needs --out"));
-                let json = serde_json::json!({ "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "start": first as f64 / a.fps as f64, "first_frame": first, "values": values });
+                let json = serde_json::json!({ "video": a.video, "fps": a.fps, "scale": a.scale, "prescale": a.prescale, "glyph": a.glyph, "start": first as f64 / a.fps as f64, "first_frame": first, "values": values });
                 std::fs::write(&path, serde_json::to_string(&json).unwrap()).unwrap();
                 eprintln!("wrote {path}");
             }

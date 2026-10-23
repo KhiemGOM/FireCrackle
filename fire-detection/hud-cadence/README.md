@@ -36,13 +36,19 @@ The binary is `target/release/hud-cadence` (`.exe` on Windows).
 ## Use
 
 ```
-hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--scale 3] [--fps 60] [--prescale 2560:1440] [--from X] [--to Y] [--jolt jolt.json] [--report report.md] [--out report.json]
+hud-cadence find VIDEO --ffmpeg PATH/TO/ffmpeg [--fps 60] [--from X] [--to Y] [--jolt jolt.json] [--report report.md] [--out report.json]
 ```
 
-- `--scale`: the GUI scale the game was rendered at (3 = each font pixel is 3×3 video pixels at 1440p).
+Any resolution works with no size flags. `find` looks at 16 frames spread over the video (then 64), tries every GUI
+scale on the usual screen heights, and uses the size at which the overlay reads (it prints `auto: font pixel 2.250 px
+(1920x1080 video; resampled x1.333)`). Checked on one recording at 720p, 900p, 1080p, 1440p and 2160p: identical
+readings to the 1440p original (900p: 5 of 1200 frames differ, all flagged partial reads). It stops with advice when the
+overlay is not found at any size (no overlay on screen, or a steady FPS).
+
 - `--fps`: the recording's frame rate (the period of the phase, in frames).
-- `--prescale W:H`: when the recording or upload is smaller than the game's render size (a 1080p upload of a
-  1440p game), scale every frame back to the game size before reading, otherwise the glyphs are not integer-sized.
+- `--scale N`, `--prescale W:H`: the manual way, used instead of the automatic size when either is given.
+  `--scale` is the GUI scale at the game's render size (3 = each font pixel is 3×3 video pixels at 1440p);
+  `--prescale` scales every frame to the game's render size first (a 1080p upload of a 1440p game: `2560:1440`).
 - `--from X --to Y`: analyse only that portion (both ends included). A bare number is a **frame**
   (`--from 61200 --to 61600`); a time has a colon or an `s` (`--from 17:00 --to 17:06.65`, `0:17:00`, `1020s`).
   Either end can be left out. Frame numbers in the output stay the video's own, so they line up with a full run
@@ -121,9 +127,10 @@ Speed: about 700–1,000 frames/s on a 1440p60 AV1 file with dav1d (decode-bound
 
 ## What it reads
 
-The vanilla Minecraft font (`assets/ascii.png` from the game jar) at an integer GUI scale. It looks for the
-text `FPS: ` and reads up to four digits after it, on the top-left 1500×40 px of each frame (`--prescale`
-applies first). It copes with a dimmed overlay (inventory/pause tint) and with the label being covered while
+The vanilla Minecraft font (`assets/ascii.png` from the game jar) at an integer size of 3 video pixels per font
+pixel: footage with other font pixel sizes is resampled by `3 / size` first (automatic, or `--prescale`). It looks
+for the text `FPS: ` and reads up to four digits after it, on the top-left 1500×40 px of each frame; the label
+must be at least 80 % lit (resampled footage is soft, 97 % read nothing). It copes with a dimmed overlay (inventory/pause tint) and with the label being covered while
 the digits are intact. Other overlays with a different label would need a different anchor string.
 
 ## Other commands (research)

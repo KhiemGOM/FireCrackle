@@ -178,3 +178,35 @@ Tried and rejected:
 - **`extractplanes=y`** instead of the grey conversion: as fast as the pinned `format=yuv420p,format=gray`, but it
   skips the tv→full range expansion and lost 34–36 dimmed-overlay readings per 30 s window.
 - **A pipe-reader thread**: no consistent gain.
+
+## Any resolution (2026-10-23)
+
+Reported: the tool "only works at 1440p". Reproduced: a 60 s clip of the Dream footage downscaled to 1920×1080 read
+0 % of 3600 frames, with and without `--prescale 2560:1440` (4.9 % once, by luck). Two causes:
+
+1. **The reader demanded 97 % of the `FPS: ` template lit.** A label that went down to 1080p and back up is soft and
+   rings; 90–95 % of the strokes are still above the threshold. The coverage is now 80 % (85 % read 1080p but not
+   720p; 65 and 75 % also passed every test). Native footage: five segments, 60,000 frames on both Dream and the
+   YouTube video, readings identical to the 97 % build except one frame it now reads (frame 423 of the Dream file, a
+   `189` between two `189`s that the old build lost to a flicker); speed unchanged.
+2. **The size had to be given by hand.** `find` now finds the font pixel size itself (`src/autoscale.rs`): 16 sample
+   frames (then 64), candidates `scale 1–8 × screen height` for the file's own height and 720–2880, the one that
+   reads in most samples wins. The band is cropped and scaled by `3 / size` with ffmpeg lanczos.
+
+Checked end to end on the same 20–60 s of Dream footage stored at 720p, 900p, 1080p, 1440p and 2160p:
+
+| stored at | font pixel | auto result | against the 1440p reading |
+|---|---|---|---|
+| 2560×1440 | 3.000 | 16/16 samples | reference |
+| 1920×1080 | 2.250 | 16/16 | 3600 of 3600 frames identical |
+| 1280×720 | 1.500 | 16/16 | 1200 of 1200 identical |
+| 3840×2160 | 4.500 | 16/16 | 1200 of 1200 identical |
+| 1600×900 | 1.875 | 16/16 | 1195 of 1200; 5 frames read a prefix (`1` for `107`) or nothing |
+
+Found on the way: ffmpeg's scaler pads an **odd** input width to even, which stretches the band by a pixel and moved
+the label 1 px off the grid the reader searches (0 % readable). The crop is always even now.
+
+Not covered: a font pixel size that is not scale × a usual screen height (an unusual window size; the 1445-px test
+passes because 2.25 is within 1 %), and footage where the overlay is never on screen in 64 samples (it says so and
+asks for `--scale`/`--prescale`). The 1080p files here are made by downscaling the 1440p original; a real 1080p game
+recording at GUI scale 2/3/4 is covered by the same sizes (2, 3, 4) but was not available to test.
