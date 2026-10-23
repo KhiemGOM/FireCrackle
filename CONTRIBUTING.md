@@ -1,5 +1,7 @@
 # Contributing
 
+**Reuse, don't reimplement.** Decoding, colour conversion, unveil, GUI masks, projection, scan journals, job control and the small helpers already exist, measured and tested. Check [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) before writing one, and extend the canonical implementation instead of adding a second.
+
 Keep behavior changes separate from formatting or refactors. Describe the concrete problem, the resulting behavior and the checks you ran. Preserve existing label logs, source tags, autosave compatibility and undo semantics.
 
 ## Checks
