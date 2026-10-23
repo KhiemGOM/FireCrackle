@@ -291,7 +291,9 @@ fn flat_grey_is_not_screen_evidence_and_bad_input_is_rejected() {
 }
 
 #[test]
-fn independent_panel_merge_preserves_existing_hud_classes_and_reliability() {
+fn independent_panel_merge_keeps_reliability_and_covers_hud_beneath_it() {
+    // The screen is rendered after the HUD (GameRenderer: inGameHud.render, then currentScreen.render), so an
+    // opaque HUD pixel inside the panel cannot be visible: it becomes the panel's.
     let (template, image) = fixture("inventory");
     let result = detect(&render(&image), 400, 240, &[template], opts()).unwrap();
     let mut mask = fire_core::gui_mask::GuiMask {
@@ -307,11 +309,12 @@ fn independent_panel_merge_preserves_existing_hud_classes_and_reliability() {
     let pixel = 45 * 400 + 125;
     mask.class[pixel] = 1;
     mask.piece[pixel] = 1;
+    assert_eq!(result.merge_neutral_panel(&mut mask).unwrap(), 160 * 160);
+    assert_eq!(mask.class[pixel], 3);
     assert_eq!(
-        result.merge_neutral_panel(&mut mask).unwrap(),
-        160 * 160 - 1
+        mask.piece[pixel],
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
     );
-    assert_eq!(mask.class[pixel], 1);
     assert_eq!(mask.class[50 * 400 + 130], 3);
     assert!(!mask.reliable);
     assert!(mask.fit.is_none());
@@ -687,4 +690,34 @@ fn an_inventory_shifted_by_the_recipe_book_masks_the_book_and_its_tabs() {
     let mut mask = blank();
     centred.merge_neutral_panel(&mut mask).unwrap();
     assert!(!mask.piece.contains(&book));
+}
+
+/// An open screen is drawn over the HUD: HUD pieces claimed inside the panel (the crosshair at the screen centre)
+/// become the panel's, so unveil treats them as screen too. HUD outside the panel keeps its piece.
+#[test]
+fn a_panel_takes_over_hud_pieces_drawn_beneath_it() {
+    let (template, image) = fixture("inventory");
+    let result = detect(&render(&image), 400, 240, &[template], opts()).unwrap();
+    let crosshair = fire_core::gui_mask::PieceId::Crosshair as u8;
+    let mut mask = fire_core::gui_mask::GuiMask {
+        width: 400,
+        height: 240,
+        piece: vec![0; 400 * 240],
+        class: vec![0; 400 * 240],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    for (x, y) in [(200, 120), (10, 10)] {
+        mask.piece[y * 400 + x] = crosshair;
+        mask.class[y * 400 + x] = 3;
+    }
+    result.merge_neutral_panel(&mut mask).unwrap();
+    assert_eq!(
+        mask.piece[120 * 400 + 200],
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
+    );
+    assert_eq!(mask.class[120 * 400 + 200], 3);
+    assert_eq!(mask.piece[10 * 400 + 10], crosshair, "outside the panel");
 }

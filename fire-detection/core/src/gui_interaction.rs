@@ -889,7 +889,14 @@ impl Detection {
         {
             return Err("GUI mask dimensions do not match buffers".into());
         }
-        // One neutral rectangle (video pixels, clipped): Unknown class, never opaque ownership; earlier pieces win.
+        // One neutral rectangle (video pixels, clipped): Unknown class, never opaque ownership. The screen is drawn
+        // over the HUD, so HUD pieces beneath it (the centre crosshair) become the panel's; an earlier screen piece stays.
+        use crate::gui_mask::PieceId::{InventoryPanel, MenuButton, RecipeBookPanel};
+        let screen = [
+            InventoryPanel as u8,
+            MenuButton as u8,
+            RecipeBookPanel as u8,
+        ];
         let mut count = 0;
         let mut fill = |piece: crate::gui_mask::PieceId, x: f64, y: f64, w: f64, h: f64| {
             let x0 = x.floor().max(0.) as usize;
@@ -899,7 +906,7 @@ impl Detection {
             for yy in y0..y1 {
                 for xx in x0..x1 {
                     let p = yy * mask.width + xx;
-                    if mask.class[p] == 0 {
+                    if mask.class[p] == 0 || !screen.contains(&mask.piece[p]) {
                         mask.class[p] = 3;
                         mask.piece[p] = piece as u8;
                         count += 1;
