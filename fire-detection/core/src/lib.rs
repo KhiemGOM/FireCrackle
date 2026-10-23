@@ -1,9 +1,11 @@
 //! Sync strip codec and the tools around it. See `sync/PLAN.md` for the exact formats.
 #![allow(clippy::chunks_exact_to_as_chunks)] // slice chunking by 3 over runtime-length buffers; as_chunks would not be clearer
 
+pub mod camera;
 pub mod detect;
 pub mod eval;
 pub mod features;
+pub mod fire_model;
 pub mod flicker;
 pub mod gui_interaction;
 pub mod gui_mask;

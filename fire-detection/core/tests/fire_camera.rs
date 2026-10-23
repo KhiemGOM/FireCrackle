@@ -1,0 +1,282 @@
+//! Fire geometry and the camera solver behind perspective reversal.
+//!
+//! Geometry is vanilla's baked fire model (1.16.5 and 1.21.11 have identical `template_fire_*` models and blockstate):
+//! a rotation/rescale or blockstate-rotation slip moves every corner, so corners are checked against values worked out
+//! by hand from the model files. The camera is Minecraft's: yaw 0 looks +z, yaw 90 looks −x, positive pitch looks
+//! down, roll covers view bobbing / hurt tilt; projection is `overlay::project`. Ways the solver breaks: wrong
+//! corner pairing (pairing is by UV), a single plane cannot separate FOV from distance (FOV is then held and flagged),
+//! points behind the camera, empty input.
+use fire_core::camera::{fit, fit_label_frame, Camera, LoggedBlock, LoggedQuad};
+use fire_core::fire_model::{block_candidates, block_quads, Attach};
+
+fn close(a: f64, b: f64, tol: f64) -> bool {
+    (a - b).abs() <= tol
+}
+
+#[test]
+fn a_north_side_plane_sits_just_inside_the_north_face_and_is_1_4_blocks_tall() {
+    let q = block_quads(Attach::North);
+    // side + side_alt (mirrored UV), each with a south and a north face
+    assert_eq!(q.len(), 4);
+    for quad in &q {
+        for c in &quad.corners {
+            assert!(close(c[2], 0.01 / 16.0, 1e-9), "{c:?}");
+            assert!(c[0] > -1e-9 && c[0] < 1.0 + 1e-9);
+            assert!(c[1] > -1e-9 && c[1] < 1.4 + 1e-9);
+        }
+        let ys: Vec<f64> = quad.corners.iter().map(|c| c[1]).collect();
+        assert!(ys.iter().any(|&y| close(y, 1.4, 1e-6)) && ys.iter().any(|&y| close(y, 0.0, 1e-9)));
+        let mut uv: Vec<(i32, i32)> = quad
+            .uv
+            .iter()
+            .map(|t| ((t[0] * 16.0).round() as i32, (t[1] * 16.0).round() as i32))
+            .collect();
+        uv.sort();
+        assert_eq!(uv, vec![(0, 0), (0, 16), (16, 0), (16, 16)]);
+    }
+}
+
+#[test]
+fn the_blockstate_rotation_turns_the_north_side_into_east_south_and_west() {
+    let x_of = |a: Attach| {
+        block_quads(a)[0]
+            .corners
+            .iter()
+            .map(|c| (c[0], c[2]))
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        x_of(Attach::East)
+            .iter()
+            .all(|&(x, _)| close(x, 1.0 - 0.01 / 16.0, 1e-6)),
+        "{:?}",
+        x_of(Attach::East)
+    );
+    assert!(x_of(Attach::South)
+        .iter()
+        .all(|&(_, z)| close(z, 1.0 - 0.01 / 16.0, 1e-6)));
+    assert!(x_of(Attach::West)
+        .iter()
+        .all(|&(x, _)| close(x, 0.01 / 16.0, 1e-6)));
+}
+
+#[test]
+fn a_floor_plane_corner_matches_the_hand_computed_rotation_and_rescale() {
+    // template_fire_floor element 1: from (0,0,8.8) to (16,22.4,8.8), x-axis −22.5° about (8,8,8), rescale.
+    // Corner (0, 0, 8.8)/16 relative to the origin is (−0.5, −0.5, 0.05); rotating by −22.5° about x and scaling y, z
+    // by 1/cos(22.5°) gives (0, 0.020710, 0.757105).
+    let q = block_quads(Attach::Floor);
+    assert_eq!(q.len(), 4);
+    let found = q.iter().flat_map(|q| q.corners.iter()).any(|c| {
+        close(c[0], 0.0, 1e-6) && close(c[1], 0.020710, 2e-5) && close(c[2], 0.757105, 2e-5)
+    });
+    assert!(
+        found,
+        "{:?}",
+        q.iter().map(|q| q.corners).collect::<Vec<_>>()
+    );
+    // the four floor planes lean in: every top corner is nearer the block centre line than its bottom corner
+}
+
+#[test]
+fn up_fire_hangs_two_planes_from_each_variant_and_candidates_cover_every_attachment() {
+    let up = block_quads(Attach::Up);
+    assert_eq!(up.len(), 4); // fire_up (2) + fire_up_alt (2)
+    assert!(up
+        .iter()
+        .all(|q| q.corners.iter().any(|c| close(c[1], 1.0, 1e-6))));
+    let all = block_candidates([-91, 80, 130]);
+    assert_eq!(all.len(), 4 + 4 * 4 + 4);
+    assert!(all.iter().all(|q| q
+        .corners
+        .iter()
+        .all(|c| c[0] >= -91.0 - 1e-6 && c[0] <= -90.0 + 1e-6 && c[1] >= 79.9 && c[2] >= 129.9)));
+}
+
+#[test]
+fn the_camera_uses_minecraft_yaw_pitch_and_screen_directions() {
+    let at = |yaw, pitch| Camera {
+        pos: [10.0, 70.0, -3.0],
+        yaw,
+        pitch,
+        roll: 0.0,
+        fov: 70.0,
+    };
+    let (w, h) = (2560usize, 1440usize);
+    let ahead = |c: &Camera, d: [f64; 3]| {
+        c.project([c.pos[0] + d[0], c.pos[1] + d[1], c.pos[2] + d[2]], w, h)
+            .unwrap()
+    };
+    let c = at(0.0, 0.0);
+    let p = ahead(&c, [0.0, 0.0, 5.0]);
+    assert!(
+        close(p.0, 1280.0, 1e-9) && close(p.1, 720.0, 1e-9),
+        "yaw 0 looks +z: {p:?}"
+    );
+    assert!(ahead(&c, [0.0, 1.0, 5.0]).1 < 720.0, "up is up on screen");
+    assert!(ahead(&c, [-1.0, 0.0, 5.0]).0 > 1280.0, "yaw 0: right is -x");
+    let p = ahead(&at(90.0, 0.0), [-5.0, 0.0, 0.0]);
+    assert!(
+        close(p.0, 1280.0, 1e-9) && close(p.1, 720.0, 1e-9),
+        "yaw 90 looks -x: {p:?}"
+    );
+    let p = ahead(&at(0.0, 90.0), [0.0, -5.0, 0.0]);
+    assert!(
+        close(p.0, 1280.0, 1e-6) && close(p.1, 720.0, 1e-6),
+        "pitch 90 looks down: {p:?}"
+    );
+    // one block at 5 blocks, FOV 70, 1440 px tall: 1/tan(35°) · 720 / 5 = 205.653 px (the reverser showed 514.3 = 720 − 205.7, rounded)
+    assert!(close(720.0 - ahead(&c, [0.0, 1.0, 5.0]).1, 205.653, 0.001));
+    assert!(
+        c.project([10.0, 70.0, -8.0], w, h).is_none(),
+        "behind the camera"
+    );
+}
+
+fn truth() -> Camera {
+    Camera {
+        pos: [-88.37, 81.62, 122.4],
+        yaw: 18.5,
+        pitch: 21.0,
+        roll: 1.3,
+        fov: 77.0,
+    }
+}
+
+/// What the label mod logs for a block: the drawn quads' screen corners and UVs (here: the floor and north side).
+#[allow(clippy::needless_range_loop)]
+fn logged(cam: &Camera, pos: [i32; 3], noise: f64, seed: &mut u64) -> LoggedBlock {
+    let (w, h) = (2560, 1440);
+    let mut quads = Vec::new();
+    for (k, q) in block_candidates(pos).iter().enumerate() {
+        // floor (first 4) and the plain north side (next 2): a subset, as a real fire draws one variant per part
+        if k >= 6 {
+            continue;
+        }
+        let mut corners = [[0.0; 2]; 4];
+        for i in 0..4 {
+            let (x, y) = cam.project(q.corners[i], w, h).unwrap();
+            let mut r = || {
+                *seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((*seed >> 33) as f64 / (1u64 << 31) as f64) * 2.0 - 1.0
+            };
+            corners[i] = [x + r() * noise, y + r() * noise];
+        }
+        // logged corner order differs from the model's (the game re-orders unrotated faces): rotate by one
+        let c = [corners[1], corners[2], corners[3], corners[0]];
+        let uv = [q.uv[1], q.uv[2], q.uv[3], q.uv[0]];
+        quads.push(LoggedQuad { corners: c, uv });
+    }
+    let centre = [
+        pos[0] as f64 + 0.5,
+        pos[1] as f64 + 0.5,
+        pos[2] as f64 + 0.5,
+    ];
+    let dist = ((centre[0] - cam.pos[0]).powi(2)
+        + (centre[1] - cam.pos[1]).powi(2)
+        + (centre[2] - cam.pos[2]).powi(2))
+    .sqrt();
+    LoggedBlock { pos, dist, quads }
+}
+
+#[test]
+fn a_known_camera_is_recovered_from_two_logged_fire_blocks_without_any_starting_guess() {
+    let cam = truth();
+    let mut seed = 7;
+    let blocks = vec![
+        logged(&cam, [-87, 80, 128], 0.0, &mut seed),
+        logged(&cam, [-85, 80, 129], 0.0, &mut seed),
+    ];
+    let f = fit_label_frame(&blocks, 2560, 1440).expect("solvable");
+    assert!(f.rms < 0.01, "{f:?}");
+    assert!(!f.fov_fixed);
+    let c = f.camera;
+    let d = ((c.pos[0] - cam.pos[0]).powi(2)
+        + (c.pos[1] - cam.pos[1]).powi(2)
+        + (c.pos[2] - cam.pos[2]).powi(2))
+    .sqrt();
+    assert!(
+        d < 1e-3
+            && close(c.yaw, cam.yaw, 1e-3)
+            && close(c.pitch, cam.pitch, 1e-3)
+            && close(c.roll, cam.roll, 1e-3)
+            && close(c.fov, cam.fov, 1e-3),
+        "{c:?}"
+    );
+}
+
+#[test]
+fn logged_rounding_noise_still_gives_the_camera_to_a_small_fraction_of_a_degree() {
+    let cam = truth();
+    let mut seed = 11;
+    // the log keeps one decimal: ±0.05 px
+    let blocks = vec![
+        logged(&cam, [-87, 80, 128], 0.05, &mut seed),
+        logged(&cam, [-85, 80, 129], 0.05, &mut seed),
+    ];
+    let f = fit_label_frame(&blocks, 2560, 1440).unwrap();
+    assert!(f.rms < 0.06, "{f:?}");
+    let c = f.camera;
+    assert!(
+        close(c.yaw, cam.yaw, 0.05)
+            && close(c.pitch, cam.pitch, 0.05)
+            && close(c.fov, cam.fov, 0.1),
+        "{c:?}"
+    );
+}
+
+#[test]
+fn one_plane_holds_the_fov_and_says_so_and_empty_input_gives_nothing() {
+    let cam = Camera {
+        fov: 70.0,
+        ..truth()
+    };
+    let q = &block_candidates([-87, 80, 128])[4]; // one north-side plane: four coplanar points
+    let pts: Vec<([f64; 3], [f64; 2])> = (0..4)
+        .map(|i| {
+            let (x, y) = cam.project(q.corners[i], 2560, 1440).unwrap();
+            (q.corners[i], [x, y])
+        })
+        .collect();
+    let start = Camera {
+        pos: [cam.pos[0] + 0.3, cam.pos[1] - 0.2, cam.pos[2] + 0.4],
+        yaw: 22.0,
+        pitch: 18.0,
+        roll: 0.0,
+        fov: 70.0,
+    };
+    let f = fit(&pts, 2560, 1440, &start, true).unwrap();
+    assert!(f.fov_fixed && f.camera.fov == 70.0, "{f:?}");
+    assert!(fit(&[], 2560, 1440, &start, true).is_none());
+    assert!(fit_label_frame(&[], 2560, 1440).is_none());
+}
+
+#[test]
+fn one_corrupted_quad_is_left_out_and_the_camera_is_still_exact() {
+    // a real log can carry one quad that does not belong to this camera; it must not drag the fit
+    let cam = truth();
+    let mut seed = 3;
+    let mut blocks = vec![
+        logged(&cam, [-87, 80, 128], 0.0, &mut seed),
+        logged(&cam, [-85, 80, 129], 0.0, &mut seed),
+    ];
+    for c in &mut blocks[1].quads[2].corners {
+        c[0] += 40.0;
+        c[1] -= 25.0;
+    }
+    let f = fit_label_frame(&blocks, 2560, 1440).unwrap();
+    assert_eq!(f.dropped_quads, 1, "{f:?}");
+    assert!(f.rms < 0.01, "{f:?}");
+    assert!(
+        close(f.camera.yaw, cam.yaw, 1e-3) && close(f.camera.fov, cam.fov, 1e-3),
+        "{f:?}"
+    );
+    // a clean frame drops nothing
+    let clean = vec![logged(&cam, [-87, 80, 128], 0.0, &mut seed)];
+    assert_eq!(
+        fit_label_frame(&clean, 2560, 1440).unwrap().dropped_quads,
+        0
+    );
+}
