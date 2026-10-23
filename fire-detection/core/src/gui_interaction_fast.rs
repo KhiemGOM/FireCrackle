@@ -110,6 +110,8 @@ struct Pose {
     bounds: Rect,
     /// The recipe-book shift this pose was placed at (0 or 77 GUI px).
     shift: f64,
+    /// Sub-texel origin rounding of this pose (GUI px); viewport-anchored probes do not follow it.
+    jitter_y: f64,
     sx: f64,
     sy: f64,
     border: Vec<u32>,
@@ -405,7 +407,12 @@ impl InteractionDetector {
 
 fn offset(p: &Probe, pose: &Pose, w: usize, h: usize) -> u32 {
     let x = (pose.bounds.x + p.x * pose.sx).floor() as isize;
-    let y = (pose.bounds.y + p.y * pose.sy + p.viewport_y * h as f64).floor() as isize;
+    let jitter = if p.viewport_y != 0. {
+        pose.jitter_y
+    } else {
+        0.
+    };
+    let y = (pose.bounds.y + (p.y - jitter) * pose.sy + p.viewport_y * h as f64).floor() as isize;
     if x < 0 || y < 0 || x >= w as isize || y >= h as isize {
         u32::MAX
     } else {
@@ -462,6 +469,7 @@ fn poses(t: &PanelTemplate, w: usize, h: usize) -> Vec<Pose> {
                     let mut pose = Pose {
                         bounds,
                         shift: *shift,
+                        jitter_y: oy,
                         sx,
                         sy,
                         border: Vec::new(),

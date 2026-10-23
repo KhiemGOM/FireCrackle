@@ -93,6 +93,48 @@ detector files, so rebuilt versions invalidate prior GUI-scan decisions.
 The private final directory contains40 individual blinks and seven gallery
 sheets, per-frame outputs and a source/assets/video hash manifest.
 
+## 2026-10-24: menu screens (pause, options, footers, 1.16.5 layouts)
+
+Since Auto unveil decides from the GUI detector alone, a missed menu is an un-unveiled frame. Measured on the
+renderer-truth recordings `2026-10-20 14-09-57.mkv` / `14-22-45.mkv` (1.21.11, every 5th native 1080p frame), the
+pause screen was found on 50 of 88 frames and the options screen on 162 of 181. A per-gate probe of the missed
+frames showed that border and structure passed; the fixed-control text failed, for two reasons:
+
+- **Heading placed with the grid's rounding.** At 2.25 video px per GUI px the button grid matched only at its
+  half-texel origin candidate, and the viewport-anchored heading ("Game Menu", "Options") was sampled with that
+  same offset, one pixel too high (68/115 heading probes; 115/115 one pixel lower). A heading is drawn at a fixed
+  logical y, independently of how the grid is rounded. Viewport-anchored identity probes now ignore the pose's
+  origin rounding (fast path `jitter_y`, reference `viewport_anchored`).
+- **Text below one video pixel per GUI pixel.** GUI scale 1 of a 1440p window recorded at 1080p draws one-texel
+  glyphs at 0.75 px, resampled together with Minecraft's text shadow (the colour / 4, one texel down-right):
+  identity 0.34-0.40 against 0.90. Below one px/texel, identity probes now also accept the glyph-over-shadow mix,
+  through the same `blended` mechanism the panel probes already use. A plain button without its text still fails
+  (button grey <= 118 is below the mix's range), and nothing changes at 1 px/texel and above.
+
+No acceptance fraction or colour tolerance changed (still 32 / 80 / 70 / 90). New source packs come from the
+existing generator (`prepare_assets.py`), not a separate matcher:
+
+- 1.21.11 two-button footers: language select (Font Settings... + Done, at H-28 because its warning line shares the
+  footer, measured on frame 3075) and resource packs (Open Pack Folder + Done, H-26).
+- 1.16.5 options (Done at H/6+168, title at y=15), confirm-link (three 100 px buttons at H/6+96, title at y=70) and
+  pause (H/4+8, title at y=40), with 1.16.5 `widgets.png` buttons drawn as two halves. Found on the other session's
+  false clears in `2026-10-15 18-18-16.mkv` (clip2): frames 600, 630, 660, 14430, 14580, 15780, 15840 and 18510
+  (options) and 18450 (confirm-link), previously none.
+
+The previous 94 templates are byte-identical in the new bundle. Not covered: advancements, statistics, credits,
+the game-mode switcher (no fixed controls in a source pack) and the modded Sodium video settings screen.
+
+| Check | Before | After |
+|---|---:|---:|
+| Pause screen (renderer truth) | 50/88 | 88/88 |
+| Options screen | 162/181 | 181/181 |
+| Language select / resource packs | 0/6, 0/3 | 6/6, 3/3 |
+| All open screens | 2,242/2,646 (84.7 %) | 2,308/2,646 (87.2 %) |
+| Screen reported on closed/chat frames | 0/2,832 | 0/2,832 |
+| 398 labelled native images | 112 GUI, 0 false | same, 0 decision changes |
+| First-person sample (`later`, `early`) vs `results/prune-check` | 0 FP | 0 row changes, 0 FP |
+| `recovered-video.mkv` frames 0-35,999 | 3,483 frames | 3,483 frames, 0 decision or position changes |
+
 ## 2026-10-23: one GUI scale per frame, shortened tooltip rims, tooltips in the screen mask
 
 Owner reports on another downloaded recording (`yt-LNsxw4VRTgQ.mkv`, 2560x1440, 839,408 frames):

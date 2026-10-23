@@ -50,6 +50,33 @@ PANELS = [
 ]
 
 
+def text_tools(jar, provider_path):
+    """Fixed white control text in the client's ascii font: control(key, center, y) -> glyph texel centres."""
+    font_data=jar.read('assets/minecraft/textures/font/ascii.png')
+    font=Image.open(io.BytesIO(font_data)).convert('RGBA')
+    provider_data=jar.read(provider_path)
+    providers=json.loads(provider_data)['providers']
+    provider=next(p for p in providers if p.get('file')=='minecraft:font/ascii.png')
+    chars={ch:(x,y) for y,row in enumerate(provider['chars']) for x,ch in enumerate(row) if ch!='\x00'}
+    lang_data=jar.read('assets/minecraft/lang/en_us.json')
+    language=json.loads(lang_data)
+    def glyph(ch):
+        if ch==' ':return [],4
+        cx,cy=chars[ch]
+        pixels=[(x,y) for y in range(8) for x in range(8) if font.getpixel((cx*8+x,cy*8+y))[3]>0]
+        return pixels,max((x+1 for x,y in pixels),default=0)+1
+    def control(key,center,y=199):
+        text=language[key]
+        x=center-sum(glyph(ch)[1] for ch in text)//2
+        pixels=[]
+        for ch in text:
+            points,advance=glyph(ch)
+            pixels += [(x+px+0.5,y+py+0.5,(255,255,255)) for px,py in points]
+            x+=advance
+        return pixels
+    return control,font_data+provider_data+lang_data
+
+
 def prepare(client, version, output, families=None):
     rows=[]
     with zipfile.ZipFile(client) as jar:
@@ -58,7 +85,7 @@ def prepare(client, version, output, families=None):
             return Image.open(io.BytesIO(data)).convert('RGBA'), hashlib.sha256(data).hexdigest()
         def save(kind,variant,image,shift,source_hash,layout=(0,-1),identity=()):
             filename=version+'-'+kind+'-'+variant.replace('/','_')+'.guit'
-            kind=kind if '.' in kind or kind=='pause_screen' else 'inventory.'+kind+'_screen'
+            kind=kind if '.' in kind or kind in ('pause_screen','confirm_link_screen') else 'inventory.'+kind+'_screen'
             width,height=image.size
             header=(f'GUIT2\n{kind}\n{version}\n{variant}\n{width} {height} {int(shift)}\n'
                     f'{layout[0]} {layout[1]} {len(identity)} {layout[2] if len(layout)>2 else 0}\n'+
@@ -93,31 +120,10 @@ def prepare(client, version, output, families=None):
             data=jar.read('assets/minecraft/textures/gui/book.png')
             book=Image.open(io.BytesIO(data)).convert('RGBA').crop((20,1,166,181))
             ImageDraw.Draw(book).rectangle((15,12,132,148),fill=(0,0,0,0))
-            font_data=jar.read('assets/minecraft/textures/font/ascii.png')
-            font=Image.open(io.BytesIO(font_data)).convert('RGBA')
-            provider_data=jar.read('assets/minecraft/font/include/default.json')
-            providers=json.loads(provider_data)['providers']
-            provider=next(p for p in providers if p.get('file')=='minecraft:font/ascii.png')
-            chars={ch:(x,y) for y,row in enumerate(provider['chars']) for x,ch in enumerate(row) if ch!='\x00'}
-            lang_data=jar.read('assets/minecraft/lang/en_us.json')
-            language=json.loads(lang_data)
-            def glyph(ch):
-                if ch==' ':return [],4
-                cx,cy=chars[ch]
-                pixels=[(x,y) for y in range(8) for x in range(8) if font.getpixel((cx*8+x,cy*8+y))[3]>0]
-                return pixels,max((x+1 for x,y in pixels),default=0)+1
-            def control(key,center,y=199):
-                text=language[key]
-                x=center-sum(glyph(ch)[1] for ch in text)//2
-                pixels=[]
-                for ch in text:
-                    points,advance=glyph(ch)
-                    pixels += [(x+px+0.5,y+py+0.5,(255,255,255)) for px,py in points]
-                    x+=advance
-                return pixels
+            control,font_dependencies=text_tools(jar,'assets/minecraft/font/include/default.json')
             # Relative to cropped book: its centre is screen centre minus 3.
             # Buttons use screen-relative centres -51, +51, or 0.
-            dependencies=hashlib.sha256(data+font_data+provider_data+lang_data).hexdigest()
+            dependencies=hashlib.sha256(data+font_dependencies).hexdigest()
             for kind,key,center in [('book_edit','book.signButton',25),
                                     ('book_sign','gui.cancel',127),
                                     ('book_view','gui.done',76),
@@ -133,7 +139,7 @@ def prepare(client, version, output, families=None):
                 # Four editable lines span this area, regardless of content.
                 ImageDraw.Draw(sign).rectangle((6,33,66,70),fill=(0,0,0,0))
                 save('hanging_sign_edit','hanging_sign/'+Path(path).stem,sign,False,
-                     hashlib.sha256(data+font_data+provider_data+lang_data).hexdigest(),(0,76),
+                     hashlib.sha256(data+font_dependencies).hexdigest(),(0,76),
                      control('hanging_sign.edit',36,-36))
             # HeaderAndFooterLayout: a 9px heading is centred in the 33px
             # header (y=12); the 20px Done button is centred in the 33px
@@ -147,7 +153,7 @@ def prepare(client, version, output, families=None):
                 scaling=json.loads(scaling_data)['gui']['scaling']
                 if scaling != {'type':'nine_slice','width':200,'height':20,'border':3}:
                     raise ValueError('Button source scaling changed; re-audit GuiGraphics before generating packs')
-                control_hash=hashlib.sha256(data+scaling_data+font_data+provider_data+lang_data).hexdigest()
+                control_hash=hashlib.sha256(data+scaling_data+font_dependencies).hexdigest()
                 source_button=Image.open(io.BytesIO(data)).convert('RGBA')
                 def button_patch(width):
                     button=Image.new('RGBA',(width,40))
@@ -172,6 +178,17 @@ def prepare(client, version, output, families=None):
                     identity += [(x,y,rgb,-1) for x,y,rgb in control(key,width//2-offset,38)]
                     save(kind,'fixed_controls_en_us_'+skin,button_patch(width),False,
                          control_hash,(offset,-26,1),identity)
+                # LanguageSelectScreen and PackSelectionScreen: a horizontal footer of two
+                # default 150px buttons, 8px apart, in the same 33px footer. Their left
+                # labels are screen-specific; the headings are not placed by the footer.
+                # The language footer also holds the translation warning line above the
+                # buttons, which puts them at H-28 (measured on a 1.21.11 renderer recording).
+                pair=Image.new('RGBA',(308,40))
+                pair.paste(button_patch(150),(0,0));pair.paste(button_patch(150),(158,0))
+                for kind,key,top in [('options.language_select_screen','options.font',-28),
+                                     ('packs.pack_selection_screen','pack.openFolder',-26)]:
+                    save(kind,'fixed_controls_en_us_'+skin,pair,False,control_hash,(0,top,1),
+                         control(key,75,6)+control('gui.done',233,6))
                 # PauseScreen's 166px grid is aligned at 1/4 viewport height;
                 # its first button has 50px top padding. The fixed heading
                 # stays at y=40, independent of the grid's viewport position.
@@ -188,6 +205,41 @@ def prepare(client, version, output, families=None):
                     identity += [(x,y,rgb,-0.25) for x,y,rgb in control(key,100,-104)]
                     save(kind,'fixed_controls_en_us_'+skin,button_patch(200),False,
                          control_hash,(0,144,0.25),identity)
+        if version == '1.16.5':
+            # 1.16.5 screens place controls at height/6 + n (OptionsScreen Done at +168, title
+            # at y=15; ConfirmChatLinkScreen's three 100px buttons at +96, 105px apart from
+            # width/2-155, title at y=70) and PauseScreen's first button at height/4+8 (title
+            # at y=40). Checked on 1.16.5 recordings (clip2 frames 600 and 18450).
+            control,font_dependencies=text_tools(jar,'assets/minecraft/font/default.json')
+            data=jar.read('assets/minecraft/textures/gui/widgets.png')
+            widgets=Image.open(io.BytesIO(data)).convert('RGBA')
+            control_hash=hashlib.sha256(data+font_dependencies).hexdigest()
+            for skin,row in [('button',66),('button_highlighted',86)]:
+                def button_patch(widths):
+                    # AbstractButtonWidget draws the left half from the texture's left
+                    # edge and the right half from its right edge; buttons 5px apart.
+                    image=Image.new('RGBA',(sum(widths)+5*(len(widths)-1),40))
+                    x=0
+                    for width in widths:
+                        half=width//2
+                        image.paste(widgets.crop((0,row,half,row+20)),(x,0))
+                        image.paste(widgets.crop((200-(width-half),row,200,row+20)),(x+half,0))
+                        ImageDraw.Draw(image).rectangle((x+8,4,x+width-9,15),fill=(0,0,0,0))
+                        x+=width+5
+                    return image
+                sixth=1/6
+                identity=control('gui.done',100,6)
+                identity += [(x,y,rgb,-sixth) for x,y,rgb in control('options.title',100,15-168)]
+                save('options.options_screen','fixed_controls_en_us_'+skin,button_patch([200]),False,
+                     control_hash,(0,168,sixth),identity)
+                identity=control('chat.link.open',50,6)+control('chat.copy',155,6)+control('gui.cancel',260,6)
+                identity += [(x,y,rgb,-sixth) for x,y,rgb in control('chat.link.confirmTrusted',155,70-96)]
+                save('confirm_link_screen','fixed_controls_en_us_'+skin,button_patch([100,100,100]),False,
+                     control_hash,(0,96,sixth),identity)
+                identity=control('menu.returnToGame',102,6)
+                identity += [(x,y,rgb,-0.25) for x,y,rgb in control('menu.game',102,32)]
+                save('pause_screen','fixed_controls_en_us_'+skin,button_patch([204]),False,
+                     control_hash,(0,8,0.25),identity)
     return rows
 
 

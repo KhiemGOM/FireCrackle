@@ -371,3 +371,321 @@ fn the_engines_no_screen_answer_masks_nothing_and_scales_like_any_other() {
     assert_eq!(display.merge_neutral_panel(&mut mask).unwrap(), 0);
     assert!(mask.class.iter().all(|&c| c == 0));
 }
+
+/// A fixed-controls source pack: an 80x80 button-like panel (1-texel bevel lines, so a one-texel
+/// misplacement fails its structure) with white glyph anchors, as `prepare_assets.py` writes them.
+fn controls_pack(layout: &str, identity: &[(f64, f64, f64)]) -> (PanelTemplate, Vec<u8>) {
+    let mut rgba = vec![0; 80 * 80 * 4];
+    for y in 0..80 {
+        for x in 0..80 {
+            let edge = x < 3 || y < 3 || x >= 77 || y >= 77;
+            let line = (15..65).contains(&x) && [24, 32, 40, 48, 56, 64].contains(&y);
+            let c = if edge {
+                200
+            } else if line {
+                40
+            } else {
+                110
+            };
+            rgba[(y * 80 + x) * 4..(y * 80 + x) * 4 + 4].copy_from_slice(&[c, c, c, 255]);
+        }
+    }
+    let mut header = format!(
+        "GUIT2\noptions.test_screen\nfixture\nfixed_controls_test\n80 80 0\n{}\n",
+        layout.replace("{n}", &identity.len().to_string())
+    );
+    for (x, y, viewport) in identity {
+        header.push_str(&format!("{x} {y} 255 255 255 {viewport}\n"));
+    }
+    let bytes = [header.as_bytes(), rgba.as_slice()].concat();
+    (PanelTemplate::from_bytes(&bytes).unwrap(), rgba)
+}
+
+/// Area-average a layer of texels (RGBA, alpha 0 keeps the frame) into the frame at a fractional
+/// origin and scale, like a capture resampled from the game window.
+#[allow(clippy::too_many_arguments)]
+fn draw(frame: &mut [u8], fw: usize, layer: &[u8], lw: usize, lh: usize, x0: f64, y0: f64, s: f64) {
+    let fh = frame.len() / 3 / fw;
+    let (px0, py0) = (x0.floor().max(0.) as usize, y0.floor().max(0.) as usize);
+    let px1 = ((x0 + lw as f64 * s).ceil() as usize).min(fw);
+    let py1 = ((y0 + lh as f64 * s).ceil() as usize).min(fh);
+    for py in py0..py1 {
+        for px in px0..px1 {
+            let at = (py * fw + px) * 3;
+            let mut sum = [0.; 3];
+            let mut covered = 0.;
+            // texels overlapping this pixel, weighted by overlap area
+            let tx0 = ((px as f64 - x0) / s).floor().max(0.) as usize;
+            let ty0 = ((py as f64 - y0) / s).floor().max(0.) as usize;
+            for ty in ty0..lh.min(ty0 + 4) {
+                for tx in tx0..lw.min(tx0 + 4) {
+                    let ox = (x0 + (tx + 1) as f64 * s).min(px as f64 + 1.)
+                        - (x0 + tx as f64 * s).max(px as f64);
+                    let oy = (y0 + (ty + 1) as f64 * s).min(py as f64 + 1.)
+                        - (y0 + ty as f64 * s).max(py as f64);
+                    let t = (ty * lw + tx) * 4;
+                    if ox <= 0. || oy <= 0. || layer[t + 3] == 0 {
+                        continue;
+                    }
+                    for k in 0..3 {
+                        sum[k] += layer[t + k] as f64 * ox * oy;
+                    }
+                    covered += ox * oy;
+                }
+            }
+            for k in 0..3 {
+                let value = sum[k] + frame[at + k] as f64 * (1. - covered).max(0.);
+                frame[at + k] = value.round().clamp(0., 255.) as u8;
+            }
+        }
+    }
+}
+
+/// One row of glyph texels (x 20..44) at `row` of a transparent `w` x `h` layer; optionally with
+/// Minecraft's text shadow (one texel down and right, the colour / 4).
+fn glyph_row(w: usize, h: usize, row: usize, glyph: u8, shadow: Option<u8>) -> Vec<u8> {
+    let mut layer = vec![0; w * h * 4];
+    for x in 20..44 {
+        if let Some(s) = shadow {
+            let at = ((row + 1) * w + x + 1) * 4;
+            layer[at..at + 4].copy_from_slice(&[s, s, s, 255]);
+        }
+    }
+    for x in 20..44 {
+        let at = (row * w + x) * 4;
+        layer[at..at + 4].copy_from_slice(&[glyph, glyph, glyph, 255]);
+    }
+    layer
+}
+
+/// A heading anchored to the viewport (pause "Game Menu", options titles) is drawn at a fixed logical y,
+/// independent of the rounding that places the button grid. Observed at 2.25 video px per GUI px: the grid
+/// matched only with its half-texel origin candidate and the heading was then sampled one pixel too high.
+#[test]
+fn a_viewport_anchored_heading_does_not_inherit_the_panel_origin_rounding() {
+    let s = 2.25;
+    let (w, h) = (400usize, 300usize);
+    // Footer 100 GUI px above the bottom (viewport 1); heading row 108 relative to it, viewport -1.
+    let identity: Vec<_> = (20..44).map(|x| (x as f64 + 0.5, 108.5, -1.)).collect();
+    let (template, rgba) = controls_pack("0 -100 {n} 1", &identity);
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let nominal_y = h as f64 - 100. * s;
+    let x = (w as f64 - 80. * s) / 2.;
+    let frame = |heading: bool, panel_jitter: f64| {
+        let mut rgb = vec![31; w * h * 3];
+        draw(
+            &mut rgb,
+            w,
+            &rgba,
+            80,
+            80,
+            x,
+            nominal_y + panel_jitter * s,
+            s,
+        );
+        if heading {
+            // at its own fixed place, a quarter pixel later as the capture rounds it
+            let layer = glyph_row(80, 1, 0, 255, None);
+            draw(
+                &mut rgb,
+                w,
+                &layer,
+                80,
+                1,
+                x,
+                nominal_y + 108. * s - h as f64 + 0.25,
+                s,
+            );
+        }
+        rgb
+    };
+    // basic: grid at its nominal place, heading where the game draws it
+    assert!(
+        detector
+            .detect(&frame(true, 0.), w, h)
+            .unwrap()
+            .gui_detected
+    );
+    // the grid rounded half a texel up, the heading unchanged: still the same screen
+    assert!(
+        detector
+            .detect(&frame(true, -0.5), w, h)
+            .unwrap()
+            .gui_detected,
+        "the heading must not move with the grid's origin rounding"
+    );
+    // without its heading the footer is not this screen, whichever rounding the grid has
+    for jitter in [0., -0.5, 0.5] {
+        assert!(
+            !detector
+                .detect(&frame(false, jitter), w, h)
+                .unwrap()
+                .gui_detected
+        );
+    }
+}
+
+/// Below one video pixel per GUI pixel (GUI scale 1 of a 1440p window in 1080p footage) a one-texel glyph is
+/// resampled together with its shadow, far from white. The fixed-control text must still identify the screen,
+/// while a plain button without its text, and blurred text at full size, still do not.
+#[test]
+fn small_scale_fixed_control_text_blends_with_its_shadow_but_plain_buttons_stay_rejected() {
+    let (w, h) = (400usize, 300usize);
+    let identity: Vec<_> = (20..44).map(|x| (x as f64 + 0.5, 10.5, 0.)).collect();
+    let (template, rgba) = controls_pack("0 -1 {n} 0", &identity);
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let frame = |s: f64, text: Option<(u8, Option<u8>)>| {
+        let mut rgb = vec![31; w * h * 3];
+        // centred like the game: an integer origin in the logical viewport
+        let logical = |v: usize| (v as f64 / s).ceil();
+        let x = ((logical(w) - 80.) / 2.).floor() * s;
+        let y = ((logical(h) - 80.) / 2.).floor() * s;
+        let mut layer = rgba.clone();
+        if let Some((glyph, shadow)) = text {
+            let glyphs = glyph_row(80, 80, 10, glyph, shadow);
+            for (t, g) in layer.chunks_mut(4).zip(glyphs.chunks(4)) {
+                if g[3] != 0 {
+                    t.copy_from_slice(g);
+                }
+            }
+        }
+        draw(&mut rgb, w, &layer, 80, 80, x, y, s);
+        rgb
+    };
+    let found = |s, text| detector.detect(&frame(s, text), w, h).unwrap().gui_detected;
+    // basics: crisp text at full size and above is found; no text is not
+    assert!(found(1.0, Some((255, Some(63)))));
+    assert!(found(2.0, Some((255, Some(63)))));
+    assert!(!found(1.0, None));
+    assert!(!found(2.0, None));
+    // small scale: the text resampled with its shadow is the screen
+    assert!(
+        found(0.75, Some((255, Some(63)))),
+        "GUI 0.75 text with shadow"
+    );
+    // small scale: a plain button (no text) or a dark smudge where the text should be is not
+    assert!(!found(0.75, None));
+    assert!(!found(0.75, Some((90, None))));
+    // at full size, a text-coloured blur is still not the fixed white text
+    assert!(!found(1.0, Some((175, None))));
+}
+
+/// The installed bundle's two-button footers (language select: Font Settings... + Done; resource packs:
+/// Open Pack Folder + Done), drawn from their own source pack at GUI scale 3 where the game puts them,
+/// are found as their screens; the same buttons without their fixed labels are not.
+#[test]
+fn installed_two_button_footers_identify_language_and_pack_screens() {
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../data/assets/gui/interaction.bundle"),
+    )
+    .unwrap();
+    let detector = InteractionDetector::from_bundle(&bytes).unwrap().serial();
+    let mut records = Vec::new();
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        let n = u32::from_le_bytes(bytes[cursor..cursor + 4].try_into().unwrap()) as usize;
+        records.push(&bytes[cursor + 4..cursor + 4 + n]);
+        cursor += 4 + n;
+    }
+    for kind in [
+        "options.language_select_screen",
+        "packs.pack_selection_screen",
+    ] {
+        let record = records
+            .iter()
+            .find(|r| {
+                let text = String::from_utf8_lossy(&r[..r.len().min(200)]).to_string();
+                let lines: Vec<_> = text.lines().collect();
+                lines.get(1) == Some(&kind) && lines.get(3) == Some(&"fixed_controls_en_us_button")
+            })
+            .unwrap_or_else(|| panic!("{kind} is in the installed source bank"));
+        // GUIT2 header: magic, kind, version, variant, "w h shift", "ox top n viewport", n anchors, then RGBA
+        let mut lines: Vec<String> = Vec::new();
+        let mut at = 0;
+        while lines.len() < 6
+            || lines.len()
+                < 6 + lines[5]
+                    .split(' ')
+                    .nth(2)
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap()
+        {
+            let end = at + record[at..].iter().position(|&b| b == b'\n').unwrap();
+            lines.push(String::from_utf8(record[at..end].to_vec()).unwrap());
+            at = end + 1;
+        }
+        let size: Vec<usize> = lines[4].split(' ').map(|v| v.parse().unwrap()).collect();
+        let (pw, ph) = (size[0], size[1]);
+        // the language footer's buttons sit above its translation warning line
+        let top = if kind.starts_with("options.language") {
+            28
+        } else {
+            26
+        };
+        assert_eq!(
+            (pw, lines[5].split(' ').collect::<Vec<_>>()[..2].join(" ")),
+            (308, format!("0 -{top}"))
+        );
+        let rgba = &record[at..at + pw * ph * 4];
+        let (w, h, s) = (1920usize, 1080usize, 3usize);
+        let (x0, y0) = ((w / s - pw) / 2 * s, (h / s - top) * s);
+        let frame = |labels: bool| {
+            let mut rgb = vec![31; w * h * 3];
+            for ty in 0..ph {
+                for tx in 0..pw {
+                    let t = (ty * pw + tx) * 4;
+                    if rgba[t + 3] == 0 {
+                        continue;
+                    }
+                    for dy in 0..s {
+                        for dx in 0..s {
+                            let p = ((y0 + ty * s + dy) * w + x0 + tx * s + dx) * 3;
+                            if p + 3 <= rgb.len() {
+                                rgb[p..p + 3].copy_from_slice(&rgba[t..t + 3]);
+                            }
+                        }
+                    }
+                }
+            }
+            // the button face under the labels (cleared in the source pack): plain button grey
+            for ty in 4..16 {
+                for tx in (8..pw - 8).filter(|x| !(142..166).contains(x)) {
+                    for dy in 0..s {
+                        for dx in 0..s {
+                            let p = ((y0 + ty * s + dy) * w + x0 + tx * s + dx) * 3;
+                            rgb[p..p + 3].fill(111);
+                        }
+                    }
+                }
+            }
+            if labels {
+                for line in &lines[6..] {
+                    let v: Vec<f64> = line.split(' ').map(|v| v.parse().unwrap()).collect();
+                    let (tx, ty) = (v[0].floor() as usize, v[1].floor() as usize);
+                    for dy in 0..s {
+                        for dx in 0..s {
+                            let p = ((y0 + ty * s + dy) * w + x0 + tx * s + dx) * 3;
+                            rgb[p..p + 3].fill(255);
+                        }
+                    }
+                }
+            }
+            rgb
+        };
+        let hit = detector.detect(&frame(true), w, h).unwrap();
+        assert_eq!(
+            hit.alternatives.first().map(|p| p.screen_type.as_str()),
+            Some(kind)
+        );
+        let blank = detector.detect(&frame(false), w, h).unwrap();
+        assert!(
+            blank
+                .alternatives
+                .first()
+                .is_none_or(|p| p.screen_type != kind),
+            "{kind} without its labels"
+        );
+    }
+}

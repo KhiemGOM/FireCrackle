@@ -274,7 +274,9 @@ impl PanelTemplate {
                 x,
                 y,
                 rgb,
-                blended: None,
+                // Fixed-control text is one-texel glyphs with Minecraft's shadow (the colour / 4, one texel
+                // down-right). Below one video pixel per GUI pixel a glyph is resampled with it.
+                blended: Some(rgb.map(|c| ((u16::from(c) + u16::from(c / 4)) / 2) as u8)),
                 group: 0,
                 viewport_y: 0.,
             })
@@ -499,6 +501,18 @@ mod origin_tests {
         assert_eq!(source_origin_offset(1920, 276, 2.25, false), 0.);
         assert_eq!(source_origin_offset(400, 80, 2., true), 0.);
     }
+}
+
+/// Probes anchored to the viewport (headings at a fixed logical y) are drawn independently of the
+/// sub-texel origin rounding `oy` that places the panel; only panel-relative probes follow it.
+fn viewport_anchored(points: &[Probe], oy: f64) -> Vec<Probe> {
+    points
+        .iter()
+        .map(|p| Probe {
+            y: if p.viewport_y != 0. { p.y - oy } else { p.y },
+            ..*p
+        })
+        .collect()
 }
 
 /// A supplied occlusion mask is evidence from the caller, never inferred from
@@ -752,7 +766,7 @@ fn detect_impl(
                                     rgb,
                                     width,
                                     height,
-                                    &template.identity,
+                                    &viewport_anchored(&template.identity, oy),
                                     bounds,
                                     sx,
                                     sy,
@@ -922,14 +936,19 @@ impl Detection {
     }
     /// Merge into the same per-pixel GUI exclusions, independent of HUD fit.
     /// Do not change `reliable`/`fit`: those still describe HUD evidence only.
+    /// The open screen this result shows (and `merge_neutral_panel` masks): the exact type, else the best
+    /// alternative; None without a detected GUI.
+    pub fn shown(&self) -> Option<&PanelMatch> {
+        if !self.gui_detected {
+            return None;
+        }
+        self.matched.as_ref().or_else(|| self.alternatives.first())
+    }
     pub fn merge_neutral_panel(
         &self,
         mask: &mut crate::gui_mask::GuiMask,
     ) -> Result<usize, String> {
-        if !self.gui_detected {
-            return Ok(0);
-        }
-        let Some(hit) = self.matched.as_ref().or_else(|| self.alternatives.first()) else {
+        let Some(hit) = self.shown() else {
             return Ok(0);
         };
         if mask.width != self.image_width
