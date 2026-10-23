@@ -28,3 +28,11 @@ it("uses .jpg for JPEG and the format name otherwise", () => {
 it("formats sizes in megabytes with one decimal", () => {
   expect([0, 1048576, 52428800, 1572864].map(formatMegabytes)).toEqual(["0.0 MB", "1.0 MB", "50.0 MB", "1.5 MB"]);
 });
+
+it("describes a download's speed and time left, or says it is measuring", async () => {
+  const { downloadReadout } = await import("./proofExport");
+  expect(downloadReadout(null)).toBe("measuring speed…");
+  expect(downloadReadout({ fps: 2 * 1048576, remainingSeconds: 12 })).toBe("2.0 MB/s · about 12 s left");
+  expect(downloadReadout({ fps: 1048576, remainingSeconds: null })).toBe("1.0 MB/s");
+  expect(downloadReadout({ fps: 0, remainingSeconds: null })).toBe("waiting for data");
+});

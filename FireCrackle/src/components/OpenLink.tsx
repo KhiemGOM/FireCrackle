@@ -3,14 +3,17 @@ import type { Backend, LinkStatus, ToolProgress } from "../lib/api";
 import { messageOf } from "../hooks/useWorkspace";
 import "./OpenLink.css";
 import { startPolling } from "../lib/poll";
-import { formatMegabytes } from "../lib/proofExport";
+import { downloadReadout, formatMegabytes } from "../lib/proofExport";
+import { ScanSpeedTracker } from "../lib/scanSpeed";
 
 export function ToolSetupNotice({backend}:{backend:Backend}) {
   const [status,setStatus]=useState<ToolProgress|null>(null);
   // A failed setup is reported by the operation that requested it, so poll errors are ignored here.
   useEffect(()=>startPolling(async()=>(await backend.toolStatus?.())??null,{intervalMs:500,onValue:setStatus}),[backend]);
+  const tracker=useRef(new ScanSpeedTracker());
   if(!status)return null;
-  return <div className="banner tool-download" role="status">Downloading {status.name} for first use · {formatMegabytes(status.downloaded)}{status.total?` / ${formatMegabytes(status.total)}`:""}<progress aria-label="Tool download progress" max={status.total??1} value={status.total?status.downloaded:undefined}/></div>;
+  const speed=tracker.current.update({identity:status.name,running:true,processed:status.downloaded,total:status.total??0},performance.now());
+  return <div className="banner tool-download" role="status">Downloading {status.name} for first use · {formatMegabytes(status.downloaded)}{status.total?` / ${formatMegabytes(status.total)}`:""} · {downloadReadout(speed)}<progress aria-label="Tool download progress" max={status.total??1} value={status.total?status.downloaded:undefined}/></div>;
 }
 
 export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend;initialUrl?:string;onOpen:(path:string)=>Promise<void>;onClose:()=>void}) {
