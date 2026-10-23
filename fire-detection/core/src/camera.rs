@@ -499,33 +499,36 @@ fn coarse(
     starts: Vec<Camera>,
     short_fit: impl Fn(&Camera) -> (Camera, f64) + Sync,
 ) -> Vec<(f64, Camera)> {
+    let mut tried: Vec<(f64, Camera)> = parallel_map(starts.len(), |i| {
+        let (c, cost) = short_fit(&starts[i]);
+        (cost, c)
+    });
+    tried.sort_by(|a, b| a.0.total_cmp(&b.0));
+    tried
+}
+
+/// `f(0..n)` on all cores, in order. On wasm32 (no threads in the browser module) it runs in order on one.
+pub(crate) fn parallel_map<T: Send, F: Fn(usize) -> T + Sync>(n: usize, f: F) -> Vec<T> {
+    if cfg!(target_arch = "wasm32") || n < 2 {
+        return (0..n).map(f).collect();
+    }
     let threads = std::thread::available_parallelism()
-        .map_or(1, |n| n.get())
-        .min(starts.len())
-        .max(1);
-    let chunk = starts.len().div_ceil(threads).max(1);
-    let mut tried: Vec<(f64, Camera)> = std::thread::scope(|s| {
-        let short_fit = &short_fit;
-        let handles: Vec<_> = starts
-            .chunks(chunk)
-            .map(|part| {
-                s.spawn(move || {
-                    part.iter()
-                        .map(|c| {
-                            let (c, cost) = short_fit(c);
-                            (cost, c)
-                        })
-                        .collect::<Vec<_>>()
-                })
+        .map_or(1, |t| t.get())
+        .min(n);
+    let chunk = n.div_ceil(threads);
+    std::thread::scope(|s| {
+        let f = &f;
+        let handles: Vec<_> = (0..n)
+            .step_by(chunk)
+            .map(|start| {
+                s.spawn(move || (start..(start + chunk).min(n)).map(f).collect::<Vec<T>>())
             })
             .collect();
         handles
             .into_iter()
-            .flat_map(|h| h.join().expect("coarse fit"))
+            .flat_map(|h| h.join().expect("worker"))
             .collect()
-    });
-    tried.sort_by(|a, b| a.0.total_cmp(&b.0));
-    tried
+    })
 }
 
 /// Perspective reversal from any world points and where they appear (e.g. block corners clicked on a frame), with no

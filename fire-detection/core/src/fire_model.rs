@@ -219,6 +219,84 @@ pub fn block_candidates(pos: [i32; 3]) -> Vec<ModelQuad> {
     out
 }
 
+/// Which planes a fire block draws, as the 3D tool chooses them: the floor shape, or any of the five faces whose
+/// neighbour burns.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FireFaces {
+    pub floor: bool,
+    pub north: bool,
+    pub east: bool,
+    pub south: bool,
+    pub west: bool,
+    pub up: bool,
+}
+
+/// The distinct planes a fire block at `pos` draws, in world coordinates (the sprite variants share their planes, so
+/// each plane once, with the first variant's UV). Floor is the game's no-flammable-neighbour case: the floor planes
+/// plus the four side planes, and it wins over any face. Soul fire draws only the floor planes.
+pub fn fire_block_quads(pos: [i32; 3], faces: FireFaces, soul: bool) -> Vec<ModelQuad> {
+    let attaches: Vec<Attach> = if soul {
+        if faces == FireFaces::default() {
+            Vec::new()
+        } else {
+            vec![Attach::Floor]
+        }
+    } else if faces.floor {
+        vec![
+            Attach::Floor,
+            Attach::North,
+            Attach::East,
+            Attach::South,
+            Attach::West,
+        ]
+    } else {
+        [
+            (faces.north, Attach::North),
+            (faces.east, Attach::East),
+            (faces.south, Attach::South),
+            (faces.west, Attach::West),
+            (faces.up, Attach::Up),
+        ]
+        .iter()
+        .filter(|f| f.0)
+        .map(|f| f.1)
+        .collect()
+    };
+    let key = |q: &ModelQuad| {
+        let mut c: Vec<[i64; 3]> = q
+            .corners
+            .iter()
+            .map(|v| {
+                [
+                    (v[0] * 1e6).round() as i64,
+                    (v[1] * 1e6).round() as i64,
+                    (v[2] * 1e6).round() as i64,
+                ]
+            })
+            .collect();
+        c.sort();
+        c
+    };
+    let mut out: Vec<ModelQuad> = Vec::new();
+    let mut seen = Vec::new();
+    for a in attaches {
+        for mut q in block_quads(a) {
+            let k = key(&q);
+            if seen.contains(&k) {
+                continue;
+            }
+            seen.push(k);
+            for c in &mut q.corners {
+                for k in 0..3 {
+                    c[k] += pos[k] as f64;
+                }
+            }
+            out.push(q);
+        }
+    }
+    out
+}
+
 /// A quad of fire on an entity: world corners, UV within the sprite, and which sprite (0 = fire_0, 1 = fire_1).
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntityQuad {

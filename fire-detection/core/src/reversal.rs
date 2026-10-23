@@ -244,29 +244,7 @@ fn rotation_gap(a: Hypothesis, b: Hypothesis) -> f64 {
 }
 
 fn parallel<T: Send, F: Fn(usize) -> T + Sync>(n: usize, f: F) -> Vec<T> {
-    let threads = std::thread::available_parallelism()
-        .map_or(4, |t| t.get())
-        .min(n.max(1));
-    let mut out: Vec<Option<T>> = (0..n).map(|_| None).collect();
-    std::thread::scope(|s| {
-        let f = &f;
-        let chunks: Vec<_> = out
-            .chunks_mut(n.div_ceil(threads).max(1))
-            .enumerate()
-            .map(|(c, chunk)| {
-                let base = c * n.div_ceil(threads).max(1);
-                s.spawn(move || {
-                    for (i, slot) in chunk.iter_mut().enumerate() {
-                        *slot = Some(f(base + i));
-                    }
-                })
-            })
-            .collect();
-        for c in chunks {
-            c.join().expect("worker");
-        }
-    });
-    out.into_iter().map(|v| v.expect("filled")).collect()
+    crate::camera::parallel_map(n, f)
 }
 
 /// Rotation (yaw modulo 90°) and FOV of the camera that drew `rgb` (RGB24, `w`×`h`). `ignore` marks pixels that are

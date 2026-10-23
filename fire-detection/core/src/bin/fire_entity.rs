@@ -41,7 +41,10 @@ fn main() {
         }
         let Ok(v) = parse(&line) else { continue };
         let label = v.get("label").unwrap_or(&v);
-        let (Some(w), Some(h)) = (label.get("w").and_then(Value::num), label.get("h").and_then(Value::num)) else {
+        let (Some(w), Some(h)) = (
+            label.get("w").and_then(Value::num),
+            label.get("h").and_then(Value::num),
+        ) else {
             continue;
         };
         let (w, h) = (w as usize, h as usize);
@@ -56,7 +59,8 @@ fn main() {
         if checked >= limit {
             break;
         }
-        let Some(key) = fit_label_frame(&blocks, w, h).filter(|f| f.rms <= 0.06 && !f.fov_fixed) else {
+        let Some(key) = fit_label_frame(&blocks, w, h).filter(|f| f.rms <= 0.06 && !f.fov_fixed)
+        else {
             continue;
         };
         let cam = key.camera;
@@ -64,7 +68,11 @@ fn main() {
             if s.get("src").and_then(Value::str) != Some("entity") {
                 continue;
             }
-            let kind = s.get("type").and_then(Value::str).unwrap_or("?").to_string();
+            let kind = s
+                .get("type")
+                .and_then(Value::str)
+                .unwrap_or("?")
+                .to_string();
             let Some((ew, eh)) = entity_size(&kind) else {
                 unknown += 1;
                 continue;
@@ -87,7 +95,9 @@ fn main() {
                 .zip(&sheets)
                 .map(|(q, &sh)| {
                     (0..model.len())
-                        .filter(|&l| model[l].sheet == sh && (model[l].uv[0][0] - q.uv[0][0]).abs() < 0.5)
+                        .filter(|&l| {
+                            model[l].sheet == sh && (model[l].uv[0][0] - q.uv[0][0]).abs() < 0.5
+                        })
                         .collect()
                 })
                 .collect();
@@ -105,7 +115,8 @@ fn main() {
                     // logged corners are in the game's corner order: match by UV
                     for c in 0..4 {
                         if let Some(k) = (0..4).find(|&k| {
-                            (m.uv[k][0] - q.uv[c][0]).abs() < 0.5 && (m.uv[k][1] - q.uv[c][1]).abs() < 0.5
+                            (m.uv[k][0] - q.uv[c][0]).abs() < 0.5
+                                && (m.uv[k][1] - q.uv[c][1]).abs() < 0.5
                         }) {
                             points.push((m.corners[k], q.corners[c]));
                         }
@@ -140,7 +151,9 @@ fn main() {
             checked += 1;
         }
     }
-    println!("{path}: {checked} entity fires checked against the model ({unknown} of unknown type)");
+    println!(
+        "{path}: {checked} entity fires checked against the model ({unknown} of unknown type)"
+    );
     for (kind, v) in by_type.iter_mut() {
         let n = v.len();
         let exact = v.iter().filter(|&&e| e <= 0.1).count();

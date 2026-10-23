@@ -63,6 +63,7 @@ fire-detection/data/joined/
 # Built from the canonical Rust unveil source before frontend build/test/dev.
 FireCrackle/src/lib/veil.wasm
 FireCrackle/src/lib/veil.generated.ts
+FireCrackle/src/lib/reversal.wasm
 FireCrackle/public/portal.png
 fire-detection/data/assets/gui/interaction.bundle
 
