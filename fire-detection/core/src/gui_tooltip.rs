@@ -1,11 +1,13 @@
 // Vanilla1.21.11 TooltipRenderUtil background/frame signatures. This detects
 // the independent rendered layer; no GUI-match errors or renderer labels enter.
 // Capture-space tolerances, not Minecraft layout constants. Compression can
-// break the faint bottom rim or shorten its endpoints. Joining a bounded gap
+// break the faint bottom rim or shorten it at either end. Joining a bounded gap
 // does not credit it as matching: the 85% line coverage, 75% side coverage and
 // 55% dark-fill requirements below still apply independently.
 const MAX_RIM_GAP_PX: usize = 12;
 const ENDPOINT_SLACK_PX: usize = 12;
+// How much of the top rim's width the (possibly shortened) bottom rim must still cover.
+const BOTTOM_RIM_MIN_PERCENT: usize = 60;
 #[derive(Clone, Copy, Debug)]
 pub struct TipRect {
     pub x: usize,
@@ -92,7 +94,12 @@ pub fn detect_tooltips(rgb: &[u8], w: usize, h: usize) -> Vec<TipRect> {
             if bottom > top + 450 {
                 break;
             }
-            if l.abs_diff(left) > ENDPOINT_SLACK_PX || r.abs_diff(right) > ENDPOINT_SLACK_PX {
+            // The bottom rim is the gradient's faint end: compression can cut it short at either end, never make it
+            // longer. It must lie within the top rim's span and cover most of it; the top rim sets the box.
+            if l + ENDPOINT_SLACK_PX < left
+                || r > right + ENDPOINT_SLACK_PX
+                || (r - l + 1) * 100 < (right - left + 1) * BOTTOM_RIM_MIN_PERCENT
+            {
                 continue;
             }
             let height = bottom - top + 1;
@@ -196,6 +203,40 @@ mod tests {
         let excluded = mask(&boxes, 320, 180);
         assert_eq!(excluded[80 * 320 + 140], 255);
         assert_eq!(excluded[10 * 320 + 10], 0);
+    }
+
+    #[test]
+    fn a_bottom_rim_faded_short_at_one_end_still_closes_the_box_at_the_top_rims_width() {
+        // a 1.21 tooltip on a compressed recording: the faint bottom rim loses its left 30 px
+        let mut rgb = tooltip();
+        erase(&mut rgb, 40..70, 128..130);
+        let boxes = detect_tooltips(&rgb, 320, 180);
+        assert_eq!(boxes.len(), 1);
+        let excluded = mask(&boxes, 320, 180);
+        // the box keeps the top rim's left edge, not the shortened bottom's
+        assert_eq!(excluded[80 * 320 + 45], 255);
+        assert_eq!(excluded[80 * 320 + 236], 255);
+        // the same at the right end
+        let mut right = tooltip();
+        erase(&mut right, 205..240, 128..130);
+        assert_eq!(detect_tooltips(&right, 320, 180).len(), 1);
+    }
+
+    #[test]
+    fn a_bottom_line_much_shorter_than_the_top_or_wider_than_it_is_not_a_tooltip() {
+        // only 40 % of the bottom rim left
+        let mut short = tooltip();
+        erase(&mut short, 40..160, 128..130);
+        assert!(detect_tooltips(&short, 320, 180).is_empty());
+        // a bottom line reaching well past the top rim's end belongs to something else
+        let mut wide = tooltip();
+        for y in 128..130 {
+            for x in 240..280 {
+                wide[(y * 320 + x) * 3..(y * 320 + x) * 3 + 3].copy_from_slice(&[80, 16, 128]);
+            }
+        }
+        erase(&mut wide, 40..42, 128..130);
+        assert!(detect_tooltips(&wide, 320, 180).is_empty());
     }
 
     #[test]
