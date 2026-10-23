@@ -44,10 +44,13 @@ name = "fire-overlay"
 path = "src/bin/fire_overlay.rs"
 
 [features]
+serde = ["dep:serde"]
 # Stage timers and counters for fire-detection/perf-lab; off in shipped builds.
 scan-profile = []
 
 [dependencies]
+# optional: callers that store the engine's results (the app's GUI scan journal) serialise them as they are
+serde = { version = "1", features = ["derive"], optional = true }
 
 [profile.release]
 opt-level = 3

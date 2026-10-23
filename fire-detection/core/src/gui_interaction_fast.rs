@@ -292,7 +292,7 @@ impl InteractionDetector {
         {
             again.alternatives.clear();
             again.gui_detected = false;
-            again.reason = "no_known_panel_match";
+            again.reason = "no_known_panel_match".into();
         }
         Ok(again)
     }
@@ -388,7 +388,8 @@ impl InteractionDetector {
                 "known_panel_presence"
             } else {
                 "no_known_panel_match"
-            },
+            }
+            .into(),
             tooltips: tips
                 .iter()
                 .map(|t| Rect {

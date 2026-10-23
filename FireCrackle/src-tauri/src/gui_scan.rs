@@ -10,6 +10,9 @@ use studio_core::{import::Tools, project::Project};
 pub struct Surface {
     pub bounds: [f64; 4],
     pub menu: bool,
+    /// The engine's whole result for the frame (native resolution), kept so the GUI mask reuses it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen: Option<fire_core::gui_interaction::Detection>,
 }
 #[derive(Clone, Serialize)]
 pub struct Range {
@@ -53,7 +56,8 @@ type Cache = crate::scan_cache::Journal<Hit>;
 /// Results are reused only for the same project, video file and scan pipeline (detector, decoder, app version).
 fn cache_key(project: &Project, pipeline: &str) -> String {
     let mut hash = Sha256::new();
-    hash.update(b"gui-presence-v2");
+    // v3: each positive frame keeps the engine's whole result
+    hash.update(b"gui-presence-v3");
     hash.update(pipeline);
     hash.update(serde_json::to_vec(project).unwrap_or_default());
     crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
@@ -156,6 +160,20 @@ impl Jobs {
     pub fn status(&self, project: &Project) -> Result<Status, String> {
         self.job(project)?.status()
     }
+    /// What the scan found on `frame`: `Some(Some(result))` an open screen (the engine's whole result),
+    /// `Some(None)` scanned with no screen, `None` not scanned yet (callers detect for themselves).
+    pub fn screens(
+        &self,
+        project: &Project,
+        frame: u32,
+    ) -> Option<Option<fire_core::gui_interaction::Detection>> {
+        let job = self.job(project).ok()?;
+        let cache = job.cache.lock().ok()?;
+        match cache.decisions.get(frame as usize)?.as_ref()? {
+            None => Some(None),
+            Some(surface) => surface.screen.clone().map(Some),
+        }
+    }
     pub fn cancel(&self, project: &Project) -> Result<(), String> {
         let job = self.job(project)?;
         job.control.cancel();
@@ -221,6 +239,7 @@ fn scan(job: &Job, tools: &Tools) -> Result<(), String> {
                     hit.bounds.height,
                 ],
                 menu: hit.screen_type == "pause_screen" || hit.screen_type.starts_with("options."),
+                screen: Some(d.clone()),
             }))
         },
         |frame, hit| {
@@ -260,12 +279,79 @@ mod tests {
         Surface {
             bounds: [1.0, 2.0, 3.0, 4.0],
             menu,
+            screen: None,
         }
     }
     const OLD_FORMAT: &str = "{\"type\":\"Header\",\"key\":\"k\",\"total\":4}
 {\"type\":\"Frame\",\"frame\":0,\"hit\":null}
 {\"type\":\"Frame\",\"frame\":2,\"hit\":{\"bounds\":[1.0,2.0,3.0,4.0],\"menu\":true}}
 ";
+    fn engine_result() -> fire_core::gui_interaction::Detection {
+        let panel = fire_core::gui_interaction::PanelMatch {
+            screen_type: "inventory.inventory_screen".into(),
+            version: "test".into(),
+            variant: "base".into(),
+            bounds: fire_core::gui_interaction::Rect {
+                x: 1247.,
+                y: 471.,
+                width: 528.,
+                height: 498.,
+            },
+            scale_x: 3.,
+            scale_y: 3.,
+            score: 0.87,
+            border_score: 1.,
+            structure_score: 0.82,
+            presence_only: true,
+            visible_probes: [96, 412, 0],
+            recipe_book: true,
+        };
+        fire_core::gui_interaction::Detection {
+            image_width: 2560,
+            image_height: 1440,
+            gui_detected: true,
+            candidate_types: vec![],
+            matched: None,
+            alternatives: vec![panel],
+            reason: "known_panel_presence".into(),
+            tooltips: vec![fire_core::gui_interaction::Rect {
+                x: 1462.,
+                y: 852.,
+                width: 414.,
+                height: 312.,
+            }],
+        }
+    }
+    #[test]
+    fn a_scanned_frame_hands_back_the_engines_whole_result_and_an_unscanned_one_nothing() {
+        let f = crate::scan_cache::tests::fixture(3);
+        let path = f.root.join("gui-full.jsonl");
+        let full = Surface {
+            screen: Some(engine_result()),
+            ..panel(false)
+        };
+        let mut journal = Journal::<Hit>::open_at(path.clone(), "k".into(), 3).unwrap();
+        journal.put(0, Some(full.clone())).unwrap();
+        journal.put(1, None).unwrap();
+        drop(journal);
+        let read = Journal::<Hit>::load_at(path, "k".into(), 3).unwrap();
+        assert_eq!(
+            read.decisions[0],
+            Some(Some(full.clone())),
+            "the whole result survives the journal"
+        );
+        let jobs = Jobs::default();
+        *jobs.current.lock().unwrap() = Some(Arc::new(Job {
+            project: f.project.clone(),
+            cache: Mutex::new(read),
+            state: Mutex::new(("ready".into(), None)),
+            control: JobControl::default(),
+        }));
+        assert_eq!(jobs.screens(&f.project, 0), Some(Some(engine_result())));
+        assert_eq!(jobs.screens(&f.project, 1), Some(None), "scanned: no GUI");
+        assert_eq!(jobs.screens(&f.project, 2), None, "not scanned yet");
+        assert_eq!(jobs.screens(&f.project, 99), None);
+    }
     #[test]
     fn reads_a_gui_cache_written_by_0_5_and_resumes_after_a_torn_last_line() {
         let f = crate::scan_cache::tests::fixture(4);
@@ -452,6 +538,7 @@ mod tests {
                 Some(Surface {
                     bounds: [2., 3., 4., 5.],
                     menu: false,
+                    screen: None,
                 }),
             )
             .unwrap();
@@ -484,6 +571,7 @@ mod tests {
         let panel = Surface {
             bounds: [1., 2., 3., 4.],
             menu: false,
+            screen: None,
         };
         cache.decisions = vec![
             Some(Some(panel.clone())),
@@ -493,6 +581,7 @@ mod tests {
             Some(Some(Surface {
                 bounds: [1., 2., 3., 4.],
                 menu: true,
+                screen: None,
             })),
         ];
         let job = Job {
@@ -551,6 +640,7 @@ mod tests {
             Some(Some(Surface {
                 bounds: [1., 2., 3., 4.],
                 menu,
+                screen: None,
             }))
         };
         cache.decisions = vec![

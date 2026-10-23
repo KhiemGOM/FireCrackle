@@ -1476,6 +1476,44 @@ impl GuiDetector {
             }
         }
     }
+    /// The HUD mask of this picture plus open screens found elsewhere (the scan's native-resolution result, already
+    /// `Detection::scaled` to this picture), instead of detecting screens on this picture again.
+    pub fn detect_with_screens(
+        &self,
+        frame: &[u8],
+        width: usize,
+        height: usize,
+        screens: &crate::gui_interaction::Detection,
+    ) -> Result<GuiMask, String> {
+        if screens.image_width != width || screens.image_height != height {
+            return Err(format!(
+                "screens found on a {}x{} picture cannot mask a {width}x{height} one",
+                screens.image_width, screens.image_height
+            ));
+        }
+        if width == 0
+            || height == 0
+            || width.checked_mul(height).and_then(|n| n.checked_mul(3)) != Some(frame.len())
+        {
+            return Err("invalid GUI frame dimensions".into());
+        }
+        let plan = self.plan(width, height);
+        let mut mask = detect_prepared(
+            frame,
+            width,
+            height,
+            &self.textures,
+            &self.options,
+            &self.hotbar,
+            Some(&plan),
+            Some(&self.shapes),
+            None,
+            None,
+            false,
+        )?;
+        screens.merge_neutral_panel(&mut mask)?;
+        Ok(mask)
+    }
     /// Verify the last successful fit on this frame before using it. If its
     /// current opaque hotbar evidence is weak, run the original full search.
     pub fn detect_with_hint(

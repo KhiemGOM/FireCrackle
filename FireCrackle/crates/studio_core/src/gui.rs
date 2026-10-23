@@ -183,6 +183,17 @@ impl GuiAnalyzer {
 
     /// Decode a JPEG frame and mask it: the summary and one packed byte per pixel.
     pub fn analyze_jpeg(&self, jpeg: &[u8]) -> Result<(GuiMaskReply, Vec<u8>), String> {
+        self.analyze_jpeg_with_screens(jpeg, None)
+    }
+
+    /// The same, with the open screens taken from the engine result the GUI scan made of this frame (any size of
+    /// the same shape: the native frame) instead of detecting them again on this picture. The HUD is always read
+    /// from this picture.
+    pub fn analyze_jpeg_with_screens(
+        &self,
+        jpeg: &[u8],
+        screens: Option<&fire_core::gui_interaction::Detection>,
+    ) -> Result<(GuiMaskReply, Vec<u8>), String> {
         if jpeg.is_empty() {
             return Err("the frame is empty".into());
         }
@@ -197,7 +208,23 @@ impl GuiAnalyzer {
             jpeg_decoder::PixelFormat::L8 => px.iter().flat_map(|&v| [v, v, v]).collect(),
             other => return Err(format!("unsupported JPEG pixel format {other:?}")),
         };
-        let mut m = self.detector.detect(&rgb, w, h)?;
+        let mut m = match screens {
+            None => self.detector.detect(&rgb, w, h)?,
+            Some(s) => {
+                // the same picture at another resolution: equal aspect within a pixel of rounding
+                let same_shape =
+                    (s.image_width as f64 * h as f64 - s.image_height as f64 * w as f64).abs()
+                        <= s.image_width.max(s.image_height) as f64;
+                if !same_shape {
+                    return Err(format!(
+                        "the scan's {}x{} result is not this {w}x{h} picture",
+                        s.image_width, s.image_height
+                    ));
+                }
+                self.detector
+                    .detect_with_screens(&rgb, w, h, &s.scaled(w, h))?
+            }
+        };
         // Reuse the shared texture-confirmed screen masks. Their hits also let
         // the preview distinguish an open menu/inventory from the normal HUD.
         fire_core::gui_mask::add_screen_masks(&rgb, w, h, self.detector.textures(), &mut m)?;

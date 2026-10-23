@@ -32,12 +32,34 @@ pub async fn gui_answer_set(state: State<'_, AppState>, answer: GuiAnswer) -> Re
 /// "last mask" lookup that another frame can replace between IPC requests.
 #[tauri::command]
 pub async fn gui_mask_frame(state: State<'_, AppState>, frame: u32) -> Result<Response, String> {
+    let scan = state.gui_scan.clone();
     run(state.ws.clone(), move |w| {
-        let jpeg = w.frame_jpeg(frame).map_err(err)?;
-        let (reply, packed) = analyzer()?.analyze_jpeg(&jpeg)?;
+        let (reply, packed) = analyze(w, &scan, frame)?;
         mask_packet(&reply, &packed).map(Response::new)
     })
     .await
+}
+
+/// The frame's GUI mask as the app shows it: the HUD read from the display picture, open screens from the GUI
+/// scan's native-resolution result when the scan has reached this frame (one engine answer everywhere), else
+/// detected on the display picture.
+fn analyze(
+    w: &studio_core::workspace::Workspace,
+    scan: &crate::gui_scan::Jobs,
+    frame: u32,
+) -> Result<(GuiMaskReply, Vec<u8>), String> {
+    let jpeg = w.frame_jpeg(frame).map_err(err)?;
+    let project = w.automation_project();
+    match scan.screens(&project, frame) {
+        // scanned: the scan's answer, an open screen or none at all
+        Some(found) => {
+            let (width, height) = (project.meta.width, project.meta.height);
+            let found =
+                found.unwrap_or_else(|| fire_core::gui_interaction::Detection::none(width, height));
+            analyzer()?.analyze_jpeg_with_screens(&jpeg, Some(&found))
+        }
+        None => analyzer()?.analyze_jpeg(&jpeg),
+    }
 }
 
 fn mask_packet(reply: &GuiMaskReply, packed: &[u8]) -> Result<Vec<u8>, String> {
@@ -54,9 +76,9 @@ fn mask_packet(reply: &GuiMaskReply, packed: &[u8]) -> Result<Vec<u8>, String> {
 /// Mask the frame as the app shows it; the pixels are kept for `gui_mask_pixels`.
 #[tauri::command]
 pub async fn gui_mask(state: State<'_, AppState>, frame: u32) -> Result<GuiMaskReply, String> {
+    let scan = state.gui_scan.clone();
     run(state.ws.clone(), move |w| {
-        let jpeg = w.frame_jpeg(frame).map_err(err)?;
-        let (reply, packed) = analyzer()?.analyze_jpeg(&jpeg)?;
+        let (reply, packed) = analyze(w, &scan, frame)?;
         *LAST.lock().map_err(err)? = Some((w.dir().to_path_buf(), frame, packed));
         Ok(reply)
     })

@@ -27,7 +27,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 studio_core = { path = "../crates/studio_core" }
 no_fire_cnn = { path = "../crates/no_fire_cnn" }
-fire_core = { path = "../../fire-detection/core" }
+# serde: the GUI scan journal stores the engine's results as they are
+fire_core = { path = "../../fire-detection/core", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", features = ["blocking"] }

@@ -44,6 +44,7 @@ struct Probe {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -51,7 +52,8 @@ pub struct Rect {
     pub height: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanelMatch {
     pub screen_type: String,
     pub version: String,
@@ -72,7 +74,9 @@ pub struct PanelMatch {
     pub recipe_book: bool,
 }
 
-#[derive(Clone, Debug)]
+/// The engine's whole answer for one frame: callers keep, cache or use what they need of it.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Detection {
     pub image_width: usize,
     pub image_height: usize,
@@ -83,7 +87,8 @@ pub struct Detection {
     /// Exact type only. None can mean type ambiguity even with GUI detected.
     pub matched: Option<PanelMatch>,
     pub alternatives: Vec<PanelMatch>,
-    pub reason: &'static str,
+    /// Why: one of a fixed set of constants ("known_panel_presence", "no_known_panel_match", ...).
+    pub reason: std::borrow::Cow<'static, str>,
     /// Item tooltips found in the frame (video pixels). They belong to the open screen.
     pub tooltips: Vec<Rect>,
 }
@@ -623,7 +628,7 @@ fn detect_impl(
             candidate_types: Vec::new(),
             matched: None,
             alternatives: Vec::new(),
-            reason: "insufficient_visible_gui_evidence",
+            reason: "insufficient_visible_gui_evidence".into(),
             tooltips: Vec::new(),
         });
     }
@@ -868,12 +873,53 @@ fn detect_impl(
             best
         },
         alternatives: candidates,
-        reason,
+        reason: reason.into(),
         tooltips: Vec::new(),
     })
 }
 
 impl Detection {
+    /// The engine's answer for a frame with no known screen on it (`width` x `height` pixels).
+    pub fn none(width: usize, height: usize) -> Detection {
+        Detection {
+            image_width: width,
+            image_height: height,
+            gui_detected: false,
+            candidate_types: Vec::new(),
+            matched: None,
+            alternatives: Vec::new(),
+            reason: "no_known_panel_match".into(),
+            tooltips: Vec::new(),
+        }
+    }
+    /// The same answer for the frame resized to `width` x `height` (a native-resolution result on the display
+    /// picture): every position, size and scale follows; scores, types and flags stay.
+    pub fn scaled(&self, width: usize, height: usize) -> Detection {
+        let (sx, sy) = (
+            width as f64 / self.image_width.max(1) as f64,
+            height as f64 / self.image_height.max(1) as f64,
+        );
+        let rect = |r: &Rect| Rect {
+            x: r.x * sx,
+            y: r.y * sy,
+            width: r.width * sx,
+            height: r.height * sy,
+        };
+        let panel = |p: &PanelMatch| PanelMatch {
+            bounds: rect(&p.bounds),
+            scale_x: p.scale_x * sx,
+            scale_y: p.scale_y * sy,
+            ..p.clone()
+        };
+        Detection {
+            image_width: width,
+            image_height: height,
+            matched: self.matched.as_ref().map(panel),
+            alternatives: self.alternatives.iter().map(panel).collect(),
+            tooltips: self.tooltips.iter().map(rect).collect(),
+            ..self.clone()
+        }
+    }
     /// Merge into the same per-pixel GUI exclusions, independent of HUD fit.
     /// Do not change `reliable`/`fit`: those still describe HUD evidence only.
     pub fn merge_neutral_panel(

@@ -366,3 +366,69 @@ fn an_item_tooltip_is_an_open_screen_piece() {
         3
     )));
 }
+
+/// An engine result for a 1280x720 picture: an inventory panel at (500, 200), 300 x 280.
+fn screens(width: usize, height: usize) -> fire_core::gui_interaction::Detection {
+    let panel = fire_core::gui_interaction::PanelMatch {
+        screen_type: "inventory.inventory_screen".into(),
+        version: "test".into(),
+        variant: "base".into(),
+        bounds: fire_core::gui_interaction::Rect {
+            x: 500.,
+            y: 200.,
+            width: 300.,
+            height: 280.,
+        },
+        scale_x: 1.5,
+        scale_y: 1.5,
+        score: 0.9,
+        border_score: 0.9,
+        structure_score: 0.9,
+        presence_only: true,
+        visible_probes: [1, 1, 0],
+        recipe_book: false,
+    };
+    fire_core::gui_interaction::Detection {
+        image_width: width,
+        image_height: height,
+        gui_detected: true,
+        candidate_types: vec![],
+        matched: None,
+        alternatives: vec![panel],
+        reason: "known_panel_presence".into(),
+        tooltips: vec![],
+    }
+}
+
+#[test]
+fn screens_found_by_the_scan_join_this_pictures_own_hud_mask() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let a = GuiAnalyzer::new().unwrap();
+    let frame = jpeg(1280, 720, true, "hud_only");
+    let (own, _) = a.analyze_jpeg(&frame).unwrap();
+    let (reply, packed) = a
+        .analyze_jpeg_with_screens(&frame, Some(&screens(1280, 720)))
+        .unwrap();
+    assert!(reply.reliable, "the HUD is still read from this picture");
+    assert_eq!(reply.scale, own.scale);
+    assert!(
+        studio_core::gui::is_screen(packed[300 * 1280 + 650]),
+        "inside the scanned panel"
+    );
+    assert!(!studio_core::gui::is_screen(packed[50 * 1280 + 50]));
+    // without a scan answer it is the picture's own detection
+    let (alone, alone_packed) = a.analyze_jpeg_with_screens(&frame, None).unwrap();
+    assert_eq!(alone.pieces.len(), own.pieces.len());
+    assert!(!studio_core::gui::is_screen(alone_packed[300 * 1280 + 650]));
+    // the scan's native 2560x1440 result is scaled to this 1280x720 picture: its panel at (500, 200) lands at (250, 100)
+    let native = screens(2560, 1440);
+    let (_, scaled) = a.analyze_jpeg_with_screens(&frame, Some(&native)).unwrap();
+    assert!(studio_core::gui::is_screen(scaled[150 * 1280 + 300]));
+    assert!(!studio_core::gui::is_screen(scaled[300 * 1280 + 650]));
+    // a result of another shape is an error, never a misplaced mask
+    assert!(a
+        .analyze_jpeg_with_screens(&frame, Some(&screens(1000, 1000)))
+        .is_err());
+}

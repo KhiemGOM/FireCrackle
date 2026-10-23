@@ -268,3 +268,106 @@ fn the_hud_scale_is_only_measured_when_a_panel_was_found_and_a_disagreeing_panel
         );
     }
 }
+
+#[test]
+fn a_detection_on_the_native_frame_scaled_to_the_display_size_masks_the_same_screen_there() {
+    // the panel is at x 120..280, y 40..200 of the 400x240 "native" frame; the display picture is half that size
+    let (template, mut rgb) = fixture();
+    paint_tooltip(&mut rgb, 250, 340, 150, 220);
+    let detector = InteractionDetector::with_workers(vec![template], 1).unwrap();
+    let native = detector.detect(&rgb, 400, 240).unwrap();
+    assert!(native.gui_detected);
+    let display = native.scaled(200, 120);
+    assert_eq!((display.image_width, display.image_height), (200, 120));
+    let (n, d) = (&native.alternatives[0], &display.alternatives[0]);
+    assert_eq!(
+        (d.bounds.x, d.bounds.y, d.bounds.width, d.bounds.height),
+        (
+            n.bounds.x / 2.,
+            n.bounds.y / 2.,
+            n.bounds.width / 2.,
+            n.bounds.height / 2.
+        )
+    );
+    assert_eq!((d.scale_x, d.scale_y), (n.scale_x / 2., n.scale_y / 2.));
+    assert_eq!(display.tooltips[0].width, native.tooltips[0].width / 2.);
+    let mut mask = fire_core::gui_mask::GuiMask {
+        width: 200,
+        height: 120,
+        piece: vec![0; 200 * 120],
+        class: vec![0; 200 * 120],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    display.merge_neutral_panel(&mut mask).unwrap();
+    assert_eq!(
+        mask.piece[60 * 200 + 100],
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
+    );
+    assert_eq!(
+        mask.piece[105 * 200 + 160],
+        fire_core::gui_mask::PieceId::ItemTooltip as u8,
+        "the tooltip, past the panel"
+    );
+    assert_eq!(mask.class[5 * 200 + 5], 0);
+}
+
+#[test]
+fn the_shared_mask_takes_screens_found_on_another_picture_and_rejects_the_wrong_size() {
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/assets/gui");
+    let mask_detector = fire_core::gui_mask::GuiDetector::new(
+        fire_core::gui_mask::GuiTextures::load(&dir).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let (template, rgb) = fixture();
+    let screens = InteractionDetector::with_workers(vec![template], 1)
+        .unwrap()
+        .detect(&rgb, 400, 240)
+        .unwrap();
+    // the display picture (here the same frame scaled down by half) gets its HUD mask plus the native screens
+    let half: Vec<u8> = (0..120)
+        .flat_map(|y| {
+            (0..200).flat_map(move |x| {
+                let i = ((2 * y) * 400 + 2 * x) * 3;
+                [i, i + 1, i + 2]
+            })
+        })
+        .map(|i| rgb[i])
+        .collect();
+    let mask = mask_detector
+        .detect_with_screens(&half, 200, 120, &screens.scaled(200, 120))
+        .unwrap();
+    assert_eq!(
+        mask.piece[60 * 200 + 100],
+        fire_core::gui_mask::PieceId::InventoryPanel as u8
+    );
+    assert!(
+        mask_detector
+            .detect_with_screens(&half, 200, 120, &screens)
+            .is_err(),
+        "a 400x240 detection on a 200x120 picture"
+    );
+}
+
+#[test]
+fn the_engines_no_screen_answer_masks_nothing_and_scales_like_any_other() {
+    let none = fire_core::gui_interaction::Detection::none(2560, 1440);
+    assert!(!none.gui_detected && none.alternatives.is_empty() && none.tooltips.is_empty());
+    let display = none.scaled(1280, 720);
+    assert_eq!((display.image_width, display.image_height), (1280, 720));
+    let mut mask = fire_core::gui_mask::GuiMask {
+        width: 1280,
+        height: 720,
+        piece: vec![0; 1280 * 720],
+        class: vec![0; 1280 * 720],
+        fit: None,
+        reliable: false,
+        hits: vec![],
+        notes: vec![],
+    };
+    assert_eq!(display.merge_neutral_panel(&mut mask).unwrap(), 0);
+    assert!(mask.class.iter().all(|&c| c == 0));
+}
