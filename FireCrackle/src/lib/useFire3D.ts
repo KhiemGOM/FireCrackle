@@ -6,7 +6,7 @@ import type { Backend } from "./api";
 import { nativeFrame } from "./exactFrame";
 import { canvasFrameIo } from "./veilFrame";
 import { failureMessage } from "./appErrors";
-import { initReversal, orientation, type FireQuad } from "./reversal";
+import { initReversal, orientation, reversalReady, type FireQuad } from "./reversal";
 import { emptyTool, placementQuads, planeToManualQuad, type ToolState } from "./fireTool";
 import type { ManualQuad } from "./quadMask";
 
@@ -32,13 +32,16 @@ export interface Fire3D {
 
 /** `active`: 3D mode is on and the frame shown is the current one (only then is the frame read and guessed). */
 export function useFire3D(backend: Backend, frame: number, active: boolean): Fire3D {
-  const [ready, setReady] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [loaded, setReady] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  // the module can be reloaded under us (dev hot reload): ready only while it is really there
+  const ready = loaded && reversalReady();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [state, setRaw] = useState<ToolState>(() => emptyTool(frame));
   const [picking, setPicking] = useState(false);
   const [choice, setChoice] = useState<PlaneChoice | null>(null);
   useEffect(() => {
     if (!active || ready) return;
+    setReady(false);
     void initReversal().then(() => setReady(true)).catch(e => setError(failureMessage(e)));
   }, [active, ready]);
   // a new frame: its own guess and clicks (the camera moves between frames); placements and the camera are kept so

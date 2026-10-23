@@ -41,6 +41,8 @@ export function initReversal(bytes?: BufferSource): Promise<void> {
   return pending;
 }
 function rt(): Runtime { if (!native) throw new Error("Reversal runtime is not initialized"); return native; }
+/** Whether the module is loaded (a reload of this module drops it, so callers check rather than remember). */
+export function reversalReady(): boolean { return native !== undefined; }
 
 /** Run `f` with wasm buffers for each request (bytes), freeing them afterwards. */
 function withBuffers<T>(bytes: number[], f: (n: Runtime, ptrs: number[]) => T): T {
