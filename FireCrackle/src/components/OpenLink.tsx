@@ -3,13 +3,14 @@ import type { Backend, LinkStatus, ToolProgress } from "../lib/api";
 import { messageOf } from "../hooks/useWorkspace";
 import "./OpenLink.css";
 import { startPolling } from "../lib/poll";
+import { formatMegabytes } from "../lib/proofExport";
 
 export function ToolSetupNotice({backend}:{backend:Backend}) {
   const [status,setStatus]=useState<ToolProgress|null>(null);
   // A failed setup is reported by the operation that requested it, so poll errors are ignored here.
   useEffect(()=>startPolling(async()=>(await backend.toolStatus?.())??null,{intervalMs:500,onValue:setStatus}),[backend]);
   if(!status)return null;
-  return <div className="banner tool-download" role="status">Downloading {status.name} for first use · {(status.downloaded/1048576).toFixed(1)} MB{status.total?` / ${(status.total/1048576).toFixed(1)} MB`:""}<progress aria-label="Tool download progress" max={status.total??1} value={status.total?status.downloaded:undefined}/></div>;
+  return <div className="banner tool-download" role="status">Downloading {status.name} for first use · {formatMegabytes(status.downloaded)}{status.total?` / ${formatMegabytes(status.total)}`:""}<progress aria-label="Tool download progress" max={status.total??1} value={status.total?status.downloaded:undefined}/></div>;
 }
 
 export function OpenLink({backend,initialUrl="",onOpen,onClose}:{backend:Backend;initialUrl?:string;onOpen:(path:string)=>Promise<void>;onClose:()=>void}) {

@@ -3,6 +3,7 @@ import {inTauri} from './api';
 import {copyComparisonProof,type ProofAction} from './comparisonProof';
 import {formatTimecode} from './timecode';
 import {canvasBlob as encodeCanvas,loadImageBytes} from './canvas';
+import {askSavePath,blobBytes,downloadBlob,proofExtension} from './proofExport';
 
 export const FRAME_BLINK_MS=640;
 /** Absolute RGB difference, amplified only for inspection. Alpha is always opaque. */
@@ -47,15 +48,15 @@ export async function exportFrameProof(backend:Backend,proof:FrameProof,action:P
   .then(([before,after])=>renderFrameProof(before,after,proof,animated,!native&&action.format==='jpeg'?'image/jpeg':'image/png'));
  void pending.catch(()=>{});
  if(action.destination==='copy'&&action.format==='png'){await copyComparisonProof(pending.then(p=>p.image));return true;}
- const extension=action.format==='jpeg'?'jpg':action.format,filename=`frame-comparison-${proof.before}-${proof.after}.${extension}`;
+ const filename=`frame-comparison-${proof.before}-${proof.after}.${proofExtension(action.format)}`;
  if(native){
   let path:string|null=null;
-  if(action.destination==='save'){const {save}=await import('@tauri-apps/plugin-dialog');path=await save({defaultPath:filename,filters:[{name:action.format.toUpperCase(),extensions:[extension]}]});if(!path)return false;}
+  if(action.destination==='save'){path=await askSavePath(filename,action.format);if(!path)return false;}
   const {image,base}=await pending,{invoke}=await import('@tauri-apps/api/core');
   await invoke(action.destination==='copy'?'copy_formatted_comparison_proof':'save_comparison_proof',{
-   ...(path?{path}:{}),format:action.format,png:Array.from(new Uint8Array(await image.arrayBuffer())),base:base?Array.from(new Uint8Array(await base.arrayBuffer())):null,transition:'blink'});
+   ...(path?{path}:{}),format:action.format,png:await blobBytes(image),base:await blobBytes(base),transition:'blink'});
  }else{
-  const {image}=await pending,url=URL.createObjectURL(image),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  downloadBlob((await pending).image,filename);
  }
  return true;
 }

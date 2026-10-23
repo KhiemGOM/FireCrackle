@@ -1,5 +1,6 @@
 import { inTauri } from "./api";
 import { blobDataUrl, canvasBlob as encodeCanvas, loadImage as loadPicture } from "./canvas";
+import { askSavePath, blobBytes, downloadBlob, proofExtension } from "./proofExport";
 
 export interface ProofRect { x: number; y: number; width: number; height: number }
 export interface ProofMask { svg: SVGSVGElement; description: string; opacity: number; details?: string; bounds?: ProofRect }
@@ -159,19 +160,15 @@ export async function downloadComparisonProof(picture: HTMLImageElement, masks: 
   // Freeze the picture and geometry before the save dialog or any asynchronous work.
   const pending = renderProof(picture, masks, source, animated, !inTauri() && format === "jpeg" ? "image/jpeg" : "image/png");
   void pending.catch(() => {});
-  const filename = `comparison-proof.${format === "jpeg" ? "jpg" : format}`;
+  const filename = `comparison-proof.${proofExtension(format)}`;
   if (inTauri()) {
-    const {save} = await import("@tauri-apps/plugin-dialog");
-    const path = await save({defaultPath: filename, filters: [{name: format.toUpperCase(), extensions: [format === "jpeg" ? "jpg" : format]}]});
+    const path = await askSavePath(filename, format);
     if (!path) return false;
     const {image, base} = await pending;
     const {invoke} = await import("@tauri-apps/api/core");
-    await invoke("save_comparison_proof", {path, format, png: Array.from(new Uint8Array(await image.arrayBuffer())), base: base ? Array.from(new Uint8Array(await base.arrayBuffer())) : null});
+    await invoke("save_comparison_proof", {path, format, png: await blobBytes(image), base: await blobBytes(base)});
   } else {
-    const {image} = await pending;
-    const url = URL.createObjectURL(image), link = document.createElement("a");
-    link.href = url; link.download = filename; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadBlob((await pending).image, filename);
   }
   return true;
 }
@@ -181,7 +178,7 @@ export async function copyComparisonProof(proof: Blob | Promise<Blob>): Promise<
   if (inTauri()) {
     const blob = await proof;
     const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("copy_comparison_proof", { png: Array.from(new Uint8Array(await blob.arrayBuffer())) });
+    await invoke("copy_comparison_proof", { png: await blobBytes(blob) });
     return;
   }
   if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {

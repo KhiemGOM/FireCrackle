@@ -1,5 +1,6 @@
 import { chooseDownloads, installSteps, type InstallKind, type LatestRelease } from "../lib/updateCheck";
 import "./UpdateBanner.css";
+import { formatMegabytes } from "../lib/proofExport";
 
 interface Props {
   release: LatestRelease;
@@ -23,7 +24,7 @@ export function UpdateBanner({ release, localVersion, kind, onOpen, onSkip, onLa
         <span> (you have {localVersion}).</span>
         <span className="update-actions">
           {downloads.map(a => (
-            <button type="button" key={a.name} className="on" aria-label={`Download ${a.name}`} title={`${a.name}${a.size ? ` · ${(a.size / 1048576).toFixed(1)} MB` : ""}`} onClick={() => onOpen(a.url)}>
+            <button type="button" key={a.name} className="on" aria-label={`Download ${a.name}`} title={`${a.name}${a.size ? ` · ${formatMegabytes(a.size)}` : ""}`} onClick={() => onOpen(a.url)}>
               {primary ? "Download" : `Download ${a.name.replace(/^FireCrackle-[^-]+-/, "")}`}
             </button>
           ))}
