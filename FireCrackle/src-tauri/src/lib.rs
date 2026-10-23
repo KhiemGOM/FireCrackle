@@ -69,6 +69,11 @@ fn stop_scans(pov: &pov::Jobs, no_fire: &pov::Jobs, gui_scan: &gui_scan::Jobs) {
     gui_scan.shutdown();
 }
 
+/// Lower-case hex of a digest or any bytes (SHA-256 checksums, cache keys).
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// The open video's project for a background job, without keeping the workspace locked afterwards.
 fn open_project(ws: &Mutex<Option<Workspace>>) -> Result<studio_core::project::Project, String> {
     open_project_if_any(ws)?.ok_or_else(|| "No video is open".to_string())
@@ -590,6 +595,15 @@ pub fn run_app() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hex_is_lower_case_and_matches_the_sha256_test_vector() {
+        use sha2::{Digest, Sha256};
+        assert_eq!(hex(&[0x0a, 0xff]), "0aff");
+        assert_eq!(
+            hex(&Sha256::digest(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
     #[test]
     fn open_project_explains_a_missing_video_and_never_keeps_the_workspace_locked() {
         let ws = Mutex::new(None::<Workspace>);

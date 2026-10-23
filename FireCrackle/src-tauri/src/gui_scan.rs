@@ -58,7 +58,7 @@ fn cache_key(project: &Project, pipeline: &str) -> String {
     hash.update(pipeline);
     hash.update(serde_json::to_vec(project).unwrap_or_default());
     crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
-    format!("{:x}", hash.finalize())
+    crate::hex(&hash.finalize())
 }
 impl Cache {
     fn load(project: &Project) -> Self {

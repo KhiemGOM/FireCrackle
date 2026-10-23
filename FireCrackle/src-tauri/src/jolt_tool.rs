@@ -114,7 +114,7 @@ pub fn executable_from_zip(archive: &[u8], expected: Option<&str>) -> Result<Vec
             .read_to_end(&mut bytes)
             .map_err(|e| e.to_string())?;
         if let Some(expected) = expected
-            && format!("{:x}", Sha256::digest(&bytes)) != expected.to_ascii_lowercase()
+            && crate::hex(&Sha256::digest(&bytes)) != expected.to_ascii_lowercase()
         {
             return Err(
                 "The downloaded JoltCracker does not match the checksum published on splosh.icu; nothing was installed."
@@ -676,7 +676,7 @@ mod tests {
         out.into_inner()
     }
     fn sha(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        crate::hex(&Sha256::digest(bytes))
     }
 
     #[test]

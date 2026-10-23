@@ -870,8 +870,10 @@ fn wide_video(name: &str, n: usize) -> (PathBuf, PathBuf, FrameIndex) {
 
 /// RGB pixels and size of a PNG.
 fn png_rgb(bytes: &[u8]) -> (Vec<u8>, (u32, u32)) {
-    let mut reader = png::Decoder::new(bytes).read_info().expect("a PNG");
-    let mut px = vec![0; reader.output_buffer_size()];
+    let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
+        .read_info()
+        .expect("a PNG");
+    let mut px = vec![0; reader.output_buffer_size().expect("a PNG size")];
     let info = reader.next_frame(&mut px).unwrap();
     assert_eq!(
         info.color_type,

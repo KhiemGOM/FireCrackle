@@ -28,7 +28,7 @@ fn cache_path(project: &Project, dir: &Path, frame: u32, width: u32) -> PathBuf 
     hash.update((project.frames.len() as u64).to_le_bytes());
     crate::scan_cache::hash_video_file(&mut hash, &project.video_path);
     dir.join("preview-thumbs")
-        .join(format!("{:x}", hash.finalize()))
+        .join(crate::hex(&hash.finalize()))
         .join(format!("{frame:010}.jpg"))
 }
 fn read(path: &Path) -> Option<Vec<u8>> {

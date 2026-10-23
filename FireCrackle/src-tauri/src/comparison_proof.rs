@@ -319,7 +319,7 @@ pub async fn copy_formatted_comparison_proof(
             transition.as_deref().unwrap_or("fade"),
         )?;
         use sha2::{Digest, Sha256};
-        let digest = format!("{:x}", Sha256::digest(&bytes));
+        let digest = crate::hex(&Sha256::digest(&bytes));
         // Keep the file after the command returns: recipients read it when the user pastes.
         let root = std::env::temp_dir().join("firecrackle-proof-clipboard");
         std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;

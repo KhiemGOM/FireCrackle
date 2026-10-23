@@ -36,7 +36,7 @@ pub(crate) fn pipeline_version() -> &'static str {
             "../../../fire-detection/data/assets/gui/icons.rgba", "../../../fire-detection/data/assets/gui/inventory.rgba",
             "../../../fire-detection/data/assets/gui/bars.rgba", "../../../fire-detection/data/assets/gui/ascii.rgba",
             "../../../fire-detection/data/assets/gui/recipe_book.rgba");
-        format!("{:x}", hash.finalize())
+        crate::hex(&hash.finalize())
     })
 }
 
@@ -87,7 +87,7 @@ impl Journal {
         hash.update([u8::from(no_fire)]);
         hash.update(serde_json::to_vec(project).map_err(|e| e.to_string())?);
         hash_video_file(&mut hash, &project.video_path);
-        let key = format!("{:x}", hash.finalize());
+        let key = crate::hex(&hash.finalize());
         let name = if no_fire {
             "no-fire.jsonl"
         } else {
@@ -288,7 +288,7 @@ pub(crate) mod tests {
         let digest = |path: &str| {
             let mut h = Sha256::new();
             hash_video_file(&mut h, path);
-            format!("{:x}", h.finalize())
+            crate::hex(&h.finalize())
         };
         let before = digest(&f.project.video_path);
         assert_eq!(before, digest(&f.project.video_path));

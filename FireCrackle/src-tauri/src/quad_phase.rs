@@ -53,7 +53,7 @@ fn engine(material: Material) -> &'static Mutex<Result<Loaded, String>> {
                 .map_err(|e| format!("Quad AI model is missing or unreadable: {e}"))?;
             let metadata: serde_json::Value =
                 serde_json::from_str(material.metadata()).map_err(|e| e.to_string())?;
-            let hash = format!("{:x}", Sha256::digest(&weights));
+            let hash = crate::hex(&Sha256::digest(&weights));
             if metadata["sha256"].as_str() != Some(hash.as_str()) {
                 return Err("Quad AI model checksum mismatch; reinstall the matching model".into());
             }

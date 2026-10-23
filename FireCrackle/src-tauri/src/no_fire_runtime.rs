@@ -23,7 +23,7 @@ fn digest(path: &Path) -> Result<String, String> {
         }
         hash.update(&bytes[..n]);
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(crate::hex(&hash.finalize()))
 }
 pub(crate) fn unpack(bundle: &Path, cache: &Path) -> Result<PathBuf, String> {
     let file = fs::File::open(bundle).map_err(|e| format!("AI runtime archive missing: {e}"))?;
@@ -44,10 +44,9 @@ pub(crate) fn unpack(bundle: &Path, cache: &Path) -> Result<PathBuf, String> {
         return Err("Invalid AI runtime manifest".into());
     }
     // The archive's checksum manifest also keys the cache across runtime upgrades.
-    let id = format!(
-        "{:x}",
-        Sha256::digest(serde_json::to_vec(&hashes).map_err(|e| e.to_string())?)
-    );
+    let id = crate::hex(&Sha256::digest(
+        serde_json::to_vec(&hashes).map_err(|e| e.to_string())?,
+    ));
     let folder = cache.join(id);
     fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
     for name in LIBRARIES {
@@ -83,7 +82,7 @@ mod tests {
         let mut zip = zip::ZipWriter::new(fs::File::create(&path).unwrap());
         let mut hashes = BTreeMap::new();
         for name in LIBRARIES {
-            hashes.insert(name, format!("{:x}", Sha256::digest(name.as_bytes())));
+            hashes.insert(name, crate::hex(&Sha256::digest(name.as_bytes())));
             zip.start_file(name, zip::write::SimpleFileOptions::default())
                 .unwrap();
             zip.write_all(if corrupt { b"bad" } else { name.as_bytes() })

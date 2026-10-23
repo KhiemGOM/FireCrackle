@@ -140,7 +140,7 @@ fn verify(path: &Path, expected: &str) -> Result<(), String> {
         }
         sha.update(&buffer[..n]);
     }
-    if format!("{:x}", sha.finalize()) != expected {
+    if crate::hex(&sha.finalize()) != expected {
         return Err("Tool download checksum mismatch; please retry".into());
     }
     Ok(())
