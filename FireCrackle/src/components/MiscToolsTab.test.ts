@@ -81,13 +81,14 @@ it('includes real video boundary frames in manual comparison',()=>{
 });
 
 const toggle=(root:any,label:string)=>find(root,n=>n.props['aria-label']===label)[0];
-it('post effects reuse the Enhance settings; Enhance and the GUI mask are offered only when they can run',()=>{
+it('post effects reuse the Enhance settings; Enhance is offered only when it can run; there is no GUI blackout',()=>{
  let raw:string|null=null;
  vi.stubGlobal('localStorage',{getItem:(key:string)=>key===PREFERENCES_KEY?raw:null,setItem:(key:string,value:string)=>{if(key===PREFERENCES_KEY)raw=value;}});
  let root=render();
- for(const label of ['Unveil comparison frames','Undo portal on comparison frames','Enhance comparison frames','Mask the open GUI on comparison frames'])expect(toggle(root,label).props.checked).toBe(false);
+ for(const label of ['Unveil comparison frames','Undo portal on comparison frames','Enhance comparison frames'])expect(toggle(root,label).props.checked).toBe(false);
+ // unveil already keeps the open inventory or menu as it is; nothing paints it black
+ expect(toggle(root,'Mask the open GUI on comparison frames')).toBeUndefined();
  expect(toggle(root,'Enhance comparison frames').props.disabled).toBe(true); // no effect is on in the Enhance panel
- expect(toggle(root,'Mask the open GUI on comparison frames').props.disabled).toBe(true); // this backend has no GUI mask
  toggle(root,'Unveil comparison frames').props.onChange({target:{checked:true}});root=render();
  expect(toggle(root,'Unveil comparison frames').props.checked).toBe(true);
  hooks.effects.forEach(effect=>effect());
@@ -108,7 +109,6 @@ it('a GUI boundary opens its two frames with auto unveil on',()=>{
  expect(find(root,n=>n.props.title==='Before')[0].props.frame).toBe(19);
  expect(find(root,n=>n.props.title==='After')[0].props.frame).toBe(20);
  expect(toggle(root,'Unveil comparison frames').props.checked).toBe(true);
- expect(toggle(root,'Mask the open GUI on comparison frames').props.checked).toBe(false);
 });
 it('the After card blinks the processed pictures only with Apply to blink',()=>{
  const root=render(),side=find(root,n=>n.props.title==='After')[0];

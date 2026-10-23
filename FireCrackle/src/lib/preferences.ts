@@ -22,12 +22,12 @@ export interface Preferences {
   miscGuiOrder: "motion" | "time";
   miscGuiMenus: boolean;
   /** Post effects on the frame comparison (lib/comparisonPost.ts). */
-  miscComparePost: { veil: boolean; portal: boolean; enhance: boolean; gui: boolean; blink: boolean };
+  miscComparePost: { veil: boolean; portal: boolean; enhance: boolean; blink: boolean };
   /** Which two frames the aim gallery shows: around the GUI, or at the cut where it opens or closes. */
   miscGuiPair: "around" | "open" | "close";
 }
 export const PREFERENCES_KEY = "firecrackle.preferences.v1";
-export const DEFAULT_PREFERENCES: Preferences = { tab: "label", atlasFilter: { left: null, right: null }, matchOpen: false, matchOnlyFiltered: true, matchAdjustQuad: true, animationOpen: false, animationOnlyFiltered: true, animationDelayMs: 250, veilMode: "off", portalMode: "off", miscTool:"compare", miscCompareMode:"original", miscDifferenceGain:3, miscGuiMode:"aim", miscGuiDisplay:"blink", miscGuiOrder:"motion", miscGuiMenus:false, miscComparePost:{ veil:false, portal:false, enhance:false, gui:false, blink:false }, miscGuiPair:"around" };
+export const DEFAULT_PREFERENCES: Preferences = { tab: "label", atlasFilter: { left: null, right: null }, matchOpen: false, matchOnlyFiltered: true, matchAdjustQuad: true, animationOpen: false, animationOnlyFiltered: true, animationDelayMs: 250, veilMode: "off", portalMode: "off", miscTool:"compare", miscCompareMode:"original", miscDifferenceGain:3, miscGuiMode:"aim", miscGuiDisplay:"blink", miscGuiOrder:"motion", miscGuiMenus:false, miscComparePost:{ veil:false, portal:false, enhance:false, blink:false }, miscGuiPair:"around" };
 type Store = Pick<Storage, "getItem" | "setItem">;
 export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
   const result = { ...DEFAULT_PREFERENCES, atlasFilter: { ...DEFAULT_PREFERENCES.atlasFilter }, miscComparePost: { ...DEFAULT_PREFERENCES.miscComparePost } };
@@ -45,7 +45,7 @@ export function readPreferences(storage?: Pick<Store, "getItem">): Preferences {
     if (["blink","before","after"].includes(raw.miscGuiDisplay)) result.miscGuiDisplay = raw.miscGuiDisplay;
     if (raw.miscGuiOrder === "motion" || raw.miscGuiOrder === "time") result.miscGuiOrder = raw.miscGuiOrder;
     if (typeof raw.miscGuiMenus === "boolean") result.miscGuiMenus = raw.miscGuiMenus;
-    for (const key of ["veil", "portal", "enhance", "gui", "blink"] as const) if (typeof raw.miscComparePost?.[key] === "boolean") result.miscComparePost[key] = raw.miscComparePost[key];
+    for (const key of ["veil", "portal", "enhance", "blink"] as const) if (typeof raw.miscComparePost?.[key] === "boolean") result.miscComparePost[key] = raw.miscComparePost[key];
     if (["around", "open", "close"].includes(raw.miscGuiPair)) result.miscGuiPair = raw.miscGuiPair;
     if (Number.isInteger(raw.animationDelayMs) && raw.animationDelayMs >= 30 && raw.animationDelayMs <= 10000) result.animationDelayMs = raw.animationDelayMs;
     if (Array.isArray(raw.atlasFilter?.excluded)) {

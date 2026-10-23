@@ -13,12 +13,13 @@ import {failureMessage} from './appErrors';
 import {blobDataUrl} from './canvas';
 
 /** Which post effects the comparison applies. `blink` also shows them in Blink (off: Blink switches the originals). */
-export interface ComparePost {veil:boolean;portal:boolean;enhance:boolean;gui:boolean;blink:boolean}
-export const NO_COMPARE_POST:ComparePost={veil:false,portal:false,enhance:false,gui:false,blink:false};
+/** The post effects of a frame comparison. The open GUI needs no option of its own: unveil already leaves it as it is. */
+export interface ComparePost {veil:boolean;portal:boolean;enhance:boolean;blink:boolean}
+export const NO_COMPARE_POST:ComparePost={veil:false,portal:false,enhance:false,blink:false};
 /** A GUI boundary cut: auto unveil, which already leaves the open inventory or menu as it is (only the HUD is unveiled). */
 export const BOUNDARY_POST:Partial<ComparePost>={veil:true};
 
-export const comparesProcessed=(c:ComparePost)=>c.veil||c.portal||c.enhance||c.gui;
+export const comparesProcessed=(c:ComparePost)=>c.veil||c.portal||c.enhance;
 
 /** The Enhance panel's settings narrowed to the ticked effects. A ticked veil or portal the panel has off runs in Auto. */
 export function comparisonSettings(post:PostSettings,c:ComparePost):PostSettings{
@@ -26,13 +27,6 @@ export function comparisonSettings(post:PostSettings,c:ComparePost):PostSettings
   veil:c.veil?(post.veil==='off'?'auto':post.veil):'off',
   portal:c.portal?(post.portal==='off'?'auto':post.portal):'off',
   stages:c.enhance?post.stages:DEFAULT_POST.stages};
-}
-
-/** Blank (opaque black) every pixel that is open-screen GUI in any of the compared pictures. Masks of another size are ignored. */
-export function maskScreens(data:Uint8ClampedArray,worlds:(Uint8Array|undefined)[]):Uint8ClampedArray{
- const out=new Uint8ClampedArray(data),usable=worlds.filter((w):w is Uint8Array=>!!w&&w.length*4===data.length);
- for(let i=0;i<data.length/4;i++)if(usable.some(w=>!w[i]))out.set([0,0,0,255],i*4);
- return out;
 }
 
 type Portal=(image:PortalImage,signal:AbortSignal,world?:Uint8Array,manual?:PortalManual)=>Promise<PortalResult>;
@@ -66,8 +60,7 @@ export async function unveilPreview({url,mask,veil,io=canvasFrameIo,read=src=>fe
 export async function comparisonPictures({backend,frames,post,compare,veilOptions,signal,io=canvasFrameIo,portal=portalPreview}:{backend:Backend;frames:number[];post:PostSettings;compare:ComparePost;veilOptions:VeilOptions;signal:AbortSignal;io?:FrameIo;portal?:Portal}):Promise<{pictures:Map<number,Blob>;errors:string[]}>{
  const settings=comparisonSettings(post,compare),errors:string[]=[];
  const enhanceOn=hasEnhancement(settings),manual=settings.portal==='manual'?settings.portalManual:undefined;
- const wantsMask=settings.veil==='auto'||settings.portal==='auto'||compare.gui;
- if(wantsMask&&!backend.guiMaskFrame&&compare.gui)errors.push('The GUI mask is available in the desktop app.');
+ const wantsMask=settings.veil==='auto'||settings.portal==='auto';
  const unique=[...new Set(frames)];
  const made=await Promise.all(unique.map(async frame=>{
   const bytes=await backend.frame(frame),original=new Blob([bytes],{type:'image/jpeg'});
@@ -78,17 +71,9 @@ export async function comparisonPictures({backend,frames,post,compare,veilOption
    return portal(image,signal,world,manual);
   }:undefined,enhanceOn?image=>enhance(image,settings):undefined,mask.evidence,mask.screen);
   if(result.error)errors.push(`Frame ${frame}: ${result.error}`);
-  return {frame,blob:result.blob,screen:mask.screen?.world};
+  return {frame,blob:result.blob};
  }));
- const pictures=new Map(made.map(m=>[m.frame,m.blob]));
- if(compare.gui&&made.some(m=>m.screen)){
-  const worlds=made.map(m=>m.screen);
-  await Promise.all(made.map(async m=>{
-   const image=await io.decode(await m.blob.arrayBuffer());
-   pictures.set(m.frame,await io.encode(maskScreens(image.data,worlds),image.width,image.height));
-  }));
- }
- return {pictures,errors};
+ return {pictures:new Map(made.map(m=>[m.frame,m.blob])),errors};
 }
 /** One frame at the video's own resolution as the GUI gallery shows it (auto unveil, the GUI mask fitted to it);
  * the plain frame when unveil fails or changes nothing. */

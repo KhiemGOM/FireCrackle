@@ -10,12 +10,15 @@ it('restores all Misc tools controls and rejects invalid saved settings',()=>{
 });
 it('restores the comparison post toggles and the gallery pair, repairing bad ones',()=>{
  let raw:string|null=null;const storage={getItem:()=>raw,setItem:(_:string,value:string)=>{raw=value;}};
- expect(readPreferences(storage).miscComparePost).toEqual({veil:false,portal:false,enhance:false,gui:false,blink:false});
+ expect(readPreferences(storage).miscComparePost).toEqual({veil:false,portal:false,enhance:false,blink:false});
  expect(readPreferences(storage).miscGuiPair).toBe('around');
- writePreferences({miscComparePost:{veil:true,portal:false,enhance:true,gui:true,blink:true},miscGuiPair:'open'},storage);
- expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:true,portal:false,enhance:true,gui:true,blink:true},miscGuiPair:'open'});
+ writePreferences({miscComparePost:{veil:true,portal:false,enhance:true,blink:true},miscGuiPair:'open'},storage);
+ expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:true,portal:false,enhance:true,blink:true},miscGuiPair:'open'});
+ // the removed GUI blackout setting is dropped when an old save is read
+ raw=JSON.stringify({miscComparePost:{veil:true,gui:true}});
+ expect(readPreferences(storage).miscComparePost).toEqual({veil:true,portal:false,enhance:false,blink:false});
  raw=JSON.stringify({miscComparePost:{veil:'yes',portal:true},miscGuiPair:'sideways'});
- expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:false,portal:true,enhance:false,gui:false,blink:false},miscGuiPair:'around'});
+ expect(readPreferences(storage)).toMatchObject({miscComparePost:{veil:false,portal:true,enhance:false,blink:false},miscGuiPair:'around'});
 });
 it('defaults the GUI tool to aim jumps',()=>{
  expect(DEFAULT_PREFERENCES.miscGuiMode).toBe('aim');

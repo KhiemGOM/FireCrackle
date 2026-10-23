@@ -31,7 +31,7 @@ function useReviewImage(backend:Backend,frame:number|null){
 function usePostPictures(backend:Backend,frames:(number|null)[],post:PostSettings,compare:ComparePost,veilOptions:VeilOptions){
  const [made,setMade]=useState<{key:string;urls:Map<number,string>;blobs:Map<number,Blob>;errors:string[]}|null>(null),[failure,setFailure]=useState<{key:string;text:string}|null>(null);
  const active=comparesProcessed(compare),wanted=frames.filter((f):f is number=>f!==null);
- const key=active?JSON.stringify([wanted,comparisonSettings(post,compare),compare.gui,veilOptions]):'';
+ const key=active?JSON.stringify([wanted,comparisonSettings(post,compare),veilOptions]):'';
  useEffect(()=>{
   if(!key)return;
   const cancel=new AbortController();let urls:string[]=[];
@@ -127,7 +127,7 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame,post=DEFAULT_POS
  const range=reviewInterval(interval.first,interval.last,view.frame_count),frames=comparisonFrames(range,view.frame_count),fps=view.fps||1;
  const postPictures=usePostPictures(backend,[frames.before,frames.during,frames.after],post,compare,veil);
  const tick=(key:keyof ComparePost,on:boolean)=>setCompare(previous=>({...previous,[key]:on}));
- const effects=([['veil','Unveil'],['portal','Portal undone'],['enhance','Enhanced'],['gui','GUI masked']] as const).filter(([key])=>compare[key]).map(([,text])=>text).join(' · ');
+ const effects=([['veil','Unveil'],['portal','Portal undone'],['enhance','Enhanced']] as const).filter(([key])=>compare[key]).map(([,text])=>text).join(' · ');
  const processedOf=(frame:number|null,other:number|null=null)=>postPictures.urls&&frame!==null?{url:postPictures.urls.get(frame),compareUrl:other===null?undefined:postPictures.urls.get(other)}:undefined;
  const canEnhance=hasEnhancement(comparisonSettings(post,{...compare,enhance:true}));
  const name=videoKey?.split(/[\\/]/).pop();
@@ -165,7 +165,6 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame,post=DEFAULT_POS
      <label title="Undo the GUI veil with the Enhance panel's mode (Auto when it is Off). An open inventory or menu is left as it is; the hotbar and HUD are unveiled."><input type="checkbox" aria-label="Unveil comparison frames" checked={compare.veil} onChange={e=>tick('veil',e.target.checked)}/> Unveil</label>
      <label title="Undo the nether portal overlay with the Enhance panel's mode (Auto when it is Off)."><input type="checkbox" aria-label="Undo portal on comparison frames" checked={compare.portal} onChange={e=>tick('portal',e.target.checked)}/> Portal</label>
      <label title={canEnhance?'Apply the effects that are on in the Enhance panel.':'Turn on an effect in the Enhance panel first.'}><input type="checkbox" aria-label="Enhance comparison frames" checked={compare.enhance} disabled={!canEnhance} onChange={e=>tick('enhance',e.target.checked)}/> Enhance</label>
-     <label title={backend.guiMaskFrame?'Black out the open inventory or menu of either frame on both, so only the world is compared. The hotbar and HUD stay.':'The GUI mask is available in the desktop app.'}><input type="checkbox" aria-label="Mask the open GUI on comparison frames" checked={compare.gui} disabled={!backend.guiMaskFrame} onChange={e=>tick('gui',e.target.checked)}/> Mask GUI</label>
      {postPictures.busy&&<span className="dim" role="status">Applying…</span>}
     </div>
     <ComparisonProofButton disabled={frames.before===null||frames.after===null||postPictures.busy} busy={proofBusy} feedback={proofFeedback} onExport={action=>void exportProof(action)} title="Copy an annotated WebP that switches directly between Before and After. Choose a format or use its save icon."/>

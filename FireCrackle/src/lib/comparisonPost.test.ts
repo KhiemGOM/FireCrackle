@@ -1,7 +1,7 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import * as frameProcessing from './veilFrame';
 import {DEFAULT_POST,STARTING_POST,type PostSettings} from './post/settings';
-import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,comparesProcessed,comparisonPictures,comparisonSettings,maskScreens,type ComparePost} from './comparisonPost';
+import {BOUNDARY_POST,NO_COMPARE_POST,boundaryPicture,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from './comparisonPost';
 import type {Backend} from './api';
 import type {GuiMaskReply} from './guiMask';
 
@@ -24,24 +24,10 @@ describe('comparison settings from the Enhance panel',()=>{
   expect(comparisonSettings({...toned,enabled:false},on({veil:true})).enabled).toBe(true);
   expect(comparisonSettings(toned,on({veil:true})).stages.tone.on).toBe(false);
  });
- it('a GUI mask alone is processing; Apply to blink alone is not',()=>{
-  expect(comparesProcessed(on({gui:true}))).toBe(true);
+ it('Apply to blink alone is not processing',()=>{
   expect(comparesProcessed(on({blink:true}))).toBe(false);
  });
  it('boundary comparisons use auto unveil, which already keeps the open screen; no extra black-out',()=>{expect(BOUNDARY_POST).toEqual({veil:true});});
-});
-
-describe('masking the open screen on every compared picture',()=>{
- const px=()=>new Uint8ClampedArray([10,20,30,255, 40,50,60,255, 70,80,90,255]);
- it('blanks a pixel that is screen GUI in any of the pictures',()=>{
-  const out=maskScreens(px(),[new Uint8Array([0,1,1]),new Uint8Array([1,1,0])]);
-  expect(Array.from(out)).toEqual([0,0,0,255, 40,50,60,255, 0,0,0,255]);
- });
- it('leaves the input alone and ignores a mask of another size or none',()=>{
-  const input=px(),copy=new Uint8ClampedArray(input);
-  expect(maskScreens(input,[new Uint8Array(2),undefined])).toEqual(copy);
-  expect(input).toEqual(copy);
- });
 });
 
 describe('making the compared pictures',()=>{
@@ -91,19 +77,14 @@ describe('making the compared pictures',()=>{
   const b=backend();await run(b,on({enhance:true}),fakeIo(),{...STARTING_POST,veil:'on',portal:'off'});
   expect(b.guiMaskFrame).not.toHaveBeenCalled();
  });
- it('masks the open screen of either picture on both, after the corrections',async()=>{
+ it('no post effect blacks out the open GUI: unveil leaves it as it is, and an old saved GUI option is ignored',async()=>{
   vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
-  const io=fakeIo(),result=await run(backend(),on({veil:true,gui:true}),io);
-  expect(io.encoded).toHaveLength(2);
-  for(const data of io.encoded)expect(Array.from(data)).toEqual([0,0,0,255,8,8,8,255]);
-  expect(result.errors).toEqual([]);
- });
- it('without the desktop GUI mask the pictures are still made and the mask is reported missing',async()=>{
-  vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true}));
-  const io=fakeIo(),result=await run(backend(false),on({veil:true,gui:true}),io);
-  expect(result.pictures.size).toBe(2);
-  expect(io.encoded).toHaveLength(0);
-  expect(result.errors.join(' ')).toMatch(/GUI mask/);
+  for(const compare of [on({veil:true}),{...on({veil:true}),gui:true} as ComparePost]){
+   const io=fakeIo(),result=await run(backend(),compare,io);
+   expect(result.pictures.size).toBe(2);
+   expect(io.encoded,'nothing is painted over the pictures').toHaveLength(0);
+   expect(result.errors).toEqual([]);
+  }
  });
  it('a failed stage is reported and the frame keeps what succeeded',async()=>{
   vi.spyOn(frameProcessing,'processFrame').mockImplementation(async(_b,original)=>({blob:original,applied:true,error:'Portal broke'}));
