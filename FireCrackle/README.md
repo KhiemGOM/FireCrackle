@@ -76,7 +76,11 @@ The script runs frontend, video-core, detector and desktop tests, including a re
 
 ```powershell
 npm ci
-npm run tauri dev
+npm run tauri:dev
 ```
+
+`tauri:dev` is the only way to get the Vite dev server (hot reload): it builds without the default
+`custom-protocol` feature. Every other build, including a plain `cargo build --release` in `src-tauri`, embeds the
+frontend from `dist/` (run `npm run build` first), so an exe never silently points at `localhost:1420`.
 
 The app reuses FFmpeg/FFprobe from `PATH` or a legacy adjacent `tools` folder when available; on Windows the FFmpeg build must include libdav1d. Windows otherwise fetches them into app-local data; Linux uses distribution packages. Labels autosave alongside the video; UI preferences are per account.

@@ -100,6 +100,7 @@ jobs:
           python3 scripts/prepare-no-fire.py
           node --input-type=module -e "import {prepareGuiAssets} from './scripts/gui-assets.mjs'; await prepareGuiAssets();"
           node --input-type=module -e "import {prepareInteractionAssets} from './scripts/interaction-assets.mjs'; await prepareInteractionAssets();"
+          npm run build
           for manifest in crates/studio_core/Cargo.toml ../fire-detection/core/Cargo.toml; do
             cargo test --manifest-path "$manifest" --no-run
           done
