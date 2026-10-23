@@ -12,6 +12,7 @@ import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
 import { Fire3DOverlay } from "./Fire3DOverlay";
 import { Fire3DPanel } from "./Fire3DPanel";
+import { Fire3DWorldPane } from "./Fire3DWorldPane";
 import { useFire3D } from "../lib/useFire3D";
 import { IconButton } from "./Icon";
 import { DEFAULT_QUAD, type ManualQuad } from "../lib/quadMask";
@@ -258,6 +259,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   function toggleQuad() {
     setManualEnabled(!manualEnabled);
+    if (manualEnabled) setFire3dOn(false);
     if (manualEnabled) setMatchingEnabled(false);
     if (manualEnabled) setAnimationOpen(false);
     if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
@@ -275,11 +277,20 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
     setFindToken(n => n + 1);
   }
+  /** 3D quad: its own tool; it drives the quad mask, so turning it on turns the mask on. */
+  function toggleFire3d() {
+    if (stillImage) return;
+    const next = !fire3dOn;
+    setFire3dOn(next);
+    fire3d.setPicking(false);
+    if (next && !manualEnabled) toggleQuad();
+  }
   const runTool = (action: ToolAction) => {
     if (action.type === "quad") toggleQuad();
     else if (action.type === "firstPerson") toggleFirstPerson();
     else if (action.type === "matcher") runMatcher();
     else if (action.type === "ruler") toggleRuler();
+    else if (action.type === "fire3d") toggleFire3d();
     else if (action.type === "refine") void refineSelected();
     else setMatchPick(current => ({ index: action.index, n: (current?.n ?? 0) + 1 }));
   };
@@ -564,6 +575,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   const s = view.suggestion;
   return (
     <div className="video-pane">
+      <div className="video-split">
       <div
         className="video-frame zoomed"
         ref={frameRef}
@@ -612,8 +624,11 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           </div>
         )}
       </div>
+      {fire3dOn && !stillImage && <Fire3DWorldPane fire={fire3d} />}
+      </div>
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>
         <IconButton icon="quad" label="Toggle manual fire quad mask" title="Quad mask · Q" aria-pressed={manualEnabled} aria-expanded={manualEnabled} onClick={toggleQuad}>Quad mask <kbd>Q</kbd></IconButton>
+        {!stillImage && <IconButton icon="layers" label="Toggle 3D quad" title="3D quad · D: solve the camera from block corners, place the fire in 3D; its plane drives the quad mask" aria-pressed={fire3dOn} aria-expanded={fire3dOn} onClick={toggleFire3d}>3D quad <kbd>D</kbd></IconButton>}
         <IconButton icon="fire" label="Toggle first-person fire" disabled={!firstPersonAllowed} title={firstPersonAllowed ? "First-person fire · H" : "First-person burning uses normal fire only"} aria-pressed={hudEnabled} aria-expanded={hudEnabled} onClick={toggleFirstPerson}>First-person fire <kbd>H</kbd></IconButton>
         <IconButton icon="zoomIn" label="Toggle sprite matching tool" disabled={!!manualAtlas&&!soulFire(manualAtlas)} title="M: open/find or close matcher · Hold M while opening + 1–3: preview matches" aria-pressed={matchingEnabled} aria-expanded={matchingEnabled} onClick={toggleMatcher}>Match <kbd>M</kbd><kbd>M+1-3</kbd></IconButton>
         <IconButton icon="ruler" label="Toggle calibrated ruler" title="Ruler · U" aria-pressed={ruler.enabled} aria-expanded={ruler.enabled} onClick={toggleRuler}>Ruler <kbd>U</kbd></IconButton>
@@ -654,7 +669,6 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <label>Row <input aria-label="Manual mask row" type="number" min={0} max={manualRows-1} value={manualRow} onChange={(e) => { const n = e.target.valueAsNumber; if (Number.isInteger(n) && n >= 0 && n < manualRows) setManualRow(n); }} /></label>
           <IconButton icon="right" label="Next manual mask row" onClick={() => setManualRow((r) => (r+1)%manualRows)} />
           <label><input type="checkbox" checked={manualMirrored} onChange={(e) => setManualMirrored(e.target.checked)} /> Mirrored</label>
-          {!stillImage && <button aria-pressed={fire3dOn} title="3D quad: solve the camera from block corners and place the fire in 3D; its plane drives this quad" onClick={() => { setFire3dOn(!fire3dOn); fire3d.setPicking(false); }}>3D</button>}
           <OpacityControl groupLabel="Mask opacity" toggleLabel="Toggle manual mask opacity"
             sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>

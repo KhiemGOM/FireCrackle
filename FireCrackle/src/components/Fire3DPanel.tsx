@@ -3,7 +3,6 @@ import {entitySizes,type CameraPose,type Face} from '../lib/reversal';
 import {newBurningFace,newEntityFire,newFireBlock,removeClick,setClickWorld,solveTool,toggleFace,usableClicks,type Placement,type Vec3} from '../lib/fireTool';
 import type {Fire3D} from '../lib/useFire3D';
 import type {ManualQuad} from '../lib/quadMask';
-import {FireWorldView} from './FireWorldView';
 import './Fire3DPanel.css';
 
 const FACES:Face[]=['floor','north','east','south','west','up'];
@@ -14,8 +13,9 @@ function Num({label,value,step=1,onChange}:{label:string;value:number;step?:numb
 }
 const describe=(p:Placement)=>p.kind==='entity'?`Entity fire (${p.entity.replace(/^minecraft:/,'')})`:p.soul?'Soul fire':p.faces.floor?'Fire block':'Burning block face';
 
-/** Label's 3D quad mode: the automatic camera guess corrected by clicked block corners, fire placed in 3D, and one
- * of its planes sent to the manual quad (`onUse`) so the sprite, row stepping, match and refine work on it. */
+/** The 3D quad tool's settings: the automatic camera guess corrected by clicked block corners, fire placed in 3D,
+ * and one of its planes sent to the manual quad (`onUse`) so the sprite, row stepping, match and refine work on it.
+ * The simulated world is its own panel beside the video (Fire3DWorldPane). */
 export function Fire3DPanel({fire,onUse}:{fire:Fire3D;onUse:(quad:ManualQuad,mirrored:boolean)=>void}){
  const {state,setState,size,choice,setChoice,planes,manual}=fire;
  const [entityKind,setEntityKind]=useState('minecraft:blaze');
@@ -74,6 +74,5 @@ export function Fire3DPanel({fire,onUse}:{fire:Fire3D;onUse:(quad:ManualQuad,mir
      <button aria-label={`Remove fire ${i+1}`} onClick={()=>{setState(s=>({...s,placements:s.placements.filter(q=>q.id!==p.id)}));if(choice?.placement===p.id)setChoice(null);}}>✕</button>
     </div>;})}
   </div>
-  {fire.ready&&<div className="f3-world"><FireWorldView state={state} target={target}/></div>}
  </div>;
 }

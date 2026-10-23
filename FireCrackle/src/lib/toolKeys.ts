@@ -1,5 +1,5 @@
 // Keys for the four video tools. Pure state machine (no DOM): the pane feeds it key events and runs the action.
-//   Q quad mask · H first-person fire (HUD) · M sprite matcher · U ruler
+//   Q quad mask · H first-person fire (HUD) · M sprite matcher · U ruler · D 3D quad
 //   Hold M and press 1 / 2 / 3: preview the 1st / 2nd / 3rd match. The digits only count while M is physically held
 //   down, so they can never be mistaken for sprite-row digits.
 
@@ -8,6 +8,7 @@ export type ToolAction =
   | { type: "firstPerson" }
   | { type: "matcher" }
   | { type: "ruler" }
+  | { type: "fire3d" }
   | { type: "refine" }
   | { type: "candidate"; index: 0 | 1 | 2 };
 
@@ -42,6 +43,7 @@ export const TOOL_KEYS: ReadonlyArray<{ key: string; description: string }> = [
   { key: "m", description: "Sprite matcher: open and find the best match, or close if already open; hold M while opening and press 1, 2 or 3 to preview a match" },
   { key: "u", description: "Ruler: show or hide the calibrated ruler" },
   { key: "g", description: "Refine alignment of the selected fire sprite; keeps its phase and appearance" },
+  { key: "d", description: "3D quad: solve the camera from block corners and place the fire in 3D; its plane drives the quad mask" },
 ];
 
 const IDLE: ChordState = { mHeld: false };
@@ -51,6 +53,7 @@ const ACTIONS: Record<string, ToolAction> = {
   m: { type: "matcher" },
   u: { type: "ruler" },
   g: { type: "refine" },
+  d: { type: "fire3d" },
 };
 
 /**

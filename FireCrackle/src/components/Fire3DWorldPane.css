@@ -1,0 +1,10 @@
+.video-split { display: flex; align-items: stretch; min-width: 0; }
+.video-split > .video-frame { flex: 1 1 auto; min-width: 0; }
+.fire3d-side { position: relative; flex: 0 0 auto; display: flex; background: #12151b; border-left: 1px solid rgba(127, 127, 127, 0.3); min-width: 0; }
+.fire3d-side.collapsed { width: 34px; justify-content: center; align-items: flex-start; padding-top: 6px; }
+.fire3d-side.collapsed button { writing-mode: vertical-rl; padding: 6px 2px; }
+.fire3d-divider { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; z-index: 2; }
+.fire3d-divider:hover, .fire3d-divider:active { background: rgba(245, 197, 66, 0.35); }
+.fire3d-side-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; overflow: hidden; }
+.fire3d-side-head { display: flex; align-items: center; gap: 8px; }
+.fire3d-side-head .dim { flex: 1 1 auto; font-size: 11px; }

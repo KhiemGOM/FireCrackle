@@ -27,7 +27,7 @@ export function FireWorldView({state,target}:{state:ToolState;target:Vec3}){
  const look=eye&&ahead?project(cam,[[eye.x,eye.y,eye.z],[eye.x+3*(eye.x-ahead.x),eye.y+3*(eye.y-ahead.y),eye.z+3*(eye.z-ahead.z)]],VIEW_W,VIEW_H):null;
  const clicks=project(cam,state.clicks.flatMap(c=>c.world?[c.world]:[]),VIEW_W,VIEW_H);
  return <svg className="fq-world" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="img" aria-label="Simulated world view"
-  onPointerDown={e=>{drag.current={x:e.clientX,y:e.clientY,yaw:orbit.yaw,pitch:orbit.pitch};(e.target as Element).setPointerCapture?.(e.pointerId);}}
+  onPointerDown={e=>{drag.current={x:e.clientX,y:e.clientY,yaw:orbit.yaw,pitch:orbit.pitch};try{(e.target as Element).setPointerCapture?.(e.pointerId);}catch{/* drag without capture */}}}
   onPointerMove={e=>{const d=drag.current;if(d)setOrbit(o=>({...o,yaw:d.yaw-(e.clientX-d.x)*0.4,pitch:Math.max(-89,Math.min(89,d.pitch+(e.clientY-d.y)*0.4))}));}}
   onPointerUp={()=>{drag.current=null;}}
   onWheel={(e:WheelEvent<SVGSVGElement>)=>setOrbit(o=>({...o,dist:Math.max(2,Math.min(80,o.dist*(e.deltaY>0?1.1:1/1.1)))}))}>
