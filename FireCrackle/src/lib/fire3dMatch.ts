@@ -5,7 +5,7 @@
 // from the other sheet (`sheet`: an entity's fire layers alternate fire_0 and fire_1) shows the same phase there: each
 // plane's candidates are turned into the tool's own sprite setting before the planes are compared.
 import { matchFireQuad, type MatchImage } from "./quadMatch";
-import { phaseConsensus, sharedSprite, spriteAtPhase, spritePhase, type ScoredSprite } from "./phaseConsensus";
+import { consensusTries, phaseConsensus, sharedSprites, spriteAtPhase, spritePhase, type ScoredSprite } from "./phaseConsensus";
 import type { ManualQuad } from "./quadMask";
 import { canvasFrameIo, type FrameIo } from "./veilFrame";
 
@@ -14,7 +14,8 @@ export interface MatchPlane { quad: ManualQuad; mirrored: boolean; sheet?: 0 | 1
 
 export interface PlaneMatchCandidate { sheet: 0 | 1; row: number; mirrored: boolean; phase: number; support: number }
 export interface PlaneMatch {
-  /** Up to three phases, best first, each with the planes' shared sprite there. */
+  /** Three tries, best first (lib/phaseConsensus.ts consensusTries): sprites the planes share at the winning phase, and
+   * when the vote is unsure one at the runner-up phase. */
   candidates: PlaneMatchCandidate[];
   confident: boolean;
   /** Planes the matcher could read. */
@@ -33,11 +34,8 @@ export function matchFirePlanes(image: MatchImage, sheets: [Uint8ClampedArray, U
   }
   const vote = phaseConsensus(tables);
   if (!vote) return null;
-  const phases = vote.support.map((_, p) => p).sort((a, b) => vote.support[b] - vote.support[a]).slice(0, 3);
-  const candidates = phases.flatMap(phase => {
-    const s = sharedSprite(tables, phase);
-    return s ? [{ sheet: s.sheet, row: spriteAtPhase(s.sheet, phase), mirrored: s.mirrored, phase, support: vote.support[phase] }] : [];
-  });
+  const candidates = consensusTries(vote, phase => sharedSprites(tables, phase).map(s =>
+    ({ sheet: s.sheet, row: spriteAtPhase(s.sheet, phase), mirrored: s.mirrored, phase, support: vote.support[phase] })));
   return { candidates, confident: vote.confident, planes: vote.used };
 }
 

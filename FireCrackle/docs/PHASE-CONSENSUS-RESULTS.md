@@ -73,3 +73,19 @@ throughout (158 / 158). The 3D tool's model knows each plane's sheet (`FireQuad.
 (`src/lib/fire3dMatch.ts`) turns every plane's candidates into the tool's own sprite (the plane's flip and sheet undone,
 the phase kept), votes on the phase, then takes the one sheet and mirror with the most summed support at it
 (`sharedSprite`).
+
+## Three tries (M then 1-3): any of them right
+
+What a user needs is the right sprite among the three offered. Offering the three best *phases* wastes tries: when the
+vote is confident the phase is usually right and the miss is the sheet or mirror. `consensusTries` spends a confident
+vote's three tries on the best sprites at its phase, and an unsure vote's on two there plus one at the runner-up phase
+(chosen on tune against "three phases", "always two + the next phase" and "three sprites if confident, else three
+phases").
+
+| Right among the three tries | Per fire, validation | Per frame, validation | Per fire, tune |
+|---|---|---|---|
+| Each quad alone (its top 3) | exact 34.0 % | exact 34.0 % | exact 9.0 % |
+| Three best shared phases | exact 41.7 %, phase 76.3 % | exact 42.3 %, phase 80.7 % | exact 13.3 % |
+| **`consensusTries`** | **exact 58.7 %**, phase 68.7 % | **exact 62.7 %**, phase 72.7 % | **exact 33.9 %** |
+
+For the 3D quad the sprites at a phase are the planes' shared ones (`sharedSprites`); for loose quads, each quad's own.

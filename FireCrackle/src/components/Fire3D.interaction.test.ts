@@ -333,3 +333,34 @@ describe("FFmpeg compression", () => {
     expect(named(off, "FireTexels")).toHaveLength(1);
   });
 });
+
+describe("an entity's fire layers", () => {
+  // fire_0 white; fire_1 red at the row showing the same phase as fire_0 row 3 (row 19: sheet 1 runs 16 ahead), blue elsewhere
+  const other = new Uint8ClampedArray(16 * 512 * 4).map((_, i) => i % 4 === 3 ? 255 : Math.floor(i / 1024) === 19 ? (i % 4 === 0 ? 200 : 0) : (i % 4 === 2 ? 200 : 0));
+  const draw = (otherLoaded: boolean) => {
+    hooks.states = [{ source: spriteSource(undefined, 0), rgba: new Uint8ClampedArray(16 * 512 * 4).fill(255) }, otherLoaded ? { source: spriteSource(undefined, 1), rgba: other } : null];
+    hooks.si = hooks.ri = 0;
+    const quads = fireQuads(newFire(cam, [0, 64, 1]), false, cam, 1280, 720).map((q, i) => ({ ...q, sheet: i % 2 }));
+    const out = Fire3DOverlay({ fire: tool({ quads }), width: 1280, height: 720, zoom: 1, sprite: { ...sprite, row: 3 } });
+    // the FireTexels element as the overlay returns it (not rendered)
+    const texels: { colour: string }[] = [];
+    const walk = (n: unknown) => {
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      if (!n || typeof n !== "object" || !("props" in (n as El))) return;
+      const e = n as El;
+      if ((e.type as { name?: string })?.name === "FireTexels") texels.push(...e.props.texels);
+      walk(e.props.children);
+    };
+    walk(out);
+    return new Set(texels.map(t => t.colour));
+  };
+  it("alternate layers are drawn from the other sheet, at the same phase", () => {
+    const colours = draw(true);
+    expect(colours.has("rgb(255, 255, 255)")).toBe(true);
+    expect(colours.has("rgb(200, 0, 0)")).toBe(true);
+    expect(colours.has("rgb(0, 0, 200)")).toBe(false);
+  });
+  it("until the other sheet is loaded, every layer shows the chosen sprite", () => {
+    expect([...draw(false)]).toEqual(["rgb(255, 255, 255)"]);
+  });
+});

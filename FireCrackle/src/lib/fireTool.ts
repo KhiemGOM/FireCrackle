@@ -282,14 +282,17 @@ export function planeToManualQuad(q: FireQuad, w: number, h: number): { quad: Ma
 /** All planes' sprite texels (as the quad mask draws one plane, lib/quadMask.ts manualTexels) in the order to draw
  * them: far to near by each texel's own distance from the eye. The game draws fire as cut-out pixels with a depth
  * buffer, so the nearest opaque texel shows at every point; a fire block's planes cross each other, so ordering whole
- * planes cannot be right. `mirrored`: the sprite choice's flip, on top of each plane's own. */
-export function fireTexels(quads: FireQuad[], rgba: Uint8ClampedArray, row: number, mirrored: boolean, w: number, h: number, eye: Vec3, side = 16, rows = 32) {
+ * planes cannot be right. `mirrored`: the sprite choice's flip, on top of each plane's own. `other`: the sprite for
+ * planes the model draws from the other sheet (an entity's fire layers alternate fire_0 and fire_1); without it they
+ * show the chosen one. */
+export function fireTexels(quads: FireQuad[], rgba: Uint8ClampedArray, row: number, mirrored: boolean, w: number, h: number, eye: Vec3, side = 16, rows = 32,
+  other?: { rgba: Uint8ClampedArray; row: number }) {
   const out: { points: QuadPoint[]; colour: string; alpha: number; depth: number }[] = [];
   for (const q of quads) {
     const m = planeToManualQuad(q, w, h);
     if (!m) continue;
-    const [tl, tr, br, bl] = m.world;
-    for (const t of manualTexels(rgba, row, m.mirrored !== mirrored, m.quad, side, rows)) {
+    const [tl, tr, br, bl] = m.world, own = q.sheet === 1 && other ? other : { rgba, row };
+    for (const t of manualTexels(own.rgba, own.row, m.mirrored !== mirrored, m.quad, side, rows)) {
       const [u, v] = t.centre, a = (1 - u) * (1 - v), b = u * (1 - v), c = u * v, d = (1 - u) * v;
       const p = [0, 1, 2].map(k => a * tl[k] + b * tr[k] + c * br[k] + d * bl[k]);
       out.push({ points: t.points, colour: t.colour, alpha: t.alpha, depth: Math.hypot(p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]) });

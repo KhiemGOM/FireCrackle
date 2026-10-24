@@ -23,7 +23,8 @@ const UV: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 /** Two planes in native pixels (1000 × 500): one facing the camera, one seen from behind (its corners wound the other
  * way) and drawn from the other sheet. */
 const quads: FireQuad[] = [
-  { world: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], px: [[100, 100], [300, 100], [300, 400], [100, 400]], uv: UV, sheet: 0 },
+  // a fire block's plane: the model gives no sheet of its own (-1), so it shows the chosen one
+  { world: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], px: [[100, 100], [300, 100], [300, 400], [100, 400]], uv: UV, sheet: -1 },
   { world: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], px: [[700, 100], [500, 100], [500, 400], [700, 400]], uv: UV, sheet: 1 },
 ];
 const answer: PlaneMatch = { confident: true, planes: 2, candidates: [

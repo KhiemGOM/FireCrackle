@@ -449,6 +449,15 @@ describe("fire texels in depth order", () => {
     const key = (t: { points: [number, number][]; colour: string }) => t.colour + JSON.stringify(t.points);
     expect(out.map(key).sort()).toEqual(mask.map(key).sort());
   });
+  it("a plane the model draws from the other sheet (an entity's alternate fire layers) takes the other sprite", () => {
+    const [a, b] = quads(), plain = new Uint8ClampedArray(side * side * rows * 4).map((_, i) => (i % 4 === 3 ? 255 : 7));
+    const out = fireTexels([a, { ...b, sheet: 1 }], sheet, 0, false, 1280, 720, eye, side, rows, { rgba: plain, row: 0 });
+    const colours = (q: typeof a, rgba: Uint8ClampedArray) => manualTexels(rgba, 0, planeToManualQuad(q, 1280, 720)!.mirrored, planeToManualQuad(q, 1280, 720)!.quad, side, rows).map(t => t.colour).sort();
+    expect(out.map(t => t.colour).sort()).toEqual([...colours(a, sheet), ...colours(b, plain)].sort());
+    // without the other sheet, every plane keeps the chosen sprite (as before)
+    expect(fireTexels([a, { ...b, sheet: 1 }], sheet, 0, false, 1280, 720, eye, side, rows).map(t => t.colour).sort())
+      .toEqual([...colours(a, sheet), ...colours(b, sheet)].sort());
+  });
   it("transparent texels and planes behind the camera draw nothing", () => {
     const clear = new Uint8ClampedArray(side * side * rows * 4);
     expect(fireTexels(quads(), clear, 0, false, 1280, 720, eye, side, rows)).toEqual([]);

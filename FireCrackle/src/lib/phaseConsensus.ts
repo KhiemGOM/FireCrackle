@@ -96,10 +96,10 @@ export function phaseConsensus(tables: ScoredSprite[][], options: ConsensusOptio
   return { phase, support, margin: lead, confident: lead >= margin, labels, used };
 }
 
-/** For quads that also share their variant (one fire block's planes): the sheet and mirror at `phase` with the most
- * summed support, each quad's scores normalised as in the vote. Only the floor is clipped here: at the shared phase the
+/** For quads that also share their variant (one fire block's planes): every sheet and mirror at `phase`, most summed
+ * support first, each quad's scores normalised as in the vote. Only the floor is clipped here: at the shared phase the
  * sprites differ by small amounts, and a cap would flatten exactly that difference. The score is the summed support. */
-export function sharedSprite(tables: ScoredSprite[][], phase: number, low = CONSENSUS_DEFAULTS.low): ScoredSprite | null {
+export function sharedSprites(tables: ScoredSprite[][], phase: number, low = CONSENSUS_DEFAULTS.low): ScoredSprite[] {
   const sum = new Map<string, ScoredSprite>();
   for (const table of tables) {
     const scale = robustScale(phaseEvidence(table));
@@ -111,7 +111,18 @@ export function sharedSprite(tables: ScoredSprite[][], phase: number, low = CONS
       if (s) s.score += vote; else sum.set(key, { sheet: c.sheet, row: c.row, mirrored: c.mirrored, score: vote });
     }
   }
-  let best: ScoredSprite | null = null;
-  for (const s of sum.values()) if (!best || s.score > best.score) best = s;
-  return best;
+  return [...sum.values()].sort((a, b) => b.score - a.score);
+}
+/** The one sheet and mirror at `phase` the quads agree on most (sharedSprites' first); null with no quads. */
+export function sharedSprite(tables: ScoredSprite[][], phase: number, low = CONSENSUS_DEFAULTS.low): ScoredSprite | null {
+  return sharedSprites(tables, phase, low)[0] ?? null;
+}
+
+/** The tries a user gets (M then 1-3), where what matters is that any of them is right. `at(phase)` gives the sprites
+ * at a phase, best first. A confident vote is rarely wrong about the phase, so all tries go to sprites at it (the sheet
+ * and mirror are what is then missed); an unsure vote keeps one try for the runner-up phase. Chosen on the tune split
+ * (docs/PHASE-CONSENSUS-RESULTS.md: per fire, exact sprite in the top 3 on validation 41.7 % with three phases → 58.7 %). */
+export function consensusTries<T>(vote: Consensus, at: (phase: number) => T[], n = 3): T[] {
+  const order = vote.support.map((_, p) => p).sort((a, b) => vote.support[b] - vote.support[a]);
+  return vote.confident ? at(order[0]).slice(0, n) : [...at(order[0]).slice(0, n - 1), ...at(order[1]).slice(0, 1)];
 }

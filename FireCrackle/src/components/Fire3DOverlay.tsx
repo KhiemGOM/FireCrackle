@@ -11,6 +11,7 @@ import { FireTexels } from "./FireTexels";
 import { CompressedFire } from "./CompressedQuad";
 import { compressionGeometry, type CompressionSettings } from "../lib/compressionPreview";
 import { rasterizeTexels } from "../lib/quadRaster";
+import { spriteAtPhase, spritePhase } from "../lib/phaseConsensus";
 import "./Fire3DOverlay.css";
 
 export interface SpriteChoice { atlas?: AnimationAtlas; sheet: 0 | 1; row: number; mirrored: boolean; opacity: number; pixelGrid: boolean; }
@@ -44,6 +45,9 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
   const screenScale = useSvgScreenScale(svg, width, height, zoom);
   const source = spriteSource(sprite.atlas, sprite.sheet);
   const [sheet, setSheet] = useState<{ source: string; rgba: Uint8ClampedArray } | null>(null);
+  // the fire's other sheet, for the planes the model draws from it (an entity's alternate layers): fire sheets only
+  const otherSheet = (1 - sprite.sheet) as 0 | 1, otherSource = sprite.atlas ? null : spriteSource(undefined, otherSheet);
+  const [other, setOther] = useState<{ source: string; rgba: Uint8ClampedArray } | null>(null);
   // Delete removes the selected corner (Backspace stays Label's "remove this frame's label")
   const latest = useRef(fire); latest.current = fire;
   useEffect(() => {
@@ -52,6 +56,7 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
     return () => window.removeEventListener("keydown", key);
   }, []);
   useEffect(() => loadSpriteSheet(sprite.atlas, source, { reset: () => setSheet(null), ready: rgba => setSheet({ source, rgba }), failed: () => setSheet(null) }), [sprite.atlas, source]);
+  useEffect(() => otherSource ? loadSpriteSheet(undefined, otherSource, { reset: () => setOther(null), ready: rgba => setOther({ source: otherSource, rgba }), failed: () => setOther(null) }) : undefined, [otherSource]);
   const native = fire.size, cam = fire.state.camera;
   if (!native) return null;
   const sx = width / native.width, sy = height / native.height;
@@ -65,6 +70,8 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
   const outlinePx = cam ? project(cam, outline.flat(), native.width, native.height) : [];
   const { side, rows } = spriteShape(sprite.atlas);
   const row = sprite.atlas ? atlasTile(sprite.atlas, sprite.row) : sprite.row;
+  // the other sheet's row showing the same animation phase (sheet 1 runs 16 frames ahead)
+  const otherAt = (r: number) => otherSource && other?.source === otherSource ? { rgba: other.rgba, row: spriteAtPhase(otherSheet, spritePhase(sprite.sheet, r)) } : undefined;
   // the compression preview (fire sheets only, like the quad mask's): encoded at the delivery size, per geometry
   const compressed = compression && frameUrl && !sprite.atlas && sheet?.source === source
     ? { ...compressionGeometry(width, height, compression.height, [[0, 0], [1, 0], [1, 1], [0, 1]]),
@@ -73,7 +80,7 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
   // every texel of every plane, far to near (the game's depth buffer): the planes cross each other
   let texels: ReturnType<typeof fireTexels> = [];
   if (sheet?.source === source && cam) {
-    try { texels = fireTexels(fire.quads, sheet.rgba, row, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows); } catch { texels = []; }
+    try { texels = fireTexels(fire.quads, sheet.rgba, row, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows, otherAt(row)); } catch { texels = []; }
   }
   /** Native pixel under a screen point, or null outside the picture. */
   const nativeAt = (x: number, y: number): [number, number] | null => {
@@ -115,7 +122,7 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
     {compressed && cam
       ? <CompressedFire cycleKey={compressed.key} row={sprite.row} width={compressed.width} height={compressed.height} displayWidth={width} displayHeight={height}
           opacity={sprite.opacity} quality={compression!.quality}
-          raster={(r, white) => rasterizeTexels(fireTexels(fire.quads, sheet!.rgba, r, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows), compressed.width, compressed.height, white)} />
+          raster={(r, white) => rasterizeTexels(fireTexels(fire.quads, sheet!.rgba, r, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows, otherAt(r)), compressed.width, compressed.height, white)} />
       : <g opacity={sprite.opacity}><FireTexels texels={texels} pixelGrid={sprite.pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} /></g>}
     {outline.map((_, i) => {
       const a = outlinePx[2 * i], b = outlinePx[2 * i + 1];

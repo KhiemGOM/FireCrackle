@@ -45,12 +45,13 @@ describe("matchFirePlanes", () => {
       expect(m.planes).toBe(3);
     }
   });
-  it("offers up to three phases, best first, each with its own sprite", () => {
+  it("offers three tries, best first: a confident vote, three sprites at its phase", () => {
     const m = matchFirePlanes(frame(0, 9, false), sheets, planes)!;
-    expect(m.candidates.length).toBeGreaterThanOrEqual(2);
-    expect(m.candidates.length).toBeLessThanOrEqual(3);
-    expect(new Set(m.candidates.map(c => c.phase)).size).toBe(m.candidates.length);
-    expect(m.candidates[0].support).toBeGreaterThanOrEqual(m.candidates[1].support);
+    expect(m.confident).toBe(true);
+    expect(m.candidates).toHaveLength(3);
+    expect(m.candidates.every(c => c.phase === 9)).toBe(true);
+    expect(new Set(m.candidates.map(c => `${c.sheet}${c.mirrored}`)).size).toBe(3);
+    expect(m.candidates[0]).toMatchObject({ sheet: 0, mirrored: false });
   });
   it("a plane covered by something else does not stop the others from deciding", () => {
     const m = matchFirePlanes(frame(0, 12, false, 1), sheets, planes)!;

@@ -29,7 +29,7 @@ function planesOf(quads: FireQuad[], size: Props["size"]): MatchPlane[] {
   if (!size) return [];
   return quads.flatMap(q => {
     const m = planeToManualQuad(q, size.width, size.height);
-    return m ? [{ quad: m.quad, mirrored: m.mirrored, sheet: (q.sheet ? 1 : 0) as 0 | 1 }] : [];
+    return m ? [{ quad: m.quad, mirrored: m.mirrored, sheet: (q.sheet === 1 ? 1 : 0) as 0 | 1 }] : [];
   });
 }
 
@@ -92,7 +92,7 @@ export function Fire3DMatchControls({ quads, size, picture, load, material, runT
       <Icon name="zoomIn" /> {busy === key ? "Matching…" : "Find 3D match"}
     </button>
     {current?.data?.candidates.map((c, i) =>
-      <button key={c.phase} className="match-rank" disabled={disabled} aria-label={`Preview 3D match ${i + 1}: ${name(c)}`} aria-pressed={current.selected === c}
+      <button key={`${c.phase}-${c.sheet}-${c.mirrored}`} className="match-rank" disabled={disabled} aria-label={`Preview 3D match ${i + 1}: ${name(c)}`} aria-pressed={current.selected === c}
         title={`${name(c)}\nSupport ${c.support.toFixed(1)} (summed over the planes)`} onClick={() => preview(c)}>{i + 1}</button>)}
     <span className="hud-hint">{summary}</span>
   </div>;

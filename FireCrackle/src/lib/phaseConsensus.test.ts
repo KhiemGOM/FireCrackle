@@ -1,7 +1,7 @@
 // Every fire sprite on screen shows one global animation phase (sheet 1 is always 16 frames on from sheet 0), whatever
 // each quad's own sheet or mirror. phaseConsensus takes every quad's matcher scores and picks the one phase they share.
 import { describe, expect, it } from "vitest";
-import { CONSENSUS_DEFAULTS, phaseConsensus, phaseEvidence, sharedSprite, spritePhase, spriteAtPhase, type ScoredSprite } from "./phaseConsensus";
+import { CONSENSUS_DEFAULTS, phaseConsensus, consensusTries, phaseEvidence, sharedSprite, sharedSprites, spritePhase, spriteAtPhase, type ScoredSprite } from "./phaseConsensus";
 
 /** A full candidate table (2 sheets × 32 rows × 2 mirrors) with a small noise floor and chosen peaks. */
 function table(peaks: { sheet: 0 | 1; row: number; mirrored: boolean; score: number }[], seed = 1): ScoredSprite[] {
@@ -100,5 +100,39 @@ describe("sharedSprite", () => {
     const tables = [table([{ sheet: 1, row: 30, mirrored: false, score: 0.9 }, { sheet: 1, row: 21, mirrored: false, score: 0.6 }], 24)];
     expect(sharedSprite(tables, 5)).toMatchObject({ sheet: 1, row: 21, mirrored: false });
     expect(sharedSprite([], 5)).toBeNull();
+  });
+});
+
+// ---- the three tries a user gets (M then 1-3): what matters is that ANY of them is right
+
+describe("sharedSprites", () => {
+  it("every sheet and mirror at the phase, most support first; sharedSprite is the first", () => {
+    const tables = [
+      table([{ sheet: 0, row: 5, mirrored: false, score: 0.9 }, { sheet: 0, row: 5, mirrored: true, score: 0.7 }, { sheet: 1, row: 21, mirrored: false, score: 0.5 }], 31),
+      table([{ sheet: 0, row: 5, mirrored: false, score: 0.8 }, { sheet: 0, row: 5, mirrored: true, score: 0.75 }], 32),
+    ];
+    const ranked = sharedSprites(tables, 5);
+    expect(ranked).toHaveLength(4);
+    expect(ranked.slice(0, 3).map(s => [s.sheet, s.mirrored])).toEqual([[0, false], [0, true], [1, false]]);
+    expect(ranked.every(s => s.row === (s.sheet ? 21 : 5))).toBe(true);
+    expect(sharedSprite(tables, 5)).toEqual(ranked[0]);
+  });
+});
+
+describe("consensusTries", () => {
+  const at = (phase: number) => ["a", "b", "c", "d"].map(x => `${phase}${x}`);
+  const vote = (confident: boolean) => {
+    const support = new Array(32).fill(0); support[7] = 10; support[3] = 6; support[12] = 2;
+    return { phase: 7, support, margin: 4, confident, labels: [], used: 3 };
+  };
+  it("a confident vote spends all three tries on the best sprites at its phase (the phase is rarely wrong then)", () => {
+    expect(consensusTries(vote(true), at)).toEqual(["7a", "7b", "7c"]);
+  });
+  it("an unsure vote keeps two at its phase and gives the third to the runner-up phase", () => {
+    expect(consensusTries(vote(false), at)).toEqual(["7a", "7b", "3a"]);
+  });
+  it("fewer sprites than tries: what there is", () => {
+    expect(consensusTries(vote(true), p => p === 7 ? ["only"] : [])).toEqual(["only"]);
+    expect(consensusTries(vote(false), p => p === 7 ? ["only"] : ["next"])).toEqual(["only", "next"]);
   });
 });
