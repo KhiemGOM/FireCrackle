@@ -171,7 +171,9 @@ pub fn png_rgb(png: &[u8]) -> Result<(Vec<u8>, usize, usize), String> {
     let rgb = match (info.color_type, info.bit_depth) {
         (png::ColorType::Rgb, png::BitDepth::Eight) => px[..w * h * 3].to_vec(),
         (png::ColorType::Rgba, png::BitDepth::Eight) => px[..w * h * 4]
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|p| [p[0], p[1], p[2]])
             .collect(),
         other => return Err(format!("unsupported PNG format {other:?}")),

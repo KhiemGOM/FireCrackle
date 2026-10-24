@@ -103,10 +103,9 @@ impl DecodeGate {
         state.next_ticket += 1;
         if state.waiting.len() >= MAX_WAITING {
             let normal = state.waiting.iter().position(|w| w.2 == Priority::Normal);
-            match normal.or((priority == Priority::Urgent).then_some(0)) {
-                Some(i) => _ = state.waiting.remove(i),
-                None => return None, // everyone waiting is urgent and this is not
-            }
+            // everyone waiting is urgent and this is not: no room
+            let i = normal.or((priority == Priority::Urgent).then_some(0))?;
+            state.waiting.remove(i);
         }
         state.waiting.push((ticket, Instant::now(), priority));
         self.freed.notify_all();
@@ -137,7 +136,7 @@ impl DecodeGate {
         let Some(oldest) = class.next() else {
             return false;
         };
-        let newest = class.last().unwrap_or(oldest);
+        let newest = class.next_back().unwrap_or(oldest);
         let overdue = oldest.1.elapsed() > starvation;
         (if overdue { oldest } else { newest }).0 == ticket
     }
