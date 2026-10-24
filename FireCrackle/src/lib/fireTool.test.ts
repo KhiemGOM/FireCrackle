@@ -316,3 +316,50 @@ describe("a new picture", () => {
     expect(pictureState(solved, true, guess, undefined)).toEqual({ ...solved, guess });
   });
 });
+
+// ---- an impossible camera must never take the app down (frame 448432 froze it: a solve put the eye 56 million
+// blocks away, the overview sized its grid by that distance and ran out of memory, and the memory kept it)
+
+import { plausibleCamera, solveTool as solveForTest } from "./fireTool";
+
+const absurd: CameraPose = { x: 2488704.35, y: 1.62, z: 56765829.14, yaw: 118.82, pitch: 14.66, roll: -35.73, fov: 134.98 };
+const userCorners = [
+  { id: 1, px: [1633.62, 918.15] as [number, number], world: [0, 0, 0] as Vec3 },
+  { id: 2, px: [1838.64, 985.97] as [number, number], world: [-1, 0, 1] as Vec3 },
+  { id: 3, px: [1861.42, 933.74] as [number, number], world: null },
+];
+
+describe("impossible cameras", () => {
+  it("the grid stays small whatever radius it is asked for, and an ordinary one is unchanged", () => {
+    const t = performance.now();
+    const huge = groundGrid(cam, W, H, [0, 64, 0], 28_000_000);
+    expect(performance.now() - t).toBeLessThan(2000);
+    expect(huge.length).toBeLessThanOrEqual(groundGrid(cam, W, H, [0, 64, 0], 64).length);
+    expect(groundGrid(cam, W, H, [0, 64, 0], Number.NaN)).toEqual(groundGrid(cam, W, H, [0, 64, 0], 0));
+    expect(groundGrid(cam, W, H, [0, 64, 0], 8).length).toBeGreaterThan(0);
+  });
+  it("a camera far from its corners, rolled over, with an impossible FOV or not finite is not plausible", () => {
+    const near: Vec3[] = [[0, 0, 0], [-1, 0, 1]];
+    expect(plausibleCamera({ x: 2, y: 1.62, z: -3, yaw: 120, pitch: 15, roll: 0.5, fov: 90 }, near)).toBe(true);
+    expect(plausibleCamera(absurd, near)).toBe(false);
+    expect(plausibleCamera({ x: 2, y: 1.62, z: -3, yaw: 120, pitch: 15, roll: -35, fov: 90 }, near)).toBe(false);
+    expect(plausibleCamera({ x: 2, y: 1.62, z: -3, yaw: 120, pitch: 15, roll: 0, fov: 175 }, near)).toBe(false);
+    expect(plausibleCamera({ x: 600, y: 1.62, z: 0, yaw: 120, pitch: 15, roll: 0, fov: 90 }, near)).toBe(false);
+    expect(plausibleCamera({ x: Number.NaN, y: 1.62, z: 0, yaw: 120, pitch: 15, roll: 0, fov: 90 }, near)).toBe(false);
+  });
+  it("the solve never answers with an impossible camera (the frame's own corners and On ground)", () => {
+    for (const g of [guess, { ...guess, yaw: absurd.yaw, pitch: absurd.pitch, fov: absurd.fov, fovKnown: false }]) {
+      const s: ToolState = { ...emptyTool(0), clicks: userCorners, eyeY: 1.62, guess: g };
+      const out = solveForTest(s, 2560, 1440);
+      for (const c of out.candidates) expect(plausibleCamera(c.camera, [[0, 0, 0], [-1, 0, 1]])).toBe(true);
+      if (out.camera) expect(plausibleCamera(out.camera, [[0, 0, 0], [-1, 0, 1]])).toBe(true);
+    }
+  });
+  it("a frame saved with an impossible camera comes back without it, corners and fire kept", () => {
+    const fireNear = newFire(cam, [0, 0, 0]);
+    const next = pictureState(emptyTool(0), false, guess, { clicks: userCorners, fire: fireNear, eyeY: 1.62, camera: absurd });
+    expect(next.camera).toBeNull();
+    expect(next.clicks.map(c => c.world)).toEqual(userCorners.map(c => c.world));
+    expect(next.fire).toEqual(fireNear);
+  });
+});

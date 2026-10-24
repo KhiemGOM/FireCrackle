@@ -84,7 +84,12 @@ export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera">;
  * line up from, without the last picture's corners. The same picture again only takes the new guess. */
 export function pictureState(s: ToolState, samePicture: boolean, guess: Orientation | null, saved: SavedTool | undefined): ToolState {
   if (samePicture) return { ...s, guess };
-  if (saved) return { ...emptyTool(0), ...saved, clicks: saved.clicks.map(c => ({ ...c, id: id() })), guess };
+  if (saved) {
+    // a camera kept before cameras were checked (or edited by hand into nonsense) is dropped; the corners solve again
+    const near = [...saved.clicks.flatMap(c => c.world ? [c.world] : []), ...(saved.fire ? [saved.fire.mode === "entity" ? saved.fire.feet : saved.fire.cell] : [])];
+    const camera = saved.camera && plausibleCamera(saved.camera, near) ? saved.camera : null;
+    return { ...emptyTool(0), ...saved, camera, clicks: saved.clicks.map(c => ({ ...c, id: id() })), guess };
+  }
   return { ...emptyTool(0), fire: s.fire, eyeY: s.eyeY, camera: s.camera, guess };
 }
 
@@ -133,6 +138,17 @@ export function usableClicks(s: ToolState) {
 
 /** Solve the camera from the guess and the clicks (clicks alone once there are 4 or more and no guess fits). Keeps
  * the camera as it was when the clicks do not fix it. */
+const MAX_GRID_RADIUS = 64;
+
+/** A camera Minecraft can have: finite, rolled no more than the hurt tilt, a FOV the game can reach, and its eye within
+ * 512 blocks of every `near` point (the corners clicked on the picture, or the fire). A solve from too few corners
+ * can fit them with an eye millions of blocks away; such a camera is never used or kept. */
+export function plausibleCamera(cam: CameraPose, near: Vec3[]): boolean {
+  if (![cam.x, cam.y, cam.z, cam.yaw, cam.pitch, cam.roll, cam.fov].every(Number.isFinite)) return false;
+  if (Math.abs(cam.roll) > 20 || cam.fov < 20 || cam.fov > 150) return false;
+  return near.every(p => Math.hypot(p[0] - cam.x, p[1] - cam.y, p[2] - cam.z) <= 512);
+}
+
 export function solveTool(s: ToolState, w: number, h: number): ToolState {
   const clicks = usableClicks(s);
   let candidates: CameraFit[] = [];
@@ -140,9 +156,11 @@ export function solveTool(s: ToolState, w: number, h: number): ToolState {
     const g = s.guess;
     candidates = solveGuided(clicks, w, h, { yaw: g.yaw, pitch: g.pitch, roll: g.roll, fov: g.fov, yawMod90: true, fovKnown: g.fovKnown }, s.eyeY ?? undefined);
   }
+  const worlds = clicks.map(c => c.world);
+  candidates = candidates.filter(c => plausibleCamera(c.camera, worlds));
   if (candidates.length === 0 && clicks.length >= 4) {
     const alone = solveCamera(clicks, w, h);
-    if (alone) candidates = [alone];
+    if (alone && plausibleCamera(alone.camera, worlds)) candidates = [alone];
   }
   return candidates.length ? { ...s, candidates, camera: candidates[0].camera } : { ...s, candidates };
 }
@@ -198,7 +216,9 @@ export function fireOutline(f: Fire3DShape): [Vec3, Vec3][] {
 
 /** Block-edge lines of the plane y = `centre[1]` within `radius` blocks of `centre`, as projected segments. Lines are
  * cut into one-block pieces so the parts behind the camera drop out. */
-export function groundGrid(cam: CameraPose, w: number, h: number, centre: Vec3, radius: number): [number, number][][] {
+export function groundGrid(cam: CameraPose, w: number, h: number, centre: Vec3, size: number): [number, number][][] {
+  // its cost grows with the square of the radius: never more than a 129-block square, whatever is asked
+  const radius = Number.isFinite(size) ? Math.max(0, Math.min(Math.floor(size), MAX_GRID_RADIUS)) : 0;
   const y = Math.floor(centre[1]), cx = Math.floor(centre[0]), cz = Math.floor(centre[2]);
   const pieces: [Vec3, Vec3][] = [];
   for (let i = -radius; i <= radius + 1; i++) for (let j = -radius; j <= radius; j++) {
