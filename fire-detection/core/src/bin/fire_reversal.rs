@@ -140,7 +140,7 @@ fn main() {
         let Some(key) = fit_label_frame(&blocks, lw as usize, lh as usize) else {
             continue;
         };
-        if key.rms > 0.06 || key.fov_fixed {
+        if key.rms > 0.06 || key.one_plane {
             continue;
         }
         tried += 1;

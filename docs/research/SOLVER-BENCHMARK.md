@@ -79,8 +79,8 @@ Held-out RMS px, median / p90, and the share of cases within 2 px. A case with n
 | Solver | spread (240) | plane (180) | plane-far (120) | real, 4 clicks (118) | real, 8 clicks (114) | ms p50 |
 |---|---|---|---|---|---|---|
 | **ours, guided** (the app's path; simulated guess) | 0.18 / 0.65 (99 %) | 0.30 / 0.96 (100 %) | 1.36 / 5.8 (63 %) | 1.25 / 2.4 (82 %) | 0.87 / 1.5 (96 %) | 5 |
-| ours, clicks alone (`solve`) | 0.21 / 0.73 (97 %) | 87 / 227 (22 %) | 58 / 305 (16 %) | 2.05 / 9.2 (48 %) | 1.01 / 1.7 (94 %) | 5 |
-| ours, clicks alone, FOV fitted on one plane (experiment) | 0.21 / 0.73 (97 %) | 0.29 / 1.0 (98 %) | 1.62 / 11 (55 %) | 2.01 / 8.3 (49 %) | 1.01 / 1.7 (94 %) | 5 |
+| ours, clicks alone (`solve`), before the fix | 0.21 / 0.73 (97 %) | 87 / 227 (22 %) | 58 / 305 (16 %) | 2.05 / 9.2 (48 %) | 1.01 / 1.7 (94 %) | 5 |
+| ours, clicks alone, **fixed** (FOV fitted on one plane) | 0.21 / 0.73 (97 %) | 0.29 / 1.0 (98 %) | 1.62 / 11 (55 %) | 2.01 / 8.3 (49 %) | 1.01 / 1.7 (94 %) | 5 |
 | MCV (Python backend, points only) | 0.29 / — (80 %; 83 % answered) | 1.24 / — (52 %; 54 % answered) | 2.43 / — (48 %; 88 % answered) | 1.98 / 8.3 (50 %) | 1.06 / 2.2 (85 %) | 150 |
 | MCV web path (as it would compute) | 0.45 / 7.5 (74 %) | 0.58 / 3.7 (80 %) | 1.88 / 15 (52 %) | 1.98 / 8.2 (50 %) | 1.06 / 2.3 (84 %) | 1,400 |
 | mc-locate (FOV typed 70, solved with 6+ points) | 0.31 / 88 (78 %) | refuses all | refuses all | 39 / — (4 %) | 1.01 / 1.7 (94 %) | 0.2 |
@@ -96,8 +96,10 @@ Held-out RMS px, median / p90, and the share of cases within 2 px. A case with n
   digit, and PerspectiveReverser from a good start matches too. The differences are robustness and speed.
 - **Ours, guided (the app) is the best overall**: best or tied in every column but plane-far, and 5 ms.
 - **Clicks on one plane: our clicks-alone `solve` was broken.** It held the FOV at 70° ("FOV cannot be separated from
-  distance"), which is false for a plane seen at an angle, and then could not even fit the clicks (68–100 px). Fitting
-  the FOV there (the experiment row) gives 0.29 px, the same as MCV's 4-point path and the guided solve. mc-locate
+  distance"), which is false for a plane seen at an angle, and then could not even fit the clicks (68–100 px). Fixed:
+  `solve` and `fit` now fit the FOV there (0.29 px, the same as MCV's 4-point path and the guided solve); `Fit::fov_fixed`
+  became `Fit::one_plane`, which answer keys still use to leave single-plane frames out (quad1 every 20th frame: 97.2 %
+  exact before and after). mc-locate
   refuses every coplanar layout; MCV with 5+ points often finds no answer (its RANSAC focal scan misses).
 - **A fire far from every corner and off their plane (`plane-far`, the owner's frame) is hard for every solver**:
   best medians 1.1–1.6 px with a p90 of 6–11 px. That is the layout's limit, not a solver's. Corners near the fire's

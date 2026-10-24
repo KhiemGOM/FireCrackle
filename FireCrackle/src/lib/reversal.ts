@@ -11,7 +11,7 @@ export interface Guess { yaw: number; pitch: number; roll: number; fov: number; 
   rollFixed?: boolean; }
 /** A clicked block corner: its world point and where it is on the frame (pixels). */
 export interface Click { world: [number, number, number]; px: [number, number]; }
-export interface CameraFit { camera: CameraPose; rms: number; fovFixed: boolean; }
+export interface CameraFit { camera: CameraPose; rms: number; onePlane: boolean; }
 /** One fire quad: world corners, pixels (null when a corner is behind the camera), sprite UVs, sheet (0/1, -1 = either). */
 export interface FireQuad { world: [number, number, number][]; px: [number, number][] | null; uv: [number, number][]; sheet: number; }
 export interface FireFaces { floor: boolean; north: boolean; east: boolean; south: boolean; west: boolean; up: boolean; }
@@ -60,7 +60,7 @@ const f64In = (n: Runtime, p: number, v: number[]) => new Float64Array(n.memory.
 const f64Out = (n: Runtime, p: number, len: number) => Array.from(new Float64Array(n.memory.buffer, p, len));
 const camArray = (c: CameraPose) => [c.x, c.y, c.z, c.yaw, c.pitch, c.roll, c.fov];
 const fitFrom = (v: number[]): CameraFit => ({
-  camera: { x: v[0], y: v[1], z: v[2], yaw: v[3], pitch: v[4], roll: v[5], fov: v[6] }, rms: v[7], fovFixed: v[8] !== 0,
+  camera: { x: v[0], y: v[1], z: v[2], yaw: v[3], pitch: v[4], roll: v[5], fov: v[6] }, rms: v[7], onePlane: v[8] !== 0,
 });
 const clickArray = (clicks: Click[]) => clicks.flatMap(c => [...c.world, ...c.px]);
 

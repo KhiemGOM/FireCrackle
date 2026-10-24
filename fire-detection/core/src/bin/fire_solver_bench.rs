@@ -278,7 +278,7 @@ fn real_cases(path: &str, every: usize, limit: usize, rng: &mut Rng, out: &mut V
         let Some(fit) = fit_label_frame(&blocks, w, h) else {
             continue;
         };
-        if fit.rms > 0.06 || fit.fov_fixed || fit.dropped_quads > 0 {
+        if fit.rms > 0.06 || fit.one_plane || fit.dropped_quads > 0 {
             continue;
         }
         let truth = fit.camera;
@@ -477,7 +477,7 @@ fn run_ours(cases_path: &str, dir: &str) {
                     cam_json(&f.camera),
                     proj(&f.camera, &c.clicks),
                     proj(&f.camera, &c.heldout),
-                    if f.fov_fixed { "fov held" } else { "" }
+                    if f.one_plane { "one plane" } else { "" }
                 ),
                 None => format!("\"ok\":false,\"ms\":{ms},\"camera\":null,\"note\":\"no answer\""),
             };

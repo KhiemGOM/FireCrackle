@@ -108,7 +108,7 @@ fn main() {
             let Some(f) = fit_label_frame(&others, w, h) else {
                 continue;
             };
-            if f.rms > 0.06 || f.fov_fixed {
+            if f.rms > 0.06 || f.one_plane {
                 no_camera += 1;
                 continue;
             }

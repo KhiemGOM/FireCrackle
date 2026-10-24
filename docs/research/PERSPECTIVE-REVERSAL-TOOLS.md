@@ -49,7 +49,7 @@ points as "clicks".
 
 > **Correction (2026-10-25, `SOLVER-BENCHMARK.md`):** "FOV is held when all points are on one plane (it cannot be
 > separated from distance)" is wrong for a plane seen at an angle. Holding it at 70° made `solve` miss coplanar
-> clicks by 68–100 px; fitting it gives 0.29 px. The guided solve (the app's path) was not affected.
+> clicks by 68–100 px; it is now fitted (0.29 px). The guided solve (the app's path) was not affected.
 
 - **Geometry:** the fire block's baked quads, reproduced from the game's model files with 1.16.5's
   `BakedQuadFactory` rules (1.16.5 and 1.21.11 models are identical). Every attachment (floor, 4 sides, up) and

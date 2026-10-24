@@ -66,7 +66,7 @@ fn camera_from(c: &[f64]) -> Camera {
     }
 }
 
-/// A solved camera: camera (7), click rms, fov_fixed.
+/// A solved camera: camera (7), click rms, one_plane.
 const FIT: usize = 9;
 
 fn write_fit(f: &Fit, out: &mut [f64]) {
@@ -80,7 +80,7 @@ fn write_fit(f: &Fit, out: &mut [f64]) {
         c.roll,
         c.fov,
         f.rms,
-        f.fov_fixed as u8 as f64,
+        f.one_plane as u8 as f64,
     ]);
 }
 

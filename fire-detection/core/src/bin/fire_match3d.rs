@@ -396,7 +396,7 @@ fn main() {
         let Some(key) = fit_label_frame(&blocks, lw, lh) else {
             continue;
         };
-        if key.rms > 0.06 || key.fov_fixed {
+        if key.rms > 0.06 || key.one_plane {
             continue;
         }
         // each logged fire to match: big enough, fully visible, not veiled; its planes in 3D with their logged sheets

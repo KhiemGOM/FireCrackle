@@ -4,7 +4,8 @@
 //! a rotation/rescale or blockstate-rotation slip moves every corner, so corners are checked against values worked out
 //! by hand from the model files. The camera is Minecraft's: yaw 0 looks +z, yaw 90 looks −x, positive pitch looks
 //! down, roll covers view bobbing / hurt tilt; projection is `overlay::project`. Ways the solver breaks: wrong
-//! corner pairing (pairing is by UV), a single plane cannot separate FOV from distance (FOV is then held and flagged),
+//! corner pairing (pairing is by UV), points all on one plane (seen at an angle they still give the FOV, but holding it
+//! fixed there missed the clicks by tens of pixels; seen head-on they cannot, and the clicks must still be fitted),
 //! points behind the camera, empty input.
 use fire_core::camera::{corner_rms, fit, fit_label_frame, solve, Camera, LoggedBlock, LoggedQuad};
 use fire_core::fire_model::{block_candidates, block_quads, Attach};
@@ -191,7 +192,7 @@ fn a_known_camera_is_recovered_from_two_logged_fire_blocks_without_any_starting_
     ];
     let f = fit_label_frame(&blocks, 2560, 1440).expect("solvable");
     assert!(f.rms < 0.01, "{f:?}");
-    assert!(!f.fov_fixed);
+    assert!(!f.one_plane);
     let c = f.camera;
     let d = ((c.pos[0] - cam.pos[0]).powi(2)
         + (c.pos[1] - cam.pos[1]).powi(2)
@@ -228,27 +229,31 @@ fn logged_rounding_noise_still_gives_the_camera_to_a_small_fraction_of_a_degree(
 }
 
 #[test]
-fn one_plane_holds_the_fov_and_says_so_and_empty_input_gives_nothing() {
+fn one_plane_seen_at_an_angle_gives_the_fov_and_says_so_and_empty_input_gives_nothing() {
+    // ground corners only (one plane), a FOV well away from the start's: the plane's perspective gives it
     let cam = Camera {
-        fov: 70.0,
+        fov: 110.0,
         ..truth()
     };
-    let q = &block_candidates([-87, 80, 128])[4]; // one north-side plane: four coplanar points
-    let pts: Vec<([f64; 3], [f64; 2])> = (0..4)
-        .map(|i| {
-            let (x, y) = cam.project(q.corners[i], 2560, 1440).unwrap();
-            (q.corners[i], [x, y])
-        })
+    let ground: Vec<_> = block_corners_in_view(&cam, 2560, 1440)
+        .into_iter()
+        .filter(|p| p.0[1] == 80.0)
         .collect();
+    let mut seed = 5;
+    let pts = pick(&ground, 6, &mut seed);
     let start = Camera {
         pos: [cam.pos[0] + 0.3, cam.pos[1] - 0.2, cam.pos[2] + 0.4],
         yaw: 22.0,
         pitch: 18.0,
         roll: 0.0,
-        fov: 70.0,
+        fov: 90.0,
     };
     let f = fit(&pts, 2560, 1440, &start, true).unwrap();
-    assert!(f.fov_fixed && f.camera.fov == 70.0, "{f:?}");
+    assert!(f.one_plane, "flagged as one plane: {f:?}");
+    assert!(f.rms < 0.01 && close(f.camera.fov, 110.0, 0.01), "{f:?}");
+    // asked to hold the FOV, it is held
+    let held = fit(&pts, 2560, 1440, &start, false).unwrap();
+    assert_eq!(held.camera.fov, 90.0);
     assert!(fit(&[], 2560, 1440, &start, true).is_none());
     assert!(fit_label_frame(&[], 2560, 1440).is_none());
 }
@@ -374,7 +379,7 @@ fn half_pixel_clicks_still_give_the_camera_closely() {
 }
 
 #[test]
-fn too_few_points_give_nothing_and_coplanar_clicks_hold_the_fov() {
+fn too_few_points_give_nothing_and_one_block_face_still_gives_the_camera() {
     let cam = Camera {
         fov: 70.0,
         ..truth()
@@ -396,7 +401,99 @@ fn too_few_points_give_nothing_and_coplanar_clicks_hold_the_fov() {
     })
     .collect();
     let f = solve(&face, 2560, 1440).unwrap();
-    assert!(f.fov_fixed, "{f:?}");
+    assert!(f.one_plane, "flagged as one plane: {f:?}");
+    let c = f.camera;
+    assert!(
+        f.rms < 0.01
+            && close(c.fov, 70.0, 0.1)
+            && close(c.yaw, cam.yaw, 0.1)
+            && close(c.pitch, cam.pitch, 0.1),
+        "{f:?}"
+    );
+}
+
+/// Ground corners only, as a person clicks them on a floor: with the FOV found from the floor's perspective, the camera
+/// is exact without noise, and with half-pixel clicks a fire block on that floor still lands within 2 px.
+#[test]
+fn ground_corners_alone_give_the_camera_and_place_a_fire_on_the_floor() {
+    let cam = Camera {
+        pitch: 35.0,
+        fov: 110.0,
+        ..truth()
+    };
+    let ground: Vec<_> = block_corners_in_view(&cam, 2560, 1440)
+        .into_iter()
+        .filter(|p| p.0[1] == 80.0)
+        .collect();
+    let mut seed = 11;
+    for n in [4, 8] {
+        let f = solve(&pick(&ground, n, &mut seed), 2560, 1440).unwrap();
+        let c = f.camera;
+        assert!(f.rms < 0.01, "{n} corners: {f:?}");
+        assert!(
+            close(c.fov, 110.0, 0.05)
+                && close(c.yaw, cam.yaw, 0.05)
+                && close(c.pitch, cam.pitch, 0.05),
+            "{n} corners: {f:?}"
+        );
+    }
+    let mut pts = pick(&ground, 8, &mut seed);
+    for (k, p) in pts.iter_mut().enumerate() {
+        p.1[0] += if k % 2 == 0 { 0.5 } else { -0.5 };
+        p.1[1] += if k % 3 == 0 { -0.5 } else { 0.5 };
+    }
+    let f = solve(&pts, 2560, 1440).unwrap();
+    // a fire block standing on that floor, in view
+    let cell = ground[ground.len() / 2].0;
+    for dx in [0.0, 1.0] {
+        for dy in [0.0, 1.0] {
+            for dz in [0.0, 1.0] {
+                let p = [cell[0] + dx, cell[1] + dy, cell[2] + dz];
+                let (a, b) = (
+                    cam.project(p, 2560, 1440).unwrap(),
+                    f.camera.project(p, 2560, 1440).unwrap(),
+                );
+                assert!(
+                    ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt() < 2.0,
+                    "{p:?}: {a:?} vs {b:?} ({f:?})"
+                );
+            }
+        }
+    }
+}
+
+/// A wall seen exactly head-on cannot tell the FOV from the distance: the clicks must still be fitted, with a FOV a
+/// camera can have, and flagged as one plane.
+#[test]
+fn a_wall_seen_head_on_still_fits_its_clicks() {
+    let cam = Camera {
+        pos: [0.5, 70.62, 0.5],
+        yaw: 0.0,
+        pitch: 0.0,
+        roll: 0.0,
+        fov: 90.0,
+    };
+    let wall: Vec<([f64; 3], [f64; 2])> = [
+        [-2.0, 68.0],
+        [3.0, 68.0],
+        [3.0, 73.0],
+        [-2.0, 73.0],
+        [0.0, 70.0],
+        [2.0, 72.0],
+    ]
+    .iter()
+    .map(|&[x, y]| {
+        let p = [x, y, 9.0];
+        let (u, v) = cam.project(p, 2560, 1440).unwrap();
+        (p, [u, v])
+    })
+    .collect();
+    let f = solve(&wall, 2560, 1440).unwrap();
+    assert!(f.one_plane, "{f:?}");
+    assert!(
+        f.rms < 0.01 && f.camera.fov > 20.0 && f.camera.fov < 160.0,
+        "{f:?}"
+    );
 }
 
 /// `corner_rms` measures how well a camera reproduces the logged quads: zero for the camera that drew them, about a

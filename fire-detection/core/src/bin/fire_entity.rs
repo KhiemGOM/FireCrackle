@@ -59,7 +59,7 @@ fn main() {
         if checked >= limit {
             break;
         }
-        let Some(key) = fit_label_frame(&blocks, w, h).filter(|f| f.rms <= 0.06 && !f.fov_fixed)
+        let Some(key) = fit_label_frame(&blocks, w, h).filter(|f| f.rms <= 0.06 && !f.one_plane)
         else {
             continue;
         };

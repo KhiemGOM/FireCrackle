@@ -194,7 +194,7 @@ describe("deleting a corner", () => {
 describe("the camera row", () => {
   const bar = (over: Partial<Fire3D> = {}, state: Partial<ToolState> = {}) => { hooks.si = hooks.ri = 0; const f = tool(over, state); return { f, out: Fire3DBar({ fire: f, sprite: null }) }; };
   const status = (out: unknown) => text(all(out, e => String(e.props.className ?? "").startsWith("f3-status"))[0]);
-  const fit = { camera: cam, rms: 0.46, points: 2, fovFixed: false };
+  const fit = { camera: cam, rms: 0.46, points: 2, onePlane: false };
   it("a camera from fewer than 4 corners is called rough and asks for the rest; 4 or more is solved", () => {
     const two = bar({}, { candidates: [fit] });
     expect(status(two.out)).toMatch(/^Rough camera/);

@@ -115,8 +115,9 @@ pub struct Fit {
     /// Root-mean-square pixel distance between projected and observed points.
     pub rms: f64,
     pub points: usize,
-    /// All points lie on one plane, so FOV and distance cannot be separated: FOV was held at its starting value.
-    pub fov_fixed: bool,
+    /// All points lie on one plane. Seen at an angle, its perspective still gives the FOV (it is fitted); seen head-on
+    /// the FOV and the distance trade off, so the FOV found is weak. Answer keys leave such frames out.
+    pub one_plane: bool,
     /// Logged quads left out because they did not fit the camera every other quad agrees on.
     pub dropped_quads: usize,
 }
@@ -305,8 +306,8 @@ fn levenberg_marquardt_with(
     (c, cost)
 }
 
-/// Fits the camera to `points` (world point, observed pixel) from `start`. FOV is fitted when `fit_fov` and the
-/// points do not all lie on one plane; otherwise it stays at `start.fov`. None without points.
+/// Fits the camera to `points` (world point, observed pixel) from `start`. FOV is fitted when `fit_fov` (also when
+/// every point lies on one plane: see `Fit::one_plane`); otherwise it stays at `start.fov`. None without points.
 pub fn fit(
     points: &[([f64; 3], [f64; 2])],
     w: usize,
@@ -317,8 +318,7 @@ pub fn fit(
     if points.is_empty() {
         return None;
     }
-    let fov_fixed = fit_fov && coplanar(points);
-    let params: &[usize] = if fit_fov && !fov_fixed {
+    let params: &[usize] = if fit_fov {
         &[0, 1, 2, 3, 4, 5, 6]
     } else {
         &[0, 1, 2, 3, 4, 5]
@@ -328,7 +328,7 @@ pub fn fit(
         camera: c.normalized(),
         rms: (cost / points.len() as f64).sqrt(),
         points: points.len(),
-        fov_fixed,
+        one_plane: coplanar(points),
         dropped_quads: 0,
     })
 }
@@ -598,7 +598,7 @@ pub(crate) fn parallel_map<T: Send, F: Fn(usize) -> T + Sync>(n: usize, f: F) ->
 
 /// Perspective reversal from any world points and where they appear (e.g. block corners clicked on a frame), with no
 /// starting guess: the start grid is anchored on the points' centroid at the distance their spread implies.
-/// Needs at least 4 points; FOV is held (and flagged) when they all lie on one plane.
+/// Needs at least 4 points; points all on one plane are flagged (`Fit::one_plane`).
 pub fn solve(points: &[([f64; 3], [f64; 2])], w: usize, h: usize) -> Option<Fit> {
     if points.len() < 4 {
         return None;
@@ -624,23 +624,12 @@ pub fn solve(points: &[([f64; 3], [f64; 2])], w: usize, h: usize) -> Option<Fit>
         .sqrt()
         .max(1.0);
     let dist = |fov: f64| (sw * (h as f64 / 2.0) / (fov.to_radians() / 2.0).tan() / sp).max(0.5);
-    let fov_free = !coplanar(points);
-    let params: &[usize] = if fov_free {
-        &[0, 1, 2, 3, 4, 5, 6]
-    } else {
-        &[0, 1, 2, 3, 4, 5]
-    };
     let tried = coarse(start_grid(cw, cp, dist, w, h), |c| {
-        levenberg_marquardt(points, w, h, c, params, 15)
+        levenberg_marquardt(points, w, h, c, &[0, 1, 2, 3, 4, 5, 6], 15)
     });
     let mut best: Option<Fit> = None;
     for (_, c) in tried.iter().take(4) {
-        let start = if fov_free {
-            *c
-        } else {
-            Camera { fov: 70.0, ..*c }
-        };
-        let f = fit(points, w, h, &start, true)?;
+        let f = fit(points, w, h, c, true)?;
         if best.as_ref().is_none_or(|b| f.rms < b.rms) {
             best = Some(f);
         }
@@ -876,7 +865,7 @@ pub fn solve_guided(
                 camera: c.normalized(),
                 rms,
                 points: points.len(),
-                fov_fixed: false,
+                one_plane: coplanar(points),
                 dropped_quads: 0,
             },
         ));
@@ -886,7 +875,7 @@ pub fn solve_guided(
     // the clicks alone, when they could separate FOV from distance: first only if the guided answer misses the clicks
     // (the guess was wrong) and they fit better; a few noisy clicks fit a wild camera too well to be trusted otherwise
     if distinct.len() >= 4 {
-        let alone = solve(points, w, h).filter(|f| !f.fov_fixed).and_then(|f| {
+        let alone = solve(points, w, h).filter(|f| !f.one_plane).and_then(|f| {
             if guess.roll_fixed {
                 level(points, w, h, &f)
             } else {

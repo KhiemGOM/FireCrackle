@@ -98,14 +98,14 @@ fn main() {
         let mut f = std::io::BufWriter::new(std::fs::File::create(p).expect("create csv"));
         writeln!(
             f,
-            "frame,blocks,quads,rms,x,y,z,yaw,pitch,roll,fov,fov_fixed,dropped,max_dist_err"
+            "frame,blocks,quads,rms,x,y,z,yaw,pitch,roll,fov,one_plane,dropped,max_dist_err"
         )
         .unwrap();
         f
     });
     let file = std::io::BufReader::new(std::fs::File::open(&path).expect("open labels"));
     let t0 = std::time::Instant::now();
-    let (mut rows, mut fitted, mut fov_fixed) = (0usize, 0usize, 0usize);
+    let (mut rows, mut fitted, mut one_plane) = (0usize, 0usize, 0usize);
     let (mut rms, mut fovs, mut dist_err) = (Vec::new(), Vec::new(), Vec::new());
     for line in file.lines() {
         let line = line.expect("read");
@@ -147,9 +147,9 @@ fn main() {
             continue;
         };
         fitted += 1;
-        fov_fixed += f.fov_fixed as usize;
+        one_plane += f.one_plane as usize;
         rms.push(f.rms);
-        if !f.fov_fixed {
+        if !f.one_plane {
             fovs.push(f.camera.fov);
         }
         let mut worst: f64 = 0.0;
@@ -182,7 +182,7 @@ fn main() {
                 c.pitch,
                 c.roll,
                 c.fov,
-                f.fov_fixed,
+                f.one_plane,
                 f.dropped_quads,
                 worst
             )
@@ -190,7 +190,7 @@ fn main() {
         }
     }
     let s = t0.elapsed().as_secs_f64();
-    println!("{path}: {rows} rows with logged block quads; fitted {fitted} ({:.1} ms each), FOV held (one plane) on {fov_fixed}", 1000.0 * s / fitted.max(1) as f64);
+    println!("{path}: {rows} rows with logged block quads; fitted {fitted} ({:.1} ms each), one plane (FOV from its perspective alone) on {one_plane}", 1000.0 * s / fitted.max(1) as f64);
     let line = |name: &str, v: &mut Vec<f64>, unit: &str| {
         println!(
             "  {name:<28} p50 {:.4}  p90 {:.4}  p99 {:.4}  max {:.4} {unit}",
