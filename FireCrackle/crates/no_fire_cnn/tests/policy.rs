@@ -63,9 +63,16 @@ fn veil_colour_statistics_never_decide_the_model_sees_the_frame_as_it_is() {
         .take(1920 * 1080 * 3)
         .collect();
     assert!(
-        fire_core::veil::detect_pixels(&veiled, 1920, 1080, 3, 12, fire_core::veil::Options::default())
-            .unwrap()
-            .0,
+        fire_core::veil::detect_pixels(
+            &veiled,
+            1920,
+            1080,
+            3,
+            12,
+            fire_core::veil::Options::default()
+        )
+        .unwrap()
+        .0,
         "the colour detector does call this veiled"
     );
     let mut unveiled_inputs = 0;
@@ -74,5 +81,8 @@ fn veil_colour_statistics_never_decide_the_model_sees_the_frame_as_it_is() {
         Ok(true)
     })
     .unwrap();
-    assert_eq!(unveiled_inputs, 0, "no colour-unveiled copy reaches the model");
+    assert_eq!(
+        unveiled_inputs, 0,
+        "no colour-unveiled copy reaches the model"
+    );
 }

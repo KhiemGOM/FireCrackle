@@ -1410,7 +1410,8 @@ impl GuiDetector {
         }
     }
     pub fn detect(&self, frame: &[u8], width: usize, height: usize) -> Result<GuiMask, String> {
-        self.detect_screens(frame, width, height).map(|(mask, _)| mask)
+        self.detect_screens(frame, width, height)
+            .map(|(mask, _)| mask)
     }
     /// `detect`, also returning the open-screen result it merged (None without the interaction bank).
     pub fn detect_screens(

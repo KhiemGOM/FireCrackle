@@ -44,11 +44,18 @@ pub fn match_png(png: &[u8]) -> Result<FrameMatch, String> {
     static KEPT: Mutex<Option<((usize, usize), Arc<PovMatcher>)>> = Mutex::new(None);
     let (rgb, w, h) = studio_core::gui::png_rgb(png)?;
     let matcher = {
-        let mut kept = KEPT.lock().map_err(|_| "first-person matcher unavailable")?;
+        let mut kept = KEPT
+            .lock()
+            .map_err(|_| "first-person matcher unavailable")?;
         match kept.as_ref() {
             Some((size, m)) if *size == (w, h) => m.clone(),
             _ => {
-                let m = Arc::new(PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?);
+                let m = Arc::new(PovMatcher::new(
+                    SHEET,
+                    studio_core::gui::pov_textures()?,
+                    w,
+                    h,
+                )?);
                 *kept = Some(((w, h), m.clone()));
                 m
             }
@@ -1920,7 +1927,11 @@ mod frame_match_tests {
         let m = match_png(&png(640, 360, &vec![40; 640 * 360 * 3])).unwrap();
         assert_eq!((m.row, m.fov), (None, None));
         assert!(!m.candidates.is_empty() && m.candidates.len() <= 3);
-        assert!(m.candidates.iter().all(|c| !c.accepted && (c.fov == 70 || c.fov == 60)));
+        assert!(
+            m.candidates
+                .iter()
+                .all(|c| !c.accepted && (c.fov == 70 || c.fov == 60))
+        );
     }
     #[test]
     fn a_picture_that_is_not_a_png_is_an_error() {

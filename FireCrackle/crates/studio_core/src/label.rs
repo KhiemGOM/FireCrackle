@@ -585,7 +585,12 @@ impl LabelStore {
         let mut frames: Vec<u32> = Vec::with_capacity(step.len());
         let mut current: UndoStep = Vec::with_capacity(step.len());
         for (frame, label, _predicted, sources) in step {
-            current.push((frame, self.get(frame), self.is_predicted(frame), self.sources(frame)));
+            current.push((
+                frame,
+                self.get(frame),
+                self.is_predicted(frame),
+                self.sources(frame),
+            ));
             self.put(frame, label);
             self.put_sources(frame, sources);
             frames.push(frame);

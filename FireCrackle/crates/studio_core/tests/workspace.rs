@@ -433,7 +433,9 @@ fn redo_after_undo() {
     .unwrap();
     w.apply(UiAction::Undo).unwrap();
     w.apply(UiAction::GoTo { frame: 20 }).unwrap();
-    let v = w.apply(serde_json::from_str::<UiAction>(r#"{"type":"redo"}"#).unwrap()).unwrap();
+    let v = w
+        .apply(serde_json::from_str::<UiAction>(r#"{"type":"redo"}"#).unwrap())
+        .unwrap();
     assert_eq!((v.labelled_count, v.current), (7, 3));
     assert_eq!(
         w.apply(UiAction::Redo).unwrap().labelled_count,

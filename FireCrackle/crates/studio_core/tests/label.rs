@@ -575,7 +575,11 @@ fn redo_reapplies_what_undo_took_back_in_order() {
     assert!(!s.redo(), "nothing left to redo");
     assert_eq!((s.undo_depth(), s.redo_depth()), (2, 0));
     assert!(s.undo());
-    assert_eq!(s.get(3), fire(1, 5, false), "a redone change is undoable again");
+    assert_eq!(
+        s.get(3),
+        fire(1, 5, false),
+        "a redone change is undoable again"
+    );
 }
 
 #[test]
@@ -587,7 +591,10 @@ fn redo_of_a_range_fill_is_one_step_with_its_sources() {
     assert!(s.undo());
     assert_eq!(s.get(2), Label::Skip);
     assert_eq!(s.redo_step(), Some((0..7).collect()));
-    assert_eq!((0..7).map(|f| (s.get(f), s.sources(f))).collect::<Vec<_>>(), filled);
+    assert_eq!(
+        (0..7).map(|f| (s.get(f), s.sources(f))).collect::<Vec<_>>(),
+        filled
+    );
 }
 
 #[test]

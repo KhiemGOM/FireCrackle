@@ -384,7 +384,11 @@ fn a_full_queue_drops_normal_waiters_never_the_urgent_one() {
         })
         .collect();
     thread::sleep(Duration::from_millis(200));
-    assert!(gate.waiting() <= 32, "the queue stays bounded: {}", gate.waiting());
+    assert!(
+        gate.waiting() <= 32,
+        "the queue stays bounded: {}",
+        gate.waiting()
+    );
     cancel.store(true, Ordering::SeqCst);
     drop(held);
     assert!(urgent.join().unwrap(), "the urgent request was dropped");
@@ -417,7 +421,11 @@ fn an_urgent_request_goes_before_newer_and_overdue_normal_ones() {
     for h in handles {
         h.join().unwrap();
     }
-    assert_eq!(*order.lock().unwrap(), vec![2, 1, 3], "urgent, then the overdue one, then the rest");
+    assert_eq!(
+        *order.lock().unwrap(),
+        vec![2, 1, 3],
+        "urgent, then the overdue one, then the rest"
+    );
 }
 
 #[test]
@@ -450,7 +458,11 @@ fn the_newest_urgent_request_goes_first_and_urgent_ones_alone_stay_bounded() {
         })
         .collect();
     thread::sleep(Duration::from_millis(200));
-    assert!(gate.waiting() <= 32, "unbounded urgent waiters: {}", gate.waiting());
+    assert!(
+        gate.waiting() <= 32,
+        "unbounded urgent waiters: {}",
+        gate.waiting()
+    );
     cancel.store(true, Ordering::SeqCst);
     for h in many {
         assert!(h.join().unwrap());
@@ -461,6 +473,12 @@ fn the_newest_urgent_request_goes_first_and_urgent_ones_alone_stay_bounded() {
 
 #[test]
 fn the_exact_png_decode_asks_the_gate_as_urgent() {
-    let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/frames.rs")).unwrap();
-    assert!(text.contains("Priority::Urgent"), "the exact picture must not wait behind playback and thumbnails");
+    let text = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/frames.rs"),
+    )
+    .unwrap();
+    assert!(
+        text.contains("Priority::Urgent"),
+        "the exact picture must not wait behind playback and thumbnails"
+    );
 }

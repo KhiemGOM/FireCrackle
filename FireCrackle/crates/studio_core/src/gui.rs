@@ -259,7 +259,11 @@ impl GuiAnalyzer {
             None => self.detector.detect_screens(rgb, w, h)?,
             Some(s) => {
                 same_shape(s, w, h)?;
-                (self.detector.detect_with_screens(rgb, w, h, &s.scaled(w, h))?, None)
+                (
+                    self.detector
+                        .detect_with_screens(rgb, w, h, &s.scaled(w, h))?,
+                    None,
+                )
             }
         };
         // Reuse the shared texture-confirmed screen masks. Their hits also let
