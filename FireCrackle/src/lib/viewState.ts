@@ -1,5 +1,5 @@
 import { clampViewport, fitViewport, type Viewport } from "./timeline";
-import { IDENTITY, type ViewXform } from "./zoom";
+import { IDENTITY, type Box, type ViewXform } from "./zoom";
 import { readVideoJson, videoStorageKey, writeJson } from "./videoStorage";
 
 type Store = Pick<Storage, "getItem" | "setItem">;
@@ -14,7 +14,15 @@ export function readVideoView(video?: string, storage?: Pick<Store, "getItem">):
   return saved && [saved.scale, saved.x, saved.y].every(n => typeof n === "number" && Number.isFinite(n)) && saved.scale > 0
     ? { scale: saved.scale, x: saved.x, y: saved.y, ...(typeof saved.angle === "number" && Number.isFinite(saved.angle) ? { angle: saved.angle % 360 } : {}) } : IDENTITY;
 }
-export function writeVideoView(video: string | undefined, value: ViewXform, storage?: Pick<Store, "setItem">) { write(video, "video", value, storage); }
+/** `box`: the video area's size the view was made in (hooks/useAnchoredView.ts puts it back from there at launch). */
+export function writeVideoView(video: string | undefined, value: ViewXform, storage?: Pick<Store, "setItem">, box?: Box | null) {
+  write(video, "video", box && box.w > 0 && box.h > 0 ? { ...value, box: { w: box.w, h: box.h } } : value, storage);
+}
+/** The video area's size a saved view was made in; null for none (saved before sizes were kept) or a bad one. */
+export function readVideoViewBox(video?: string, storage?: Pick<Store, "getItem">): Box | null {
+  const box = read(video, "video", storage)?.box;
+  return box && [box.w, box.h].every(n => typeof n === "number" && Number.isFinite(n) && n > 0) ? { w: box.w, h: box.h } : null;
+}
 export function readTimelineView(video: string | undefined, kind: "timeline" | "phase", total: number, width: number, storage?: Pick<Store, "getItem">): Viewport {
   const saved = read(video, kind, storage);
   if (!saved || saved.total !== total || ![saved.start, saved.span].every(n => typeof n === "number" && Number.isFinite(n)) || saved.span <= 0) return fitViewport(total, width);

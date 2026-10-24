@@ -29,3 +29,18 @@ it("falls back safely for malformed storage and impossible ranges", () => {
   expect(readVideoView("a", { getItem: () => { throw Error("blocked"); } }).scale).toBe(1);
   expect(() => writeVideoView("a", { scale: 2, x: 0, y: 0 }, { setItem: () => { throw Error("full"); } })).not.toThrow();
 });
+
+// the view is kept with the size of the video area it was made in, so a window that opens at another size first can
+// put the picture back where it was (hooks/useAnchoredView.ts)
+import { readVideoViewBox } from "./viewState";
+it("keeps the video area's size with the view; old saves and bad sizes have none", () => {
+  const storage = memory();
+  writeVideoView("a.mkv", { scale: 3, x: -900, y: 700 }, storage, { w: 1600, h: 900 });
+  expect(readVideoView("a.mkv", storage)).toEqual({ scale: 3, x: -900, y: 700 });
+  expect(readVideoViewBox("a.mkv", storage)).toEqual({ w: 1600, h: 900 });
+  writeVideoView("b.mkv", { scale: 3, x: -900, y: 700 }, storage);
+  expect(readVideoViewBox("b.mkv", storage)).toBeNull();
+  expect(readVideoViewBox("old", { getItem: () => '{"scale":2,"x":3,"y":4}' })).toBeNull();
+  expect(readVideoViewBox("bad", { getItem: () => '{"scale":2,"x":3,"y":4,"box":{"w":0,"h":900}}' })).toBeNull();
+  expect(readVideoViewBox(undefined, storage)).toBeNull();
+});

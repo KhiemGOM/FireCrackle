@@ -235,3 +235,30 @@ describe("anchorView", () => {
     expect(anchorView(v, { w: 800, h: 400 }, { w: 600, h: 400 }, { w: 0, h: 0 })).toEqual(v);
   });
 });
+
+// ---- whether any of the picture is on screen (a view restored at launch that shows none of it starts fitted)
+import { pictureOnScreen } from "./zoom";
+describe("pictureOnScreen", () => {
+  const box = { w: 1600, h: 900 }, image = { w: 2560, h: 1440 };
+  it("the fitted picture is; one panned wholly off any side is not", () => {
+    expect(pictureOnScreen({ scale: 1, x: 0, y: 0 }, box, image)).toBe(true);
+    expect(pictureOnScreen({ scale: 1, x: 1700, y: 0 }, box, image)).toBe(false);
+    expect(pictureOnScreen({ scale: 1, x: -1700, y: 0 }, box, image)).toBe(false);
+    expect(pictureOnScreen({ scale: 1, x: 0, y: 1000 }, box, image)).toBe(false);
+    expect(pictureOnScreen({ scale: 1, x: 0, y: -1000 }, box, image)).toBe(false);
+  });
+  it("zoomed in with only a corner showing still is; zoomed in on empty space beyond it is not", () => {
+    // 4×: the picture spans 0..6400 × 0..3600 on screen; panned so its bottom-right 100 px show
+    expect(pictureOnScreen({ scale: 4, x: -6300, y: -3500 }, box, image)).toBe(true);
+    expect(pictureOnScreen({ scale: 4, x: -6500, y: -3500 }, box, image)).toBe(false);
+  });
+  it("rotated, the turned picture is checked", () => {
+    // turned 90° about the pane's top-left: the picture lies left of the pane unless moved back
+    expect(pictureOnScreen({ scale: 1, x: 0, y: 0, angle: 90 }, box, image)).toBe(false);
+    expect(pictureOnScreen({ scale: 1, x: 900, y: 0, angle: 90 }, box, image)).toBe(true);
+  });
+  it("an unknown picture or area counts as on screen (nothing to correct)", () => {
+    expect(pictureOnScreen({ scale: 1, x: 99999, y: 0 }, { w: 0, h: 0 }, image)).toBe(true);
+    expect(pictureOnScreen({ scale: 1, x: 99999, y: 0 }, box, { w: 0, h: 0 })).toBe(true);
+  });
+});

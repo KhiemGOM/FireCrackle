@@ -32,7 +32,7 @@ import { DEFAULT_RULER, readRuler, rulerUnit, scaleRulerUnit, writeRuler, type R
 import type { AtlasEdges, EdgeFilter } from "../lib/atlasFilter";
 import { AnimationControls } from "./AnimationControls";
 import { readPreferences, writePreferences } from "../lib/preferences";
-import { readVideoView, writeVideoView } from "../lib/viewState";
+import { readVideoView, readVideoViewBox, writeVideoView } from "../lib/viewState";
 import { OpacityControl } from "./OpacityControl";
 import { scopedStorage } from "../lib/scopedStorage";
 import { VideoRotation } from "./VideoRotation";
@@ -525,7 +525,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   // zoom (wheel, around the cursor) and pan (left-drag) of the picture
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [xf, setXf] = useState<ViewXform>(readVideoView(videoKey, stateStorage));
-  useEffect(() => { writeVideoView(videoKey, xf, stateStorage); }, [videoKey, xf]);
+  // saved with the video area's size it is in (useAnchoredView below keeps it in one size), so it comes back as it was
+  useEffect(() => { writeVideoView(videoKey, xf, stateStorage, viewBox.current); }, [videoKey, xf]); // eslint-disable-line react-hooks/exhaustive-deps
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const boxOf = (): Box => {
     const r = frameRef.current?.getBoundingClientRect();
@@ -651,7 +652,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   const hudMatchShown = hudMatch?.frame === view.current ? hudMatch : null;
   // the picture stays on the same screen pixels when the video area changes size (the 3D overview, the window)
-  useAnchoredView(frameRef, imageSize, setXf);
+  const viewBox = useAnchoredView(frameRef, imageSize, setXf, readVideoViewBox(videoKey, stateStorage));
   const s = view.suggestion;
   // FFmpeg compression preview: shared by the quad mask and the 3D quad (fire sheets only)
   const compressionControls = <>

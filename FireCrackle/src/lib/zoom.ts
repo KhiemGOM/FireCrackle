@@ -130,3 +130,18 @@ export function anchorView(v: ViewXform, from: Box, to: Box, image: Box): ViewXf
   const dx = v.scale * a.left - scale * b.left, dy = v.scale * a.top - scale * b.top;
   return { ...v, scale, x: v.x + c * dx - s * dy, y: v.y + s * dx + c * dy };
 }
+
+/** Whether any of the picture shows in the area under the view (the picture fitted and centred, then scaled, turned
+ * and moved by the view). An unknown picture or area counts as showing. For a view restored at launch only: panning
+ * by hand is never limited. */
+export function pictureOnScreen(v: ViewXform, box: Box, image: Box): boolean {
+  if (![box.w, box.h, image.w, image.h].every(n => Number.isFinite(n) && n > 0)) return true;
+  const fit = Math.min(box.w / image.w, box.h / image.h), w = image.w * fit, h = image.h * fit;
+  const left = (box.w - w) / 2, top = (box.h - h) / 2;
+  const angle = ((v.angle ?? 0) * Math.PI) / 180, c = Math.cos(angle), s = Math.sin(angle);
+  const corners = [[left, top], [left + w, top], [left + w, top + h], [left, top + h]].map(([x, y]) =>
+    [v.x + v.scale * (c * x - s * y), v.y + v.scale * (s * x + c * y)]);
+  const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
+  // at least a pixel of it: a rounding sliver along an edge is not the picture showing
+  return Math.max(...xs) > 1 && Math.min(...xs) < box.w - 1 && Math.max(...ys) > 1 && Math.min(...ys) < box.h - 1;
+}
