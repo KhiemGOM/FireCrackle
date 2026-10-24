@@ -845,3 +845,16 @@ fn replaying_the_queued_log_rebuilds_the_store_exactly() {
     assert!(!replayed.torn_tail);
     assert_eq!(replayed.store.iter(), s.store().iter());
 }
+
+#[test]
+fn redo_reapplies_the_label_and_moves_the_playhead_to_it() {
+    let mut s = session(20);
+    s.fill_range(8, 12, Label::Skip).unwrap();
+    assert!(s.undo());
+    s.go(Move::To(15));
+    assert!(s.redo());
+    assert_eq!(s.current(), 8);
+    assert_eq!(s.store().labelled_count(), 5);
+    assert!(!s.redo(), "nothing left");
+    assert_eq!(s.current(), 8);
+}

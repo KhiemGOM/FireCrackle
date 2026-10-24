@@ -61,6 +61,7 @@ const KEY_HELP: Array<[string, string]> = [
   ["R · T", "flip · switch sheet / still–flowing"],
   ["X · Shift+X", "mark selected source absent · skip"],
   ["Backspace · Ctrl+Z", "clear label · undo"],
+  ["Ctrl+Y · Ctrl+Shift+Z", "redo"],
   ["Ctrl+S", "save labels and position"],
   ["N · Shift+N", "next / previous unlabelled frame"],
   ["F · Shift+F", "next / previous flag"],
@@ -121,6 +122,11 @@ export default function App() {
     setPlayback(STOPPED);
     void undoHistory.undo(()=>act({type:"undo"})).catch(error=>reportError("Undo Label edit",error));
   },[undoHistory,act,ws.busy]);
+  const redo = useCallback(()=>{
+    if(ws.busy.current)return;
+    setPlayback(STOPPED);
+    void undoHistory.redo().catch(error=>reportError("Redo Label edit",error));
+  },[undoHistory,ws.busy]);
   const { layout, set: setLayout, reset: resetLayout } = useLayout();
   const workareaRef = useRef<HTMLElement | null>(null);
   const { zooms, wheel: zoomWheel, reset: resetZoom } = usePanelZooms();
@@ -206,6 +212,9 @@ export default function App() {
       if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&e.key.toLowerCase()==="z"&&!isTypingTarget(t)){
         e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)undo();return;
       }
+      if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.shiftKey?e.key.toLowerCase()==="z":e.key.toLowerCase()==="y")&&!isTypingTarget(t)){
+        e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)redo();return;
+      }
       if (wouldConsumeToolKey({ key: e.key, type: "down", ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, shiftKey: e.shiftKey, repeat: e.repeat,
         targetEditable: blocksVideoToolKeys(t) })) return;
       // Reserve navigation/confirmation before focused inputs and buttons handle them (not in a field that owns its keys).
@@ -251,13 +260,14 @@ export default function App() {
         return;
       }
       if(a.type==="undo"){undo();return;}
+      if(a.type==="redo"){redo();return;}
       const ui = toUiAction(a);
       if (ui) void act(ui);
       else if (a.type === "playPause" || a.type === "shuttle") setPlayback((p) => nextPlayback(p, a, maxSpeed, playSpeed));
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [view, home, tab, act, undo, maxSpeed, playSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
+  }, [view, home, tab, act, undo, redo, maxSpeed, playSpeed, confirmCandidate, candidatePick, candidate, stageSprite, previewSprite, showAutomation, showLink]);
 
   // playback is a Label-tab thing: it must not keep stepping behind the chart
   useEffect(() => {
@@ -349,6 +359,7 @@ export default function App() {
               <IconButton icon="import" label="Import labels" disabled={!backend.transferLabels || ws.opening || ws.transferring} onClick={() => { setPlayback(STOPPED); void ws.transferLabels("import"); }} title="Import labels · replaces matching frames · Undo restores the import" />
               <span className="toolbar-divider" />
               <IconButton icon="undo" label="Undo" onClick={undo} title="Undo last Label edit · Ctrl+Z" />
+              <IconButton icon="redo" label="Redo" onClick={redo} title="Redo what Undo took back · Ctrl+Y or Ctrl+Shift+Z" />
               <PlaybackButton playback={playback} speed={playSpeed} maxSpeed={maxSpeed}
                 onToggle={() => setPlayback((p) => nextPlayback(p, { type: "playPause" }, maxSpeed, playSpeed))}
                 onSpeed={speed => { setPlaySpeed(speed); setPlayback(p => ({ ...p, speed })); }}

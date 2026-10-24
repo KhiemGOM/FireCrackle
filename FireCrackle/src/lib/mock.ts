@@ -74,6 +74,8 @@ function drawFrame(f: number): Promise<ArrayBuffer> {
 export function createMockBackend(): Backend {
   const labels = new Map<number, Label>();
   const undoStack: Array<Array<[number, Label, boolean]>> = [];
+  // undone steps, newest last; a new change drops them (as studio_core's LabelStore)
+  const redoStack: Array<Array<[number, Label, boolean]>> = [];
   const predicted = new Set<number>();
   let current = 0;
   let pick = { sheet: 1, mirrored: false };
@@ -107,7 +109,7 @@ export function createMockBackend(): Backend {
       if (l === "unset") labels.delete(f);
       else labels.set(f, l);
     }
-    if (undo.length) undoStack.push(undo);
+    if (undo.length) { undoStack.push(undo); redoStack.length = 0; }
   }
 
   function apply(label: Label, inferred=false) {
@@ -225,9 +227,12 @@ export function createMockBackend(): Backend {
         case "setLabel": apply(a.label); break;
         case "noFire": apply("no_fire"); break;
         case "skip": apply("skip"); break;
-        case "undo": {
-          const step = undoStack.pop();
+        case "undo":
+        case "redo": {
+          const [from, to] = a.type === "undo" ? [undoStack, redoStack] : [redoStack, undoStack];
+          const step = from.pop();
           if (step) {
+            to.push(step.map(([f]) => [f, get(f), predicted.has(f)] as [number, Label, boolean]));
             for (const [f, prev, inferred] of step) { if (prev === "unset") labels.delete(f); else labels.set(f, prev);predicted.delete(f);if (inferred) predicted.add(f); }
             current = Math.min(...step.map(([f]) => f));
           }

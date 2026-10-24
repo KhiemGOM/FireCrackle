@@ -26,6 +26,7 @@ export type UiAction =
   | { type: "noFire" }
   | { type: "skip" }
   | { type: "undo" }
+  | { type: "redo" }
   | { type: "setLabel"; label: Label }
   | { type: "clickCell"; col: number; row: number }
   | { type: "fillRange"; start: number; end: number; label: Label };
@@ -46,6 +47,7 @@ export function toUiAction(a: Action): UiAction | null {
     case "noFire":
     case "skip":
     case "undo":
+    case "redo":
     case "cancelTyping":
       return { type: a.type };
     case "digit":

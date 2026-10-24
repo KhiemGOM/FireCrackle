@@ -21,6 +21,7 @@ const MUTATING = new Set<UiAction["type"]>([
   "noFire",
   "skip",
   "undo",
+  "redo",
   "acceptSuggestion",
   "fillRange",
   "manualStep",
@@ -72,12 +73,13 @@ export interface WorkspaceState {
 export function useWorkspace(backend: Backend | null, combinedFire = true, undoHistory?:LabelUndo): WorkspaceState {
   const [view, publishView] = useState<View | null>(null);
   function setView(next:View,order?:number){
-    undoHistory?.observeLabels(next.undo_depth,async()=>{
-      if(!backend||busy.current)throw Error("Wait for the current action before Undo.");
+    const native=(type:"undo"|"redo")=>async()=>{
+      if(!backend||busy.current)throw Error(`Wait for the current action before ${type==="undo"?"Undo":"Redo"}.`);
       busy.current=true;
-      try{const restored=await backend.act({type:"undo"});setView(restored);setVersion(v=>v+1);remember(restored);}
+      try{const restored=await backend.act({type});setView(restored);setVersion(v=>v+1);remember(restored);}
       finally{busy.current=false;}
-    },order);
+    };
+    undoHistory?.observeLabels(next.undo_depth,native("undo"),order,native("redo"));
     publishView(next);
   }
   const [flags, setFlags] = useState<Flag[]>([]);

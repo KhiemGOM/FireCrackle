@@ -10,6 +10,7 @@ const shapes = {
   import: <><path d="M12 3v12m-4-4 4 4 4-4M4 15v6h16v-6" /></>,
   export: <><path d="M12 16V4m-4 4 4-4 4 4M4 15v6h16v-6" /></>,
   undo: <><path d="m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12" /></>,
+  redo: <><path d="m16 4 5 5-5 5M21 9H10a6 6 0 0 0 0 12" /></>,
   play: <path d="m8 4 12 8-12 8Z" />,
   pause: <><path d="M7 4h3v16H7ZM15 4h3v16h-3Z" /></>,
   keyboard: <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10" /></>,

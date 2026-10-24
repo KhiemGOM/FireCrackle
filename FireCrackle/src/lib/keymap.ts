@@ -19,6 +19,7 @@ export type Action =
   | { type: "nextUnlabelled"; dir: 1 | -1 }
   | { type: "nextFlag"; dir: 1 | -1 }
   | { type: "undo" }
+  | { type: "redo" }
   | { type: "cancelTyping" };
 
 /** What the handler needs to know about a keyboard event. */
@@ -65,6 +66,8 @@ function buildDefaults(): Bindings {
     f: { type: "nextFlag", dir: 1 },
     "Shift+f": { type: "nextFlag", dir: -1 },
     "Ctrl+z": { type: "undo" },
+    "Ctrl+y": { type: "redo" },
+    "Ctrl+Shift+z": { type: "redo" },
     Escape: { type: "cancelTyping" },
   };
   for (let d = 0; d <= 9; d++) b[String(d)] = { type: "digit", digit: d };

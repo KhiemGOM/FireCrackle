@@ -440,6 +440,27 @@ it('shares toolbar Undo and Ctrl+Z across tools and labels, including slider foc
   expect(quad).toBe(1);expect(history.size).toBe(0);
 });
 
+it('Redo, Ctrl+Y and Ctrl+Shift+Z re-apply what Undo took back, tools and labels alike',async()=>{
+  const ui=render();const history=ui.video.props.undoHistory;let quad=1;
+  history.bind('quad',(value:number)=>{quad=value;});
+  history.changed('quad',1,2);quad=2;await Promise.resolve();
+  history.observeLabels(1,()=>fixture.act({type:'undo'}),undefined,()=>fixture.act({type:'redo'}));await Promise.resolve();
+  const settle=async()=>{for(let i=0;i<4;i++)await Promise.resolve();};
+  const undo=find(ui.tree,e=>e.props.label==='Undo')!.props.onClick,redo=find(ui.tree,e=>e.props.label==='Redo')!.props.onClick;
+  undo();await settle();undo();await settle();
+  expect(quad).toBe(1);expect(history.redoSize).toBe(2);
+  redo();await settle();expect(quad).toBe(2);
+  const press=(key:string,shiftKey:boolean)=>{
+    const event=Object.assign(new Event('keydown',{cancelable:true}),{key,ctrlKey:true,metaKey:false,altKey:false,shiftKey,repeat:false});
+    Object.defineProperty(event,'target',{value:{tagName:'DIV'}});window.dispatchEvent(event);return event;
+  };
+  expect(press('y',false).defaultPrevented).toBe(true);await settle();
+  expect(fixture.act).toHaveBeenLastCalledWith({type:'redo'});expect(history.redoSize).toBe(0);
+  undo();await settle();expect(history.redoSize).toBe(1);
+  expect(press('Z',true).defaultPrevented).toBe(true);await settle();
+  expect(fixture.act).toHaveBeenLastCalledWith({type:'redo'});expect(history.redoSize).toBe(0);
+});
+
 it("hands the saved presets and their handlers to the Enhance panel", () => {
   const userPresets = [{ id: "user-1", name: "Night", stages: { tone: { gamma: 1.4 } } }];
   fixture.post = postFixture(DEFAULT_POST, { userPresets, presetName: "Cav" });

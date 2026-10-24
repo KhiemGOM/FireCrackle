@@ -423,6 +423,27 @@ fn accepting_a_suggestion_and_the_case_without_one() {
 }
 
 #[test]
+fn redo_after_undo() {
+    let (dir, mut w) = ws("redo", 50);
+    w.apply(UiAction::FillRange {
+        start: 3,
+        end: 9,
+        label: Label::NoFire,
+    })
+    .unwrap();
+    w.apply(UiAction::Undo).unwrap();
+    w.apply(UiAction::GoTo { frame: 20 }).unwrap();
+    let v = w.apply(serde_json::from_str::<UiAction>(r#"{"type":"redo"}"#).unwrap()).unwrap();
+    assert_eq!((v.labelled_count, v.current), (7, 3));
+    assert_eq!(
+        w.apply(UiAction::Redo).unwrap().labelled_count,
+        7,
+        "nothing to redo is not an error"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn undo_and_fill_range() {
     let (dir, mut w) = ws("undo", 50);
     let v = w

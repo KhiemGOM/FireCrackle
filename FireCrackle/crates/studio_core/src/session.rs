@@ -563,7 +563,19 @@ impl Session {
 
     /// Undo the last change; the playhead moves to the first frame it restored.
     pub fn undo(&mut self) -> bool {
-        match self.store.undo_step() {
+        let step = self.store.undo_step();
+        self.moved_to(step)
+    }
+
+    /// Redo the last undone change; the playhead moves to the first frame it re-applied.
+    pub fn redo(&mut self) -> bool {
+        let step = self.store.redo_step();
+        self.moved_to(step)
+    }
+
+    /// After an undo or redo of `frames`: log them and move the playhead to the first.
+    fn moved_to(&mut self, frames: Option<Vec<u32>>) -> bool {
+        match frames {
             Some(frames) => {
                 for &f in &frames {
                     self.log.push(self.store.log_line(f));

@@ -560,3 +560,55 @@ fn undo_and_undo_step_agree() {
         assert_eq!(a.iter(), b.iter());
     }
 }
+
+#[test]
+fn redo_reapplies_what_undo_took_back_in_order() {
+    let mut s = LabelStore::new(10);
+    s.set(3, fire(1, 5, false)).unwrap();
+    s.set(3, fire(1, 6, false)).unwrap();
+    assert!(s.undo() && s.undo());
+    assert_eq!((s.undo_depth(), s.redo_depth()), (0, 2));
+    assert_eq!(s.redo_step(), Some(vec![3]));
+    assert_eq!(s.get(3), fire(1, 5, false));
+    assert!(s.redo());
+    assert_eq!(s.get(3), fire(1, 6, false));
+    assert!(!s.redo(), "nothing left to redo");
+    assert_eq!((s.undo_depth(), s.redo_depth()), (2, 0));
+    assert!(s.undo());
+    assert_eq!(s.get(3), fire(1, 5, false), "a redone change is undoable again");
+}
+
+#[test]
+fn redo_of_a_range_fill_is_one_step_with_its_sources() {
+    let mut s = LabelStore::new(10);
+    s.set(2, Label::Skip).unwrap();
+    s.fill_range(0, 6, fire(1, 4, false)).unwrap();
+    let filled: Vec<_> = (0..7).map(|f| (s.get(f), s.sources(f))).collect();
+    assert!(s.undo());
+    assert_eq!(s.get(2), Label::Skip);
+    assert_eq!(s.redo_step(), Some((0..7).collect()));
+    assert_eq!((0..7).map(|f| (s.get(f), s.sources(f))).collect::<Vec<_>>(), filled);
+}
+
+#[test]
+fn a_new_change_after_an_undo_drops_what_could_be_redone() {
+    let mut s = LabelStore::new(10);
+    s.set(3, fire(1, 5, false)).unwrap();
+    assert!(s.undo());
+    s.set(4, Label::Skip).unwrap();
+    assert_eq!(s.redo_depth(), 0);
+    assert!(!s.redo());
+    assert_eq!(s.get(3), Label::Unset);
+    // a write that changes nothing is not a new change
+    s.set(5, Label::Skip).unwrap();
+    assert!(s.undo());
+    s.set(4, Label::Skip).unwrap();
+    assert_eq!(s.redo_depth(), 1);
+}
+
+#[test]
+fn redo_on_a_fresh_store_is_harmless() {
+    let mut s = LabelStore::new(3);
+    assert!(!s.redo());
+    assert_eq!(s.redo_step(), None);
+}

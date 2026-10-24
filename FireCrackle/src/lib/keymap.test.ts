@@ -120,7 +120,8 @@ describe("what must not fire", () => {
     expect(actionFor(key("ArrowRight", { ctrlKey: true }))).toBeNull();
     expect(actionFor(key("s", { ctrlKey: true }))).toBeNull(); // the browser's save, not toggle sheet
     expect(actionFor(key("s", { altKey: true }))).toBeNull();
-    expect(actionFor(key("z", { ctrlKey: true, shiftKey: true }))).toBeNull(); // redo is not bound
+    expect(actionFor(key("z", { ctrlKey: true, shiftKey: true }))).toEqual({ type: "redo" });
+    expect(actionFor(key("y", { ctrlKey: true }))).toEqual({ type: "redo" });
     expect(actionFor(key("5", { ctrlKey: true }))).toBeNull();
     expect(actionFor(key("5", { altKey: true }))).toBeNull();
   });

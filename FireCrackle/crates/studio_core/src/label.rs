@@ -316,6 +316,8 @@ pub struct LabelStore {
     predicted: BTreeSet<u32>,
     sources: BTreeMap<u32, BTreeSet<LabelSource>>,
     undo: Vec<UndoStep>,
+    /// Steps undone since the last change, newest last: what `redo` re-applies.
+    redo: Vec<UndoStep>,
 }
 
 impl LabelStore {
@@ -326,6 +328,7 @@ impl LabelStore {
             predicted: BTreeSet::new(),
             sources: BTreeMap::new(),
             undo: Vec::new(),
+            redo: Vec::new(),
         }
     }
 
@@ -336,6 +339,17 @@ impl LabelStore {
     /// Number of actual reversible label changes (navigation and no-op writes add none).
     pub fn undo_depth(&self) -> usize {
         self.undo.len()
+    }
+
+    /// Number of undone changes `redo` can re-apply.
+    pub fn redo_depth(&self) -> usize {
+        self.redo.len()
+    }
+
+    /// Record one reversible change. A new change drops what could be redone.
+    fn push_undo(&mut self, step: UndoStep) {
+        self.undo.push(step);
+        self.redo.clear();
     }
 
     /// Portable snapshot: animation indices and prediction provenance are preserved.
@@ -415,7 +429,7 @@ impl LabelStore {
         let mut frames: Vec<_> = undo.iter().map(|(frame, _, _, _)| *frame).collect();
         frames.sort_unstable();
         if !undo.is_empty() {
-            self.undo.push(undo);
+            self.push_undo(undo);
         }
         Ok(frames)
     }
@@ -530,8 +544,7 @@ impl LabelStore {
         if prev == label && old_sources == sources {
             return Ok(false);
         }
-        self.undo
-            .push(vec![(frame, prev, was_predicted, old_sources)]);
+        self.push_undo(vec![(frame, prev, was_predicted, old_sources)]);
         self.put(frame, label);
         self.put_sources(frame, sources);
         Ok(true)
@@ -549,14 +562,36 @@ impl LabelStore {
     /// Undo the last change like `undo`, returning the frames it restored (ascending).
     pub fn undo_step(&mut self) -> Option<Vec<u32>> {
         let step = self.undo.pop()?;
+        let (frames, current) = self.restore(step);
+        self.redo.push(current);
+        Some(frames)
+    }
+
+    /// Re-apply the last undone change. False when nothing to redo.
+    pub fn redo(&mut self) -> bool {
+        self.redo_step().is_some()
+    }
+
+    /// Redo like `redo`, returning the frames it re-applied (ascending). The change is undoable again.
+    pub fn redo_step(&mut self) -> Option<Vec<u32>> {
+        let step = self.redo.pop()?;
+        let (frames, current) = self.restore(step);
+        self.undo.push(current);
+        Some(frames)
+    }
+
+    /// Put a step's labels and sources back; returns its frames (ascending) and the step that puts back what was there.
+    fn restore(&mut self, step: UndoStep) -> (Vec<u32>, UndoStep) {
         let mut frames: Vec<u32> = Vec::with_capacity(step.len());
-        for (frame, prev, _predicted, sources) in step {
-            self.put(frame, prev);
+        let mut current: UndoStep = Vec::with_capacity(step.len());
+        for (frame, label, _predicted, sources) in step {
+            current.push((frame, self.get(frame), self.is_predicted(frame), self.sources(frame)));
+            self.put(frame, label);
             self.put_sources(frame, sources);
             frames.push(frame);
         }
         frames.sort_unstable();
-        Some(frames)
+        (frames, current)
     }
 
     /// Label every frame in `start..=end` (inclusive). Returns the number of frames whose label changed.
@@ -605,7 +640,7 @@ impl LabelStore {
         }
         let changed = step.len();
         if changed > 0 {
-            self.undo.push(step);
+            self.push_undo(step);
         }
         Ok(changed)
     }

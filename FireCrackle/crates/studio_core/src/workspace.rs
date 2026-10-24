@@ -435,6 +435,7 @@ pub enum UiAction {
     NoFire,
     Skip,
     Undo,
+    Redo,
     ClickCell { col: u32, row: u32 },
     SetLabel { label: Label },
     FillRange { start: u32, end: u32, label: Label },
@@ -845,6 +846,9 @@ impl Workspace {
             }
             UiAction::Undo => {
                 self.session.undo();
+            }
+            UiAction::Redo => {
+                self.session.redo();
             }
             UiAction::SetLabel { label } => {
                 self.session.apply(label).map_err(session_err)?;
