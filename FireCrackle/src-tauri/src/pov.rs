@@ -38,10 +38,13 @@ pub struct FrameCandidate {
     pub accepted: bool,
 }
 
+/// The matcher kept between calls, with the frame size (width, height) it was built for.
+type KeptMatcher = Option<((usize, usize), Arc<PovMatcher>)>;
+
 /// Match the first-person fire on a native frame's PNG with the production labeller (`fire_core::pov::PovMatcher`,
 /// the one the scan uses), kept between calls for the frame size it was built for.
 pub fn match_png(png: &[u8]) -> Result<FrameMatch, String> {
-    static KEPT: Mutex<Option<((usize, usize), Arc<PovMatcher>)>> = Mutex::new(None);
+    static KEPT: Mutex<KeptMatcher> = Mutex::new(None);
     let (rgb, w, h) = studio_core::gui::png_rgb(png)?;
     let matcher = {
         let mut kept = KEPT
