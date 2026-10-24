@@ -18,20 +18,21 @@ vi.mock("react", async (original) => ({
 vi.mock("./Fire3DBar.css", () => ({}));
 vi.mock("./Fire3DOverlay.css", () => ({}));
 vi.mock("./FireWorldView.css", () => ({}));
-vi.mock("../hooks/useSvgScreenScale", () => ({ useSvgScreenScale: () => 1 }));
+const screen = vi.hoisted(() => ({ scale: 1 }));
+vi.mock("../hooks/useSvgScreenScale", () => ({ useSvgScreenScale: () => screen.scale }));
 vi.mock("../lib/spriteSheet", async (original) => ({ ...(await original<object>()), loadSpriteSheet: () => () => {} }));
 import { initReversal, type CameraPose } from "../lib/reversal";
 import { emptyTool, newFire, type ToolState } from "../lib/fireTool";
 import type { Fire3D } from "../lib/useFire3D";
 import { Fire3DBar } from "./Fire3DBar";
-import { Fire3DOverlay } from "./Fire3DOverlay";
+import { Fire3DOverlay, cornerKey } from "./Fire3DOverlay";
 import { FireWorldView } from "./FireWorldView";
 
 beforeAll(async () => {
   const { readFile } = await vi.importActual<{ readFile(path: URL): Promise<Uint8Array<ArrayBuffer>> }>("node:fs/promises");
   await initReversal(await readFile(new URL("../lib/reversal.wasm", import.meta.url)));
 });
-beforeEach(() => { hooks.states = []; hooks.refs = []; });
+beforeEach(() => { hooks.states = []; hooks.refs = []; screen.scale = 1; });
 
 type El = ReactElement<Record<string, any>>;
 function all(node: unknown, test: (e: El) => boolean, out: El[] = []): El[] {
@@ -140,5 +141,51 @@ describe("the 3D overview's mouse", () => {
     s.props.onPointerDown(ev(0, 100, 100)); s = svg(); s.props.onPointerMove(ev(0, 180, 140)); s.props.onPointerUp(ev(0, 180, 140));
     expect(orbit()).toMatchObject({ yaw, pitch });
     expect(pan()).not.toEqual(before);
+  });
+});
+
+describe("zoomed in", () => {
+  // the viewer zooms with a CSS transform, which vector-effect: non-scaling-stroke does not see: strokes grew with the
+  // zoom (white blobs for markers at 15x). Like the quad mask and the ruler, widths are screen pixels / screenScale.
+  it("every stroke on the picture is sized in screen pixels, so it stays thin at any zoom", () => {
+    screen.scale = 4;
+    hooks.si = hooks.ri = 0;
+    const out = Fire3DOverlay({ fire: tool(), width: 1280, height: 720, zoom: 4, sprite });
+    const width = (cls: string) => all(out, e => e.props.className === cls).map(e => e.props.strokeWidth);
+    expect(new Set(width("fire3d-grid"))).toEqual(new Set([1 / 4]));
+    expect(new Set(width("fire3d-cell"))).toEqual(new Set([1.5 / 4]));
+    expect(all(out, e => e.type === "circle").map(e => e.props.strokeWidth)).toEqual([1.5 / 4]);
+    expect(all(out, e => e.type === "circle").map(e => e.props.r)).toEqual([6 / 4]);
+    expect(new Set(all(out, e => String(e.props.className).startsWith("fire3d-axis ")).flatMap(g => all(g.props.children, c => c.type === "line")).map(l => l.props.strokeWidth))).toEqual(new Set([2.5 / 4]));
+  });
+  it("no stylesheet width or non-scaling rule overrides them (a CSS stroke-width beats the attribute)", async () => {
+    const { readFile } = await vi.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+    const css = await readFile(new URL("./Fire3DOverlay.css", import.meta.url), "utf8");
+    expect(css).not.toMatch(/non-scaling-stroke/);
+    expect(css).not.toMatch(/stroke-width/);
+  });
+});
+
+describe("deleting a corner", () => {
+  it("right-clicking a corner marker removes that corner, with no context menu", () => {
+    hooks.si = hooks.ri = 0;
+    const f = tool({ selected: 1 });
+    const marker = all(Fire3DOverlay({ fire: f, width: 1280, height: 720, zoom: 1, sprite }), e => String(e.props.className ?? "").startsWith("fire3d-click"))[0];
+    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    marker.props.onContextMenu(e);
+    expect(e.preventDefault).toHaveBeenCalled();
+    const change = (f.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as (s: ToolState) => ToolState;
+    expect(change(f.state).clicks).toEqual([]);
+    expect(f.setSelected).toHaveBeenCalledWith(null);
+  });
+  it("Delete removes the selected corner; not while typing, not with a modifier, not with none selected", () => {
+    const key = (over: object = {}) => ({ key: "Delete", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, target: { tagName: "DIV" }, preventDefault: vi.fn(), ...over });
+    const f = tool({ selected: 1 });
+    expect(cornerKey(key(), f)).toBe(true);
+    const change = (f.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as (s: ToolState) => ToolState;
+    expect(change(f.state).clicks).toEqual([]);
+    expect(f.setSelected).toHaveBeenCalledWith(null);
+    for (const over of [{ target: { tagName: "INPUT", type: "number" } }, { ctrlKey: true }, { key: "Backspace" }, { key: "x" }]) expect(cornerKey(key(over), tool({ selected: 1 }))).toBe(false);
+    expect(cornerKey(key(), tool({ selected: null }))).toBe(false);
   });
 });

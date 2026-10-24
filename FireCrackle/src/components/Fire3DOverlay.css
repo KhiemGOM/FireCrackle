@@ -1,13 +1,14 @@
+/* line widths are set on each element in screen pixels / screenScale: the viewer zooms with a CSS transform, which
+   SVG's own non-scaling line option does not see, and a width set here would override the element's */
 .fire3d-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .fire3d-overlay.picking { pointer-events: all; cursor: crosshair; }
-.fire3d-grid { stroke: rgba(80, 220, 255, 0.55); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.fire3d-cell { stroke: #f5c542; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fire3d-grid { stroke: rgba(80, 220, 255, 0.55); }
+.fire3d-cell { stroke: #f5c542; }
 .fire3d-click { pointer-events: all; cursor: move; touch-action: none; }
-.fire3d-click circle { fill: #ff3b6b; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.fire3d-click circle { fill: #ff3b6b; stroke: #fff; }
 .fire3d-click.pending circle { fill: #888; }
 .fire3d-click.selected circle { fill: #f5c542; }
 .fire3d-click text { fill: #fff; paint-order: stroke; stroke: #000; }
-.fire3d-axis line { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .fire3d-axis.x line { stroke: #ff4d4d; }
 .fire3d-axis.y line { stroke: #4dff6a; }
 .fire3d-axis.z line { stroke: #4da3ff; }
