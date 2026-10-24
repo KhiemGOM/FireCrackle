@@ -47,7 +47,8 @@ export function projectQuad(q: ManualQuad, u: number, v: number): QuadPoint {
 
 export function manualTexels(rgba: Uint8ClampedArray, row: number, mirrored: boolean, quad: ManualQuad,side=16,rows=32) {
   if (![16,32].includes(side) || !Number.isInteger(rows) || rows<1 || rgba.length !== side * side * rows * 4 || !Number.isInteger(row) || row < 0 || row >= rows || !validQuad(quad)) throw new Error("Invalid manual fire mask");
-  const result: Array<{ points: QuadPoint[]; colour: string; alpha: number }> = [];
+  // `centre`: the texel's middle in the quad (0..1 each way), e.g. to find it on a 3D plane
+  const result: Array<{ points: QuadPoint[]; colour: string; alpha: number; centre: QuadPoint }> = [];
   for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
     const sourceX = mirrored ? side - 1 - x : x;
     const i = ((row * side + y) * side + sourceX) * 4;
@@ -55,6 +56,7 @@ export function manualTexels(rgba: Uint8ClampedArray, row: number, mirrored: boo
     result.push({
       points: [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]].map(([px, py]) => projectQuad(quad, px / side, py / side)),
       colour: `rgb(${rgba[i]}, ${rgba[i + 1]}, ${rgba[i + 2]})`, alpha: rgba[i + 3] / 255,
+      centre: [(x + 0.5) / side, (y + 0.5) / side],
     });
   }
   return result;

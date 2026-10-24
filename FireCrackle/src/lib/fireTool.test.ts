@@ -7,7 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { initReversal, project, type CameraPose, type Orientation } from "./reversal";
 import {
   addClick, setClickWorld, removeClick, usableClicks, solveTool, groundGrid, emptyTool, newFire, setMode, placeFire,
-  toggleBurnFace, fireQuads, fireOutline, type ToolState,
+  toggleBurnFace, fireQuads, fireOutline, planeToManualQuad, type ToolState,
 } from "./fireTool";
 
 beforeAll(async () => {
@@ -118,18 +118,23 @@ describe("one fire, three modes", () => {
 });
 
 describe("plane to Label's manual quad", () => {
-  const q = (px: [number, number][], uv: [number, number][]) => ({ world: [], px, uv, sheet: 0 }) as unknown as import("./reversal").FireQuad;
+  // each corner's world point is its pixel lifted to z = 7, so the corners can be told apart
+  const q = (px: [number, number][], uv: [number, number][]) => ({ world: px.map(([x, y]) => [x, y, 7]), px, uv, sheet: 0 }) as unknown as import("./reversal").FireQuad;
   it("orders corners by UV (top-left, top-right, bottom-right, bottom-left) in image fractions", async () => {
     const { planeToManualQuad } = await import("./fireTool");
     // drawn order bottom-left, bottom-right, top-right, top-left (as the entity fire is), uv v=1 at the bottom
     const m = planeToManualQuad(q([[100, 500], [300, 500], [300, 100], [100, 100]], [[0, 1], [1, 1], [1, 0], [0, 0]]), 1000, 1000);
-    expect(m).toEqual({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: false });
+    expect(m).toMatchObject({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: false });
+    // the plane's world corners come in the same sprite order (for each texel's depth)
+    const drawn = q([[100, 500], [300, 500], [300, 100], [100, 100]], [[0, 1], [1, 1], [1, 0], [0, 0]]).world;
+    expect(m!.world).toEqual([drawn[3], drawn[2], drawn[1], drawn[0]]);
+    expect(m!.world[0]).toEqual([100, 100, 7]);
   });
   it("a mirrored UV lands mirrored", async () => {
     const { planeToManualQuad } = await import("./fireTool");
     const m = planeToManualQuad(q([[100, 500], [300, 500], [300, 100], [100, 100]], [[1, 1], [0, 1], [0, 0], [1, 0]]), 1000, 1000);
     // u = 0 is on the right now: the quad is laid out left to right and the sprite flagged mirrored, as the game draws it
-    expect(m).toEqual({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: true });
+    expect(m).toMatchObject({ quad: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.5], [0.1, 0.5]], mirrored: true });
   });
   it("a plane seen from behind still gives a valid quad; one behind the camera gives none", async () => {
     const { planeToManualQuad } = await import("./fireTool");
@@ -405,5 +410,49 @@ describe("roll, floor and how sure the camera is", () => {
     expect(solveKey({ ...s, clicks: at(level, worlds.slice(0, 3)) })).not.toBe(solveKey(s));
     expect(solveKey({ ...s, guess: null })).not.toBe(solveKey(s));
     expect(solveKey({ ...s, fire: newFire(level, [5, 64, -2]) })).toBe(solveKey(s));
+  });
+});
+
+// ---- layering: the game draws fire as cut-out pixels with a depth buffer, so at every point the nearest opaque
+// texel shows. The planes of a fire block cross each other, so drawing them plane by plane in list order is wrong;
+// every texel of every plane is drawn far to near by its own 3D distance.
+
+import { fireTexels } from "./fireTool";
+import { manualTexels } from "./quadMask";
+
+describe("fire texels in depth order", () => {
+  const side = 16, rows = 1;
+  // an opaque sprite with a distinct colour per texel
+  const sheet = new Uint8ClampedArray(side * side * rows * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 37) % 251));
+  const view: CameraPose = { x: 2.5, y: 1.8, z: -2.5, yaw: -30, pitch: 25, roll: 0, fov: 80 };
+  const eye: Vec3 = [view.x, view.y, view.z];
+  const quads = () => fireQuads(newFire(view, [0, 0, 0]), false, view, 1280, 720);
+  it("every texel of every visible plane is drawn, ordered far to near by its real distance", () => {
+    const out = fireTexels(quads(), sheet, 0, false, 1280, 720, eye, side, rows);
+    const visible = quads().filter(q => planeToManualQuad(q, 1280, 720));
+    expect(out.length).toBe(visible.length * side * side);
+    for (let i = 1; i < out.length; i++) expect(out[i].depth).toBeLessThanOrEqual(out[i - 1].depth);
+  });
+  it("a texel's depth is the distance from the eye to that texel's centre on its plane", () => {
+    const q = quads()[0], m = planeToManualQuad(q, 1280, 720)!;
+    const out = fireTexels([q], sheet, 0, false, 1280, 720, eye, side, rows);
+    // the texel nearest the plane's first corner in sprite order (top-left) sits a half texel in from it
+    const tl = m.world[0], tr = m.world[1], bl = m.world[3];
+    const centre = [0, 1, 2].map(k => tl[k] + (tr[k] - tl[k]) / 32 + (bl[k] - tl[k]) / 32);
+    const want = Math.hypot(centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]);
+    expect(out.some(t => Math.abs(t.depth - want) < 1e-9)).toBe(true);
+  });
+  it("one plane alone draws exactly the quad mask's texels, only reordered", () => {
+    const q = quads()[0], m = planeToManualQuad(q, 1280, 720)!;
+    const mask = manualTexels(sheet, 0, m.mirrored, m.quad, side, rows);
+    const out = fireTexels([q], sheet, 0, false, 1280, 720, eye, side, rows);
+    const key = (t: { points: [number, number][]; colour: string }) => t.colour + JSON.stringify(t.points);
+    expect(out.map(key).sort()).toEqual(mask.map(key).sort());
+  });
+  it("transparent texels and planes behind the camera draw nothing", () => {
+    const clear = new Uint8ClampedArray(side * side * rows * 4);
+    expect(fireTexels(quads(), clear, 0, false, 1280, 720, eye, side, rows)).toEqual([]);
+    const behind: CameraPose = { ...view, yaw: view.yaw + 180, pitch: -view.pitch };
+    expect(fireTexels(fireQuads(newFire(view, [0, 0, 0]), false, behind, 1280, 720), sheet, 0, false, 1280, 720, [behind.x, behind.y, behind.z], side, rows)).toEqual([]);
   });
 });

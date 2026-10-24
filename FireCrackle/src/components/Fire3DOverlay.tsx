@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { manualTexels, screenToQuadPoint } from "../lib/quadMask";
-import { addClick, axisLines, fireOutline, groundGrid, isClick, moveClick, newFire, placeFire, planeToManualQuad, removeClick, usableClicks, type Vec3 } from "../lib/fireTool";
+import { screenToQuadPoint } from "../lib/quadMask";
+import { addClick, axisLines, fireOutline, fireTexels, groundGrid, isClick, moveClick, newFire, placeFire, removeClick, usableClicks, type Vec3 } from "../lib/fireTool";
 import { blocksVideoToolKeys, type ShortcutTarget } from "../lib/shortcutFocus";
 import { hitPlaneY, project } from "../lib/reversal";
 import { atlasTile, type AnimationAtlas } from "../lib/animationAtlases";
@@ -60,11 +60,11 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
   const outlinePx = cam ? project(cam, outline.flat(), native.width, native.height) : [];
   const { side, rows } = spriteShape(sprite.atlas);
   const row = sprite.atlas ? atlasTile(sprite.atlas, sprite.row) : sprite.row;
-  const planes = sheet?.source === source ? fire.quads.flatMap(q => {
-    const m = planeToManualQuad(q, native.width, native.height);
-    if (!m) return [];
-    try { return [manualTexels(sheet.rgba, row, m.mirrored !== sprite.mirrored, m.quad, side, rows)]; } catch { return []; }
-  }) : [];
+  // every texel of every plane, far to near (the game's depth buffer): the planes cross each other
+  let texels: ReturnType<typeof fireTexels> = [];
+  if (sheet?.source === source && cam) {
+    try { texels = fireTexels(fire.quads, sheet.rgba, row, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows); } catch { texels = []; }
+  }
   /** Native pixel under a screen point, or null outside the picture. */
   const nativeAt = (x: number, y: number): [number, number] | null => {
     const m = svg.current?.getScreenCTM();
@@ -102,7 +102,7 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
   return <svg ref={svg} className={`fire3d-overlay${fire.click !== "none" ? " picking" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet"
     aria-label="3D quad on the picture" onPointerDown={down}>
     {grid.map((l, i) => <line key={`g${i}`} className="fire3d-grid" strokeWidth={1 / screenScale} x1={l[0][0] * sx} y1={l[0][1] * sy} x2={l[1][0] * sx} y2={l[1][1] * sy} />)}
-    <g opacity={sprite.opacity}>{planes.map((t, i) => <FireTexels key={i} texels={t} pixelGrid={sprite.pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} />)}</g>
+    <g opacity={sprite.opacity}><FireTexels texels={texels} pixelGrid={sprite.pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} /></g>
     {outline.map((_, i) => {
       const a = outlinePx[2 * i], b = outlinePx[2 * i + 1];
       return a && b && <line key={`o${i}`} className="fire3d-cell" strokeWidth={1.5 / screenScale} x1={a[0] * sx} y1={a[1] * sy} x2={b[0] * sx} y2={b[1] * sy} />;

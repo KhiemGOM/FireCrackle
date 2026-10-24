@@ -6,7 +6,7 @@ import {
   defaultFace, entityFireQuads, entitySize, fireBlockQuads, initReversal, orientation, pixelRay, project, solveCamera, solveGuided,
   type CameraFit, type CameraPose, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
-import { validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
+import { manualTexels, validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
 import { canvasFrameIo, type FrameIo } from "./veilFrame";
 
 /** The automatic camera guess of a picture at its native size (worker-safe; the hook runs it as the picture
@@ -257,16 +257,35 @@ export function groundGrid(cam: CameraPose, w: number, h: number, centre: Vec3, 
  * bottom-right, bottom-left, by UV) and whether the sprite shows mirrored. Seen from behind (or with a mirrored UV)
  * the corners are swapped left to right so the quad stays valid, and `mirrored` says the sprite is drawn flipped, as
  * the game draws that side. None when a corner is behind the camera. */
-export function planeToManualQuad(q: FireQuad, w: number, h: number): { quad: ManualQuad; mirrored: boolean } | null {
+export function planeToManualQuad(q: FireQuad, w: number, h: number): { quad: ManualQuad; mirrored: boolean; world: [Vec3, Vec3, Vec3, Vec3] } | null {
   if (!q.px || w <= 0 || h <= 0) return null;
   const slot = (uv: [number, number]) => (uv[1] < 0.5 ? (uv[0] < 0.5 ? 0 : 1) : (uv[0] < 0.5 ? 3 : 2));
-  const ordered: QuadPoint[] = new Array(4);
-  q.uv.forEach((uv, i) => { ordered[slot(uv)] = [q.px![i][0] / w, q.px![i][1] / h]; });
+  const ordered: QuadPoint[] = new Array(4), world: Vec3[] = new Array(4);
+  q.uv.forEach((uv, i) => { ordered[slot(uv)] = [q.px![i][0] / w, q.px![i][1] / h]; world[slot(uv)] = q.world[i]; });
   if (ordered.some(p => !p)) return null;
-  const quad = ordered as ManualQuad;
-  if (validQuad(quad)) return { quad, mirrored: false };
+  const quad = ordered as ManualQuad, corners = world as [Vec3, Vec3, Vec3, Vec3];
+  if (validQuad(quad)) return { quad, mirrored: false, world: corners };
   const swapped: ManualQuad = [quad[1], quad[0], quad[3], quad[2]];
-  return validQuad(swapped) ? { quad: swapped, mirrored: true } : null;
+  return validQuad(swapped) ? { quad: swapped, mirrored: true, world: [corners[1], corners[0], corners[3], corners[2]] } : null;
+}
+
+/** All planes' sprite texels (as the quad mask draws one plane, lib/quadMask.ts manualTexels) in the order to draw
+ * them: far to near by each texel's own distance from the eye. The game draws fire as cut-out pixels with a depth
+ * buffer, so the nearest opaque texel shows at every point; a fire block's planes cross each other, so ordering whole
+ * planes cannot be right. `mirrored`: the sprite choice's flip, on top of each plane's own. */
+export function fireTexels(quads: FireQuad[], rgba: Uint8ClampedArray, row: number, mirrored: boolean, w: number, h: number, eye: Vec3, side = 16, rows = 32) {
+  const out: { points: QuadPoint[]; colour: string; alpha: number; depth: number }[] = [];
+  for (const q of quads) {
+    const m = planeToManualQuad(q, w, h);
+    if (!m) continue;
+    const [tl, tr, br, bl] = m.world;
+    for (const t of manualTexels(rgba, row, m.mirrored !== mirrored, m.quad, side, rows)) {
+      const [u, v] = t.centre, a = (1 - u) * (1 - v), b = u * (1 - v), c = u * v, d = (1 - u) * v;
+      const p = [0, 1, 2].map(k => a * tl[k] + b * tr[k] + c * br[k] + d * bl[k]);
+      out.push({ points: t.points, colour: t.colour, alpha: t.alpha, depth: Math.hypot(p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]) });
+    }
+  }
+  return out.sort((x, y) => y.depth - x.depth);
 }
 
 /** A press released within this many screen pixels of where it started is a click (adds a corner or places the

@@ -254,7 +254,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     setAnimationOpen(false);
     setMatchingEnabled(false);
     setHudEnabled(!hudEnabled);
-    if (!hudEnabled) { setManualAtlas(undefined); setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
+    if (!hudEnabled) { setFire3dOn(false); setManualAtlas(undefined); setManualEnabled(false); const next = framePreview(view); if (next) setHudRow(next.row); }
   }
   function toggleQuad() {
     setManualEnabled(!manualEnabled);
@@ -267,13 +267,13 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if(manualAtlas&&!soulFire(manualAtlas))return;
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
-    if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
   }
   /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
     if(manualAtlas&&!soulFire(manualAtlas))return;
     if (matchingEnabled) { setMatchingEnabled(false); return; }
-    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); }
+    if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
     setFindToken(n => n + 1);
   }
   /** 3D quad: its own tool, drawing its own textured planes instead of the quad mask (they share the sprite). */
@@ -322,8 +322,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
 
   function selectPreview(sprite: PreviewSprite): boolean {
     setAnimationStop(value => value + 1);
-    const mode = sprite.atlas || manualEnabled ? "manual" : hudEnabled ? "firstPerson" : "none";
-    if(sprite.atlas){setManualEnabled(true);setHudEnabled(false);setMatchingEnabled(false);setAnimationOpen(false);}
+    // the 3D quad draws with the quad mask's sprite: a pick drives it the same way (an atlas pick keeps the 3D quad)
+    const mode = sprite.atlas || manualEnabled || fire3dOn ? "manual" : hudEnabled ? "firstPerson" : "none";
+    if(sprite.atlas&&!fire3dOn){setManualEnabled(true);setHudEnabled(false);setMatchingEnabled(false);setAnimationOpen(false);}
     const next = previewSprite(mode, sprite);
     if (!next) return false;
     if (mode === "manual") {
@@ -585,6 +586,11 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
   }, [fire3dOn, manualEnabled, hudEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the picker shows the 3D quad's sprite while it is on (the preview effect above knows only the quad mask and HUD,
+  // and runs first)
+  useEffect(() => {
+    if (fire3dOn && !manualEnabled && !hudEnabled) onPreviewChange?.({ ...(manualAtlas ? { atlas: manualAtlas } : {}), sheet: manualSheet, row: manualRow, mirrored: manualMirrored });
+  }, [fire3dOn, manualEnabled, hudEnabled, manualSheet, manualAtlas, manualRow, manualMirrored, onPreviewChange]);
   const s = view.suggestion;
   // the sprite: shared by the quad mask and the 3D quad
   const spriteControls = <>
@@ -661,7 +667,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         <span className="tool-spacer" aria-hidden="true" />
         <IconButton icon="play" label="Toggle sprite animation tool" aria-pressed={animationOpen} aria-expanded={animationOpen} onClick={() => {
           setAnimationOpen(!animationOpen);
-          if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); }
+          if (!animationOpen) { setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
         }}>Animation</IconButton>
         {!stillImage && <IconButton icon="layers" label="Toggle GUI mask" title={GUI_ASSUMPTION} aria-pressed={guiMaskOn} aria-expanded={guiMaskOn} onClick={() => setGuiMaskOn(on => !on)}>GUI mask</IconButton>}
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto preserves detected GUI pixels; Always undo processes every pixel. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
