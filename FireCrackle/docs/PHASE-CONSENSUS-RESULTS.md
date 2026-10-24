@@ -52,5 +52,24 @@ well carry the frame, and must be allowed to.
   frame (almost every frame here has 4+).
 - **The exact sprite gains less** (29 % → 41 %): with the phase fixed, each quad still has to pick its sheet and mirror
   alone, and those stay hard.
-- Next: pick the sheet per *fire block* rather than per quad (a block's planes share their variant), and use the phase
-  in the 3D quad tool, whose planes come from one block.
+
+## Per fire (what the 3D quad has)
+
+The 3D quad tool only has one fire's planes, not the whole frame. The same vote within each fire block's or entity's own
+quads (`phase-consensus-eval.mjs ... --by-block`):
+
+| Per fire | Validation: 300 quads, 66 fires | Tune: 690 quads, 148 fires |
+|---|---|---|
+| Exact sprite | 87 (29.0 %) → **120 (40.0 %)** | 6.2 % → 10.4 % |
+| Right phase | 121 (40.3 %) → **206 (68.7 %)** | 27.2 % → 47.1 % |
+| Fires with the right phase | 46 / 66 | — |
+| Confident answers right | 80.7 % of 238 quads | 82.7 % |
+
+Almost all of the frame-level gain survives on validation (68.7 % against 72.7 %); tune fires have fewer, smaller quads.
+
+A fire's planes do not all show the same sheet: an entity's fire layers alternate fire_0 and fire_1 (and their flip), at
+one phase (in validation, e.g. sheet 0 row 18 and sheet 1 row 2 on alternate layers). Tune's fire blocks were one sheet
+throughout (158 / 158). The 3D tool's model knows each plane's sheet (`FireQuad.sheet`), so its Match
+(`src/lib/fire3dMatch.ts`) turns every plane's candidates into the tool's own sprite (the plane's flip and sheet undone,
+the phase kept), votes on the phase, then takes the one sheet and mirror with the most summed support at it
+(`sharedSprite`).

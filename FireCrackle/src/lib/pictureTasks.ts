@@ -7,6 +7,7 @@ import {guessPicture} from './fireTool';
 import type {Orientation} from './reversal';
 import type {VeilOptions} from './veil';
 import type {WorldCoverage} from './portalPreview';
+import {matchPicture,type MatchPlane,type PlaneMatch} from './fire3dMatch';
 
 export interface PictureTasks {
   /** The gallery's Auto unveil of one preview (lib/comparisonPost.ts unveilPicture). */
@@ -17,6 +18,8 @@ export interface PictureTasks {
   correct:{args:CorrectJob;result:ProcessedFrame&{guiProtected:boolean}};
   /** The 3D quad tool's automatic camera guess of a native frame (lib/fireTool.ts guessPicture). */
   orientation:{args:{bytes:ArrayBuffer};result:{width:number;height:number;guess:Orientation|null}};
+  /** The 3D quad's Match: every plane of the fire on a native frame, one shared phase (lib/fire3dMatch.ts matchPicture). */
+  match3d:{args:{bytes:ArrayBuffer;sheets:[Uint8ClampedArray,Uint8ClampedArray];planes:MatchPlane[]};result:PlaneMatch|null};
 }
 export type PictureTask=keyof PictureTasks;
 
@@ -24,6 +27,7 @@ export async function runPictureTask<K extends PictureTask>(task:K,args:PictureT
   switch(task){
     case 'unveil':{const a=args as PictureTasks['unveil']['args'];return await unveilPicture(a) as PictureTasks[K]['result'];}
     case 'orientation':return await guessPicture((args as PictureTasks['orientation']['args']).bytes) as PictureTasks[K]['result'];
+    case 'match3d':return await matchPicture(args as PictureTasks['match3d']['args']) as PictureTasks[K]['result'];
     case 'correct':return await correctPicture(args as CorrectJob) as PictureTasks[K]['result'];
     case 'change':{const a=args as PictureTasks['change']['args'];return await motionChange(a.before,a.after,a.screens) as PictureTasks[K]['result'];}
     default:throw Error(`Unknown picture task ${String(task)}`);

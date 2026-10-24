@@ -66,18 +66,23 @@ export interface Consensus {
 }
 
 /** The phase all `tables` (one per quad: every candidate the matcher scored) share; null when no quad has evidence. */
+/** A quad's robust scale (step 2): the median and scaled MAD of its phase evidence; null for a flat quad. */
+function robustScale(e: number[]): { m: number; mad: number } | null {
+  const finite = e.filter(Number.isFinite);
+  if (finite.length < 2) return null;
+  const m = median(finite), mad = 1.4826 * median(finite.map(v => Math.abs(v - m)));
+  return mad > 0 ? { m, mad } : null;
+}
+
 export function phaseConsensus(tables: ScoredSprite[][], options: ConsensusOptions = {}): Consensus | null {
   const { low, high, margin } = { ...CONSENSUS_DEFAULTS, ...options };
   const support = new Array<number>(PHASES).fill(0);
   let used = 0;
   for (const table of tables) {
-    const e = phaseEvidence(table);
-    const finite = e.filter(Number.isFinite);
-    if (finite.length < 2) continue;
-    const m = median(finite), mad = 1.4826 * median(finite.map(v => Math.abs(v - m)));
-    if (!(mad > 0)) continue;
+    const e = phaseEvidence(table), scale = robustScale(e);
+    if (!scale) continue;
     used++;
-    for (let p = 0; p < PHASES; p++) support[p] += Number.isFinite(e[p]) ? Math.max(low, Math.min(high, (e[p] - m) / mad)) : low;
+    for (let p = 0; p < PHASES; p++) support[p] += Number.isFinite(e[p]) ? Math.max(low, Math.min(high, (e[p] - scale.m) / scale.mad)) : low;
   }
   if (!used) return null;
   const order = support.map((_, p) => p).sort((a, b) => support[b] - support[a]);
@@ -89,4 +94,24 @@ export function phaseConsensus(tables: ScoredSprite[][], options: ConsensusOptio
     return best;
   });
   return { phase, support, margin: lead, confident: lead >= margin, labels, used };
+}
+
+/** For quads that also share their variant (one fire block's planes): the sheet and mirror at `phase` with the most
+ * summed support, each quad's scores normalised as in the vote. Only the floor is clipped here: at the shared phase the
+ * sprites differ by small amounts, and a cap would flatten exactly that difference. The score is the summed support. */
+export function sharedSprite(tables: ScoredSprite[][], phase: number, low = CONSENSUS_DEFAULTS.low): ScoredSprite | null {
+  const sum = new Map<string, ScoredSprite>();
+  for (const table of tables) {
+    const scale = robustScale(phaseEvidence(table));
+    if (!scale) continue;
+    for (const c of table) {
+      if (!Number.isFinite(c.score) || !Number.isInteger(c.row) || spritePhase(c.sheet, c.row) !== phase) continue;
+      const key = `${c.sheet}${c.mirrored}`, vote = Math.max(low, (c.score - scale.m) / scale.mad);
+      const s = sum.get(key);
+      if (s) s.score += vote; else sum.set(key, { sheet: c.sheet, row: c.row, mirrored: c.mirrored, score: vote });
+    }
+  }
+  let best: ScoredSprite | null = null;
+  for (const s of sum.values()) if (!best || s.score > best.score) best = s;
+  return best;
 }

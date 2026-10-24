@@ -1,7 +1,7 @@
 // Every fire sprite on screen shows one global animation phase (sheet 1 is always 16 frames on from sheet 0), whatever
 // each quad's own sheet or mirror. phaseConsensus takes every quad's matcher scores and picks the one phase they share.
 import { describe, expect, it } from "vitest";
-import { CONSENSUS_DEFAULTS, phaseConsensus, phaseEvidence, spritePhase, spriteAtPhase, type ScoredSprite } from "./phaseConsensus";
+import { CONSENSUS_DEFAULTS, phaseConsensus, phaseEvidence, sharedSprite, spritePhase, spriteAtPhase, type ScoredSprite } from "./phaseConsensus";
 
 /** A full candidate table (2 sheets × 32 rows × 2 mirrors) with a small noise floor and chosen peaks. */
 function table(peaks: { sheet: 0 | 1; row: number; mirrored: boolean; score: number }[], seed = 1): ScoredSprite[] {
@@ -82,5 +82,23 @@ describe("phaseConsensus", () => {
     expect(c.confident).toBe(false);
     // the capped peaks tie; only the noise floors differ, which stays under the confidence margin
     expect(c.margin).toBeLessThan(CONSENSUS_DEFAULTS.margin);
+  });
+});
+
+// ---- one sprite for quads that share their variant too (one fire block's planes: the 3D quad)
+
+describe("sharedSprite", () => {
+  it("at a phase, the sheet and mirror the quads agree on most (scores normalised per quad)", () => {
+    const tables = [
+      table([{ sheet: 0, row: 5, mirrored: false, score: 0.55 }, { sheet: 1, row: 21, mirrored: true, score: 0.6 }], 21),
+      table([{ sheet: 0, row: 5, mirrored: false, score: 0.9 }], 22),
+      table([{ sheet: 0, row: 5, mirrored: false, score: 0.7 }, { sheet: 1, row: 21, mirrored: true, score: 0.5 }], 23),
+    ];
+    expect(sharedSprite(tables, 5)).toMatchObject({ sheet: 0, row: 5, mirrored: false });
+  });
+  it("only sprites showing that phase are considered; no quads, no sprite", () => {
+    const tables = [table([{ sheet: 1, row: 30, mirrored: false, score: 0.9 }, { sheet: 1, row: 21, mirrored: false, score: 0.6 }], 24)];
+    expect(sharedSprite(tables, 5)).toMatchObject({ sheet: 1, row: 21, mirrored: false });
+    expect(sharedSprite([], 5)).toBeNull();
   });
 });

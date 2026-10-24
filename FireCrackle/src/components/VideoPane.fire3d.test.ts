@@ -19,6 +19,7 @@ import { VideoPane } from "./VideoPane";
 import { createMockBackend } from "../lib/mock";
 import { ANIMATION_ATLASES } from "../lib/animationAtlases";
 import type { PreviewSprite } from "../lib/firePreview";
+import { Fire3DMatchControls } from "./Fire3DMatchControls";
 
 type Element = ReactElement<Record<string, any>>;
 const ref: { current: { selectSprite(s: PreviewSprite): boolean } | null } = { current: null };
@@ -29,7 +30,7 @@ async function tree() {
   return VideoPane({ backend, view: await backend.view(), onError: vi.fn(), previewRef: ref as never }) as Element;
 }
 function find(node: Element, label: string): Element | undefined {
-  if (node.props.label === label || node.props["aria-label"] === label) return node;
+  if (node.props.label === label || node.props["aria-label"] === label || (label === "3D quad match" && node.type === Fire3DMatchControls)) return node;
   // the 3D bar gets the sprite controls as its `sprite` prop
   for (const child of [node.props.children, node.props.sprite].flat(Infinity)) {
     if (child && typeof child === "object" && "props" in child) { const m = find(child as Element, label); if (m) return m; }
@@ -63,7 +64,7 @@ it("with no sprite overlay on, a picked sprite still changes nothing (as before)
   expect(ref.current!.selectSprite({ sheet: 0, row: 9, mirrored: true })).toBe(false);
 });
 
-for (const other of ["Toggle sprite matching tool", "Toggle sprite animation tool", "Toggle first-person fire"]) {
+for (const other of ["Toggle sprite animation tool", "Toggle first-person fire"]) {
   it(`switching on another picture overlay (${other}) switches the 3D quad off`, async () => {
     const root = await with3D();
     find(root, other)!.props.onClick();
@@ -98,4 +99,24 @@ it("the 3D quad has the quad mask's FFmpeg compression controls (shared settings
   expect(find(root, "FFmpeg compression")!.props.checked).toBe(true);
   expect(find(root, "Compression resolution")).toBeDefined();
   expect(find(root, "Compression damage")).toBeDefined();
+});
+
+it("Match with the 3D quad on matches the 3D quad (it stays on; the quad mask and its matcher stay off)", async () => {
+  let root = await with3D();
+  expect(find(root, "3D quad match")!.props.runToken).toBe(0);
+  find(root, "Toggle sprite matching tool")!.props.onClick();
+  root = await tree();
+  expect(pressed(root, "Toggle 3D quad")).toBe(true);
+  expect(pressed(root, "Toggle manual fire quad mask")).toBe(false);
+  expect(pressed(root, "Toggle sprite matching tool")).toBe(false);
+  expect(find(root, "Sprite matching settings")).toBeUndefined();
+  expect(find(root, "3D quad match")!.props.runToken).toBe(1);
+});
+
+it("a 3D match previewed becomes the sprite the 3D quad draws", async () => {
+  const root = await with3D();
+  find(root, "3D quad match")!.props.onPreview({ sheet: 1, row: 20, mirrored: true, phase: 4, support: 9 });
+  const next = await tree();
+  expect(find(next, "Manual mask row")!.props.value).toBe(20);
+  expect(find(next, "Manual mask sheet")!.props.value).toBe(1);
 });

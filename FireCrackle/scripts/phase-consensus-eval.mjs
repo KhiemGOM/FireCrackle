@@ -3,6 +3,7 @@
 // Usage: node scripts/phase-consensus-eval.mjs DIR TAG [--grid] [--low L --high H --margin M]
 //   DIR: the prepared dataset (src-tauri/target/actual-quad1); reads TAG-fixed-tune.json and TAG-fixed-validation.json.
 //   --grid: try clip bounds on the tune split (validation is reported once, with the chosen bounds).
+//   --by-block: vote within each fire block's (or entity's) own quads instead of the whole frame (what the 3D quad has).
 import fs from "node:fs";
 import path from "node:path";
 import {loadLibs} from "./lib-runtime.mjs";
@@ -16,7 +17,9 @@ const {phaseConsensus,spritePhase,CONSENSUS_DEFAULTS}=modules.phaseConsensus;
 function load(split){
  const rows=JSON.parse(fs.readFileSync(path.join(dir,`${tag}-fixed-${split}.json`))).rows.filter(r=>r.table?.length);
  const frames=new Map();
- for(const r of rows){if(!frames.has(r.frame))frames.set(r.frame,[]);frames.get(r.frame).push(r);}
+ // ids are frame-fire-quad: --by-block groups a fire's own quads
+ const byBlock=process.argv.includes("--by-block");
+ for(const r of rows){const key=byBlock?r.id.split("-").slice(0,2).join("-"):r.frame;if(!frames.has(key))frames.set(key,[]);frames.get(key).push(r);}
  return [...frames.values()];
 }
 

@@ -13,6 +13,7 @@ import { hudRowFromLabel, stepHudRow } from "../lib/hudOverlay";
 import { FireQuadMask } from "./FireQuadMask";
 import { Fire3DOverlay } from "./Fire3DOverlay";
 import { Fire3DBar } from "./Fire3DBar";
+import { Fire3DMatchControls } from "./Fire3DMatchControls";
 import { Fire3DWorldPane } from "./Fire3DWorldPane";
 import { useFire3D } from "../lib/useFire3D";
 import { IconButton } from "./Icon";
@@ -271,6 +272,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   function toggleMatcher() {
     if (hudEnabled) { matchFirstPerson(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
+    // the 3D quad has its own Match (all its planes, one phase): it stays on
+    if (fire3dOn && !manualEnabled) { setFindToken(n => n + 1); return; }
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
     if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
@@ -279,6 +282,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   function runMatcher() {
     if (hudEnabled) { matchFirstPerson(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
+    if (fire3dOn && !manualEnabled) { setFindToken(n => n + 1); return; }
     if (matchingEnabled) { setMatchingEnabled(false); return; }
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
     setFindToken(n => n + 1);
@@ -593,8 +597,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   // 3D quad mode of the manual quad: camera from the automatic guess + clicked corners, fire placed in 3D
   const [fire3dOn, setFire3dOn] = useState(false);
-  const fire3d = useFire3D(stillImage ? stillImage.url : String(view.current),
-    () => stillImage ? (stillImage.file ? Promise.resolve(stillImage.file) : fetch(stillImage.url).then(r => r.blob())) : nativeFrame(backend, view.current),
+  const picture3d = stillImage ? stillImage.url : String(view.current);
+  const load3d = () => stillImage ? (stillImage.file ? Promise.resolve(stillImage.file) : fetch(stillImage.url).then(r => r.blob())) : nativeFrame(backend, view.current);
+  const fire3d = useFire3D(picture3d, load3d,
     fire3dOn, !!manualAtlas && soulFire(manualAtlas), { history: undoHistory, video: stillImage ? undefined : videoKey, storage: toolStorage });
   // E toggles the 3D quad's sprite opacity (the quad mask's, which it draws with); the effect above serves the quad mask and HUD
   useEffect(() => {
@@ -770,7 +775,10 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · G: refine alignment · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
       {fire3dOn && <div className="hud-controls fire3d-controls" aria-label="3D quad settings">
-        <Fire3DBar fire={fire3d} sprite={<>{spriteControls}{compressionControls}</>} />
+        <Fire3DBar fire={fire3d} sprite={<>{spriteControls}{compressionControls}
+          <Fire3DMatchControls quads={fire3d.quads} size={fire3d.size} picture={picture3d} load={load3d} material={manualAtlas && soulFire(manualAtlas) ? "soul" : "normal"}
+            runToken={findToken} pick={matchPick} disabled={(!stillImage && shown !== view.current) || playing}
+            onPreview={c => { setManualSheet(c.sheet); setManualRow(c.row); setManualMirrored(c.mirrored); }} /></>} />
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
