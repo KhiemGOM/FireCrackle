@@ -364,3 +364,59 @@ describe("an entity's fire layers", () => {
     expect([...draw(false)]).toEqual(["rgb(255, 255, 255)"]);
   });
 });
+
+// ---- lock grid (the camera row) and the cursor's grid coordinates (on the picture)
+
+import { CursorReadout } from "./Fire3DOverlay";
+
+describe("lock grid", () => {
+  const bar = (state: Partial<ToolState> = {}) => { hooks.si = hooks.ri = 0; const f = tool({}, state); return { f, out: Fire3DBar({ fire: f, sprite: null }) }; };
+  const lock = (out: unknown) => all(out, e => e.type === "input" && e.props["aria-label"] === "Lock grid")[0];
+  it("Lock grid locks the camera and unlocks it; it needs a camera", () => {
+    const { f, out } = bar();
+    expect(lock(out).props.checked).toBe(false);
+    expect(lock(out).props.disabled).toBe(false);
+    lock(out).props.onChange({ target: { checked: true } });
+    const change = (f.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as (s: ToolState) => ToolState;
+    expect(change(f.state).locked).toBe(true);
+    expect(lock(bar({ camera: null }).out).props.disabled).toBe(true);
+  });
+  it("locked, the status says so and how well the corners fit the locked camera", () => {
+    const { out } = bar({ locked: true });
+    expect(lock(out).props.checked).toBe(true);
+    expect(text(all(out, e => String(e.props.className ?? "").startsWith("f3-status"))[0])).toMatch(/^Grid locked · corners fit to [\d.]+ px/);
+  });
+});
+
+describe("the cursor's grid coordinates", () => {
+  // the overlay's own tree, without rendering its parts: the readout is its own component (it alone re-renders on a move)
+  const raw = (node: unknown, out: El[] = []): El[] => {
+    if (!node || typeof node !== "object") return out;
+    if (Array.isArray(node)) { node.forEach(n => raw(n, out)); return out; }
+    if (!("props" in (node as El))) return out;
+    out.push(node as El); raw((node as El).props.children, out); return out;
+  };
+  const readout = (over: Partial<Fire3D> = {}, state: Partial<ToolState> = {}) => {
+    hooks.si = hooks.ri = 0;
+    return raw(Fire3DOverlay({ fire: tool(over, state), width: 1280, height: 720, zoom: 1, sprite })).find(e => e.type === CursorReadout);
+  };
+  it("the picture carries a readout on the grid's floor (the fire's height), in native pixels", () => {
+    const r = readout()!;
+    expect(r.props.y).toBe(64);
+    expect(r.props.camera).toBe(cam);
+    expect(r.props.native).toEqual({ width: 1280, height: 720 });
+  });
+  it("no readout without a camera", () => {
+    expect(readout({}, { camera: null })).toBeUndefined();
+  });
+  it("it reads x and z under the cursor, and the floor height; nothing off the floor", () => {
+    const p = project(cam, [[2.3, 64, 5.6]], 1280, 720)[0]!;
+    hooks.states = []; hooks.si = hooks.ri = 0;
+    const shown = CursorReadout({ camera: cam, native: { width: 1280, height: 720 }, y: 64, scaleX: 1, scaleY: 1, screenScale: 1, at: p });
+    expect(text(shown)).toMatch(/x 2\.3 · z 5\.6 \(y 64\)/);
+    const label = raw(shown).find(e => e.type === "text")!;
+    expect(label.props.pointerEvents).toBe("none");
+    hooks.states = []; hooks.si = hooks.ri = 0;
+    expect(CursorReadout({ camera: cam, native: { width: 1280, height: 720 }, y: 64, scaleX: 1, scaleY: 1, screenScale: 1, at: [640, 1] })).toBeNull();
+  });
+});

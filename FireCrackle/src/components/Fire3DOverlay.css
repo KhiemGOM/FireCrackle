@@ -15,3 +15,4 @@
 .fire3d-axis text, .fire3d-mode { fill: #fff; paint-order: stroke; stroke: #000; }
 .fire3d-axis.x text { fill: #ff8a8a; } .fire3d-axis.y text { fill: #8aff9b; } .fire3d-axis.z text { fill: #8ac4ff; }
 .fire3d-mode { font-weight: 600; fill: #ffb366; }
+.fire3d-cursor text { fill: #fff; paint-order: stroke; stroke: #000; font-weight: 600; }

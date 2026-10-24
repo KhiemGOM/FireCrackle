@@ -303,7 +303,7 @@ describe("a new picture", () => {
   let solved: ToolState;
   beforeEach(() => { solved = { ...emptyTool(0), camera: cam, fire: newFire(cam, [1, 64, 2]), clicks: [{ id: 1, px: [5, 6], world: [0, 64, 0] }], eyeY: 65.62 }; });
   it("a frame with its own saved work shows exactly that, with the new guess", () => {
-    const saved = { clicks: [{ id: 9, px: [1, 2] as [number, number], world: [3, 64, 4] as Vec3 }], fire: null, eyeY: null, camera: { ...cam, yaw: 10 }, rollFree: false };
+    const saved = { clicks: [{ id: 9, px: [1, 2] as [number, number], world: [3, 64, 4] as Vec3 }], fire: null, eyeY: null, camera: { ...cam, yaw: 10 }, rollFree: false, locked: false };
     const next = pictureState(solved, false, guess, saved);
     expect(next.camera).toEqual(saved.camera);
     expect(next.fire).toBeNull();
@@ -363,7 +363,7 @@ describe("impossible cameras", () => {
   });
   it("a frame saved with an impossible camera comes back without it, corners and fire kept", () => {
     const fireNear = newFire(cam, [0, 0, 0]);
-    const next = pictureState(emptyTool(0), false, guess, { clicks: userCorners, fire: fireNear, eyeY: 1.62, camera: absurd, rollFree: false });
+    const next = pictureState(emptyTool(0), false, guess, { clicks: userCorners, fire: fireNear, eyeY: 1.62, camera: absurd, rollFree: false, locked: false });
     expect(next.camera).toBeNull();
     expect(next.clicks.map(c => c.world)).toEqual(userCorners.map(c => c.world));
     expect(next.fire).toEqual(fireNear);
@@ -483,5 +483,61 @@ describe("cornerFit", () => {
     const clicks = at();
     expect(cornerFit(cam, [{ id: 1, px: [1, 1], world: null }], W, H)).toBeNull();
     expect(cornerFit({ ...cam, yaw: cam.yaw + 180 }, clicks, W, H)).toBeNull();
+  });
+});
+
+// ---- lock grid: while locked, the corners never move the camera (a corner typed half-way, one added, one moved or
+// removed); unlocking solves again from all of them. The lock is the frame's own: a new frame starts unlocked.
+
+import { cursorGround } from "./fireTool";
+
+describe("lock grid", () => {
+  const level: CameraPose = { x: 3, y: 68.62, z: 1, yaw: -150, pitch: 30, roll: 0, fov: 90 };
+  const worlds: Vec3[] = [[5, 64, -2], [6, 64, -3], [4, 65, -3], [7, 64, -1]];
+  const at = (ws: Vec3[]) => ws.map((world, i) => ({ id: 100 + i, px: project(level, [world], W, H)[0]!, world }));
+  it("a new tool is unlocked", () => {
+    expect(emptyTool(0).locked).toBe(false);
+  });
+  it("locked, its camera and answers stay whatever the corners do; unlocking solves from all of them", () => {
+    const start = solveTool({ ...emptyTool(0), clicks: at(worlds) }, W, H);
+    expect(start.camera).not.toBeNull();
+    let s: ToolState = { ...start, locked: true };
+    s = setClickWorld(s, 101, [60, 64, -3]); // half-typed: x 6 → 60
+    s = addClick(s, project(level, [[8, 64, -2]], W, H)[0]!);
+    s = removeClick(s, 102);
+    const kept = solveTool(s, W, H);
+    expect(kept.camera).toBe(start.camera);
+    expect(kept.candidates).toBe(start.candidates);
+    // the typo fixed and the new corner typed, still locked: still the same camera
+    s = setClickWorld(setClickWorld(s, 101, [6, 64, -3]), s.clicks[s.clicks.length - 1].id, [8, 64, -2]);
+    expect(solveTool(s, W, H).camera).toBe(start.camera);
+    // unlocking is a change that solves, from every corner there now is
+    expect(solveKey({ ...s, locked: false })).not.toBe(solveKey(s));
+    const unlocked = solveTool({ ...s, locked: false }, W, H);
+    expect(unlocked.candidates).not.toBe(start.candidates);
+    expect(Math.hypot(unlocked.camera!.x - level.x, unlocked.camera!.y - level.y, unlocked.camera!.z - level.z)).toBeLessThan(0.05);
+  });
+  it("an unsaved frame starts unlocked; a saved one brings its own lock back; the same picture keeps it", () => {
+    const locked: ToolState = { ...emptyTool(0), camera: level, locked: true };
+    expect(pictureState(locked, false, guess, undefined).locked).toBe(false);
+    const saved = { clicks: [], fire: null, eyeY: null, camera: level, rollFree: false, locked: true };
+    expect(pictureState(emptyTool(0), false, guess, saved).locked).toBe(true);
+    expect(pictureState(locked, true, guess, undefined).locked).toBe(true);
+  });
+});
+
+describe("cursor on the grid", () => {
+  const level: CameraPose = { x: 3, y: 68.62, z: 1, yaw: -150, pitch: 30, roll: 0, fov: 90 };
+  it("the point under a pixel on the grid's floor, in the corners' coordinates", () => {
+    const p = project(level, [[6.3, 64, -2.6]], W, H)[0]!;
+    const g = cursorGround(level, W, H, p, 64)!;
+    expect(g.x).toBeCloseTo(6.3, 6);
+    expect(g.z).toBeCloseTo(-2.6, 6);
+  });
+  it("nothing above the horizon, and nothing without a floor height", () => {
+    const sky = project({ ...level, pitch: 0 }, [[3 + 10, 80, 1 - 10 * Math.sqrt(3)]], W, H)[0];
+    expect(sky).not.toBeNull();
+    expect(cursorGround({ ...level, pitch: 0 }, W, H, sky!, 64)).toBeNull();
+    expect(cursorGround(level, W, H, [W / 2, H / 2], null)).toBeNull();
   });
 });

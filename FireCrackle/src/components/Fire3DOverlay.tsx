@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { screenToQuadPoint } from "../lib/quadMask";
-import { addClick, axisLines, fireOutline, fireTexels, groundGrid, isClick, moveClick, newFire, placeFire, removeClick, usableClicks, type Vec3 } from "../lib/fireTool";
+import { addClick, axisLines, cursorGround, fireOutline, fireTexels, groundGrid, isClick, moveClick, newFire, placeFire, removeClick, usableClicks, type Vec3 } from "../lib/fireTool";
 import { blocksVideoToolKeys, type ShortcutTarget } from "../lib/shortcutFocus";
-import { hitPlaneY, project } from "../lib/reversal";
+import { hitPlaneY, project, type CameraPose } from "../lib/reversal";
 import { atlasTile, type AnimationAtlas } from "../lib/animationAtlases";
 import { loadSpriteSheet, spriteShape, spriteSource } from "../lib/spriteSheet";
 import { useSvgScreenScale } from "../hooks/useSvgScreenScale";
@@ -33,6 +33,28 @@ export function cornerKey(e: { key: string; ctrlKey: boolean; metaKey: boolean; 
 function removeCorner(fire: Fire3D, id: number) {
   fire.update(s => removeClick(s, id));
   fire.setSelected(null);
+}
+
+/** The x and z on the grid's floor under the cursor (and that floor's y), next to the cursor, so a corner's position
+ * is read off the picture rather than counted. Its own component: only it re-renders as the mouse moves. `at` (native
+ * pixels) shows a fixed point instead of following the mouse; `nativeAt` turns a screen point into native pixels. */
+export function CursorReadout({ camera, native, y, scaleX, scaleY, screenScale, at, nativeAt }: { camera: CameraPose; native: { width: number; height: number };
+  y: number; scaleX: number; scaleY: number; screenScale: number; at?: [number, number] | null; nativeAt?: (x: number, y: number) => [number, number] | null }) {
+  const [hover, setHover] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    if (!nativeAt) return;
+    const move = (e: globalThis.PointerEvent) => setHover(nativeAt(e.clientX, e.clientY));
+    window.addEventListener("pointermove", move);
+    return () => window.removeEventListener("pointermove", move);
+  }, [nativeAt]);
+  const p = at ?? hover;
+  const g = p ? cursorGround(camera, native.width, native.height, p, y) : null;
+  if (!p || !g) return null;
+  const n = (v: number) => String(Number(v.toFixed(1)));
+  return <g className="fire3d-cursor" pointerEvents="none">
+    <text x={p[0] * scaleX + 14 / screenScale} y={p[1] * scaleY - 12 / screenScale} fontSize={14 / screenScale} strokeWidth={3 / screenScale} pointerEvents="none">
+      {`x ${n(g.x)} · z ${n(g.z)} (y ${n(y)})`}</text>
+  </g>;
 }
 
 /** The 3D quad tool on the video: the fire's planes textured with the chosen sprite, the block grid and the fire's
@@ -134,6 +156,7 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, 
     </g>)}
     {fire.click !== "none" && <text className="fire3d-mode" x={width / 2} y={22 / screenScale} fontSize={15 / screenScale} strokeWidth={3 / screenScale} textAnchor="middle">
       {fire.click === "corner" ? "Click: add a block corner" : "Click: place the fire"}</text>}
+    {cam && y !== null && <CursorReadout camera={cam} native={native} y={y} scaleX={sx} scaleY={sy} screenScale={screenScale} nativeAt={nativeAt} />}
     {fire.state.clicks.map((c, i) => <g key={c.id} className={`fire3d-click${c.world ? "" : " pending"}${fire.selected === c.id ? " selected" : ""}`}
       onPointerDown={e => grab(e, c.id)} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); removeCorner(fire, c.id); }}>
       <title>{`Corner ${i + 1}: click to edit its position, drag to move it, right-click (or Delete when selected) to remove it`}</title>

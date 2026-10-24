@@ -32,7 +32,7 @@ describe("fire3d memory", () => {
   });
   it("damaged entries are skipped, the rest still load", () => {
     const store = memoryStorage();
-    writeFire3D("v.mkv", new Map<string, SavedTool>([["3", { clicks: [], fire, eyeY: null, camera: cam, rollFree: false }]]), store);
+    writeFire3D("v.mkv", new Map<string, SavedTool>([["3", { clicks: [], fire, eyeY: null, camera: cam, rollFree: false, locked: false }]]), store);
     const key = [...store.m.keys()][0];
     const raw = JSON.parse(store.m.get(key)!);
     raw["4"] = { clicks: "nope", camera: { x: "a" } };
@@ -57,4 +57,14 @@ it("the roll switch is kept with the frame; frames saved before it had one hold 
   delete raw["9"].rollFree;
   store.m.set(key, JSON.stringify(raw));
   expect(readFire3D("v.mkv", store).get("9")?.rollFree).toBe(false);
+});
+
+it("the grid lock is kept with the frame; frames saved before it had one are unlocked", () => {
+  const store = memoryStorage();
+  writeFire3D("v.mkv", remember3D(new Map(), "9", { ...work, locked: true }), store);
+  expect(readFire3D("v.mkv", store).get("9")?.locked).toBe(true);
+  const key = [...store.m.keys()][0], raw = JSON.parse(store.m.get(key)!);
+  delete raw["9"].locked;
+  store.m.set(key, JSON.stringify(raw));
+  expect(readFire3D("v.mkv", store).get("9")?.locked).toBe(false);
 });

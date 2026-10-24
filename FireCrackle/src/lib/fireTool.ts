@@ -3,7 +3,7 @@
 // modes: a fire block, a burning block (the fire cell's planes on its burning neighbours' faces) or fire on an entity.
 // Soul fire is the soul atlas, not a mode. Every camera, pixel and fire corner comes from Rust through lib/reversal.ts.
 import {
-  defaultFace, entityFireQuads, entitySize, fireBlockQuads, initReversal, orientation, pixelRay, project, solveCamera, solveGuided,
+  defaultFace, entityFireQuads, entitySize, fireBlockQuads, hitPlaneY, initReversal, orientation, pixelRay, project, solveCamera, solveGuided,
   type CameraFit, type CameraPose, type FireFaces, type FireQuad, type Orientation,
 } from "./reversal";
 import { manualTexels, validQuad, type ManualQuad, type QuadPoint } from "./quadMask";
@@ -67,6 +67,9 @@ export interface ToolState {
   candidates: CameraFit[];
   /** Let the solve tilt the camera (a hurt frame); by default roll is held at 0, so a wrong assumption misses. */
   rollFree: boolean;
+  /** Lock grid: the camera is not solved again while corners are added, typed or moved (a corner typed half-way would
+   * move the grid); unlocking solves from all of them. */
+  locked: boolean;
 }
 
 let nextId = 1;
@@ -76,11 +79,11 @@ export const NO_BURN: BurnFaces = { north: false, east: false, south: false, wes
 export const DEFAULT_ENTITY = "minecraft:blaze";
 
 export function emptyTool(frame: number): ToolState {
-  return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [], rollFree: false };
+  return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [], rollFree: false, locked: false };
 }
 
-/** What is kept of a frame's work (fire3dMemory): the corners, the fire, the eye height and the camera. */
-export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera" | "rollFree">;
+/** What is kept of a frame's work (fire3dMemory): the corners, the fire, the eye height, the camera and its lock. */
+export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera" | "rollFree" | "locked">;
 
 /** The state for a newly shown picture: its own saved work when there is some; otherwise the last fire and camera to
  * line up from, without the last picture's corners. The same picture again only takes the new guess. */
@@ -152,6 +155,7 @@ export function plausibleCamera(cam: CameraPose, near: Vec3[]): boolean {
 }
 
 export function solveTool(s: ToolState, w: number, h: number): ToolState {
+  if (s.locked) return s;
   const clicks = usableClicks(s);
   let candidates: CameraFit[] = [];
   if (s.guess) {
@@ -189,9 +193,16 @@ export function cameraQuality(s: ToolState): { rough: boolean; need: number } {
   const need = Math.max(0, SURE_CORNERS - usableClicks(s).length);
   return { rough: need > 0, need };
 }
+/** The point on the grid's floor (height `y`) under native pixel `px`, in the corners' coordinates: null above the
+ * horizon or without a floor height. For reading a corner's position off the picture instead of counting blocks. */
+export function cursorGround(cam: CameraPose, w: number, h: number, px: [number, number], y: number | null): { x: number; z: number } | null {
+  if (y === null) return null;
+  const at = hitPlaneY(cam, w, h, px[0], px[1], y);
+  return at ? { x: at[0], z: at[2] } : null;
+}
 /** What the camera is solved from: a change here solves again (moving the fire does not). */
 export function solveKey(s: ToolState): string {
-  return JSON.stringify([usableClicks(s), s.eyeY, s.guess, s.rollFree]);
+  return JSON.stringify([usableClicks(s), s.eyeY, s.guess, s.rollFree, s.locked]);
 }
 
 const floorCell = (p: Vec3): Vec3 => [Math.floor(p[0]), Math.floor(p[1]), Math.floor(p[2])];

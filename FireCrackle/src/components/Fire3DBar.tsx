@@ -61,7 +61,9 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
  const n=corners.length;
  // a camera kept with the frame (or carried from the last one) is not solved again: say how well it fits these corners
  const kept=()=>{const fit=cam&&fire.size?cornerFit(cam,state.clicks,fire.size.width,fire.size.height):null;return fit===null?'Camera kept from before':`Saved camera · corners fit to ${fmt(fit,2)} px`;};
- const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam?(best?(q.rough?`Rough camera: ${n} corner${n===1?'':'s'} fit many cameras`:`Camera solved · corners fit to ${fmt(best.rms,2)} px`):kept())+(next?` · ${next}`:'')
+ // locked, the corners do not move the camera: say how well they fit it
+ const locked=()=>{const fit=cam&&fire.size?cornerFit(cam,state.clicks,fire.size.width,fire.size.height):null;return fit===null?'Grid locked':`Grid locked · corners fit to ${fmt(fit,2)} px`;};
+ const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam&&state.locked?locked()+(next?` · ${next}`:''):cam?(best?(q.rough?`Rough camera: ${n} corner${n===1?'':'s'} fit many cameras`:`Camera solved · corners fit to ${fmt(best.rms,2)} px`):kept())+(next?` · ${next}`:'')
   :g?`Guess: pitch ${fmt(g.pitch)}° · FOV ${g.fovKnown?fmt(g.fov)+'°':'unknown'}${g.ambiguous?' (unsure)':''}${next?` · ${next}`:''}`
   :`No automatic guess for this picture${next?`: ${next}`:''}`;
  const editFire=(next:(x:NonNullable<typeof f>)=>NonNullable<typeof f>)=>update(s=>s.fire?{...s,fire:next(s.fire)}:s);
@@ -84,6 +86,7 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
     <button aria-label="Remove this corner" onClick={()=>{update(s=>removeClick(s,sel.id));setSelected(null);}}>Remove</button>
    </span>}
    <label title="The block grid on the picture"><input type="checkbox" aria-label="Grid" checked={fire.showGrid} onChange={e=>fire.setShowGrid(e.target.checked)}/> Grid</label>
+   <label title="Hold the camera (and the grid) while you add, type or move corners, so a corner typed half-way doesn't move it. Unlock to solve again from all the corners"><input type="checkbox" aria-label="Lock grid" checked={state.locked} disabled={!cam} onChange={e=>update(s=>({...s,locked:e.target.checked}))}/> Lock grid</label>
    <label title="The fire's block (or hitbox) outline on the picture"><input type="checkbox" aria-label="Box" checked={fire.showBox} onChange={e=>fire.setShowBox(e.target.checked)}/> Box</label>
    <label title="The player stands on the block under the eye: the eye is 1.62 above the floor at this height"><input type="checkbox" checked={state.eyeY!==null} onChange={e=>update(s=>({...s,eyeY:e.target.checked?(corners[0]?.world[1]??0)+1.62:null}))}/> On ground</label>
    {state.eyeY!==null&&<span title="The floor the player stands on (the block top under their feet), in the corners' coordinates: the eye is 1.62 above it. Not corner 1's floor when the player looks down onto a lower one"><Num label="floor y" value={state.eyeY-1.62} onChange={v=>update(s=>({...s,eyeY:v+1.62}))}/></span>}
