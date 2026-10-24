@@ -6,7 +6,9 @@ import wasmUrl from "./reversal.wasm?url";
 export interface CameraPose { x: number; y: number; z: number; yaw: number; pitch: number; roll: number; fov: number; }
 /** The automatic guess from a frame. Yaw is known only modulo 90°. */
 export interface Orientation { yaw: number; pitch: number; roll: number; fov: number; fovKnown: boolean; ambiguous: boolean; margin: number; support: number; }
-export interface Guess { yaw: number; pitch: number; roll: number; fov: number; yawMod90: boolean; fovKnown: boolean; }
+export interface Guess { yaw: number; pitch: number; roll: number; fov: number; yawMod90: boolean; fovKnown: boolean;
+  /** Roll held at exactly 0 (Minecraft tilts the view only for a moment when hurt); `roll` is then ignored. */
+  rollFixed?: boolean; }
 /** A clicked block corner: its world point and where it is on the frame (pixels). */
 export interface Click { world: [number, number, number]; px: [number, number]; }
 export interface CameraFit { camera: CameraPose; rms: number; fovFixed: boolean; }
@@ -80,9 +82,9 @@ export function orientation(rgba: Uint8ClampedArray | Uint8Array, w: number, h: 
 /** Camera from the guess plus clicked corners (2, or 1 with the eye height); answers best first. */
 export function solveGuided(clicks: Click[], w: number, h: number, guess: Guess, eyeY?: number): CameraFit[] {
   const cap = 8, pts = clickArray(clicks);
-  return withBuffers([Math.max(pts.length, 1) * 8, 48, cap * 9 * 8], (n, [p, g, out]) => {
+  return withBuffers([Math.max(pts.length, 1) * 8, 56, cap * 9 * 8], (n, [p, g, out]) => {
     f64In(n, p, pts);
-    f64In(n, g, [guess.yaw, guess.pitch, guess.roll, guess.fov, guess.yawMod90 ? 1 : 0, guess.fovKnown ? 1 : 0]);
+    f64In(n, g, [guess.yaw, guess.pitch, guess.roll, guess.fov, guess.yawMod90 ? 1 : 0, guess.fovKnown ? 1 : 0, guess.rollFixed ? 1 : 0]);
     const k = n.rev_solve_guided(p, clicks.length, w, h, g, eyeY ?? NaN, out, cap);
     return Array.from({ length: Math.max(k, 0) }, (_, i) => fitFrom(f64Out(n, out + i * 72, 9)));
   });

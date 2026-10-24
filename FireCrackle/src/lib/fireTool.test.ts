@@ -42,17 +42,18 @@ describe("solve", () => {
     s.clicks.forEach((c, i) => { s = setClickWorld(s, c.id, pts[i]); });
     return s;
   };
+  // this camera is rolled 0.2 degrees: the solve recovers it exactly once roll is free (it is held at 0 by default)
   it("the guess plus two corners gives the camera", () => {
-    const s = solveTool(withClicks([[6, 64, -7], [9, 64, -5]]), W, H);
+    const s = solveTool({ ...withClicks([[6, 64, -7], [9, 64, -5]]), rollFree: true }, W, H);
     expect(s.camera).not.toBeNull();
     expect(Math.hypot(s.camera!.x - cam.x, s.camera!.y - cam.y, s.camera!.z - cam.z)).toBeLessThan(1e-2);
     expect(s.candidates.length).toBeGreaterThan(0);
   });
   it("without a guess it needs four corners", () => {
     const pts: [number, number, number][] = [[6, 64, -7], [9, 64, -5], [5, 66, -9], [4, 63, -6], [7, 65, -8], [8, 63, -7]];
-    const three = solveTool({ ...withClicks(pts.slice(0, 3)), guess: null }, W, H);
+    const three = solveTool({ ...withClicks(pts.slice(0, 3)), guess: null, rollFree: true }, W, H);
     expect(three.camera).toBeNull();
-    const six = solveTool({ ...withClicks(pts), guess: null }, W, H);
+    const six = solveTool({ ...withClicks(pts), guess: null, rollFree: true }, W, H);
     expect(Math.hypot(six.camera!.x - cam.x, six.camera!.y - cam.y, six.camera!.z - cam.z)).toBeLessThan(1e-2);
   });
   it("nothing to solve leaves the camera as it was", () => {
@@ -297,7 +298,7 @@ describe("a new picture", () => {
   let solved: ToolState;
   beforeEach(() => { solved = { ...emptyTool(0), camera: cam, fire: newFire(cam, [1, 64, 2]), clicks: [{ id: 1, px: [5, 6], world: [0, 64, 0] }], eyeY: 65.62 }; });
   it("a frame with its own saved work shows exactly that, with the new guess", () => {
-    const saved = { clicks: [{ id: 9, px: [1, 2] as [number, number], world: [3, 64, 4] as Vec3 }], fire: null, eyeY: null, camera: { ...cam, yaw: 10 } };
+    const saved = { clicks: [{ id: 9, px: [1, 2] as [number, number], world: [3, 64, 4] as Vec3 }], fire: null, eyeY: null, camera: { ...cam, yaw: 10 }, rollFree: false };
     const next = pictureState(solved, false, guess, saved);
     expect(next.camera).toEqual(saved.camera);
     expect(next.fire).toBeNull();
@@ -357,9 +358,52 @@ describe("impossible cameras", () => {
   });
   it("a frame saved with an impossible camera comes back without it, corners and fire kept", () => {
     const fireNear = newFire(cam, [0, 0, 0]);
-    const next = pictureState(emptyTool(0), false, guess, { clicks: userCorners, fire: fireNear, eyeY: 1.62, camera: absurd });
+    const next = pictureState(emptyTool(0), false, guess, { clicks: userCorners, fire: fireNear, eyeY: 1.62, camera: absurd, rollFree: false });
     expect(next.camera).toBeNull();
     expect(next.clicks.map(c => c.world)).toEqual(userCorners.map(c => c.world));
     expect(next.fire).toEqual(fireNear);
+  });
+});
+
+// ---- roll held at 0 by default, the floor the player stands on, and an honest word for a camera from few corners
+
+import { cameraQuality, solveKey } from "./fireTool";
+
+describe("roll, floor and how sure the camera is", () => {
+  const level: CameraPose = { x: 3, y: 68.62, z: 1, yaw: -150, pitch: 30, roll: 0, fov: 90 };
+  const tilted: CameraPose = { ...level, roll: 6 };
+  const worlds: Vec3[] = [[5, 64, -2], [6, 64, -3], [4, 65, -3], [7, 64, -1]];
+  const at = (c: CameraPose, ws: Vec3[]) => ws.map((world, i) => ({ id: i + 1, px: project(c, [world], W, H)[0]!, world }));
+  const g = (c: CameraPose) => ({ yaw: ((c.yaw % 90) + 90) % 90, pitch: c.pitch, roll: c.roll, fov: c.fov, fovKnown: true, ambiguous: false, margin: 0.3, support: 0.8 });
+  it("a new tool holds roll at 0, and its solve answers only level cameras", () => {
+    expect(emptyTool(0).rollFree).toBe(false);
+    const out = solveTool({ ...emptyTool(0), clicks: at(tilted, worlds), guess: g(tilted) }, W, H);
+    expect(out.candidates.length).toBeGreaterThan(0);
+    for (const c of out.candidates) expect(Math.abs(c.camera.roll)).toBeLessThan(1e-9);
+  });
+  it("Free roll lets the solve find a tilted (hurt) camera", () => {
+    const out = solveTool({ ...emptyTool(0), rollFree: true, clicks: at(tilted, worlds), guess: g(tilted) }, W, H);
+    expect(out.camera!.roll).toBeCloseTo(6, 2);
+  });
+  it("with no automatic guess, four corners still give a level camera while roll is held", () => {
+    const out = solveTool({ ...emptyTool(0), clicks: at(level, worlds) }, W, H);
+    expect(out.camera).not.toBeNull();
+    expect(Math.abs(out.camera!.roll)).toBeLessThan(1e-9);
+    expect(Math.hypot(out.camera!.x - level.x, out.camera!.y - level.y, out.camera!.z - level.z)).toBeLessThan(0.05);
+  });
+  it("a camera from fewer than 4 corners is rough, and says how many more are needed", () => {
+    const with_ = (n: number) => cameraQuality({ ...emptyTool(0), clicks: [...at(level, worlds.slice(0, n)), { id: 99, px: [1, 1], world: null }] });
+    expect(with_(1)).toEqual({ rough: true, need: 3 });
+    expect(with_(2)).toEqual({ rough: true, need: 2 });
+    expect(with_(3)).toEqual({ rough: true, need: 1 });
+    expect(with_(4)).toEqual({ rough: false, need: 0 });
+  });
+  it("changing the eye height, the roll switch, the corners or the guess solves again; moving the fire does not", () => {
+    const s: ToolState = { ...emptyTool(0), clicks: at(level, worlds.slice(0, 2)), eyeY: 65.62, guess: g(level) };
+    expect(solveKey({ ...s, eyeY: 66.62 })).not.toBe(solveKey(s));
+    expect(solveKey({ ...s, rollFree: true })).not.toBe(solveKey(s));
+    expect(solveKey({ ...s, clicks: at(level, worlds.slice(0, 3)) })).not.toBe(solveKey(s));
+    expect(solveKey({ ...s, guess: null })).not.toBe(solveKey(s));
+    expect(solveKey({ ...s, fire: newFire(level, [5, 64, -2]) })).toBe(solveKey(s));
   });
 });

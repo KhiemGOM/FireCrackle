@@ -47,7 +47,7 @@ export function readFire3D(video: string | undefined, storage?: Reader): Map<str
     for (const [frame, v] of Object.entries(saved as Record<string, Record<string, unknown>>)) {
       if (!/^\d+$/.test(frame) || !v || typeof v !== "object") continue;
       const clicks = toClicks(v.clicks), fire = toFire(v.fire), camera = toCamera(v.camera), eyeY = v.eyeY;
-      if (clicks && fire !== undefined && camera !== undefined && (eyeY === null || finite(eyeY))) memory.set(frame, { clicks, fire, eyeY, camera });
+      if (clicks && fire !== undefined && camera !== undefined && (eyeY === null || finite(eyeY))) memory.set(frame, { clicks, fire, eyeY, camera, rollFree: v.rollFree === true });
     }
   } catch { /* Missing or unavailable storage leaves an empty memory. */ }
   return memory;
@@ -58,7 +58,7 @@ export function writeFire3D(video: string | undefined, memory: Fire3DMemory, sto
   if (!video) return false;
   try {
     const flat: Record<string, unknown> = {};
-    for (const [frame, s] of memory) flat[frame] = { clicks: s.clicks.map(c => ({ px: c.px, world: c.world })), fire: s.fire, eyeY: s.eyeY, camera: s.camera };
+    for (const [frame, s] of memory) flat[frame] = { clicks: s.clicks.map(c => ({ px: c.px, world: c.world })), fire: s.fire, eyeY: s.eyeY, camera: s.camera, rollFree: s.rollFree };
     return writeJson(videoStorageKey(KIND, video), flat, storage);
   } catch { return false; }
 }
@@ -67,6 +67,6 @@ export function writeFire3D(video: string | undefined, memory: Fire3DMemory, sto
 export function remember3D(memory: Fire3DMemory, key: string, state: ToolState): Map<string, SavedTool> {
   const next = new Map(memory);
   if (!state.clicks.length && !state.fire) next.delete(key);
-  else next.set(key, { clicks: state.clicks, fire: state.fire, eyeY: state.eyeY, camera: state.camera });
+  else next.set(key, { clicks: state.clicks, fire: state.fire, eyeY: state.eyeY, camera: state.camera, rollFree: state.rollFree });
   return next;
 }

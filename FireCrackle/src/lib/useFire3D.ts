@@ -8,7 +8,7 @@ import { readFire3D, remember3D, writeFire3D, type SavedTool } from "./fire3dMem
 import { failureMessage } from "./appErrors";
 import { initReversal, reversalReady, type FireQuad } from "./reversal";
 import { pictureTask } from "./pictureWorker";
-import { emptyTool, fireQuads, latestOnly, newFire, pictureState, solveTool, usableClicks, type ToolState } from "./fireTool";
+import { emptyTool, fireQuads, latestOnly, newFire, pictureState, solveKey, solveTool, usableClicks, type ToolState } from "./fireTool";
 
 /** The guesses of the one 3D quad tool: only the newest picture's runs when frames are stepped quickly. */
 const guesses = latestOnly();
@@ -106,8 +106,7 @@ export function useFire3D(pictureKey: string, load: () => Promise<Blob>, active:
   });
   function solveEdit(s: ToolState, next: ToolState): ToolState {
     if (!ready || !w) return next;
-    const corners = (t: ToolState) => JSON.stringify([usableClicks(t), t.eyeY, !!t.guess]);
-    let solved = corners(next) !== corners(s) ? solveTool(next, w, h) : next;
+    let solved = solveKey(next) !== solveKey(s) ? solveTool(next, w, h) : next;
     // the first camera puts a fire block on the first corner's block, so there is something to line up at once
     if (solved.camera && !solved.fire) {
       const at = usableClicks(solved)[0]?.world;

@@ -189,3 +189,33 @@ describe("deleting a corner", () => {
     expect(cornerKey(key(), tool({ selected: null }))).toBe(false);
   });
 });
+
+describe("the camera row", () => {
+  const bar = (over: Partial<Fire3D> = {}, state: Partial<ToolState> = {}) => { hooks.si = hooks.ri = 0; const f = tool(over, state); return { f, out: Fire3DBar({ fire: f, sprite: null }) }; };
+  const status = (out: unknown) => text(all(out, e => String(e.props.className ?? "").startsWith("f3-status"))[0]);
+  const fit = { camera: cam, rms: 0.46, points: 2, fovFixed: false };
+  it("a camera from fewer than 4 corners is called rough and asks for the rest; 4 or more is solved", () => {
+    const two = bar({}, { candidates: [fit] });
+    expect(status(two.out)).toMatch(/^Rough camera/);
+    expect(status(two.out)).toMatch(/add 3 more corners/);
+    const four = bar({}, { candidates: [fit], clicks: [1, 2, 3, 4].map(i => ({ id: i, px: [100 * i, 300] as [number, number], world: [i, 64, 0] as [number, number, number] })) });
+    expect(status(four.out)).toMatch(/^Camera solved/);
+  });
+  it("On ground shows the floor the player stands on, editable; the eye is 1.62 above it", () => {
+    const { f, out } = bar({}, { eyeY: 66.62 });
+    const floor = all(out, e => e.type === "input" && e.props["aria-label"] === "floor y")[0];
+    expect(floor.props.defaultValue).toBe("65");
+    floor.props.onBlur({ target: { value: "67" } });
+    const change = (f.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as (s: ToolState) => ToolState;
+    expect(change(f.state).eyeY).toBeCloseTo(68.62, 9);
+    expect(all(bar({}, { eyeY: null }).out, e => e.props["aria-label"] === "floor y")).toEqual([]);
+  });
+  it("Free roll switches the roll hold off and on (held by default)", () => {
+    const { f, out } = bar();
+    const free = all(out, e => e.type === "input" && e.props["aria-label"] === "Free roll")[0];
+    expect(free.props.checked).toBe(false);
+    free.props.onChange({ target: { checked: true } });
+    const change = (f.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as (s: ToolState) => ToolState;
+    expect(change(f.state).rollFree).toBe(true);
+  });
+});

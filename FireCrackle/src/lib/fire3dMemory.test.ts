@@ -32,7 +32,7 @@ describe("fire3d memory", () => {
   });
   it("damaged entries are skipped, the rest still load", () => {
     const store = memoryStorage();
-    writeFire3D("v.mkv", new Map<string, SavedTool>([["3", { clicks: [], fire, eyeY: null, camera: cam }]]), store);
+    writeFire3D("v.mkv", new Map<string, SavedTool>([["3", { clicks: [], fire, eyeY: null, camera: cam, rollFree: false }]]), store);
     const key = [...store.m.keys()][0];
     const raw = JSON.parse(store.m.get(key)!);
     raw["4"] = { clicks: "nope", camera: { x: "a" } };
@@ -47,4 +47,14 @@ describe("fire3d memory", () => {
     expect(readFire3D("v.mkv", broken).size).toBe(0);
     expect(writeFire3D("v.mkv", remember3D(new Map(), "1", work), broken)).toBe(false);
   });
+});
+
+it("the roll switch is kept with the frame; frames saved before it had one hold roll", () => {
+  const store = memoryStorage();
+  writeFire3D("v.mkv", remember3D(new Map(), "9", { ...work, rollFree: true }), store);
+  expect(readFire3D("v.mkv", store).get("9")?.rollFree).toBe(true);
+  const key = [...store.m.keys()][0], raw = JSON.parse(store.m.get(key)!);
+  delete raw["9"].rollFree;
+  store.m.set(key, JSON.stringify(raw));
+  expect(readFire3D("v.mkv", store).get("9")?.rollFree).toBe(false);
 });

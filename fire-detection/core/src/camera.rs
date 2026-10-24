@@ -702,6 +702,9 @@ pub struct Guess {
     pub yaw_mod_90: bool,
     /// False when the FOV is a guess (it is then held only loosely).
     pub fov_known: bool,
+    /// Roll held at exactly 0 (Minecraft tilts the view only for a moment when hurt): `roll` is then ignored, and a
+    /// wrong assumption (e.g. the eye height) shows as a misfit instead of hiding in a tilted camera.
+    pub roll_fixed: bool,
 }
 
 /// How firmly the guess is held, in degrees per pixel of click error (the automatic guess is good to about 0.5°).
@@ -819,7 +822,7 @@ pub fn solve_guided(
             pos: [0.0; 3],
             yaw: guess.yaw + 90.0 * q as f64,
             pitch: guess.pitch,
-            roll: guess.roll,
+            roll: if guess.roll_fixed { 0.0 } else { guess.roll },
             fov: guess.fov,
         };
         let Some(start) = eye_from_points(points, w, h, &centre, eye_y) else {
@@ -834,8 +837,12 @@ pub fn solve_guided(
                 r.push((c.pos[1] - y) * 100.0);
             }
         };
-        let (c, cost) =
-            levenberg_marquardt_with(points, w, h, &start, &[0, 1, 2, 3, 4, 5, 6], 100, &prior);
+        let params: &[usize] = if guess.roll_fixed {
+            &[0, 1, 2, 3, 4, 6]
+        } else {
+            &[0, 1, 2, 3, 4, 5, 6]
+        };
+        let (c, cost) = levenberg_marquardt_with(points, w, h, &start, params, 100, &prior);
         if points.iter().any(|(p, _)| c.to_view(*p)[2] >= 0.0) {
             continue;
         }
@@ -858,7 +865,14 @@ pub fn solve_guided(
     // the clicks alone, when they could separate FOV from distance: first only if the guided answer misses the clicks
     // (the guess was wrong) and they fit better; a few noisy clicks fit a wild camera too well to be trusted otherwise
     if distinct.len() >= 4 {
-        if let Some(f) = solve(points, w, h).filter(|f| !f.fov_fixed) {
+        let alone = solve(points, w, h).filter(|f| !f.fov_fixed).and_then(|f| {
+            if guess.roll_fixed {
+                level(points, w, h, &f)
+            } else {
+                Some(f)
+            }
+        });
+        if let Some(f) = alone {
             let guided = fits.first().map_or(f64::INFINITY, |g| g.rms);
             if guided > GUESS_WRONG_PX && f.rms < guided {
                 fits.insert(0, f);
@@ -868,6 +882,34 @@ pub fn solve_guided(
         }
     }
     fits
+}
+
+/// `f` fitted again with roll held at 0 (everything else free); None when the points end up behind it.
+fn level(points: &[([f64; 3], [f64; 2])], w: usize, h: usize, f: &Fit) -> Option<Fit> {
+    let start = Camera {
+        roll: 0.0,
+        ..f.camera
+    };
+    let (c, _) = levenberg_marquardt_with(
+        points,
+        w,
+        h,
+        &start,
+        &[0, 1, 2, 3, 4, 6],
+        100,
+        &|_: &Camera, _: &mut Vec<f64>| {},
+    );
+    if points.iter().any(|(p, _)| c.to_view(*p)[2] >= 0.0) {
+        return None;
+    }
+    let mut r = Vec::new();
+    residuals(points, w, h, &c, &mut r);
+    let rms = (r.iter().map(|v| v * v).sum::<f64>() / points.len() as f64).sqrt();
+    Some(Fit {
+        camera: c.normalized(),
+        rms,
+        ..*f
+    })
 }
 
 /// Minecraft's player model scale (the renderer draws it at 15/16).

@@ -129,6 +129,7 @@ fn main() {
                     fov: cam.fov,
                     yaw_mod_90: false,
                     fov_known: true,
+                    roll_fixed: false,
                 };
                 if let Some(f) = solve_guided(&points, w, h, &guess, None).first() {
                     best = best.min(f.rms);

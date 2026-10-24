@@ -28,6 +28,7 @@ fn guess(c: &Camera, err: f64) -> Guess {
         fov: c.fov + err * 2.0,
         yaw_mod_90: true,
         fov_known: true,
+        roll_fixed: false,
     }
 }
 
@@ -177,4 +178,94 @@ fn every_answer_has_the_clicked_points_in_front() {
             assert!(f.camera.to_view(p)[2] < 0.0, "{f:?}");
         }
     }
+}
+
+// ---- roll held at 0 (Minecraft tilts the view only for a moment when hurt): a wrong assumption must show as a misfit,
+// not hide in a tilted camera
+
+/// A level camera (roll 0) looking down 30 degrees from 3 blocks above the floor the corners are on.
+fn level() -> Camera {
+    Camera {
+        pos: [3.0, 64.0 + 4.62, 1.0],
+        yaw: -150.0,
+        pitch: 30.0,
+        roll: 0.0,
+        fov: 90.0,
+    }
+}
+const P: [f64; 3] = [5.0, 64.0, -2.0];
+const Q: [f64; 3] = [6.0, 64.0, -3.0];
+
+#[test]
+fn with_roll_held_every_answer_is_level_and_a_level_camera_is_found_exactly() {
+    let t = level();
+    let held = Guess {
+        roll_fixed: true,
+        roll: 4.0,
+        ..guess(&t, 0.0)
+    };
+    let fits = solve_guided(&clicks(&t, &[P, Q, FIRE], 0.0), W, H, &held, None);
+    assert!(!fits.is_empty());
+    for f in &fits {
+        assert!(f.camera.roll.abs() < 1e-9, "roll {f:?}");
+    }
+    let f = &fits[0];
+    assert!(dist(f.camera.pos, t.pos) < 1e-3, "{f:?}");
+    assert!(f.rms < 1e-3, "{f:?}");
+}
+
+#[test]
+fn with_roll_held_three_corners_expose_a_wrong_eye_height_that_roll_free_hides() {
+    // "On ground" on the corners' floor, but the player stands 3 blocks higher. Two corners can never tell (4 equations,
+    // 5 unknowns even with eye height and roll fixed: the tool calls such a camera rough). With three, a level camera
+    // cannot fit the wrong height and misses the corners; with roll free a tilted camera absorbs it.
+    let t = level();
+    let pts = clicks(&t, &[P, Q, R], 0.0);
+    let wrong_eye = Some(64.0 + 1.62);
+    let free = solve_guided(&pts, W, H, &guess(&t, 0.0), wrong_eye);
+    let held = solve_guided(
+        &pts,
+        W,
+        H,
+        &Guess {
+            roll_fixed: true,
+            ..guess(&t, 0.0)
+        },
+        wrong_eye,
+    );
+    assert!(held[0].camera.roll.abs() < 1e-9);
+    assert!(held[0].rms > 3.0, "held: {:?}", held[0]);
+    assert!(
+        held[0].rms > 2.0 * free[0].rms,
+        "free: {:?} held: {:?}",
+        free[0],
+        held[0]
+    );
+    // and with the right eye height, held fits exactly
+    let right = solve_guided(
+        &pts,
+        W,
+        H,
+        &Guess {
+            roll_fixed: true,
+            ..guess(&t, 0.0)
+        },
+        Some(t.pos[1]),
+    );
+    assert!(right[0].rms < 1e-3, "{:?}", right[0]);
+}
+const R: [f64; 3] = [4.0, 65.0, -3.0];
+
+#[test]
+fn with_roll_held_the_clicks_alone_answer_is_level_too() {
+    // four or more corners also offer the clicks-alone camera; held, it is fitted again with roll 0
+    let t = level();
+    let wrong = Guess {
+        pitch: t.pitch - 90.0,
+        roll_fixed: true,
+        ..guess(&t, 0.0)
+    };
+    let fits = solve_guided(&clicks(&t, &[A, B, C, D, P, Q], 0.0), W, H, &wrong, None);
+    assert!(fits.iter().all(|f| f.camera.roll.abs() < 1e-9), "{fits:?}");
+    assert!(fits.iter().any(|f| f.rms < 1e-2), "{fits:?}");
 }

@@ -236,6 +236,7 @@ fn main() {
             fov: o.fov,
             yaw_mod_90: true,
             fov_known: o.fov_known,
+            roll_fixed: false,
         };
         let clicks = simulated_clicks(&blocks, &c, lw, lh);
         let err = |f: Option<&fire_core::camera::Fit>| {

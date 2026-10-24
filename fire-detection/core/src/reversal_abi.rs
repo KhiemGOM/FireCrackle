@@ -138,10 +138,10 @@ pub unsafe extern "C" fn rev_orientation(
 }
 
 /// Guided camera solve from `n` clicks (x, y, z, pixel x, pixel y each) and `guess` (yaw, pitch, roll, fov,
-/// yaw_mod_90, fov_known); `eye_y` NaN for none. Writes up to `cap` answers best first, returns how many.
+/// yaw_mod_90, fov_known, roll_fixed); `eye_y` NaN for none. Writes up to `cap` answers best first, returns how many.
 ///
 /// # Safety
-/// `pts` holds `n * 5` f64, `guess` 6, `out` `cap * 9`.
+/// `pts` holds `n * 5` f64, `guess` 7, `out` `cap * 9`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)] // flat C ABI
 pub unsafe extern "C" fn rev_solve_guided(
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn rev_solve_guided(
     if guess.is_null() {
         return -1;
     }
-    let g = f64s(guess, 6);
+    let g = f64s(guess, 7);
     let guess = Guess {
         yaw: g[0],
         pitch: g[1],
@@ -165,6 +165,7 @@ pub unsafe extern "C" fn rev_solve_guided(
         fov: g[3],
         yaw_mod_90: g[4] != 0.0,
         fov_known: g[5] != 0.0,
+        roll_fixed: g[6] != 0.0,
     };
     let eye = (!eye_y.is_nan()).then_some(eye_y);
     let fits = camera::solve_guided(&points(pts, n), w, h, &guess, eye);

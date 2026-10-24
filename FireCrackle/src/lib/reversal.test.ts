@@ -165,3 +165,13 @@ describe("pixel rays (the overview's pan)", () => {
     expect(Math.hypot(...ray)).toBeCloseTo(1, 12);
   });
 });
+
+describe("roll held at 0", () => {
+  it("rollFixed gives only level cameras; without it a rolled camera is found as before", () => {
+    const tilted: CameraPose = { ...cam, roll: 5 };
+    const clicks = corners.slice(0, 3).map(world => ({ world, px: project(tilted, [world], W, H)[0]! }));
+    const g = { yaw: ((tilted.yaw % 90) + 90) % 90, pitch: tilted.pitch, roll: 5, fov: tilted.fov, yawMod90: true, fovKnown: true };
+    for (const f of solveGuided(clicks, W, H, { ...g, rollFixed: true })) expect(Math.abs(f.camera.roll)).toBeLessThan(1e-9);
+    expect(solveGuided(clicks, W, H, g)[0].camera.roll).toBeCloseTo(5, 3);
+  });
+});

@@ -65,6 +65,8 @@ export interface ToolState {
   /** The camera the quads are drawn with: solved, picked from the candidates, or typed. */
   camera: CameraPose | null;
   candidates: CameraFit[];
+  /** Let the solve tilt the camera (a hurt frame); by default roll is held at 0, so a wrong assumption misses. */
+  rollFree: boolean;
 }
 
 let nextId = 1;
@@ -74,11 +76,11 @@ export const NO_BURN: BurnFaces = { north: false, east: false, south: false, wes
 export const DEFAULT_ENTITY = "minecraft:blaze";
 
 export function emptyTool(frame: number): ToolState {
-  return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [] };
+  return { frame, clicks: [], fire: null, guess: null, eyeY: null, camera: null, candidates: [], rollFree: false };
 }
 
 /** What is kept of a frame's work (fire3dMemory): the corners, the fire, the eye height and the camera. */
-export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera">;
+export type SavedTool = Pick<ToolState, "clicks" | "fire" | "eyeY" | "camera" | "rollFree">;
 
 /** The state for a newly shown picture: its own saved work when there is some; otherwise the last fire and camera to
  * line up from, without the last picture's corners. The same picture again only takes the new guess. */
@@ -154,15 +156,32 @@ export function solveTool(s: ToolState, w: number, h: number): ToolState {
   let candidates: CameraFit[] = [];
   if (s.guess) {
     const g = s.guess;
-    candidates = solveGuided(clicks, w, h, { yaw: g.yaw, pitch: g.pitch, roll: g.roll, fov: g.fov, yawMod90: true, fovKnown: g.fovKnown }, s.eyeY ?? undefined);
+    candidates = solveGuided(clicks, w, h, { yaw: g.yaw, pitch: g.pitch, roll: g.roll, fov: g.fov, yawMod90: true, fovKnown: g.fovKnown, rollFixed: !s.rollFree }, s.eyeY ?? undefined);
   }
   const worlds = clicks.map(c => c.world);
   candidates = candidates.filter(c => plausibleCamera(c.camera, worlds));
   if (candidates.length === 0 && clicks.length >= 4) {
-    const alone = solveCamera(clicks, w, h);
+    let alone = solveCamera(clicks, w, h);
+    // the clicks alone may tilt the camera: held, it is fitted again level from where they put it
+    if (alone && !s.rollFree) {
+      const a = alone.camera;
+      alone = solveGuided(clicks, w, h, { yaw: a.yaw, pitch: a.pitch, roll: 0, fov: a.fov, yawMod90: false, fovKnown: false, rollFixed: true }, s.eyeY ?? undefined)[0] ?? null;
+    }
     if (alone && plausibleCamera(alone.camera, worlds)) candidates = [alone];
   }
   return candidates.length ? { ...s, candidates, camera: candidates[0].camera } : { ...s, candidates };
+}
+
+/** Corners a camera needs to be pinned down (each gives 2 numbers; a camera has 7): fewer, and many cameras fit them,
+ * so the one shown leans on the automatic guess and the eye height. */
+const SURE_CORNERS = 4;
+export function cameraQuality(s: ToolState): { rough: boolean; need: number } {
+  const need = Math.max(0, SURE_CORNERS - usableClicks(s).length);
+  return { rough: need > 0, need };
+}
+/** What the camera is solved from: a change here solves again (moving the fire does not). */
+export function solveKey(s: ToolState): string {
+  return JSON.stringify([usableClicks(s), s.eyeY, s.guess, s.rollFree]);
 }
 
 const floorCell = (p: Vec3): Vec3 => [Math.floor(p[0]), Math.floor(p[1]), Math.floor(p[2])];

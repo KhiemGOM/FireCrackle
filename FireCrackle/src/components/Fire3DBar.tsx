@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useRef,type ReactNode} from 'react';
 import {entitySizes,type CameraPose} from '../lib/reversal';
-import {removeClick,setClickWorld,setEntity,setMode,toggleBurnFace,usableClicks,type BurnFace,type FireMode,type Vec3} from '../lib/fireTool';
+import {cameraQuality,removeClick,setClickWorld,setEntity,setMode,toggleBurnFace,usableClicks,type BurnFace,type FireMode,type Vec3} from '../lib/fireTool';
 import type {Fire3D} from '../lib/useFire3D';
 import './Fire3DBar.css';
 
@@ -45,9 +45,11 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
  useEffect(()=>{if(state.clicks.length>count.current)setSelected(state.clicks[state.clicks.length-1].id);count.current=state.clicks.length;},[state.clicks.length]); // eslint-disable-line react-hooks/exhaustive-deps
  const sel=state.clicks.find(c=>c.id===selected);
  const best=state.candidates.find(c=>c.camera===cam);
- const pending=state.clicks.findIndex(c=>!c.world),need=(g?2:4)-corners.length;
- const next=pending>=0?`type corner ${pending+1}'s position`:need>0?`click ${need} more block corner${need===1?'':'s'}`:'';
- const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam?(best?`Camera solved · corners fit to ${fmt(best.rms,2)} px`:'Camera kept from before')+(next?` · ${next}`:'')
+ // fewer than 4 corners fit many cameras: the one shown leans on the guess and the eye height, so it is called rough
+ const pending=state.clicks.findIndex(c=>!c.world),q=cameraQuality(state),need=q.need;
+ const next=pending>=0?`type corner ${pending+1}'s position`:need>0?`add ${need} more corner${need===1?'':'s'}`:'';
+ const n=corners.length;
+ const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam?(best?(q.rough?`Rough camera: ${n} corner${n===1?'':'s'} fit many cameras`:`Camera solved · corners fit to ${fmt(best.rms,2)} px`):'Camera kept from before')+(next?` · ${next}`:'')
   :g?`Guess: pitch ${fmt(g.pitch)}° · FOV ${g.fovKnown?fmt(g.fov)+'°':'unknown'}${g.ambiguous?' (unsure)':''}${next?` · ${next}`:''}`
   :`No automatic guess for this picture${next?`: ${next}`:''}`;
  const editFire=(next:(x:NonNullable<typeof f>)=>NonNullable<typeof f>)=>update(s=>s.fire?{...s,fire:next(s.fire)}:s);
@@ -69,6 +71,8 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
    <label title="The block grid on the picture"><input type="checkbox" aria-label="Grid" checked={fire.showGrid} onChange={e=>fire.setShowGrid(e.target.checked)}/> Grid</label>
    <label title="The fire's block (or hitbox) outline on the picture"><input type="checkbox" aria-label="Box" checked={fire.showBox} onChange={e=>fire.setShowBox(e.target.checked)}/> Box</label>
    <label title="The player stands on the block under the eye: the eye is 1.62 above the floor at this height"><input type="checkbox" checked={state.eyeY!==null} onChange={e=>update(s=>({...s,eyeY:e.target.checked?(corners[0]?.world[1]??0)+1.62:null}))}/> On ground</label>
+   {state.eyeY!==null&&<span title="The floor the player stands on (the block top under their feet), in the corners' coordinates: the eye is 1.62 above it. Not corner 1's floor when the player looks down onto a lower one"><Num label="floor y" value={state.eyeY-1.62} onChange={v=>update(s=>({...s,eyeY:v+1.62}))}/></span>}
+   <label title="Minecraft tilts the view only for a moment when the player is hurt: roll is held at 0 so a wrong assumption (corners, eye height) shows as a misfit. Tick for a hurt frame"><input type="checkbox" aria-label="Free roll" checked={state.rollFree} onChange={e=>update(s=>({...s,rollFree:e.target.checked}))}/> Free roll</label>
    {state.candidates.length>1&&<select aria-label="Camera answer" title="Other cameras that fit the corners (a quarter turn apart)" value={state.candidates.findIndex(c=>c.camera===cam)} onChange={e=>update(s=>({...s,camera:s.candidates[Number(e.target.value)].camera}))}>
     {state.candidates.map((c,i)=><option key={i} value={i}>answer {i+1} · {fmt(c.rms,2)} px</option>)}
    </select>}
