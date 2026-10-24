@@ -22,6 +22,7 @@ import { compressionGeometry } from "../lib/compressionPreview";
 import { readMaskState, writeMaskState, type MaskState } from "../lib/maskState";
 import { parallelizeQuad } from "../lib/quadTransform";
 import { QuadMatchControls } from "./QuadMatchControls";
+import { useAnchoredView } from "../hooks/useAnchoredView";
 import {refineFireQuads} from "../lib/quadRefine";
 import { VideoRuler } from "./VideoRuler";
 import { DEFAULT_RULER, readRuler, rulerUnit, scaleRulerUnit, writeRuler, type RulerState } from "../lib/ruler";
@@ -591,6 +592,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   useEffect(() => {
     if (fire3dOn && !manualEnabled && !hudEnabled) onPreviewChange?.({ ...(manualAtlas ? { atlas: manualAtlas } : {}), sheet: manualSheet, row: manualRow, mirrored: manualMirrored });
   }, [fire3dOn, manualEnabled, hudEnabled, manualSheet, manualAtlas, manualRow, manualMirrored, onPreviewChange]);
+  // the picture stays on the same screen pixels when the video area changes size (the 3D overview, the window)
+  useAnchoredView(frameRef, imageSize, setXf);
   const s = view.suggestion;
   // the sprite: shared by the quad mask and the 3D quad
   const spriteControls = <>

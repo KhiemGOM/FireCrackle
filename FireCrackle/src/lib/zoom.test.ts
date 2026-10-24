@@ -195,3 +195,43 @@ describe("persisting panel zooms", () => {
     expect(z.flags).toBe(DEFAULT_ZOOMS.flags);
   });
 });
+
+// ---- the picture stays where it is on screen when the video area changes size (the 3D overview opening, closing,
+// being dragged or collapsed, or the window resizing): it was re-fitted and re-centred, so it jumped
+
+import { anchorView } from "./zoom";
+
+describe("anchorView", () => {
+  const image = { w: 2560, h: 1440 };
+  /** Screen point (relative to the video area's top-left) of native pixel (u, v) under view `v` in a `box`-sized area. */
+  function screen(v: { scale: number; x: number; y: number; angle?: number }, box: { w: number; h: number }, u: number, w: number) {
+    const fit = Math.min(box.w / image.w, box.h / image.h);
+    const px = (box.w - image.w * fit) / 2 + u * fit, py = (box.h - image.h * fit) / 2 + w * fit;
+    const a = ((v.angle ?? 0) * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+    return [v.x + v.scale * (c * px - s * py), v.y + v.scale * (s * px + c * py)];
+  }
+  const points: [number, number][] = [[0, 0], [2560, 1440], [1280, 300], [100, 1400]];
+  const cases = [
+    { from: { w: 1600, h: 600 }, to: { w: 1100, h: 600 }, view: { scale: 2.4, x: -300, y: -120 } },
+    { from: { w: 1100, h: 600 }, to: { w: 1600, h: 600 }, view: { scale: 1, x: 0, y: 0 } },
+    { from: { w: 1600, h: 600 }, to: { w: 900, h: 700 }, view: { scale: 5.2, x: -2400, y: -900, angle: 12 } },
+  ];
+  it("every picture pixel stays on the same screen point when the area is narrowed, widened or resized", () => {
+    for (const { from, to, view } of cases) {
+      const next = anchorView(view, from, to, image);
+      for (const [u, w] of points) {
+        const [a, b] = screen(view, from, u, w), [c, d] = screen(next, to, u, w);
+        expect(c).toBeCloseTo(a, 6);
+        expect(d).toBeCloseTo(b, 6);
+      }
+      expect(next.angle ?? 0).toBe(view.angle ?? 0);
+    }
+  });
+  it("the same size, an empty area or an unknown picture changes nothing", () => {
+    const v = { scale: 2, x: 10, y: 20 };
+    expect(anchorView(v, { w: 800, h: 400 }, { w: 800, h: 400 }, image)).toEqual(v);
+    expect(anchorView(v, { w: 0, h: 400 }, { w: 800, h: 400 }, image)).toEqual(v);
+    expect(anchorView(v, { w: 800, h: 400 }, { w: 0, h: 0 }, image)).toEqual(v);
+    expect(anchorView(v, { w: 800, h: 400 }, { w: 600, h: 400 }, { w: 0, h: 0 })).toEqual(v);
+  });
+});

@@ -111,3 +111,22 @@ export function parseZooms(raw: string | null): PanelZooms {
 export function serializeZooms(z: PanelZooms): string {
   return JSON.stringify(z);
 }
+
+/**
+ * The view that keeps the picture where it is on screen when the video area changes from `from` to `to` (the area's
+ * top-left stays put). The picture is fitted ("contain") and centred in the area, so a new size re-fits and re-centres
+ * it: the zoom takes back the change of fit and the offset the change of centring, through any rotation. A zero-sized
+ * area or an unknown picture leaves the view as it is.
+ */
+export function anchorView(v: ViewXform, from: Box, to: Box, image: Box): ViewXform {
+  if (![from.w, from.h, to.w, to.h, image.w, image.h].every(n => Number.isFinite(n) && n > 0)) return v;
+  if (from.w === to.w && from.h === to.h) return v;
+  const place = (box: Box) => {
+    const fit = Math.min(box.w / image.w, box.h / image.h);
+    return { fit, left: (box.w - image.w * fit) / 2, top: (box.h - image.h * fit) / 2 };
+  };
+  const a = place(from), b = place(to), scale = v.scale * a.fit / b.fit;
+  const angle = ((v.angle ?? 0) * Math.PI) / 180, c = Math.cos(angle), s = Math.sin(angle);
+  const dx = v.scale * a.left - scale * b.left, dy = v.scale * a.top - scale * b.top;
+  return { ...v, scale, x: v.x + c * dx - s * dy, y: v.y + s * dx + c * dy };
+}
