@@ -518,3 +518,34 @@ fn the_simulated_player_stands_under_the_camera_and_looks_where_it_looks() {
         );
     }
 }
+
+// ---- the 3D plane each logged quad was drawn from (for rendering the logged fire through another camera)
+
+#[test]
+fn each_logged_quad_gets_its_model_planes_world_corners_in_its_own_corner_order() {
+    use fire_core::camera::logged_quad_worlds;
+    let cam = truth();
+    let mut seed = 7;
+    let block = logged(&cam, [-80, 79, 131], 0.0, &mut seed);
+    let worlds = logged_quad_worlds(std::slice::from_ref(&block), &cam, 2560, 1440);
+    assert_eq!(worlds.len(), 1);
+    assert_eq!(worlds[0].len(), block.quads.len());
+    let model = block_candidates([-80, 79, 131]);
+    for (k, (q, world)) in block.quads.iter().zip(&worlds[0]).enumerate() {
+        let world = world.expect("a plane for every logged quad");
+        // the logged corner order is the model's rotated by one (see `logged`)
+        let want = [
+            model[k].corners[1],
+            model[k].corners[2],
+            model[k].corners[3],
+            model[k].corners[0],
+        ];
+        for i in 0..4 {
+            for a in 0..3 {
+                assert!(close(world[i][a], want[i][a], 1e-9), "quad {k} corner {i}");
+            }
+            let (x, y) = cam.project(world[i], 2560, 1440).unwrap();
+            assert!(close(x, q.corners[i][0], 1e-6) && close(y, q.corners[i][1], 1e-6));
+        }
+    }
+}

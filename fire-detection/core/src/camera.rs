@@ -446,6 +446,27 @@ fn best_candidate(
     best
 }
 
+/// The world corners of each block's logged quads, in each quad's logged corner order: the model plane that
+/// `fit_label_frame` pairs it with under `c` (None for a quad no plane fits). For drawing the logged fire again
+/// through another camera (`fire_match3d`).
+pub fn logged_quad_worlds(
+    blocks: &[LoggedBlock],
+    c: &Camera,
+    w: usize,
+    h: usize,
+) -> Vec<Vec<Option<[[f64; 3]; 4]>>> {
+    blocks
+        .iter()
+        .map(|b| {
+            let cs = block_candidates(b.pos);
+            b.quads
+                .iter()
+                .map(|q| best_candidate(q, &cs, c, w, h).map(|(_, world)| world))
+                .collect()
+        })
+        .collect()
+}
+
 /// For every logged quad, its best candidate's corners paired with the logged pixels.
 fn assign(
     blocks: &[LoggedBlock],

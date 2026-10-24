@@ -117,3 +117,8 @@ fn short_reads_from_a_pipe_are_stitched_together() {
     assert!(read_frame(&mut r, &mut buf).unwrap());
     assert_eq!(buf[0], 10);
 }
+
+#[test]
+fn spawning_rgb_frames_of_a_missing_video_is_an_error() {
+    assert!(fire_core::video::spawn_rgb24("no/such/video.mkv").is_err());
+}

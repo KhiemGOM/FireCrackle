@@ -341,3 +341,54 @@ confident, and five exact corners on one plane could not overcome a 0.5° hold.
   but a 12 px rather than 18 px p90 (survival1).
 - A version that let 4+ corners override the guess almost entirely was worse (4-click quad1 median 2.3 px, p90 155 px)
   and was dropped.
+
+## 3D quad matching: can the camera tell the fire's animation phase? (feasibility, 2026-10-24)
+
+**Question.** With the camera known (perfectly, or with a solve's error), can drawing the fire in 3D and comparing it with
+the video tell which animation frame it shows? Run: `cargo run --release --bin fire_match3d VIDEO JOINED.jsonl
+--every 3` (`fire-detection/core/src/bin/fire_match3d.rs`).
+
+**What there is to find.** Fire blocks animate in step: every fire on screen shows the same global texture frame, and
+sheet 1 is always 16 frames on from sheet 0 (all 4,640 quad1 frames with fire). So a frame has **one unknown of 32**,
+shared by all its fires. Each fire's model variant (which sheet its planes use) is a second, per-fire unknown.
+
+**Method.** quad1 only: the clip logs have no per-plane quads, so no camera answer key. Answer key = `fit_label_frame`
+where it reproduces every logged corner to ≤ 0.06 px. Each logged plane gets its 3D corners
+(`camera::logged_quad_worlds`). Every fire in the frame is drawn the way the game draws fire: cut-out texels with a depth
+buffer, per pixel the nearest opaque texel along `Camera::pixel_ray`. Each candidate phase is compared with the video,
+over the pixels any phase covers (where a phase draws nothing, the local background), as 1 − the correlation of
+brightness: the nether fog blends fire towards its colour (a·colour + b), which correlation ignores. Fires at least 40 px
+tall, fully visible, not veiled; scored per fire and per frame (fires summed). Camera error: Gaussian on yaw / pitch / roll,
+position and FOV.
+
+**Results** (173 frames, 229 fires; sheet searched per fire; chance: exact 3.1 %, ±1 9.4 %, top 3 9.4 %):
+
+| Camera error (angle, position, FOV) | Corner error p50 | 3D: exact / ±1 / top 3 | One flat plane: exact / ±1 / top 3 |
+|---|---|---|---|
+| perfect | 0.03 px | **48.6 / 55.5 / 65.9 %** | 24.3 / 34.7 / 39.9 % |
+| 0.1°, 0.01 block, 0.2° | 2.6 px | 37.6 / 49.1 / 56.6 % | 19.7 / 30.1 / 33.5 % |
+| 0.25°, 0.02 block, 0.5° | 5.4 px | 23.7 / 39.3 / 42.2 % | 13.3 / 29.5 / 28.9 % |
+| 0.5°, 0.05 block, 1° | 12.2 px | 11.0 / 24.9 / 24.9 % | 7.5 / 23.7 / 24.9 % |
+| 1°, 0.1 block, 2° | 24.0 px | 11.0 / 16.2 / 19.1 % | 6.9 / 11.6 / 16.8 % |
+
+"One flat plane" draws each fire as only its biggest plane on screen: roughly what a single 2D quad can model
+(`--one-plane`). Knowing each fire's variant from the log (instead of searching it) scores a little lower (43.9 % exact
+with the perfect camera); the searched sheet's extra freedom also absorbs some unmodelled effects.
+
+**Findings.**
+- **There is real signal**: with a good camera the right phase of 32 wins half the time, 16× chance, and drawing all the
+  planes in 3D doubles what one flat quad gets.
+- **It needs a camera good to about 2–3 px at the fire.** At 2.6 px it keeps most of its accuracy; at 5 px it halves; from
+  12 px on, 3D is no better than a flat quad. Our guided solve with 4 spread corners is 1.2–1.8 px median, so the useful
+  range is reachable with careful corners, not with a rough camera.
+- Big fires (160 px and up) degrade slowest: 34 % exact still at 5 px.
+- It is not a standalone labeller. About half of frames get the exact phase. Useful as a ranked suggestion (top 3: 66 %),
+  or pooled with the time-based phase guess, which knows the phase advances one frame per tick.
+
+**Caveats.**
+- One recording, in the nether (fog, smoke particles, netherrack behind).
+- The scorer is deliberately simple (brightness correlation, median background); blurring 1–3 px did not help.
+- **Data convention, unresolved:** a plane the label log marks sheet `s` shows the *other* texture file
+  (`fire_{1−s}.rgba`) at that file's frame. Flipping only the texture or only the 16-frame offset is worse than chance;
+  both together is 55 % exact. Either the log's sheet field or the texture files' names count the other way round. This
+  must be settled before any tool relies on the log's sheet numbers.

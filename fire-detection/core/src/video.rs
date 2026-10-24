@@ -301,6 +301,32 @@ pub fn parse_probe(text: &str) -> Result<VideoInfo, String> {
     })
 }
 
+/// The video's size and an ffmpeg decoding it to raw RGB24 frames on stdout, every frame (`PASSTHROUGH_ARGS`), for
+/// the evaluation tools to read with `read_frame`.
+pub fn spawn_rgb24(video: &str) -> Result<(VideoInfo, std::process::Child), String> {
+    use std::process::{Command, Stdio};
+    if !std::path::Path::new(video).is_file() {
+        return Err(format!("no such video: {video}"));
+    }
+    let probe = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "v:0"])
+        .args(["-show_entries", "stream=width,height,r_frame_rate"])
+        .args(["-of", "default=noprint_wrappers=1"])
+        .arg(video)
+        .output()
+        .map_err(|e| format!("ffprobe: {e}"))?;
+    let info = parse_probe(&String::from_utf8_lossy(&probe.stdout))?;
+    let child = Command::new("ffmpeg")
+        .args(["-nostdin", "-loglevel", "error", "-nostats", "-i"])
+        .arg(video)
+        .args(PASSTHROUGH_ARGS)
+        .args(["-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("ffmpeg: {e}"))?;
+    Ok((info, child))
+}
+
 /// Fills `buf` completely from `r`. `Ok(false)` is a clean end of stream (nothing read at all); a stream that ends
 /// in the middle of a frame is an `UnexpectedEof` error. Short reads from a pipe are stitched together.
 pub fn read_frame<R: Read>(r: &mut R, buf: &mut [u8]) -> io::Result<bool> {
