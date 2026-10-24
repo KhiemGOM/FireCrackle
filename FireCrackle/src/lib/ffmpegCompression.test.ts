@@ -71,3 +71,28 @@ it("reads exactly32 length-prefixed decoded frames",()=> {
   expect(()=>unpackFrames(bytes.buffer.slice(0,-1))).toThrow();
   expect(()=>unpackFrames(new Uint8Array([...bytes,0]).buffer)).toThrow();
 });
+
+// ---- the same encode / clip for any fire raster (the 3D quad draws all its planes' texels)
+
+import { clipCompressed, encodeCycle } from "./ffmpegCompression";
+
+it("a generic cycle draws each of the 32 rows on white and encodes them once per key", async () => {
+  canvasMocks();
+  vi.mocked(invoke).mockResolvedValue(packedCycle());
+  const raster = vi.fn((row: number, white: boolean) => new Uint8ClampedArray(64 * 36 * 4).fill(white ? 255 : row));
+  const cycle = await encodeCycle("3d|a", raster, 64, 36, 0.8, () => false);
+  expect(raster).toHaveBeenCalledTimes(32);
+  expect(raster.mock.calls.map(c => c[0])).toEqual(Array.from({ length: 32 }, (_, r) => r));
+  expect(raster.mock.calls.every(c => c[1] === true)).toBe(true);
+  expect(invoke).toHaveBeenCalledWith("compress_fire_cycle", expect.objectContaining({ width: 64, height: 36, crf: 20 }));
+  expect(await encodeCycle("3d|a", raster, 64, 36, 0.8, () => false)).toBe(cycle);
+  expect(raster).toHaveBeenCalledTimes(32);
+});
+it("a generic clip keeps the codec's colours and the raster's own alpha", async () => {
+  const { ctx } = canvasMocks();
+  const alpha = new Uint8ClampedArray(2 * 1 * 4); alpha[3] = 255; alpha[7] = 0;
+  const blob = await clipCompressed(new Uint8Array([1]), alpha, 2, 1);
+  const data = ctx.putImageData.mock.calls[0][0].data;
+  expect([data[3], data[7]]).toEqual([255, 0]);
+  expect(blob.type).toBe("image/png");
+});

@@ -88,3 +88,14 @@ it("while the 3D quad is on, the picker is told its sprite (not 'mask off'), and
   await render();
   expect(onPreviewChange.mock.calls[onPreviewChange.mock.calls.length - 1][0]).toMatchObject({ sheet: 1, row: 12, mirrored: false });
 });
+
+it("the 3D quad has the quad mask's FFmpeg compression controls (shared settings)", async () => {
+  let root = await with3D();
+  const box = find(root, "FFmpeg compression")!;
+  expect(box.props.checked).toBe(false);
+  box.props.onChange({ target: { checked: true } });
+  root = await tree();
+  expect(find(root, "FFmpeg compression")!.props.checked).toBe(true);
+  expect(find(root, "Compression resolution")).toBeDefined();
+  expect(find(root, "Compression damage")).toBeDefined();
+});

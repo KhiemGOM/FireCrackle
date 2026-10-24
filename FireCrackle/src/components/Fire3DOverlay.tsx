@@ -8,6 +8,9 @@ import { loadSpriteSheet, spriteShape, spriteSource } from "../lib/spriteSheet";
 import { useSvgScreenScale } from "../hooks/useSvgScreenScale";
 import type { Fire3D } from "../lib/useFire3D";
 import { FireTexels } from "./FireTexels";
+import { CompressedFire } from "./CompressedQuad";
+import { compressionGeometry, type CompressionSettings } from "../lib/compressionPreview";
+import { rasterizeTexels } from "../lib/quadRaster";
 import "./Fire3DOverlay.css";
 
 export interface SpriteChoice { atlas?: AnimationAtlas; sheet: 0 | 1; row: number; mirrored: boolean; opacity: number; pixelGrid: boolean; }
@@ -34,7 +37,9 @@ function removeCorner(fire: Fire3D, id: number) {
 /** The 3D quad tool on the video: the fire's planes textured with the chosen sprite, the block grid and the fire's
  * cell (or hitbox) to judge the camera by, and the clicked corners. A click adds a corner or places the fire.
  * `width` × `height` is the displayed picture; the camera works in the native picture (`fire.size`). */
-export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fire3D; width: number; height: number; zoom: number; sprite: SpriteChoice }) {
+export function Fire3DOverlay({ fire, width, height, zoom, sprite, compression, frameUrl }: { fire: Fire3D; width: number; height: number; zoom: number; sprite: SpriteChoice;
+  /** FFmpeg compression preview, as the quad mask's: every plane's texels, all 32 rows, through H.264. */
+  compression?: CompressionSettings; frameUrl?: string }) {
   const svg = useRef<SVGSVGElement>(null);
   const screenScale = useSvgScreenScale(svg, width, height, zoom);
   const source = spriteSource(sprite.atlas, sprite.sheet);
@@ -60,6 +65,11 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
   const outlinePx = cam ? project(cam, outline.flat(), native.width, native.height) : [];
   const { side, rows } = spriteShape(sprite.atlas);
   const row = sprite.atlas ? atlasTile(sprite.atlas, sprite.row) : sprite.row;
+  // the compression preview (fire sheets only, like the quad mask's): encoded at the delivery size, per geometry
+  const compressed = compression && frameUrl && !sprite.atlas && sheet?.source === source
+    ? { ...compressionGeometry(width, height, compression.height, [[0, 0], [1, 0], [1, 1], [0, 1]]),
+        key: JSON.stringify(["3d", source, sprite.mirrored, fire.quads.map(q => q.px?.map(p => p.map(v => Math.round(v * 100) / 100)))]) }
+    : null;
   // every texel of every plane, far to near (the game's depth buffer): the planes cross each other
   let texels: ReturnType<typeof fireTexels> = [];
   if (sheet?.source === source && cam) {
@@ -102,7 +112,11 @@ export function Fire3DOverlay({ fire, width, height, zoom, sprite }: { fire: Fir
   return <svg ref={svg} className={`fire3d-overlay${fire.click !== "none" ? " picking" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet"
     aria-label="3D quad on the picture" onPointerDown={down}>
     {grid.map((l, i) => <line key={`g${i}`} className="fire3d-grid" strokeWidth={1 / screenScale} x1={l[0][0] * sx} y1={l[0][1] * sy} x2={l[1][0] * sx} y2={l[1][1] * sy} />)}
-    <g opacity={sprite.opacity}><FireTexels texels={texels} pixelGrid={sprite.pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} /></g>
+    {compressed && cam
+      ? <CompressedFire cycleKey={compressed.key} row={sprite.row} width={compressed.width} height={compressed.height} displayWidth={width} displayHeight={height}
+          opacity={sprite.opacity} quality={compression!.quality}
+          raster={(r, white) => rasterizeTexels(fireTexels(fire.quads, sheet!.rgba, r, sprite.mirrored, native.width, native.height, [cam.x, cam.y, cam.z], side, rows), compressed.width, compressed.height, white)} />
+      : <g opacity={sprite.opacity}><FireTexels texels={texels} pixelGrid={sprite.pixelGrid} scaleX={width} scaleY={height} screenScale={screenScale} /></g>}
     {outline.map((_, i) => {
       const a = outlinePx[2 * i], b = outlinePx[2 * i + 1];
       return a && b && <line key={`o${i}`} className="fire3d-cell" strokeWidth={1.5 / screenScale} x1={a[0] * sx} y1={a[1] * sy} x2={b[0] * sx} y2={b[1] * sy} />;

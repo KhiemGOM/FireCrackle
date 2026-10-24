@@ -22,7 +22,8 @@ const screen = vi.hoisted(() => ({ scale: 1 }));
 vi.mock("../hooks/useSvgScreenScale", () => ({ useSvgScreenScale: () => screen.scale }));
 vi.mock("../lib/spriteSheet", async (original) => ({ ...(await original<object>()), loadSpriteSheet: () => () => {} }));
 import { initReversal, project, type CameraPose } from "../lib/reversal";
-import { emptyTool, newFire, type ToolState } from "../lib/fireTool";
+import { emptyTool, fireQuads, newFire, type ToolState } from "../lib/fireTool";
+import { spriteSource } from "../lib/spriteSheet";
 import type { Fire3D } from "../lib/useFire3D";
 import { Fire3DBar } from "./Fire3DBar";
 import { Fire3DOverlay, cornerKey } from "./Fire3DOverlay";
@@ -298,4 +299,37 @@ it("a camera kept with the frame says how well it fits the corners (it is not re
   const out = Fire3DBar({ fire: tool({}, { clicks, candidates: [] }), sprite: null });
   const status = text(all(out, e => String(e.props.className ?? "").startsWith("f3-status"))[0]);
   expect(status).toMatch(/^Saved camera · corners fit to 0\.00 px/);
+});
+
+describe("FFmpeg compression", () => {
+  // the overlay's first state is the loaded sprite sheet: seed it so the fire is drawn
+  const draw = (extra: object) => {
+    hooks.states = [{ source: spriteSource(undefined, 0), rgba: new Uint8ClampedArray(16 * 512 * 4).fill(255) }];
+    hooks.si = hooks.ri = 0;
+    return Fire3DOverlay({ fire: tool({ quads: fireQuads(newFire(cam, [0, 64, 1]), false, cam, 1280, 720) }), width: 1280, height: 720, zoom: 1, sprite, ...extra });
+  };
+  // the elements as the overlay returns them (not rendered: that would descend into them)
+  const named = (out: unknown, name: string): El[] => {
+    const found: El[] = [];
+    const walk = (n: unknown) => {
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      if (!n || typeof n !== "object" || !("props" in (n as El))) return;
+      const e = n as El;
+      if ((e.type as { name?: string })?.name === name) found.push(e);
+      walk(e.props.children);
+    };
+    walk(out);
+    return found;
+  };
+  it("with compression on, the 3D fire is shown through the FFmpeg preview of all its planes; off, as plain texels", () => {
+    const on = draw({ compression: { height: 720, quality: 0.45 }, frameUrl: "blob:frame" });
+    expect(named(on, "CompressedFire")).toHaveLength(1);
+    expect(named(on, "FireTexels")).toHaveLength(0);
+    const p = named(on, "CompressedFire")[0].props;
+    expect([p.width, p.height, p.quality, p.row]).toEqual([1280, 720, 0.45, 0]);
+    expect(p.raster(3, false)).toHaveLength(1280 * 720 * 4);
+    const off = draw({});
+    expect(named(off, "CompressedFire")).toHaveLength(0);
+    expect(named(off, "FireTexels")).toHaveLength(1);
+  });
 });

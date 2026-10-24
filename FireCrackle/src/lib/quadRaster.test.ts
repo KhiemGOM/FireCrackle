@@ -54,3 +54,37 @@ it("restores fire alpha including holes without punching cracks between opaque t
   expect(decoded[0]).toBe(200);
   expect([...decoded].filter((_,i)=>i%4===3&&decoded[i]===0)).toHaveLength(4);
 });
+
+// ---- texels of several planes (the 3D quad: lib/fireTool.ts fireTexels, already far to near) into one raster
+
+import { rasterizeTexels } from "./quadRaster";
+
+const square = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const at = (data: Uint8ClampedArray, w: number, x: number, y: number) => Array.from(data.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
+
+it("fills each texel's pixels with its colour and leaves the rest as the backdrop", () => {
+  const out = rasterizeTexels([{ points: square(0.25, 0.25, 0.75, 0.75), colour: "rgb(200, 100, 10)", alpha: 1 }], 8, 8);
+  expect(at(out, 8, 3, 3)).toEqual([200, 100, 10, 255]);
+  expect(at(out, 8, 0, 0)).toEqual([0, 0, 0, 0]);
+  expect(at(out, 8, 6, 6)).toEqual([0, 0, 0, 0]);
+});
+it("later texels cover earlier ones (they come far to near), skewed quads included", () => {
+  const out = rasterizeTexels([
+    { points: square(0, 0, 1, 1), colour: "rgb(10, 10, 10)", alpha: 1 },
+    { points: [[0.5, 0.1], [0.9, 0.5], [0.5, 0.9], [0.1, 0.5]], colour: "rgb(250, 200, 0)", alpha: 1 },
+  ], 10, 10);
+  expect(at(out, 10, 5, 5)).toEqual([250, 200, 0, 255]);
+  expect(at(out, 10, 0, 0)).toEqual([10, 10, 10, 255]);
+});
+it("on white the colour is blended over white; transparent texels leave the backdrop", () => {
+  const out = rasterizeTexels([{ points: square(0, 0, 1, 1), colour: "rgb(0, 0, 0)", alpha: 0.5 }, { points: square(0, 0, 0.5, 1), colour: "rgb(9, 9, 9)", alpha: 0 }], 4, 4, true);
+  expect(at(out, 4, 3, 1)).toEqual([128, 128, 128, 255]);
+  expect(at(out, 4, 0, 1)).toEqual([128, 128, 128, 255]);
+});
+it("texels partly outside the picture are clipped; a bad size is an error", () => {
+  const out = rasterizeTexels([{ points: square(-0.5, -0.5, 0.5, 0.5), colour: "rgb(1, 2, 3)", alpha: 1 }], 4, 4);
+  expect(at(out, 4, 0, 0)).toEqual([1, 2, 3, 255]);
+  expect(at(out, 4, 3, 3)).toEqual([0, 0, 0, 0]);
+  expect(() => rasterizeTexels([], 0, 4)).toThrow();
+  expect(() => rasterizeTexels([], 5000, 4)).toThrow();
+});

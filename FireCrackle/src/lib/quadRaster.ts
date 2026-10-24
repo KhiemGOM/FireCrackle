@@ -35,6 +35,39 @@ export function rasterizeFire(sheet:Uint8ClampedArray,row:number,mirrored:boolea
   return data;
 }
 
+/** Texels (points in picture fractions, as lib/quadMask.ts manualTexels and lib/fireTool.ts fireTexels give them) drawn in
+ * order into a `width` × `height` RGBA raster: a pixel takes the colour of the last texel whose quad holds its centre,
+ * so texels sorted far to near show what the game shows. `white`: blended over a white backdrop, opaque (for the codec),
+ * else transparent where nothing is drawn. */
+export function rasterizeTexels(texels:{points:Array<[number,number]>;colour:string;alpha:number}[],width:number,height:number,white=false,output?:Uint8ClampedArray):Uint8ClampedArray {
+  if(!Number.isInteger(width) || !Number.isInteger(height) || width<=0 || height<=0 || width>4096 || height>4096)throw new Error("Invalid fire raster");
+  const data=output??new Uint8ClampedArray(width*height*4);
+  if(data.length!==width*height*4)throw new Error("Invalid raster buffer");
+  data.fill(white?255:0);
+  for(const t of texels) {
+    if(!(t.alpha>0))continue;
+    const m=/rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(t.colour);
+    if(!m)continue;
+    const rgb=[Number(m[1]),Number(m[2]),Number(m[3])];
+    const p=t.points.map(([x,y])=>[x*width,y*height] as const);
+    const left=Math.max(0,Math.floor(Math.min(...p.map(q=>q[0])))),right=Math.min(width,Math.ceil(Math.max(...p.map(q=>q[0]))));
+    const top=Math.max(0,Math.floor(Math.min(...p.map(q=>q[1])))),bottom=Math.min(height,Math.ceil(Math.max(...p.map(q=>q[1]))));
+    for(let y=top;y<bottom;y++)for(let x=left;x<right;x++) {
+      // inside the convex quad: the pixel centre is on the same side of every edge
+      const X=x+0.5,Y=y+0.5;let sign=0,inside=true;
+      for(let i=0;i<p.length&&inside;i++) {
+        const [ax,ay]=p[i],[bx,by]=p[(i+1)%p.length],c=(bx-ax)*(Y-ay)-(by-ay)*(X-ax);
+        if(c!==0){const s=c>0?1:-1;if(sign===0)sign=s;else if(s!==sign)inside=false;}
+      }
+      if(!inside)continue;
+      const o=(y*width+x)*4;
+      if(white){for(let c=0;c<3;c++)data[o+c]=rgb[c]*t.alpha+data[o+c]*(1-t.alpha);data[o+3]=255;}
+      else{const a=t.alpha+data[o+3]/255*(1-t.alpha);for(let c=0;c<3;c++)data[o+c]=a>0?(rgb[c]*t.alpha+data[o+c]*(data[o+3]/255)*(1-t.alpha))/a:0;data[o+3]=a*255;}
+    }
+  }
+  return data;
+}
+
 /** Keep the decoded codec colours but restore only original texture coverage. */
 export function restoreFireAlpha(decoded:Uint8ClampedArray,mask:Uint8ClampedArray):void {
   if(decoded.length!==mask.length)throw new Error("Mismatched raster masks");
