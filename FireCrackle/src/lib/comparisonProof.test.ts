@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { copyFormattedComparisonProof, createComparisonProof, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, squareProofCrop, type ProofMask } from "./comparisonProof";
+import { cleanProofMask, copyFormattedComparisonProof, createComparisonProof, pointsBounds, proofTarget, downloadComparisonProof, proofCrop, proofLayout, proofOpacity, squareProofCrop, type ProofMask } from "./comparisonProof";
 import { copyPicture } from "./proofExport";
 const native = vi.hoisted(() => ({ save: vi.fn(), invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: native.save }));
@@ -120,4 +120,25 @@ it("keeps PNG copying as image pixels, without a save dialog", async () => {
   await copyFormattedComparisonProof(picture, [mask], "Frame 8094", "png");
   expect(native.invoke).toHaveBeenCalledWith("copy_comparison_proof", {png: [51]});
   expect(native.save).not.toHaveBeenCalled();
+});
+
+// ---- the 3D quad has comparison proof too: its overlay, its planes' extent, none of its guides
+it("proves whichever texture mask is on: the quad mask, first-person fire, or the 3D quad; none, nothing to prove", () => {
+  expect(proofTarget({ manualEnabled: true, hudEnabled: false, fire3dOn: false })).toEqual({ selector: "svg.fire-quad-mask", kind: "Quad" });
+  expect(proofTarget({ manualEnabled: false, hudEnabled: true, fire3dOn: false })).toEqual({ selector: "svg.hud-overlay", kind: "First-person" });
+  expect(proofTarget({ manualEnabled: false, hudEnabled: false, fire3dOn: true })).toEqual({ selector: "svg.fire3d-overlay", kind: "3D quad" });
+  expect(proofTarget({ manualEnabled: false, hudEnabled: false, fire3dOn: false })).toBeNull();
+});
+it("bounds of points: the box around them; none, no box", () => {
+  expect(pointsBounds([[10, 40], [30, 20], [25, 35]])).toEqual({ x: 10, y: 20, width: 20, height: 20 });
+  expect(pointsBounds([])).toBeUndefined();
+});
+it("the 3D quad's guides (ground grid, block outline, axes, click hint, corner markers) are not in the proof; its texels are", () => {
+  const guides = ["fire3d-grid", "fire3d-cell", "fire3d-axis", "fire3d-mode", "fire3d-click"];
+  const nodes = [...guides, "texel"].map(cls => ({ cls, remove: vi.fn() }));
+  const clone = { querySelector: (s: string) => s === "polygon, image" ? {} : null, removeAttribute: vi.fn(), setAttribute: vi.fn(),
+    querySelectorAll: (s: string) => { const wanted = s.split(",").map(x => x.trim().replace(/^\./, "")); return s === "[opacity]" ? [] : nodes.filter(n => wanted.includes(n.cls)); } };
+  const svg = { querySelector: () => null, cloneNode: () => clone } as unknown as SVGSVGElement;
+  cleanProofMask({ svg, description: "3D quad", opacity: 1 }, 100, 100);
+  for (const n of nodes) expect(n.remove).toHaveBeenCalledTimes(n.cls === "texel" ? 0 : 1);
 });

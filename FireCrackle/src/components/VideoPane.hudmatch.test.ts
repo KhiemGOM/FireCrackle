@@ -72,6 +72,11 @@ it("Match is turned on, with first-person's own matching row (not in its bar); F
   const row = find(root, "First-person match settings")!;
   expect(find(row, "First-person match")).toBeDefined();
   expect(find(find(root, "First-person fire settings")!, "First-person match")).toBeUndefined();
+  // the shared Match panel, tailored: details, but no sprite filter or mask changes (it matches a row and an FOV)
+  expect(find(row, "Match details")).toBeDefined();
+  expect(find(row, "Only filtered sprites")).toBeUndefined();
+  expect(find(row, "Adjust quad while matching")).toBeUndefined();
+  expect(find(row, "First-person match 1: row 12, 60°")!.props.children).toBe(1);
   find(row, "Find first-person match")!.props.onClick();
   expect(backend.povMatch).toHaveBeenCalledTimes(2);
   await settle();

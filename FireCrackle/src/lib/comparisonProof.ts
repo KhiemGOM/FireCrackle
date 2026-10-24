@@ -28,16 +28,28 @@ export function squareProofCrop(width: number, height: number, crop: ProofRect):
   return {x: origin(crop.x + crop.width / 2, width), y: origin(crop.y + crop.height / 2, height), width: side, height: side};
 }
 
+/** The box around some points (source pixels); none, no box. */
+export function pointsBounds(points: [number, number][]): ProofRect | undefined {
+  if (!points.length) return undefined;
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return {x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y};
+}
+
 /** HUD texels already contain projected source-pixel coordinates; editing guides were removed first. */
 function maskBounds(svg: SVGSVGElement): ProofRect | undefined {
-  const points = Array.from(svg.querySelectorAll("polygon")).flatMap(p => {
+  return pointsBounds(Array.from(svg.querySelectorAll("polygon")).flatMap(p => {
     const coordinates = (p.getAttribute("points") ?? "").trim().split(/[\s,]+/).map(Number);
     if (coordinates.length < 6 || coordinates.length % 2 || !coordinates.every(Number.isFinite)) return [];
-    return Array.from({length: coordinates.length / 2}, (_, i) => ({x: coordinates[i * 2], y: coordinates[i * 2 + 1]}));
-  });
-  if (!points.length) return undefined;
-  const x = Math.min(...points.map(p => p.x)), y = Math.min(...points.map(p => p.y));
-  return {x, y, width: Math.max(...points.map(p => p.x)) - x, height: Math.max(...points.map(p => p.y)) - y};
+    return Array.from({length: coordinates.length / 2}, (_, i): [number, number] => [coordinates[i * 2], coordinates[i * 2 + 1]]);
+  }));
+}
+
+/** The texture mask a comparison proof shows: the quad mask, first-person fire or the 3D quad's planes (the one on). */
+export function proofTarget(on: { manualEnabled: boolean; hudEnabled: boolean; fire3dOn: boolean }): { selector: string; kind: string } | null {
+  return on.manualEnabled ? { selector: "svg.fire-quad-mask", kind: "Quad" }
+    : on.hudEnabled ? { selector: "svg.hud-overlay", kind: "First-person" }
+    : on.fire3dOn ? { selector: "svg.fire3d-overlay", kind: "3D quad" } : null;
 }
 
 export function proofLayout(width: number, height: number) {
@@ -55,7 +67,7 @@ const dataUrl = (blob: Blob) => blobDataUrl(blob, "Could not read the compressed
 export function cleanProofMask(mask: ProofMask, width: number, height: number): SVGSVGElement {
   if (mask.svg.querySelector('[role="status"], [role="alert"]')) throw Error("Wait for the mask preview to finish loading before making a comparison proof.");
   const clone = mask.svg.cloneNode(true) as SVGSVGElement;
-  clone.querySelectorAll(".fire-quad-guide, .fire-quad-handle, .quad-transform, title").forEach(node => node.remove());
+  clone.querySelectorAll(".fire-quad-guide, .fire-quad-handle, .quad-transform, title, .fire3d-grid, .fire3d-cell, .fire3d-axis, .fire3d-mode, .fire3d-click").forEach(node => node.remove());
   if (!clone.querySelector("polygon, image")) throw Error("The mask texture is still loading. Try again in a moment.");
   clone.removeAttribute("class");
   clone.removeAttribute("style");

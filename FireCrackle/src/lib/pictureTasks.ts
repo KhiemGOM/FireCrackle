@@ -8,6 +8,7 @@ import type {Orientation} from './reversal';
 import type {VeilOptions} from './veil';
 import type {WorldCoverage} from './portalPreview';
 import {matchPicture,type MatchPlane,type PlaneMatch} from './fire3dMatch';
+import type {EdgeFilter} from './atlasFilter';
 
 export interface PictureTasks {
   /** The gallery's Auto unveil of one preview (lib/comparisonPost.ts unveilPicture). */
@@ -19,7 +20,7 @@ export interface PictureTasks {
   /** The 3D quad tool's automatic camera guess of a native frame (lib/fireTool.ts guessPicture). */
   orientation:{args:{bytes:ArrayBuffer};result:{width:number;height:number;guess:Orientation|null}};
   /** The 3D quad's Match: every plane of the fire on a native frame, one shared phase (lib/fire3dMatch.ts matchPicture). */
-  match3d:{args:{bytes:ArrayBuffer;sheets:[Uint8ClampedArray,Uint8ClampedArray];planes:MatchPlane[]};result:PlaneMatch|null};
+  match3d:{args:{bytes:ArrayBuffer;sheets:[Uint8ClampedArray,Uint8ClampedArray];planes:MatchPlane[];filter?:EdgeFilter};result:PlaneMatch|null};
 }
 export type PictureTask=keyof PictureTasks;
 

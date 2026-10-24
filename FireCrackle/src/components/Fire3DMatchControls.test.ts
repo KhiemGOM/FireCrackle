@@ -27,7 +27,7 @@ const quads: FireQuad[] = [
   { world: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], px: [[100, 100], [300, 100], [300, 400], [100, 400]], uv: UV, sheet: -1 },
   { world: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], px: [[700, 100], [500, 100], [500, 400], [700, 400]], uv: UV, sheet: 1 },
 ];
-const answer: PlaneMatch = { confident: true, planes: 2, candidates: [
+const answer: PlaneMatch = { confident: true, planes: 2, searched: 128, candidates: [
   { sheet: 1, row: 20, mirrored: true, phase: 4, support: 12 },
   { sheet: 0, row: 9, mirrored: false, phase: 9, support: 5 },
   { sheet: 0, row: 30, mirrored: false, phase: 30, support: 2 },
@@ -45,7 +45,7 @@ function all(node: unknown): El[] {
   return [el, ...all(el.props.children)];
 }
 const button = (root: El, label: RegExp) => all(root).find(n => n.type === "button" && label.test(String(n.props["aria-label"] ?? n.props.children)));
-const text = (root: El) => all(root).flatMap(n => [n.props.children].flat()).filter(c => typeof c === "string").join(" ");
+const text = (root: El) => all(root).flatMap(n => [n.props.children].flat()).filter(c => typeof c === "string" || typeof c === "number").join(" ");
 async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); await new Promise(r => setTimeout(r, 0)); for (let i = 0; i < 30; i++) await Promise.resolve(); }
 beforeEach(() => { hooks.values = []; hooks.cursor = 0; hooks.effects = []; vi.clearAllMocks(); onPreview = vi.fn<(c: PlaneMatchCandidate) => void>(); vi.mocked(pictureTask).mockResolvedValue(answer as never); });
 
@@ -96,6 +96,39 @@ it("a result belongs to its picture and planes: another frame or a moved camera 
   const moved = [{ ...quads[0], px: quads[0].px!.map(([x, y]) => [x + 40, y]) as [number, number][] }, quads[1]];
   expect(button(render({ quads: moved }), /3D match 1/)).toBeUndefined();
   expect(button(render(), /3D match 1/)).toBeDefined();
+});
+
+it("is the shared Match panel: Find best match, Only filtered sprites, ranks with details and Match details; no mask changes (the camera places the planes)", async () => {
+  let root = render();
+  expect(all(root).find(n => n.props["aria-label"] === "Only filtered sprites")).toBeDefined();
+  expect(all(root).find(n => n.props["aria-label"] === "Adjust quad while matching")).toBeUndefined();
+  expect(button(root, /Match details/)).toBeDefined();
+  expect(text(button(root, /find/i)!)).toMatch(/Find best match/);
+  button(root, /find/i)!.props.onClick();
+  await settle();
+  root = render();
+  const rank = button(root, /3D match 2/)!;
+  expect(rank.props.children).toBe(2);
+  expect(rank.props.onMouseEnter).toBeTypeOf("function");
+  expect(all(root).some(n => n.props.role === "tooltip" && /phase 9/.test(text(n)))).toBe(true);
+});
+
+it("Only filtered sprites sends the atlas filter with the match; turned off, it sends none", async () => {
+  const filter = { left: 3, right: 7 };
+  button(render({ filter }), /find/i)!.props.onClick();
+  await settle();
+  expect((vi.mocked(pictureTask).mock.calls[0] as [string, any])[1].filter).toEqual(filter);
+  all(render({ filter })).find(n => n.props["aria-label"] === "Only filtered sprites")!.props.onChange({ target: { checked: false } });
+  button(render({ filter }), /find/i)!.props.onClick();
+  await settle();
+  expect((vi.mocked(pictureTask).mock.calls[1] as [string, any])[1].filter).toBeUndefined();
+});
+
+it("a filter no sprite passes says so (not 'too few pixels')", async () => {
+  vi.mocked(pictureTask).mockResolvedValueOnce({ candidates: [], confident: false, planes: 0, searched: 0 } as never);
+  button(render({ filter: { left: 3, right: 7 } }), /find/i)!.props.onClick();
+  await settle();
+  expect(text(render({ filter: { left: 3, right: 7 } }))).toMatch(/No sprites pass the atlas filters/);
 });
 
 it("with no fire placed there is nothing to match: it says so and runs nothing", async () => {

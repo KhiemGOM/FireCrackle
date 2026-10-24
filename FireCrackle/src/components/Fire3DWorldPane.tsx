@@ -5,9 +5,10 @@ import {FireWorldView} from './FireWorldView';
 import './Fire3DWorldPane.css';
 
 const KEY='firecrackle.fire3d.side';
+// it starts collapsed every time (rarely needed yet); only its width is remembered
 function readSide():{width:number;collapsed:boolean}{
- try{const v=JSON.parse(localStorage.getItem(KEY)??'null');if(v&&typeof v==='object')return{width:Number(v.width)||SIDE_DEFAULT,collapsed:!!v.collapsed};}catch{/* default */}
- return{width:SIDE_DEFAULT,collapsed:false};
+ try{const v=JSON.parse(localStorage.getItem(KEY)??'null');if(v&&typeof v==='object')return{width:Number(v.width)||SIDE_DEFAULT,collapsed:true};}catch{/* default */}
+ return{width:SIDE_DEFAULT,collapsed:true};
 }
 function writeSide(v:{width:number;collapsed:boolean}){try{localStorage.setItem(KEY,JSON.stringify(v));}catch{/* not remembered */}}
 

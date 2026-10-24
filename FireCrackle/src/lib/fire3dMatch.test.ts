@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { matchFirePlanes, matchPicture } from "./fire3dMatch";
 import { rasterizeFire } from "./quadRaster";
 import { matchFireQuad } from "./quadMatch";
+import { appearanceId } from "./atlasFilter";
 import { spriteAtPhase } from "./phaseConsensus";
 import type { ManualQuad } from "./quadMask";
 
@@ -66,6 +67,25 @@ describe("matchFirePlanes", () => {
     expect(m).not.toBeNull();
     expect(m!.planes).toBe(3);
     expect(m!.candidates.some(c => c.phase === 5)).toBe(true);
+  });
+  it("searches every sprite when there is no atlas filter", () => {
+    expect(matchFirePlanes(frame(0, 5, false), sheets, planes)!.searched).toBe(128);
+  });
+  it("the atlas filter applies to the tool's sprite (what the atlas shows), not each plane's own", () => {
+    // the true sprite is sheet 0 row 5 normal; two planes show it as sheet 1 (row 21), one plane flipped
+    const truth = appearanceId(0, 5, false);
+    const m = matchFirePlanes(frame(0, 5, false), sheets, planes, { left: null, right: null, excluded: [truth] })!;
+    expect(m.searched).toBe(127);
+    expect(m.candidates.length).toBeGreaterThan(0);
+    expect(m.candidates.some(c => c.sheet === 0 && c.row === 5 && !c.mirrored)).toBe(false);
+    // excluding a plane-space appearance of it (sheet 1 row 21) leaves the tool's sprite offered first
+    const kept = matchFirePlanes(frame(0, 5, false), sheets, planes, { left: null, right: null, excluded: [appearanceId(1, 21, false)] })!;
+    expect(kept.candidates[0]).toMatchObject({ sheet: 0, row: 5, mirrored: false });
+  });
+  it("a filter no sprite passes gives an empty search, not 'too few pixels'", () => {
+    const all = Array.from({ length: 128 }, (_, i) => i);
+    const m = matchFirePlanes(frame(0, 5, false), sheets, planes, { left: null, right: null, excluded: all });
+    expect(m).toMatchObject({ searched: 0, candidates: [] });
   });
   it("no planes, or none the matcher can read, give no answer", () => {
     expect(matchFirePlanes(frame(0, 3, false), sheets, [])).toBeNull();

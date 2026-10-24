@@ -1,16 +1,14 @@
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { matchFireQuad, type QuadCandidate, type QuadMatch } from "../lib/quadMatch";
 import type { ManualQuad } from "../lib/quadMask";
-import { Icon } from "./Icon";
 import type { EdgeFilter } from "../lib/atlasFilter";
-import { readPreferences, writePreferences } from "../lib/preferences";
 import { failureMessage,  reportError } from "../lib/appErrors";
 import {invoke,isTauri} from "@tauri-apps/api/core";
 import {fuseQuadPhases} from "../lib/quadPhase";
 import {phaseMatchInput} from "../lib/quadPhaseInput";
 import {matchSoulQuad} from "../lib/quadSoul";
 import {readMatchImage as readImage,readFireAtlas as readAtlas,refineMatchCandidates} from "../lib/quadRefine";
-import "./QuadMatchControls.css";
+import { matchPanel, useMatchOptions, useSaveMatchOptions } from "./MatchPanel";
 
 interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled:boolean; onPreview:(candidate:QuadCandidate)=>void; material?:"normal"|"soul";
   sourceFrame?:(signal:AbortSignal)=>Promise<{url:string;dispose?:()=>void}>;
@@ -18,23 +16,8 @@ interface Props { frameUrl:string; quad:ManualQuad; filter?:EdgeFilter; disabled
   /** A request to preview the nth candidate (M then 1, 2, 3); `n` makes each request distinct. */ pick?:{index:number;n:number}|null }
 const identity=(frameUrl:string,quad:ManualQuad,adjustQuad=false,filter?:EdgeFilter,material="normal")=>JSON.stringify([frameUrl,quad,adjustQuad,filter,material]);
 const name=(c:QuadCandidate)=>`row ${c.row} · sheet ${c.sheet} · ${c.mirrored?"mirrored":"normal"}`;
-function showDetails(e:SyntheticEvent<HTMLButtonElement>) {
-  const tip=e.currentTarget.nextElementSibling as HTMLElement|null;
-  if(!tip?.showPopover)return;
-  tip.showPopover();
-  const anchor=e.currentTarget.getBoundingClientRect(),box=tip.getBoundingClientRect();
-  tip.style.left=`${Math.max(8,Math.min(anchor.left,window.innerWidth-box.width-8))}px`;
-  tip.style.top=`${anchor.bottom+box.height+8<=window.innerHeight?anchor.bottom+6:Math.max(8,anchor.top-box.height-6)}px`;
-}
-function hideDetails(e:SyntheticEvent<HTMLButtonElement>) {
-  const tip=e.currentTarget.nextElementSibling as HTMLElement|null;
-  tip?.hidePopover?.();
-}
-
 export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runToken=0,pick=null,material="normal",sourceFrame}:Props) {
-  const saved=readPreferences();
-  const [adjustQuad,setAdjustQuad]=useState(saved.matchAdjustQuad);
-  const [onlyFiltered,setOnlyFiltered]=useState(saved.matchOnlyFiltered);
+  const options=useMatchOptions(),{adjustQuad,setAdjustQuad,onlyFiltered,setOnlyFiltered}=options;
   const activeFilter=onlyFiltered?filter:undefined;
   const key=identity(frameUrl,quad,adjustQuad,activeFilter,material),latest=useRef({key,disabled,onPreview});latest.current={key,disabled,onPreview};
   const token=useRef(0);
@@ -60,7 +43,7 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     if(!candidate)return;
     handledPick.current=pick.n;preview(candidate);
   },[pick,current,disabled]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(()=>{writePreferences({matchAdjustQuad:adjustQuad,matchOnlyFiltered:onlyFiltered});},[adjustQuad,onlyFiltered]);
+  useSaveMatchOptions(options);
   async function find() {
     const mine=++token.current,start=key;
     cancel.current?.();cancel.current=null;
@@ -132,24 +115,12 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
     :current.data.ai?.provider?"AI + colour matches. Click a numbered candidate to preview.":"Close matches. Click a numbered candidate to preview.";
   const info=[summary,`Atlas edges: left ${filter?.left??"Any"}, right ${filter?.right??"Any"}. ${onlyFiltered?"Filters applied before matching.":"Searching all sprites."}`,
     current?.data?`Tried ${current.data.searched} / 128 sprites.`:"",current?.data?.ai?.provider?`128px AI + colour matcher · ${current.data.ai.provider}. Three distinct animation phases.`:"",current?.data?.ai?.error?`AI unavailable: ${current.data.ai.error}. Colour matcher used.`:"",adjustQuad?"Per-sprite corner fitting enabled, bounded to 120% of your outline.":"Your quad corners stay fixed.","Results are previews; only Confirm/Enter saves a label."].filter(Boolean).join("\n");
-  return <div className="match-controls">
-    <button className="icon-button with-text" style={{whiteSpace:"nowrap",flexShrink:0}} disabled={disabled||busy===key} onClick={()=>void find()} title={`Compare ${onlyFiltered?"sprites passing the atlas filters":"all 128 sprite appearances"} using original video pixels. ${adjustQuad?"Optimize each sprite’s four corners inside a 120% envelope.":"Keep your quad corners fixed."} Previews only; never saves a label.`}>
-      <Icon name="zoomIn" /> {busy===key?"Matching…":"Find best match"}
-    </button>
-    <label title="Apply the atlas left/right edge filters before trying any sprite"><input type="checkbox" aria-label="Only filtered sprites" checked={onlyFiltered} onChange={e=>setOnlyFiltered(e.target.checked)} /> Only filtered sprites</label>
-    <label title="Fit candidate corners, then refine alignment of each suggested sprite. Off keeps all four corners exactly where you placed them."><input type="checkbox" aria-label="Adjust quad while matching" checked={adjustQuad} onChange={e=>setAdjustQuad(e.target.checked)} /> Allow mask changes</label>
-    {current?.data?.candidates.slice(0,3).map((c,i)=> {
-      const details=[`Match ${i+1}: ${name(c)}`,c.phaseScore!==undefined?`AI + colour phase rank score ${c.phaseScore.toFixed(3)}`:"",`${Math.round(c.score*256)} votes · ${c.support??"—"} matching / ${c.maskSamples??"—"} fire-colour samples`,`${c.regions??"—"} supported regions · ${current.data!.searched} sprites tried`,current.selected===c?"Currently previewed":"Click to preview",adjustQuad?"May move and resize the quad":"Quad corners stay fixed","Rank scores are not guaranteed confidence. Confirm/Enter saves the label."].filter(Boolean).join("\n");
-      return <span className="match-hover" key={`${c.sheet}-${c.row}-${c.mirrored}`}>
-        <button className="match-rank" disabled={disabled} aria-label={`Preview match ${i+1}: ${name(c)}`} aria-pressed={current.selected===c} onClick={()=>preview(c)}
-          onMouseEnter={showDetails} onMouseLeave={hideDetails} onFocus={showDetails} onBlur={hideDetails}>{i+1}</button>
-        <span className="match-details" popover="manual" role="tooltip">{details}</span>
-      </span>;
-    })}
-    <span className="match-hover">
-      <button className={`icon-button icon-only${current?.error?" warn":""}`} aria-label="Match details" onMouseEnter={showDetails} onMouseLeave={hideDetails} onFocus={showDetails} onBlur={hideDetails}><Icon name={current?.error?"alert":"info"} /></button>
-      <span className="match-details" popover="manual" role="tooltip">{info}</span>
-    </span>
-    <span className="match-live-status" role={current?.error?"alert":"status"}>{summary}</span>
-  </div>;
+  return matchPanel({
+    find:{busy:busy===key,disabled,onClick:()=>void find(),title:`Compare ${onlyFiltered?"sprites passing the atlas filters":"all 128 sprite appearances"} using original video pixels. ${adjustQuad?"Optimize each sprite’s four corners inside a 120% envelope.":"Keep your quad corners fixed."} Previews only; never saves a label.`},
+    onlyFiltered:{checked:onlyFiltered,onChange:setOnlyFiltered},
+    adjust:{checked:adjustQuad,onChange:setAdjustQuad},
+    ranks:(current?.data?.candidates??[]).slice(0,3).map((c,i)=>({key:`${c.sheet}-${c.row}-${c.mirrored}`,label:`Preview match ${i+1}: ${name(c)}`,pressed:current!.selected===c,onClick:()=>preview(c),
+      details:[`Match ${i+1}: ${name(c)}`,c.phaseScore!==undefined?`AI + colour phase rank score ${c.phaseScore.toFixed(3)}`:"",`${Math.round(c.score*256)} votes · ${c.support??"—"} matching / ${c.maskSamples??"—"} fire-colour samples`,`${c.regions??"—"} supported regions · ${current!.data!.searched} sprites tried`,current!.selected===c?"Currently previewed":"Click to preview",adjustQuad?"May move and resize the quad":"Quad corners stay fixed","Rank scores are not guaranteed confidence. Confirm/Enter saves the label."].filter(Boolean).join("\n")})),
+    ranksDisabled:disabled,info,summary,error:!!current?.error,
+  });
 }

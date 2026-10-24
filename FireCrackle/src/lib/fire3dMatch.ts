@@ -3,8 +3,10 @@
 // and every fire on screen shows one phase, so the planes vote on the phase (lib/phaseConsensus.ts) and then agree on
 // one sheet and mirror at it. A plane seen from behind shows its sprite flipped (`mirrored`) and a plane the model draws
 // from the other sheet (`sheet`: an entity's fire layers alternate fire_0 and fire_1) shows the same phase there: each
-// plane's candidates are turned into the tool's own sprite setting before the planes are compared.
+// plane's candidates are turned into the tool's own sprite setting before the planes are compared. The atlas filter, like
+// the quad mask's matcher's, keeps only sprites it passes: the tool's sprite (what the atlas shows), not a plane's own.
 import { matchFireQuad, type MatchImage } from "./quadMatch";
+import { matchesAppearance, sheetEdgeCounts, type AtlasEdges, type EdgeFilter } from "./atlasFilter";
 import { consensusTries, phaseConsensus, sharedSprites, spriteAtPhase, spritePhase, type ScoredSprite } from "./phaseConsensus";
 import type { ManualQuad } from "./quadMask";
 import { canvasFrameIo, type FrameIo } from "./veilFrame";
@@ -20,9 +22,16 @@ export interface PlaneMatch {
   confident: boolean;
   /** Planes the matcher could read. */
   planes: number;
+  /** Sprites tried (of 128): those passing the atlas filter. None passing gives no candidates. */
+  searched: number;
 }
 
-export function matchFirePlanes(image: MatchImage, sheets: [Uint8ClampedArray, Uint8ClampedArray], planes: MatchPlane[]): PlaneMatch | null {
+export function matchFirePlanes(image: MatchImage, sheets: [Uint8ClampedArray, Uint8ClampedArray], planes: MatchPlane[], filter?: EdgeFilter): PlaneMatch | null {
+  const edges = filter ? sheets.map(sheetEdgeCounts) as AtlasEdges : null;
+  const passes = (s: { sheet: 0 | 1; row: number; mirrored: boolean }) => !filter || matchesAppearance(edges, s.sheet, s.row, s.mirrored, filter);
+  let searched = 0;
+  for (const sheet of [0, 1] as const) for (let row = 0; row < 32; row++) for (const mirrored of [false, true]) if (passes({ sheet, row, mirrored })) searched++;
+  if (!searched) return { candidates: [], confident: false, planes: 0, searched };
   const tables: ScoredSprite[][] = [];
   for (const plane of planes) {
     // any plane with evidence votes, however thin alone (as the vote was measured: scripts/phase-consensus-eval.mjs);
@@ -32,16 +41,16 @@ export function matchFirePlanes(image: MatchImage, sheets: [Uint8ClampedArray, U
     tables.push(m.phaseCandidates.map(c => {
       const sheet = (c.sheet ^ (plane.sheet ?? 0)) as 0 | 1;
       return { sheet, row: spriteAtPhase(sheet, spritePhase(c.sheet as 0 | 1, c.row)), mirrored: c.mirrored !== plane.mirrored, score: c.score };
-    }));
+    }).filter(passes));
   }
   const vote = phaseConsensus(tables);
   if (!vote) return null;
   const candidates = consensusTries(vote, phase => sharedSprites(tables, phase).map(s =>
     ({ sheet: s.sheet, row: spriteAtPhase(s.sheet, phase), mirrored: s.mirrored, phase, support: vote.support[phase] })));
-  return { candidates, confident: vote.confident, planes: vote.used };
+  return { candidates, confident: vote.confident, planes: vote.used, searched };
 }
 
 /** The picture worker's `match3d` task: decode the native frame, then match its planes. */
-export async function matchPicture({ bytes, sheets, planes }: { bytes: ArrayBuffer; sheets: [Uint8ClampedArray, Uint8ClampedArray]; planes: MatchPlane[] }, io: Pick<FrameIo, "decode"> = canvasFrameIo): Promise<PlaneMatch | null> {
-  return matchFirePlanes(await io.decode(bytes), sheets, planes);
+export async function matchPicture({ bytes, sheets, planes, filter }: { bytes: ArrayBuffer; sheets: [Uint8ClampedArray, Uint8ClampedArray]; planes: MatchPlane[]; filter?: EdgeFilter }, io: Pick<FrameIo, "decode"> = canvasFrameIo): Promise<PlaneMatch | null> {
+  return matchFirePlanes(await io.decode(bytes), sheets, planes, filter);
 }

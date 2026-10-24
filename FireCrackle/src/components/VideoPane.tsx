@@ -14,6 +14,7 @@ import { FireQuadMask } from "./FireQuadMask";
 import { Fire3DOverlay } from "./Fire3DOverlay";
 import { Fire3DBar } from "./Fire3DBar";
 import { Fire3DMatchControls } from "./Fire3DMatchControls";
+import { matchPanel } from "./MatchPanel";
 import { Fire3DWorldPane } from "./Fire3DWorldPane";
 import { useFire3D } from "../lib/useFire3D";
 import { IconButton } from "./Icon";
@@ -35,7 +36,7 @@ import { readVideoView, writeVideoView } from "../lib/viewState";
 import { OpacityControl } from "./OpacityControl";
 import { scopedStorage } from "../lib/scopedStorage";
 import { VideoRotation } from "./VideoRotation";
-import { copyFormattedComparisonProof, downloadComparisonProof, type ProofMask, type ProofAction } from "../lib/comparisonProof";
+import { copyFormattedComparisonProof, downloadComparisonProof, pointsBounds, proofTarget, type ProofMask, type ProofAction } from "../lib/comparisonProof";
 import { ComparisonProofButton } from "./ComparisonProofButton";
 import { spriteText } from "../lib/labelCandidate";
 import { DEFAULT_VEIL_OPTIONS, VEIL_MODES, type VeilMode, type VeilOptions } from "../lib/veil";
@@ -586,13 +587,17 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     setProofBusy(true); setProofCopied(undefined); setAnimationStop(value => value + 1); onAnimationStart?.();
     try {
       const picture = frameRef.current?.querySelector<HTMLImageElement>(".video-zoom > img");
-      const svg = frameRef.current?.querySelector<SVGSVGElement>(manualEnabled ? "svg.fire-quad-mask" : "svg.hud-overlay");
-      if (!picture || !svg || shown !== view.current || picture.getAttribute("src") !== url) throw Error("Wait for the picture and mask to load.");
-      const sprite = manualEnabled ? { atlas: manualAtlas, sheet: manualSheet, row: manualRow, mirrored: manualMirrored } : { sheet: 1, row: hudRow, mirrored: false };
-      const xs = manualQuad.map(([x]) => x * imageSize.width), ys = manualQuad.map(([, y]) => y * imageSize.height);
-      const mask: ProofMask = { svg, ...(manualEnabled ? {bounds: {x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys)}} : {}), description: `${manualEnabled ? "Quad" : "First-person"} · ${spriteText(sprite)}`,
-        opacity: manualEnabled ? manualOpacity : hudOpacity,
-        details: manualEnabled ? (compressionEnabled && !manualAtlas ? `H.264 · ${compressionHeight}p` : undefined) : `FOV ${hudFov}°` };
+      const target = proofTarget({ manualEnabled, hudEnabled, fire3dOn });
+      const svg = target && frameRef.current?.querySelector<SVGSVGElement>(target.selector);
+      if (!target || !picture || !svg || shown !== view.current || picture.getAttribute("src") !== url) throw Error("Wait for the picture and mask to load.");
+      const firstPerson = target.kind === "First-person";
+      const sprite = firstPerson ? { sheet: 1, row: hudRow, mirrored: false } : { atlas: manualAtlas, sheet: manualSheet, row: manualRow, mirrored: manualMirrored };
+      // the quad mask's corners, or every 3D plane's (native pixels, scaled to the shown picture)
+      const native = fire3d.size, planes = !manualEnabled && fire3dOn && native ? fire3d.quads.flatMap(q => q.px ?? []).map(([x, y]): [number, number] => [x * imageSize.width / native.width, y * imageSize.height / native.height]) : [];
+      const bounds = manualEnabled ? pointsBounds(manualQuad.map(([x, y]): [number, number] => [x * imageSize.width, y * imageSize.height])) : pointsBounds(planes);
+      const mask: ProofMask = { svg, ...(bounds ? { bounds } : {}), description: `${target.kind} · ${spriteText(sprite)}`,
+        opacity: firstPerson ? hudOpacity : manualOpacity,
+        details: firstPerson ? `FOV ${hudFov}°` : (compressionEnabled && !manualAtlas ? `H.264 · ${compressionHeight}p` : undefined) };
       const source = stillImage?.name ?? `Frame ${view.current} · ${formatTimecode(view.pts, view.fps)}`;
       if (action.destination === "copy") {
         await copyFormattedComparisonProof(picture, [mask], source, action.format);
@@ -743,7 +748,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         {!post && <label className="veil-mode" title="Reverse the darkening Minecraft draws behind an open screen (pause menu, inventory): Auto preserves detected GUI pixels; Always undo processes every pixel. Thresholds are in Settings.">Veil <select aria-label="Undo GUI veil" value={veilMode} onChange={(e) => setVeilMode(e.target.value as VeilMode)}>{VEIL_MODES.map((m) => <option key={m} value={m}>{m === "off" ? "Off" : m === "auto" ? "Auto-undo" : "Always undo"}</option>)}</select></label>}
         {!post && <label className="veil-mode" title="Assumes portal rendering compatible with vanilla Minecraft 1.16.5. Custom textures or shaders may affect the result. Auto protects GUI pixels when a mask is available; otherwise processes the entire frame. Viewing correction only.">Portal <select aria-label="Undo portal overlay" value={portalMode} onChange={e => setPortalMode(e.target.value as PortalMode)}><option value="off">Off</option><option value="auto">Auto-undo</option></select></label>}
         {!post && portalMode === "auto" && <span className="hud-hint" role="status">{portalStatus}</span>}
-        <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || (!manualEnabled && !hudEnabled)} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
+        <ComparisonProofButton label="Comparison proof" disabled={!url || shown !== view.current || imageSize.width <= 0 || !proofTarget({ manualEnabled, hudEnabled, fire3dOn })} busy={proofBusy} feedback={proofCopied} onExport={action => void comparisonProof(action)} />
       </div>
       {ruler.enabled && <div className="hud-controls ruler-controls" aria-label="Ruler settings" onKeyDown={(e) => e.stopPropagation()}>
           <label><input type="checkbox" checked={ruler.locked} onChange={e => setRuler(current => ({ ...current, locked: e.target.checked }))} /> Lock unit</label>
@@ -765,13 +770,15 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
       </div>}
       {matchingEnabled && hudEnabled && <div className="hud-controls" aria-label="First-person match settings" onKeyDown={(e) => e.stopPropagation()}>
-          <IconButton icon="zoomIn" label="Find first-person match" disabled={!backend.povMatch || !!stillImage || !!hudMatchShown?.busy}
-            title="Run the first-person labeller (the POV scan's) on this native frame: its row and FOV, and up to three rows to try" onClick={matchFirstPerson}>Find first-person match</IconButton>
-          {hudMatchShown ? <span className="hud-match" role="status" aria-label="First-person match">
-            {hudMatchShown.busy ? "Matching…" : hudMatchShown.error ? "Match failed" : hudMatchShown.result?.row != null ? `Match: row ${hudMatchShown.result.row} · ${hudMatchShown.result.fov}°` : "No first-person fire found · try:"}
-            {hudMatchShown.result?.candidates.map((c, i) => <button key={i} aria-label={`First-person match ${i + 1}: row ${c.row}, ${c.fov}°`} aria-pressed={hudRow === c.row && hudFov === c.fov}
-              title={`M then ${i + 1} · colour evidence ${c.evidence === null ? "—" : c.evidence.toFixed(2)}${c.accepted ? " · the labeller's answer" : ""}`} onClick={() => pickFirstPerson(i)}>{i + 1} · {c.row} · {c.fov}°{c.accepted ? " ✓" : ""}</button>)}
-          </span> : <span className="hud-hint">{stillImage ? "First-person match needs a video" : "Matches the first-person fire's row and FOV on this frame"}</span>}
+          {matchPanel({ label: "First-person match tools", statusLabel: "First-person match",
+            find: { label: "Find first-person match", ariaLabel: "Find first-person match", busy: !!hudMatchShown?.busy, disabled: !backend.povMatch || !!stillImage, onClick: matchFirstPerson,
+              title: "Run the first-person labeller (the POV scan's) on this native frame: its row and FOV, and up to three rows to try. Previews only; never saves a label." },
+            ranks: (hudMatchShown?.result?.candidates ?? []).map((c, i) => ({ key: `${c.row}-${c.fov}`, label: `First-person match ${i + 1}: row ${c.row}, ${c.fov}°`, pressed: hudRow === c.row && hudFov === c.fov, onClick: () => pickFirstPerson(i),
+              details: [`Match ${i + 1}: row ${c.row} · ${c.fov}°`, `Colour evidence ${c.evidence === null ? "—" : c.evidence.toFixed(2)}`, c.accepted ? "The labeller's answer" : "", `M then ${i + 1}`, "Confirm/Enter saves the label."].filter(Boolean).join("\n") })),
+            ranksDisabled: false, error: !!hudMatchShown?.error,
+            summary: stillImage ? "First-person match needs a video." : !hudMatchShown ? "Matches the first-person fire's row and FOV on this frame." : hudMatchShown.busy ? "Matching…" : hudMatchShown.error ? `Match failed: ${hudMatchShown.error}`
+              : hudMatchShown.result?.row != null ? `Match: row ${hudMatchShown.result.row} · ${hudMatchShown.result.fov}°. Verify before confirming.` : "No first-person fire found · try the numbered rows.",
+            info: ["The POV scan's first-person labeller, on this native frame.", "Row and FOV only: the atlas filters and mask changes are for fire sprites.", "Results are previews; only Confirm/Enter saves a label."].join("\n") })}
       </div>}
       {manualEnabled && <div className="hud-controls" aria-label="Quad mask settings" onKeyDown={(e) => e.stopPropagation()}>
           {spriteControls}
@@ -788,7 +795,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         <Fire3DBar fire={fire3d} sprite={<>{spriteControls}{compressionControls}</>} />
       </div>}
       {matchingEnabled && fire3dOn && !manualEnabled && !hudEnabled && <div className="hud-controls" aria-label="3D quad match settings" onKeyDown={e => e.stopPropagation()}>
-        <Fire3DMatchControls quads={fire3d.quads} size={fire3d.size} picture={picture3d} load={load3d} material={manualAtlas && soulFire(manualAtlas) ? "soul" : "normal"}
+        <Fire3DMatchControls quads={fire3d.quads} size={fire3d.size} picture={picture3d} load={load3d} material={manualAtlas && soulFire(manualAtlas) ? "soul" : "normal"} filter={atlasFilter}
           runToken={findToken} pick={matchPick} disabled={(!stillImage && shown !== view.current) || playing}
           onPreview={c => { setManualSheet(c.sheet); setManualRow(c.row); setManualMirrored(c.mirrored); }} />
       </div>}
