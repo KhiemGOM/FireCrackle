@@ -219,3 +219,58 @@ describe("the camera row", () => {
     expect(change(f.state).rollFree).toBe(true);
   });
 });
+
+describe("camera values", () => {
+  // they opened inside the camera row, which has a fixed height: the boxes wrapped, were clipped and the row's
+  // scrollbar ran through them. They open as a panel of their own under the button instead.
+  const render = (f: Fire3D) => { hooks.si = hooks.ri = 0; return Fire3DBar({ fire: f, sprite: null }); };
+  const button = (out: unknown) => all(out, e => e.type === "button" && e.props["aria-label"] === "Camera values")[0];
+  const panel = (out: unknown) => all(out, e => e.props.role === "dialog" && e.props["aria-label"] === "Camera values")[0];
+  it("closed at first; the button opens a panel under itself with all seven values on one line", () => {
+    const f = tool();
+    let out = render(f);
+    expect(button(out).props["aria-expanded"]).toBe(false);
+    expect(panel(out)).toBeUndefined();
+    button(out).props.onClick({ currentTarget: { getBoundingClientRect: () => ({ left: 300, bottom: 160 }) } });
+    out = render(f);
+    expect(button(out).props["aria-expanded"]).toBe(true);
+    const p = panel(out);
+    expect(p.props.className).toBe("f3-values-pop");
+    expect(p.props.style).toMatchObject({ left: 300, top: 164 });
+    expect(all(p, e => e.type === "input").map(i => i.props["aria-label"])).toEqual(["x", "y", "z", "yaw", "pitch", "roll", "fov"]);
+  });
+  it("Escape or the button again closes it", () => {
+    const f = tool(), at = { currentTarget: { getBoundingClientRect: () => ({ left: 0, bottom: 0 }) } };
+    button(render(f)).props.onClick(at);
+    panel(render(f)).props.onKeyDown({ key: "Escape", stopPropagation: vi.fn() });
+    expect(panel(render(f))).toBeUndefined();
+    button(render(f)).props.onClick(at);
+    button(render(f)).props.onClick(at);
+    expect(panel(render(f))).toBeUndefined();
+  });
+  it("the panel floats above everything (not clipped by the bar's row) and its boxes fit the numbers", async () => {
+    const { readFile } = await vi.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+    const css = await readFile(new URL("./Fire3DBar.css", import.meta.url), "utf8");
+    const rule = css.match(/\.f3-values-pop\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/position:\s*fixed/);
+    expect(rule).toMatch(/z-index/);
+    expect(rule).toMatch(/flex-wrap:\s*nowrap/);
+    expect(css).toMatch(/\.f3-values-pop \.f3-num input\s*\{[^}]*width:\s*(8\d|9\d|1\d\d)px/);
+  });
+});
+
+describe("the corner list", () => {
+  it("the corners sit in a strip of capped width that scrolls on its own, so many corners never push the row", async () => {
+    hooks.si = hooks.ri = 0;
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, px: [10 * i, 300] as [number, number], world: [i, 64, 0] as [number, number, number] }));
+    const out = Fire3DBar({ fire: tool({}, { clicks: many }), sprite: null });
+    const strip = all(out, e => e.props.className === "f3-chips")[0];
+    expect(strip.props.role).toBe("group");
+    expect(all(strip, e => String(e.props.className ?? "").startsWith("f3-chip ") || e.props.className === "f3-chip").length).toBe(12);
+    const { readFile } = await vi.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+    const rule = (await readFile(new URL("./Fire3DBar.css", import.meta.url), "utf8")).match(/\.f3-chips\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/max-width:\s*\d+px/);
+    expect(rule).toMatch(/overflow-x:\s*auto/);
+    expect(rule).toMatch(/flex-shrink:\s*0/);
+  });
+});

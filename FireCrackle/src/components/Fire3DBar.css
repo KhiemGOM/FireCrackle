@@ -8,7 +8,9 @@
 .f3-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
 .f3-status { font-variant-numeric: tabular-nums; }
 .f3-status.bad { color: #ff7a7a; }
-.f3-chip { font-variant-numeric: tabular-nums; }
+.f3-chip { font-variant-numeric: tabular-nums; flex-shrink: 0; }
+/* the corners scroll in a strip of their own: many corners never push the rest of the camera row away */
+.f3-chips { display: inline-flex; gap: 4px; max-width: 300px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: thin; }
 .f3-chip.pending { opacity: 0.7; font-style: italic; }
 .f3-chip[aria-pressed="true"], .f3-modes button[aria-checked="true"], .f3-faces button[aria-pressed="true"] { background: #f5c542; color: #000; }
 .f3-edit { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; border: 1px solid #f5c542; border-radius: 4px; }
@@ -16,7 +18,9 @@
 .f3-num input { width: 64px; }
 .f3-modes, .f3-faces { display: inline-flex; gap: 2px; }
 .f3-entity { width: 170px; }
-.f3-values summary { cursor: pointer; }
-.f3-values[open] { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+/* the camera values: a panel of its own under its button, above the picture (the camera row has a fixed height) */
+.f3-values-pop { position: fixed; z-index: 50; display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; padding: 6px 8px;
+  background: var(--panel, #1b1f27); border: 1px solid rgba(127, 127, 127, 0.45); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); white-space: nowrap; }
+.f3-values-pop .f3-num input { width: 84px; }
 /* a cursor mode (a click on the picture adds a corner or places the fire) is unmistakable while it is on */
 .f3-pick[aria-pressed="true"] { background: #ff8a1f; color: #000; font-weight: 600; box-shadow: 0 0 0 2px #ffd29a; }

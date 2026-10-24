@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,type ReactNode} from 'react';
+import {useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {entitySizes,type CameraPose} from '../lib/reversal';
 import {cameraQuality,removeClick,setClickWorld,setEntity,setMode,toggleBurnFace,usableClicks,type BurnFace,type FireMode,type Vec3} from '../lib/fireTool';
 import type {Fire3D} from '../lib/useFire3D';
@@ -44,6 +44,14 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
  const count=useRef(state.clicks.length);
  useEffect(()=>{if(state.clicks.length>count.current)setSelected(state.clicks[state.clicks.length-1].id);count.current=state.clicks.length;},[state.clicks.length]); // eslint-disable-line react-hooks/exhaustive-deps
  const sel=state.clicks.find(c=>c.id===selected);
+ // the camera values open as a panel of their own under the button: in the fixed-height camera row they were clipped
+ const [values,setValues]=useState<{left:number;top:number}|null>(null),valuesPanel=useRef<HTMLDivElement|null>(null),valuesButton=useRef<HTMLButtonElement|null>(null);
+ useEffect(()=>{
+  if(!values)return;
+  const outside=(e:PointerEvent)=>{const t=e.target as Node;if(!valuesPanel.current?.contains(t)&&!valuesButton.current?.contains(t))setValues(null);};
+  window.addEventListener('pointerdown',outside,true);
+  return()=>window.removeEventListener('pointerdown',outside,true);
+ },[values]);
  const best=state.candidates.find(c=>c.camera===cam);
  // fewer than 4 corners fit many cameras: the one shown leans on the guess and the eye height, so it is called rough
  const pending=state.clicks.findIndex(c=>!c.world),q=cameraQuality(state),need=q.need;
@@ -62,8 +70,8 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
    <span className={`f3-status${cam&&(best?.rms??0)>3?' bad':''}`} role="status">{status}</span>
    <button className="f3-pick" aria-pressed={click==='corner'} title="Cursor mode: a click on the picture adds a block corner; type each one's position (the first is 0, 0, 0). Click again to stop" onClick={()=>setClick(click==='corner'?'none':'corner')}>Add corners</button>
    {state.clicks.length>0&&<button title="Remove every corner (the camera stays until corners solve it again)" onClick={()=>{update(s=>({...s,clicks:[],candidates:[]}));setSelected(null);}}>Clear</button>}
-   {state.clicks.map((c,i)=><button key={c.id} className={`f3-chip${c.world?'':' pending'}`} aria-pressed={selected===c.id} onClick={()=>setSelected(selected===c.id?null:c.id)}
-    title="Edit this corner">{i+1}{c.world?` · ${c.world.join(', ')}`:' · ?'}</button>)}
+   {state.clicks.length>0&&<span className="f3-chips" role="group" aria-label="Corners">{state.clicks.map((c,i)=><button key={c.id} ref={el=>{if(el&&selected===c.id)el.scrollIntoView?.({block:'nearest',inline:'nearest'});}} className={`f3-chip${c.world?'':' pending'}`} aria-pressed={selected===c.id} onClick={()=>setSelected(selected===c.id?null:c.id)}
+    title="Edit this corner">{i+1}{c.world?` · ${c.world.join(', ')}`:' · ?'}</button>)}</span>}
    {sel&&<span className="f3-edit" role="group" aria-label={`Corner ${state.clicks.indexOf(sel)+1}`}>
     {(['x','y','z'] as const).map((k,j)=><Num key={k} label={k} int value={sel.world?.[j]??NaN} onChange={v=>update(s=>setClickWorld(s,sel.id,(sel.world??[0,0,0]).map((q,m)=>m===j?v:q) as Vec3))}/>)}
     <button aria-label="Remove this corner" onClick={()=>{update(s=>removeClick(s,sel.id));setSelected(null);}}>Remove</button>
@@ -76,7 +84,12 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
    {state.candidates.length>1&&<select aria-label="Camera answer" title="Other cameras that fit the corners (a quarter turn apart)" value={state.candidates.findIndex(c=>c.camera===cam)} onChange={e=>update(s=>({...s,camera:s.candidates[Number(e.target.value)].camera}))}>
     {state.candidates.map((c,i)=><option key={i} value={i}>answer {i+1} · {fmt(c.rms,2)} px</option>)}
    </select>}
-   {cam&&<details className="f3-values"><summary>Values</summary>{(['x','y','z','yaw','pitch','roll','fov'] as const).map(k=><Num key={k} label={k} value={cam[k]} step={k==='x'||k==='y'||k==='z'?0.01:0.05} onChange={v=>update(s=>({...s,camera:{...s.camera!,[k]:v} as CameraPose}))}/>)}</details>}
+   {cam&&<button ref={valuesButton} aria-label="Camera values" aria-expanded={!!values} title="The camera's position, turn and FOV, to read or type"
+    onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setValues(values?null:{left:r.left,top:r.bottom+4});}}>Values {values?'▴':'▾'}</button>}
+   {cam&&values&&<div ref={valuesPanel} className="f3-values-pop" role="dialog" aria-label="Camera values" style={{left:values.left,top:values.top}}
+    onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setValues(null);}}}>
+    {(['x','y','z','yaw','pitch','roll','fov'] as const).map(k=><Num key={k} label={k} value={cam[k]} step={k==='x'||k==='y'||k==='z'?0.01:0.05} onChange={v=>update(s=>({...s,camera:{...s.camera!,[k]:v} as CameraPose}))}/>)}
+   </div>}
   </section>
   <section className="f3-group" aria-label="Fire">
    <span className="f3-title">Fire</span>
