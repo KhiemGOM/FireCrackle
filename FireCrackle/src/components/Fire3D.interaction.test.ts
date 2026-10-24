@@ -21,7 +21,7 @@ vi.mock("./FireWorldView.css", () => ({}));
 const screen = vi.hoisted(() => ({ scale: 1 }));
 vi.mock("../hooks/useSvgScreenScale", () => ({ useSvgScreenScale: () => screen.scale }));
 vi.mock("../lib/spriteSheet", async (original) => ({ ...(await original<object>()), loadSpriteSheet: () => () => {} }));
-import { initReversal, type CameraPose } from "../lib/reversal";
+import { initReversal, project, type CameraPose } from "../lib/reversal";
 import { emptyTool, newFire, type ToolState } from "../lib/fireTool";
 import type { Fire3D } from "../lib/useFire3D";
 import { Fire3DBar } from "./Fire3DBar";
@@ -289,4 +289,13 @@ describe("the corner list", () => {
     expect(cut).toBeLessThanOrEqual(W * 0.75);
     expect(css).toMatch(/\.f3-chip\s*\{[^}]*text-overflow:\s*ellipsis/);
   });
+});
+
+it("a camera kept with the frame says how well it fits the corners (it is not re-solved on the way back)", () => {
+  hooks.si = hooks.ri = 0;
+  const ws: [number, number, number][] = [[0, 64, 1], [1, 64, 1], [0, 64, 2], [1, 65, 2]];
+  const clicks = ws.map((world, i) => ({ id: i + 1, px: project(cam, [world], 1280, 720)[0]!, world }));
+  const out = Fire3DBar({ fire: tool({}, { clicks, candidates: [] }), sprite: null });
+  const status = text(all(out, e => String(e.props.className ?? "").startsWith("f3-status"))[0]);
+  expect(status).toMatch(/^Saved camera · corners fit to 0\.00 px/);
 });

@@ -172,6 +172,16 @@ export function solveTool(s: ToolState, w: number, h: number): ToolState {
   return candidates.length ? { ...s, candidates, camera: candidates[0].camera } : { ...s, candidates };
 }
 
+/** RMS pixel distance between where `cam` puts the typed corners and where they were clicked (`w` × `h` pixels); null
+ * with no typed corner or one behind the camera. For a camera that was kept rather than solved just now. */
+export function cornerFit(cam: CameraPose, clicks: ToolClick[], w: number, h: number): number | null {
+  const typed = clicks.filter((c): c is ToolClick & { world: Vec3 } => c.world !== null);
+  if (!typed.length) return null;
+  const px = project(cam, typed.map(c => c.world), w, h);
+  if (px.some(p => !p)) return null;
+  return Math.sqrt(typed.reduce((sum, c, i) => sum + (px[i]![0] - c.px[0]) ** 2 + (px[i]![1] - c.px[1]) ** 2, 0) / typed.length);
+}
+
 /** Corners a camera needs to be pinned down (each gives 2 numbers; a camera has 7): fewer, and many cameras fit them,
  * so the one shown leans on the automatic guess and the eye height. */
 const SURE_CORNERS = 4;

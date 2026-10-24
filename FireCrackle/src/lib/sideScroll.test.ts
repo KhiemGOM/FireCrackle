@@ -12,10 +12,15 @@ it("the wheel scrolls a strip that overflows sideways, either wheel axis", () =>
   expect(scrollSideways(s, wheel(0, -50))).toBe(true);
   expect(s.scrollLeft).toBe(70);
 });
-it("a strip that fits, or is already at that end, leaves the wheel to the page", () => {
+it("a strip that fits leaves the wheel to the page", () => {
   expect(scrollSideways(strip(0, 300, 300), wheel(120))).toBe(false);
-  expect(scrollSideways(strip(700), wheel(120))).toBe(false);
-  expect(scrollSideways(strip(0), wheel(-120))).toBe(false);
+});
+it("a strip at its end keeps the wheel (the page does not scroll when the strip is done)", () => {
+  const end = strip(700), start = strip(0);
+  expect(scrollSideways(end, wheel(120))).toBe(true);
+  expect(end.scrollLeft).toBe(700);
+  expect(scrollSideways(start, wheel(-120))).toBe(true);
+  expect(start.scrollLeft).toBe(0);
 });
 it("Ctrl+wheel is left alone (zoom)", () => {
   expect(scrollSideways(strip(0), wheel(120, 0, true))).toBe(false);

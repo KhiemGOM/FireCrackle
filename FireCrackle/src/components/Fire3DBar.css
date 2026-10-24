@@ -1,7 +1,7 @@
 /* two rows of fixed height (Sprite | Fire, then Camera): adding corners or switching modes never moves the picture
    under the cursor; only a long corner list scrolls inside its row */
 .f3-bar { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 34px 34px; grid-template-areas: "sprite fire" "camera camera"; gap: 2px 0; padding: 3px 6px; white-space: nowrap; }
-.f3-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 0 10px; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.f3-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 0 10px; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior: contain; }
 /* no scrollbar (it covered the controls): the wheel scrolls a row sideways (lib/sideScroll.ts) */
 .f3-group::-webkit-scrollbar { display: none; }
 .f3-group[aria-label="Sprite"] { grid-area: sprite; padding-left: 2px; }
@@ -13,7 +13,7 @@
 .f3-chip { font-variant-numeric: tabular-nums; flex-shrink: 0; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the corners scroll in a strip of their own: many corners never push the rest of the camera row away */
 /* chips 96 + 4 apart in a 350 px strip: the edge falls half way into a chip, so a cut chip always shows there is more */
-.f3-chips { display: inline-flex; gap: 4px; max-width: 350px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: none; }
+.f3-chips { display: inline-flex; gap: 4px; max-width: 350px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: none; overscroll-behavior: contain; }
 .f3-chips::-webkit-scrollbar { display: none; }
 .f3-chip.pending { opacity: 0.7; font-style: italic; }
 .f3-chip[aria-pressed="true"], .f3-modes button[aria-checked="true"], .f3-faces button[aria-pressed="true"] { background: #f5c542; color: #000; }

@@ -456,3 +456,23 @@ describe("fire texels in depth order", () => {
     expect(fireTexels(fireQuads(newFire(view, [0, 0, 0]), false, behind, 1280, 720), sheet, 0, false, 1280, 720, [behind.x, behind.y, behind.z], side, rows)).toEqual([]);
   });
 });
+
+// ---- how well a camera fits the corners, also for a camera kept with a frame (restored without a fresh solve)
+
+import { cornerFit } from "./fireTool";
+
+describe("cornerFit", () => {
+  const ws: Vec3[] = [[6, 64, -7], [9, 64, -5], [5, 66, -9], [4, 63, -6]];
+  // made once the Rust runtime is ready (inside the tests)
+  const at = () => ws.map((world, i) => ({ id: i + 1, px: project(cam, [world], W, H)[0]!, world }));
+  it("the camera the clicks came from fits them exactly; a moved one does not", () => {
+    const clicks = at();
+    expect(cornerFit(cam, clicks, W, H)!).toBeLessThan(1e-6);
+    expect(cornerFit({ ...cam, x: cam.x + 0.3 }, clicks, W, H)!).toBeGreaterThan(1);
+  });
+  it("no usable corners, or a corner behind the camera, gives no number", () => {
+    const clicks = at();
+    expect(cornerFit(cam, [{ id: 1, px: [1, 1], world: null }], W, H)).toBeNull();
+    expect(cornerFit({ ...cam, yaw: cam.yaw + 180 }, clicks, W, H)).toBeNull();
+  });
+});

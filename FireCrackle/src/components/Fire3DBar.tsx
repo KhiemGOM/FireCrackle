@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {entitySizes,type CameraPose} from '../lib/reversal';
-import {cameraQuality,removeClick,setClickWorld,setEntity,setMode,toggleBurnFace,usableClicks,type BurnFace,type FireMode,type Vec3} from '../lib/fireTool';
+import {cameraQuality,cornerFit,removeClick,setClickWorld,setEntity,setMode,toggleBurnFace,usableClicks,type BurnFace,type FireMode,type Vec3} from '../lib/fireTool';
 import type {Fire3D} from '../lib/useFire3D';
 import {useWheel} from '../hooks/useWheel';
 import {scrollSideways} from '../lib/sideScroll';
@@ -59,7 +59,9 @@ export function Fire3DBar({fire,sprite}:{fire:Fire3D;sprite:ReactNode}){
  const pending=state.clicks.findIndex(c=>!c.world),q=cameraQuality(state),need=q.need;
  const next=pending>=0?`type corner ${pending+1}'s position`:need>0?`add ${need} more corner${need===1?'':'s'}`:'';
  const n=corners.length;
- const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam?(best?(q.rough?`Rough camera: ${n} corner${n===1?'':'s'} fit many cameras`:`Camera solved · corners fit to ${fmt(best.rms,2)} px`):'Camera kept from before')+(next?` · ${next}`:'')
+ // a camera kept with the frame (or carried from the last one) is not solved again: say how well it fits these corners
+ const kept=()=>{const fit=cam&&fire.size?cornerFit(cam,state.clicks,fire.size.width,fire.size.height):null;return fit===null?'Camera kept from before':`Saved camera · corners fit to ${fmt(fit,2)} px`;};
+ const status=fire.error?fire.error:fire.busy?'Reading the picture…':cam?(best?(q.rough?`Rough camera: ${n} corner${n===1?'':'s'} fit many cameras`:`Camera solved · corners fit to ${fmt(best.rms,2)} px`):kept())+(next?` · ${next}`:'')
   :g?`Guess: pitch ${fmt(g.pitch)}° · FOV ${g.fovKnown?fmt(g.fov)+'°':'unknown'}${g.ambiguous?' (unsure)':''}${next?` · ${next}`:''}`
   :`No automatic guess for this picture${next?`: ${next}`:''}`;
  const editFire=(next:(x:NonNullable<typeof f>)=>NonNullable<typeof f>)=>update(s=>s.fire?{...s,fire:next(s.fire)}:s);
