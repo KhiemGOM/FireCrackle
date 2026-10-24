@@ -21,6 +21,56 @@ const SHEET: &[u8] = include_bytes!("../../../fire-detection/data/assets/fire_1.
 const THRESHOLD: f64 = 0.5;
 type Completion = Box<dyn FnOnce(&Project, &[(u32, u8)]) -> Result<usize, String> + Send>;
 
+/// The app's first-person match of one frame (`pov_match`): the labeller's accepted row and FOV (none when it accepts
+/// nothing), and up to three rows to offer, its answer first.
+#[derive(Debug, Serialize)]
+pub struct FrameMatch {
+    pub row: Option<u8>,
+    pub fov: Option<u8>,
+    pub candidates: Vec<FrameCandidate>,
+}
+#[derive(Debug, Serialize)]
+pub struct FrameCandidate {
+    pub row: u8,
+    pub fov: u8,
+    /// Colour evidence (-1..1), when measured.
+    pub evidence: Option<f64>,
+    pub accepted: bool,
+}
+
+/// Match the first-person fire on a native frame's PNG with the production labeller (`fire_core::pov::PovMatcher`,
+/// the one the scan uses), kept between calls for the frame size it was built for.
+pub fn match_png(png: &[u8]) -> Result<FrameMatch, String> {
+    static KEPT: Mutex<Option<((usize, usize), Arc<PovMatcher>)>> = Mutex::new(None);
+    let (rgb, w, h) = studio_core::gui::png_rgb(png)?;
+    let matcher = {
+        let mut kept = KEPT.lock().map_err(|_| "first-person matcher unavailable")?;
+        match kept.as_ref() {
+            Some((size, m)) if *size == (w, h) => m.clone(),
+            _ => {
+                let m = Arc::new(PovMatcher::new(SHEET, studio_core::gui::pov_textures()?, w, h)?);
+                *kept = Some(((w, h), m.clone()));
+                m
+            }
+        }
+    };
+    let found = matcher.candidates(&rgb)?;
+    Ok(FrameMatch {
+        row: found.result.row,
+        fov: found.result.fov,
+        candidates: found
+            .ranked
+            .iter()
+            .map(|c| FrameCandidate {
+                row: c.row,
+                fov: c.fov,
+                evidence: c.evidence.is_finite().then_some(c.evidence),
+                accepted: c.accepted,
+            })
+            .collect(),
+    })
+}
+
 #[derive(Clone, Serialize)]
 pub struct Status {
     pub id: u64,
@@ -1849,5 +1899,36 @@ mod tests {
         if let Some(mut process) = slot.lock().unwrap().take() {
             let _ = process.wait();
         }
+    }
+}
+
+#[cfg(test)]
+mod frame_match_tests {
+    use super::*;
+    fn png(w: u32, h: u32, rgb: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut e = png::Encoder::new(&mut out, w, h);
+            e.set_color(png::ColorType::Rgb);
+            e.set_depth(png::BitDepth::Eight);
+            e.write_header().unwrap().write_image_data(rgb).unwrap();
+        }
+        out
+    }
+    #[test]
+    fn a_frame_without_first_person_fire_has_no_row_but_offers_up_to_three() {
+        let m = match_png(&png(640, 360, &vec![40; 640 * 360 * 3])).unwrap();
+        assert_eq!((m.row, m.fov), (None, None));
+        assert!(!m.candidates.is_empty() && m.candidates.len() <= 3);
+        assert!(m.candidates.iter().all(|c| !c.accepted && (c.fov == 70 || c.fov == 60)));
+    }
+    #[test]
+    fn a_picture_that_is_not_a_png_is_an_error() {
+        assert!(match_png(b"nope").is_err());
+    }
+    #[test]
+    fn frames_of_another_size_get_their_own_matcher() {
+        assert!(match_png(&png(320, 180, &vec![40; 320 * 180 * 3])).is_ok());
+        assert!(match_png(&png(640, 360, &vec![40; 640 * 360 * 3])).is_ok());
     }
 }

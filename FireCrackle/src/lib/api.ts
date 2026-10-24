@@ -126,6 +126,8 @@ export interface Backend {
   povStatus?(): Promise<PovStatus | null>;
   povCancel?(id:number): Promise<void>;
   povApply?(id:number): Promise<View>;
+  /** The first-person labeller on one native frame: its accepted row and FOV, and up to three rows to try. */
+  povMatch?(frame:number): Promise<FrameMatch>;
   /** The per-video "vanilla 1.16.5 GUI?" answer (desktop app only). */
   guiAnswerGet?(): Promise<GuiAnswer | null>;
   guiAnswerSet?(answer: GuiAnswer): Promise<void>;
@@ -142,6 +144,14 @@ export interface Backend {
 
 export interface LinkStatus { id:number; state:"running"|"done"|"cancelled"|"failed"; message:string; path:string|null; error:string|null; }
 export interface ToolProgress { name:string; downloaded:number; total:number|null; }
+
+/** One frame's first-person match (backend `pov_match`): the labeller's accepted row and FOV (null when it accepts
+ * nothing) and up to three rows to try, its answer first. */
+export interface FrameMatch {
+  row: number | null;
+  fov: number | null;
+  candidates: { row: number; fov: number; evidence: number | null; accepted: boolean }[];
+}
 
 export interface PovStatus {
   id:number; video_path:string; state:"running"|"saving"|"done"|"cancelled"|"failed";
@@ -181,6 +191,7 @@ export async function createBackend(): Promise<Backend> {
     povStatus: () => invoke<PovStatus|null>("pov_status"),
     povCancel: (id) => invoke<void>("pov_cancel",{id}),
     povApply: (id) => invoke<View>("pov_apply",{id}),
+    povMatch: (frame) => invoke<FrameMatch>("pov_match",{frame}),
     guiAnswerGet: () => invoke<GuiAnswer | null>("gui_answer_get"),
     guiAnswerSet: (answer) => invoke<void>("gui_answer_set", { answer }),
     guiMaskFrame: async (frame, width) => readGuiMaskFrame(await invoke<ArrayBuffer>("gui_mask_frame", { frame, width })),

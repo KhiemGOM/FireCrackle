@@ -210,6 +210,19 @@ fn pov_status(state: State<'_, AppState>) -> Result<Option<pov::Status>, String>
     state.pov.restore(&project, false)
 }
 
+/// The first-person fire on one frame (the app's M with first-person fire on): the production labeller on the
+/// exact native frame, its verdict and up to three rows to offer.
+#[tauri::command]
+async fn pov_match(state: State<'_, AppState>, frame: u32) -> Result<pov::FrameMatch, String> {
+    let project = run(state.ws.clone(), |w| Ok(w.automation_project())).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let png = exact_frame::get(&project, frame, external_tools::video_tools)?;
+        pov::match_png(&png)
+    })
+    .await
+    .map_err(err)?
+}
+
 #[tauri::command]
 fn pov_cancel(state: State<'_, AppState>, id: u64) -> Result<(), String> {
     state.pov.cancel(id)
@@ -544,6 +557,7 @@ pub fn run_app() {
             quad_phase::quad_phase,
             pov_start,
             pov_status,
+            pov_match,
             pov_cancel,
             pov_apply,
             compress_fire_cycle,

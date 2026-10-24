@@ -7,6 +7,9 @@
 .hud-controls button { padding: 3px 7px; }
 .hud-controls select { color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 3px; }
 .hud-controls .hud-hint { color: var(--dim); }
+/* the first-person match (M with first-person fire on): its status and the rows to try */
+.hud-controls .hud-match { display: inline-flex; align-items: center; gap: 4px; }
+.hud-controls .hud-match button[aria-pressed="true"] { background: #f5c542; color: #000; }
 .video-pane { display: flex; flex-direction: column; }
 .video-pane .hud-controls { order: -1; }
 .video-pane .video-frame { height: min(var(--video-h, 380px), max(160px, calc(100dvh - 450px))); }

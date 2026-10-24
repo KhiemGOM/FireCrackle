@@ -509,3 +509,44 @@ fn the_reply_says_which_veil_the_open_screen_draws() {
     let v = serde_json::to_value(studio_core::gui::screens_mask(&screens(2560, 1440), 1024, 576).unwrap().0).unwrap();
     assert_eq!(v["screen_veil"], "flat");
 }
+
+// ---- the native frame's pixels from its PNG, shared by the GUI mask and the first-person match
+
+fn encode(w: u32, h: u32, colour: png::ColorType, depth: png::BitDepth, data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    {
+        let mut e = png::Encoder::new(&mut out, w, h);
+        e.set_color(colour);
+        e.set_depth(depth);
+        e.write_header().unwrap().write_image_data(data).unwrap();
+    }
+    out
+}
+
+#[test]
+fn an_rgb_or_rgba_png_gives_the_same_rgb_pixels_and_its_size() {
+    let rgb: Vec<u8> = (0..3 * 4 * 2).map(|i| (i * 11) as u8).collect();
+    let rgba: Vec<u8> = rgb
+        .chunks(3)
+        .flat_map(|p| [p[0], p[1], p[2], 200])
+        .collect();
+    for png in [
+        encode(4, 2, png::ColorType::Rgb, png::BitDepth::Eight, &rgb),
+        encode(4, 2, png::ColorType::Rgba, png::BitDepth::Eight, &rgba),
+    ] {
+        assert_eq!(png_rgb(&png).unwrap(), (rgb.clone(), 4, 2));
+    }
+}
+
+#[test]
+fn a_non_png_or_an_unsupported_png_is_an_error() {
+    assert!(png_rgb(b"not a png").is_err());
+    let grey16 = encode(
+        2,
+        2,
+        png::ColorType::Grayscale,
+        png::BitDepth::Sixteen,
+        &[0; 8],
+    );
+    assert!(png_rgb(&grey16).is_err());
+}

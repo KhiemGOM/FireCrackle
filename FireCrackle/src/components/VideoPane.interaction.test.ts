@@ -159,6 +159,9 @@ it.each([{tagName: "DIV"}, {tagName: "BUTTON"}, {tagName: "INPUT", type: "range"
   let root = await tree(); expect(find(root, "Quad mask settings")).toBeDefined();
   press("u"); root = await tree(); expect(find(root, "Ruler settings")).toBeDefined();
   press("h"); root = await tree(); expect(find(root, "First-person fire settings")).toBeDefined();
+  // with first-person fire on, M matches the first-person fire (it stays on); with it off, M opens the sprite matcher
+  expect(press("m").preventDefault).toHaveBeenCalledOnce(); root = await tree(); expect(find(root, "First-person fire settings")).toBeDefined();
+  press("m", "keyup"); press("h"); root = await tree();
   press("m"); root = await tree(); expect(find(root, "Sprite matching settings")).toBeDefined();
   expect(press("1").preventDefault).toHaveBeenCalledOnce();
   press("m", "keyup", {target: {tagName: "INPUT", type: "number"}});

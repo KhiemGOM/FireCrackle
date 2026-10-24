@@ -49,7 +49,7 @@ a second implementation, and record the decision here.
 | Frames from a pipe, parallel frame workers, ffprobe parsing | `fire_core::video` (`read_frame`, `parallel_frames*`, `scan_workers`, `parse_probe`) | |
 | Exact frame timestamps from `showinfo` | `studio_core::frames::{ShowinfoTimes, parse_showinfo}` | Exact integer pts × time base; `pts_time` only as a fallback. |
 | Frame index, nearest frame, keyframe before, frame at time | `studio_core::index` (`build_index`, `nearest_frame`, `nearest_by`, `FrameIndex::frame_at_time`, `keyframe_at_or_before`) | Frontend: `src/lib/frameMath.ts` (`clamp`, `clampFrame`, `frameAtTime`). Never `time × fps`. |
-| Preview / exact-frame decode | `studio_core::frames::{decode_preview, decode_exact_png, decode_job, seek_arg}`; frontend `src/lib/frameBuffer.ts`, `exactFrame.ts` | |
+| Preview / exact-frame decode | `studio_core::frames::{decode_preview, decode_exact_png, decode_job, seek_arg}`; frontend `src/lib/frameBuffer.ts`, `exactFrame.ts` | A native frame's RGB from its PNG: `studio_core::gui::png_rgb`. |
 | Timecode text | `src/lib/timecode.ts` | |
 
 ### Image preprocessing (detection)
@@ -60,7 +60,7 @@ a second implementation, and record the decision here.
 | Portal undo, world-translucency abstention | `fire-detection/core/src/portal.rs` (`veil::portal`) | Binding `bench/no_fire/portal_undo.py`. |
 | GUI-piece mask (scale fit, HUD, screens) | `fire-detection/core/src/gui_mask.rs` | Binding `bench/no_fire/gui_mask_native.py`; app reader `src/lib/guiMask.ts`. Metadata only, no second inverse. App packing `studio_core::gui::pack` flags open-screen pixels (`SCREEN_FLAG`); unveil protects only those (`screenWorld` / `guiScreenCoverage`), never the HUD. The app analyzer uses the shared `studio_core::gui::pov_textures`. |
 | GUI presence / interaction detector | `fire-detection/core/src/gui_interaction_fast.rs` (policy, geometry cache, workers), `gui_screens.rs`, `gui_tooltip.rs` | `PanelMatch::recipe_book` = matched at the recipe-book pose; `merge_neutral_panel` then masks the book, its tabs and any item tooltip (`Detection::tooltips`, piece `ItemTooltip`). One frame has one GUI scale: scans use `detect_at_hud_scale` with `GuiDetector::hud_scale_with_hint` (studio_core `GuiAnalyzer::hud_scale`); the mask path passes the HUD scale itself. The engine's whole answer is `Detection` (optional `serde` feature; `scaled` to another picture size, `none`): the app's GUI scan stores it per frame (`gui_scan.rs` `Surface::screen`, `Jobs::screens`) and the GUI mask reuses it (`GuiAnalyzer::analyze_jpeg_with_screens` → `GuiDetector::detect_with_screens`) instead of detecting screens again on the 720p display picture. Add new screen layouts here, never in a separate matcher. |
-| First-person acceptance, on-fire overlay | `fire-detection/core/src/pov.rs`, `overlay.rs` | |
+| First-person acceptance, on-fire overlay | `fire-detection/core/src/pov.rs`, `overlay.rs` | One frame for the app (Label's Match with first-person fire on): `PovMatcher::candidates` (the labeller's verdict and FOV, then up to three rows from the same two matchers) → `pov_match` command (`src-tauri/src/pov.rs` `match_png`, exact native frame) → `api.povMatch`. |
 
 ### Geometry and projection
 
@@ -96,6 +96,7 @@ a second implementation, and record the decision here.
 | Proof export (name, save dialog, download), MB formatting; copy / save any PNG picture | `src/lib/proofExport.ts` (`copyPicture`, `savePicture`) | |
 | Sprite sheet as RGBA (fire_0/1, animation atlases, tinted water) | `src/lib/spriteSheet.ts` (`loadSpriteSheet`, `spriteSource`, `spriteShape`) | Used by `FireQuadMask` and the 3D quad. |
 | Image viewer (click a picture: zoom, pan, native size, pixel colour, copy, save) | `src/components/ImageViewer.tsx` (`Viewable`, `ViewButton`, `ImageViewerProvider`), logic `src/lib/imageViewer.ts` | **Every picture opens here**; only the Label/Images video viewer is its own tool. It shows the displayed picture's source as is (post effects come first, in the tool); its only logic is swapping in the same picture at native resolution (`native`). Pan/zoom math is `lib/zoom.ts`. |
+| Video viewer pan / zoom / rotation, keeping the picture in place when its area resizes | `src/lib/zoom.ts` (`zoomAt`, `rotateView`, `anchorView`), `src/hooks/useAnchoredView.ts`, wheel events `src/hooks/useWheel.ts` | A toolbar strip without a scrollbar scrolls sideways with the wheel: `src/lib/sideScroll.ts` `scrollSideways` (keeps the wheel at its ends). |
 | A frame at the video's own resolution | `src/lib/exactFrame.ts` (`nativeFrame`; `exactFrameUrl` for the paused Label picture) | `backend.frame` is the scaled display JPEG. A gallery card's unveiled frame at native size: `comparisonPost.ts` `boundaryPicture` (via `unveilPreview`). |
 | Modal guard for hotkeys | `src/lib/shortcutFocus.ts` (`modalOpen`) | Any `aria-modal` dialog owns the keyboard. |
 | Error text and error popup | `src/lib/appErrors.ts` (`failureMessage`, `reportError`) | Never `String(e)`. |

@@ -4,6 +4,7 @@ import {ANIMATION_ATLASES,soulFire,type AnimationAtlas} from "../lib/animationAt
 import { useEffect, useImperativeHandle, useRef, useState, type PointerEvent, type Ref } from "react";
 import { useWheel } from "../hooks/useWheel";
 import type { Backend, View } from "../lib/api";
+import type { FrameMatch } from "../lib/api";
 import { IDENTITY, clampView, panView, rotateView, wheelFactor, zoomAt, type Box, type ViewXform } from "../lib/zoom";
 import { isFire, type Label } from "../lib/grid";
 import { formatTimecode } from "../lib/timecode";
@@ -265,6 +266,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
   }
   function toggleMatcher() {
+    if (hudEnabled) { matchFirstPerson(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
@@ -272,6 +274,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   }
   /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
+    if (hudEnabled) { matchFirstPerson(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
     if (matchingEnabled) { setMatchingEnabled(false); return; }
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
@@ -292,6 +295,7 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     else if (action.type === "ruler") toggleRuler();
     else if (action.type === "fire3d") toggleFire3d();
     else if (action.type === "refine") void refineSelected();
+    else if (hudEnabled) pickFirstPerson(action.index);
     else setMatchPick(current => ({ index: action.index, n: (current?.n ?? 0) + 1 }));
   };
   const toolsRef = useRef(runTool);
@@ -592,6 +596,27 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
   useEffect(() => {
     if (fire3dOn && !manualEnabled && !hudEnabled) onPreviewChange?.({ ...(manualAtlas ? { atlas: manualAtlas } : {}), sheet: manualSheet, row: manualRow, mirrored: manualMirrored });
   }, [fire3dOn, manualEnabled, hudEnabled, manualSheet, manualAtlas, manualRow, manualMirrored, onPreviewChange]);
+  // Match with first-person fire on: the first-person labeller (the POV scan's) on this native frame; an accepted row
+  // and FOV are shown, and up to three rows can be tried (M then 1-3, or the buttons), as the sprite matcher does
+  const [hudMatch, setHudMatch] = useState<{ frame: number; busy?: boolean; result?: FrameMatch; error?: string } | null>(null);
+  function matchFirstPerson() {
+    if (!backend.povMatch || stillImage) return;
+    const frame = view.current;
+    setHudMatch({ frame, busy: true });
+    void backend.povMatch(frame).then(result => {
+      if (currentRef.current !== frame) return; // moved on meanwhile
+      setHudMatch({ frame, result });
+      if (result.row !== null && result.fov !== null) { setHudRow(result.row); setHudFov(result.fov); }
+    }, error => {
+      setHudMatch({ frame, error: failureMessage(error) });
+      onError(`First-person match: ${failureMessage(error)}`);
+    });
+  }
+  function pickFirstPerson(index: number) {
+    const c = hudMatch?.frame === view.current ? hudMatch.result?.candidates[index] : undefined;
+    if (c) { setHudRow(c.row); setHudFov(c.fov); }
+  }
+  const hudMatchShown = hudMatch?.frame === view.current ? hudMatch : null;
   // the picture stays on the same screen pixels when the video area changes size (the 3D overview, the window)
   useAnchoredView(frameRef, imageSize, setXf);
   const s = view.suggestion;
@@ -695,6 +720,11 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <OpacityControl groupLabel="First-person opacity" toggleLabel="Toggle first-person opacity"
             sliderLabel="First-person fire opacity" value={hudOpacity} onChange={setHudOpacity} />
           <span className="hud-hint">Ctrl+click atlas to preview · follows the next frame's guess</span>
+          {hudMatchShown && <span className="hud-match" role="status" aria-label="First-person match">
+            {hudMatchShown.busy ? "Matching…" : hudMatchShown.error ? "Match failed" : hudMatchShown.result?.row != null ? `Match: row ${hudMatchShown.result.row} · ${hudMatchShown.result.fov}°` : "No first-person fire found · try:"}
+            {hudMatchShown.result?.candidates.map((c, i) => <button key={i} aria-label={`First-person match ${i + 1}: row ${c.row}, ${c.fov}°`} aria-pressed={hudRow === c.row && hudFov === c.fov}
+              title={`M then ${i + 1} · colour evidence ${c.evidence === null ? "—" : c.evidence.toFixed(2)}${c.accepted ? " · the labeller's answer" : ""}`} onClick={() => pickFirstPerson(i)}>{i + 1} · {c.row} · {c.fov}°{c.accepted ? " ✓" : ""}</button>)}
+          </span>}
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
       </div>}
       {manualEnabled && <div className="hud-controls" aria-label="Quad mask settings" onKeyDown={(e) => e.stopPropagation()}>

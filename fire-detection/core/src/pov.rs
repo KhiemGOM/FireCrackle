@@ -17,11 +17,32 @@ pub struct PovMatcher {
     gui: GuiDetector,
 }
 
+/// The view-model FOVs the two matchers are built for (normal, and the narrower one under water).
+const FOVS: [u8; 2] = [70, 60];
+
 #[derive(Debug, Clone, Copy)]
 pub struct PovResult {
     pub row: Option<u8>,
+    /// The FOV (70 or 60) of the accepted row; None with no row.
+    pub fov: Option<u8>,
     pub used_gui: bool,
     pub evaluated_alternate: bool,
+}
+
+/// A row to offer for one frame: its FOV, colour evidence and whether it is the labeller's accepted answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PovCandidate {
+    pub row: u8,
+    pub fov: u8,
+    pub evidence: f64,
+    pub accepted: bool,
+}
+
+/// One frame's first-person match: the labeller's verdict and up to three rows, its answer first.
+#[derive(Debug, Clone)]
+pub struct PovCandidates {
+    pub result: PovResult,
+    pub ranked: Vec<PovCandidate>,
 }
 
 struct Branch {
@@ -92,7 +113,8 @@ impl PovMatcher {
         })
     }
 
-    fn selected(branches: &[Branch]) -> Option<u8> {
+    /// The accepted branch's (row, FOV) with the most evidence.
+    fn selected(branches: &[Branch]) -> Option<(u8, u8)> {
         let mut best: Option<&Branch> = None;
         for b in branches.iter().filter(|b| b.accepted) {
             // Automatic branch is first and wins exact evidence ties.
@@ -100,7 +122,62 @@ impl PovMatcher {
                 best = Some(b);
             }
         }
-        best.map(|b| b.row)
+        best.map(|b| (b.row, FOVS[b.fov]))
+    }
+
+    /// Whether the frame looks veiled (an open screen's darkening) by the automatic test, and the share it measured.
+    fn auto_veil(&self, frame: &[u8]) -> Result<(bool, f64), String> {
+        detect_pixels(
+            frame,
+            self.width,
+            self.height,
+            3,
+            16.min(self.height - 1),
+            Options::default(),
+        )
+    }
+
+    /// One frame's match for the app: the labeller's verdict (exactly `match_frame`) and up to three rows to offer,
+    /// one per row, its answer first and then by colour evidence over both FOVs (scores of the same two matchers).
+    pub fn candidates(&self, frame: &[u8]) -> Result<PovCandidates, String> {
+        let result = self.match_frame(frame)?;
+        let (veiled, _) = self.auto_veil(frame)?;
+        let mut all = Vec::new();
+        for (i, m) in self.matchers.iter().enumerate() {
+            let r = m.inspect_scores(frame, None, veiled)?;
+            let d = r.diagnostics.as_ref().expect("score diagnostics");
+            for &(row, _) in r.ranked_colour.iter().take(6) {
+                all.push(PovCandidate {
+                    row,
+                    fov: FOVS[i],
+                    evidence: evidence(d, row as usize),
+                    accepted: false,
+                });
+            }
+        }
+        all.sort_by(|a, b| b.evidence.total_cmp(&a.evidence));
+        let mut ranked: Vec<PovCandidate> = Vec::new();
+        if let (Some(row), Some(fov)) = (result.row, result.fov) {
+            let evidence = all
+                .iter()
+                .find(|k| k.row == row && k.fov == fov)
+                .map_or(f64::NAN, |k| k.evidence);
+            ranked.push(PovCandidate {
+                row,
+                fov,
+                evidence,
+                accepted: true,
+            });
+        }
+        for k in all {
+            if ranked.len() == 3 {
+                break;
+            }
+            if !ranked.iter().any(|r| r.row == k.row) {
+                ranked.push(k);
+            }
+        }
+        Ok(PovCandidates { result, ranked })
     }
 
     pub fn match_frame(&self, frame: &[u8]) -> Result<PovResult, String> {
@@ -122,14 +199,7 @@ impl PovMatcher {
         hint: Option<&mut GuiFitHint>,
     ) -> Result<PovResult, String> {
         let timer = crate::profile::start(0);
-        let (auto, share) = detect_pixels(
-            frame,
-            self.width,
-            self.height,
-            3,
-            16.min(self.height - 1),
-            Options::default(),
-        )?;
+        let (auto, share) = self.auto_veil(frame)?;
         drop(timer);
         let dual = (share - Options::default().min_share).abs() <= DUAL_DISTANCE + 1e-12;
         let timer = crate::profile::start(1);
@@ -138,8 +208,9 @@ impl PovMatcher {
             branches.push(self.raw(frame, !auto)?);
         }
         drop(timer);
-        let result = |row, used_gui| PovResult {
-            row,
+        let result = |pick: Option<(u8, u8)>, used_gui| PovResult {
+            row: pick.map(|p| p.0),
+            fov: pick.map(|p| p.1),
             used_gui,
             evaluated_alternate: dual,
         };
@@ -151,7 +222,11 @@ impl PovMatcher {
         // answer. GUI work can improve a score but cannot change the label.
         if possible.iter().all(|b| b.row == possible[0].row) && possible.iter().any(|b| b.accepted)
         {
-            return Ok(result(Some(possible[0].row), false));
+            let b = possible
+                .iter()
+                .find(|b| b.accepted)
+                .expect("an accepted branch");
+            return Ok(result(Some((b.row, FOVS[b.fov])), false));
         }
         let timer = crate::profile::start(2);
         let mut gui = match hint {
@@ -207,7 +282,7 @@ impl PovMatcher {
             b.evidence = b.evidence.max(hard);
             b.accepted |= hard >= THRESHOLD;
             if viable == 1 && b.accepted {
-                return Ok(result(Some(b.row), true));
+                return Ok(result(Some((b.row, FOVS[b.fov])), true));
             }
             let timer = crate::profile::start(5);
             let soft: SilhouetteResult =

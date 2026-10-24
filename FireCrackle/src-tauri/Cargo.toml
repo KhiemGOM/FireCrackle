@@ -39,6 +39,10 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 gtk = "0.18"
 
 
+[dev-dependencies]
+# test PNGs for the first-person frame match (the same png crate studio_core decodes with)
+png = "0.18"
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1

@@ -157,6 +157,28 @@ pub fn pov_textures() -> Result<GuiTextures, String> {
     )
 }
 
+/// The RGB24 pixels and size of a native frame's PNG (8-bit RGB or RGBA; alpha dropped), as the exact-frame decode
+/// writes it. Shared by the GUI mask and the first-person match.
+pub fn png_rgb(png: &[u8]) -> Result<(Vec<u8>, usize, usize), String> {
+    let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+        .read_info()
+        .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
+    let mut px = vec![0; reader.output_buffer_size().ok_or("the PNG is too large")?];
+    let info = reader
+        .next_frame(&mut px)
+        .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
+    let (w, h) = (info.width as usize, info.height as usize);
+    let rgb = match (info.color_type, info.bit_depth) {
+        (png::ColorType::Rgb, png::BitDepth::Eight) => px[..w * h * 3].to_vec(),
+        (png::ColorType::Rgba, png::BitDepth::Eight) => px[..w * h * 4]
+            .chunks_exact(4)
+            .flat_map(|p| [p[0], p[1], p[2]])
+            .collect(),
+        other => return Err(format!("unsupported PNG format {other:?}")),
+    };
+    Ok((rgb, w, h))
+}
+
 /// Runs the shared mask with the vanilla textures built into the binary.
 pub struct GuiAnalyzer {
     detector: GuiDetector,
@@ -220,22 +242,7 @@ impl GuiAnalyzer {
         png: &[u8],
         screens: Option<&fire_core::gui_interaction::Detection>,
     ) -> Result<(GuiMaskReply, Vec<u8>), String> {
-        let mut reader = png::Decoder::new(std::io::Cursor::new(png))
-            .read_info()
-            .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
-        let mut px = vec![0; reader.output_buffer_size().ok_or("the PNG is too large")?];
-        let info = reader
-            .next_frame(&mut px)
-            .map_err(|e| format!("the frame is not a readable PNG: {e}"))?;
-        let (w, h) = (info.width as usize, info.height as usize);
-        let rgb = match (info.color_type, info.bit_depth) {
-            (png::ColorType::Rgb, png::BitDepth::Eight) => px[..w * h * 3].to_vec(),
-            (png::ColorType::Rgba, png::BitDepth::Eight) => px[..w * h * 4]
-                .chunks_exact(4)
-                .flat_map(|p| [p[0], p[1], p[2]])
-                .collect(),
-            other => return Err(format!("unsupported PNG format {other:?}")),
-        };
+        let (rgb, w, h) = png_rgb(png)?;
         self.analyze_rgb(&rgb, w, h, screens)
     }
 

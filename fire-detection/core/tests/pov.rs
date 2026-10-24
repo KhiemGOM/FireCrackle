@@ -91,3 +91,71 @@ fn empty_dark_frames_cannot_gain_matching_probes_from_masks() {
     assert!(m.match_frame(&[0; 4]).is_err());
     assert!(PovMatcher::new(SHEET, textures(), 0, 360).is_err());
 }
+
+// ---- matching one frame (the app's M with first-person fire on): the labeller's own answer, with its FOV, and the
+// next best rows from the same matchers
+
+#[path = "common/hud_render.rs"]
+mod hud_render;
+
+fn labeller() -> PovMatcher {
+    PovMatcher::new(SHEET, textures(), 640, 360).unwrap()
+}
+
+#[test]
+fn the_labeller_names_the_fov_of_the_row_it_accepts() {
+    let m = labeller();
+    for (row, fov) in [(7u8, 70.0), (19, 60.0)] {
+        let f = hud_render::render_fov(
+            SHEET,
+            row as usize,
+            640,
+            360,
+            hud_render::background(640, 360, row as u64),
+            1.0,
+            fov,
+        );
+        let r = m.match_frame(&f).unwrap();
+        assert_eq!(r.row, Some(row), "fov {fov}");
+        assert_eq!(r.fov, Some(fov as u8), "row {row}");
+    }
+}
+
+#[test]
+fn candidates_lead_with_the_labellers_answer_then_the_next_best_distinct_rows() {
+    let m = labeller();
+    let f = hud_render::render_fov(
+        SHEET,
+        7,
+        640,
+        360,
+        hud_render::background(640, 360, 7),
+        1.0,
+        70.0,
+    );
+    let c = m.candidates(&f).unwrap();
+    // the same verdict as the scan's labeller
+    assert_eq!(c.result.row, m.match_frame(&f).unwrap().row);
+    let first = &c.ranked[0];
+    assert_eq!((first.row, first.fov, first.accepted), (7, 70, true));
+    assert!(c.ranked.len() <= 3 && c.ranked.len() >= 2, "{:?}", c.ranked);
+    let mut rows: Vec<u8> = c.ranked.iter().map(|k| k.row).collect();
+    rows.sort();
+    rows.dedup();
+    assert_eq!(rows.len(), c.ranked.len(), "one entry per row");
+    assert!(c.ranked[1..]
+        .iter()
+        .all(|k| !k.accepted && k.evidence.is_finite()));
+    assert!(c.ranked.iter().all(|k| k.fov == 70 || k.fov == 60));
+}
+
+#[test]
+fn with_no_first_person_fire_nothing_is_accepted_but_rows_are_still_offered() {
+    let m = labeller();
+    let f = hud_render::background(640, 360, 99);
+    let c = m.candidates(&f).unwrap();
+    assert_eq!(c.result.row, None);
+    assert_eq!(c.result.fov, None);
+    assert!(!c.ranked.is_empty() && c.ranked.len() <= 3);
+    assert!(c.ranked.iter().all(|k| !k.accepted));
+}
