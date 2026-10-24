@@ -1,7 +1,8 @@
-// Match for the 3D quad (M while it is on): every plane of the placed fire, where the solved camera puts it on the
-// native frame, is matched in the picture worker and the planes vote on one shared phase and sprite (lib/fire3dMatch.ts).
-// The best is previewed; the three best phases can be tried with the buttons or M then 1-3, as the quad mask's matcher
-// (QuadMatchControls) does. Previews only: the sprite is the 3D quad's own setting.
+// Match for the 3D quad (its own matching row while Match is on): every plane of the placed fire, where the solved camera
+// puts it on the native frame, is matched in the picture worker and the planes vote on one shared phase and sprite
+// (lib/fire3dMatch.ts). The best is previewed; three tries (lib/phaseConsensus.ts consensusTries) can be previewed with
+// the buttons or M then 1-3, as the quad mask's matcher (QuadMatchControls) does. Previews only: the sprite is the 3D
+// quad's own setting.
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { planeToManualQuad } from "../lib/fireTool";

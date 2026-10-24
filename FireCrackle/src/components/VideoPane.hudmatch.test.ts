@@ -62,6 +62,28 @@ it("with first-person fire on, Match runs the first-person labeller on this fram
   expect(text(find(root, "First-person match"))).toMatch(/row 12 · 60°/);
 });
 
+it("Match is turned on, with first-person's own matching row (not in its bar); Find runs it again; Match again turns it off", async () => {
+  let root = await withFirstPerson();
+  expect(find(root, "First-person match settings")).toBeUndefined();
+  find(root, "Toggle sprite matching tool")!.props.onClick();
+  await settle();
+  root = await tree();
+  expect(find(root, "Toggle sprite matching tool")!.props["aria-pressed"]).toBe(true);
+  const row = find(root, "First-person match settings")!;
+  expect(find(row, "First-person match")).toBeDefined();
+  expect(find(find(root, "First-person fire settings")!, "First-person match")).toBeUndefined();
+  find(row, "Find first-person match")!.props.onClick();
+  expect(backend.povMatch).toHaveBeenCalledTimes(2);
+  await settle();
+  root = await tree();
+  find(root, "Toggle sprite matching tool")!.props.onClick();
+  root = await tree();
+  expect(find(root, "Toggle sprite matching tool")!.props["aria-pressed"]).toBe(false);
+  expect(find(root, "First-person match settings")).toBeUndefined();
+  expect(backend.povMatch).toHaveBeenCalledTimes(2);
+  expect(find(root, "Toggle first-person fire")!.props["aria-pressed"]).toBe(true);
+});
+
 it("its other rows are offered; picking one shows that row and FOV", async () => {
   let root = await withFirstPerson();
   find(root, "Toggle sprite matching tool")!.props.onClick();

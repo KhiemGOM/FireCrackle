@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { matchFirePlanes, matchPicture } from "./fire3dMatch";
 import { rasterizeFire } from "./quadRaster";
+import { matchFireQuad } from "./quadMatch";
 import { spriteAtPhase } from "./phaseConsensus";
 import type { ManualQuad } from "./quadMask";
 
@@ -25,14 +26,14 @@ const planes: { quad: ManualQuad; mirrored: boolean; sheet: 0 | 1 }[] = [
 ];
 /** A dark noisy frame with the planes painted as the game would: the tool's sprite (sheet, phase, mirror) on every
  * plane, each on its own sheet. */
-function frame(sheet: 0 | 1, phase: number, mirrored: boolean, junk = -1) {
+function frame(sheet: 0 | 1, phase: number, mirrored: boolean, junk = -1, hiddenAbove = 0) {
   const data = new Uint8ClampedArray(W * H * 4);
   let s = 7;
   for (let i = 0; i < data.length; i += 4) { s = (s * 1103515245 + 12345) % 2147483648; const v = 30 + (s % 40); data.set([v + 20, v, v], i); data[i + 3] = 255; }
   planes.forEach((p, k) => {
     const own = (sheet ^ p.sheet) as 0 | 1;
     const layer = rasterizeFire(sheets[own], spriteAtPhase(own, phase), mirrored !== p.mirrored, p.quad, W, H);
-    for (let i = 0; i < data.length; i += 4) if (layer[i + 3] > 0) data.set(k === junk ? [90, 90, 255, 255] : [layer[i], layer[i + 1], layer[i + 2], 255], i);
+    for (let i = 0; i < data.length; i += 4) if (layer[i + 3] > 0 && Math.floor(i / 4 / W) >= H * hiddenAbove) data.set(k === junk ? [90, 90, 255, 255] : [layer[i], layer[i + 1], layer[i + 2], 255], i);
   });
   return { width: W, height: H, data };
 }
@@ -56,6 +57,15 @@ describe("matchFirePlanes", () => {
   it("a plane covered by something else does not stop the others from deciding", () => {
     const m = matchFirePlanes(frame(0, 12, false, 1), sheets, planes)!;
     expect(m.candidates[0]).toMatchObject({ phase: 12, sheet: 0, mirrored: false });
+  });
+  it("planes only partly visible still vote: too little for the matcher to trust alone, but the vote was measured with them", () => {
+    // only the base of each plane shows (the top is behind something): the matcher alone calls each one insufficient
+    const image = frame(0, 5, false, -1, 0.66);
+    for (const p of planes) expect(matchFireQuad(image, sheets, p.quad, { refineGeometry: false, phaseEvidence: true }).status).toBe("insufficient");
+    const m = matchFirePlanes(image, sheets, planes);
+    expect(m).not.toBeNull();
+    expect(m!.planes).toBe(3);
+    expect(m!.candidates.some(c => c.phase === 5)).toBe(true);
   });
   it("no planes, or none the matcher can read, give no answer", () => {
     expect(matchFirePlanes(frame(0, 3, false), sheets, [])).toBeNull();

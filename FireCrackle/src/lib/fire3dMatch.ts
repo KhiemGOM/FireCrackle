@@ -25,8 +25,10 @@ export interface PlaneMatch {
 export function matchFirePlanes(image: MatchImage, sheets: [Uint8ClampedArray, Uint8ClampedArray], planes: MatchPlane[]): PlaneMatch | null {
   const tables: ScoredSprite[][] = [];
   for (const plane of planes) {
+    // any plane with evidence votes, however thin alone (as the vote was measured: scripts/phase-consensus-eval.mjs);
+    // a flat one carries no weight. Only planes too small or too empty to sample at all give none.
     const m = matchFireQuad(image, sheets, plane.quad, { refineGeometry: false, phaseEvidence: true });
-    if (m.status === "insufficient" || !m.phaseCandidates?.length) continue;
+    if (!m.phaseCandidates?.length) continue;
     tables.push(m.phaseCandidates.map(c => {
       const sheet = (c.sheet ^ (plane.sheet ?? 0)) as 0 | 1;
       return { sheet, row: spriteAtPhase(sheet, spritePhase(c.sheet as 0 | 1, c.row)), mirrored: c.mirrored !== plane.mirrored, score: c.score };

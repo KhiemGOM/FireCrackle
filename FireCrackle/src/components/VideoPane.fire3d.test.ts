@@ -101,20 +101,32 @@ it("the 3D quad has the quad mask's FFmpeg compression controls (shared settings
   expect(find(root, "Compression damage")).toBeDefined();
 });
 
-it("Match with the 3D quad on matches the 3D quad (it stays on; the quad mask and its matcher stay off)", async () => {
+it("Match with the 3D quad on turns Match on with the 3D quad's own matching row, and runs it; the quad mask stays off", async () => {
   let root = await with3D();
-  expect(find(root, "3D quad match")!.props.runToken).toBe(0);
+  expect(find(root, "3D quad match settings")).toBeUndefined();
+  expect(find(root, "3D quad match")).toBeUndefined();
   find(root, "Toggle sprite matching tool")!.props.onClick();
   root = await tree();
+  expect(pressed(root, "Toggle sprite matching tool")).toBe(true);
   expect(pressed(root, "Toggle 3D quad")).toBe(true);
   expect(pressed(root, "Toggle manual fire quad mask")).toBe(false);
-  expect(pressed(root, "Toggle sprite matching tool")).toBe(false);
   expect(find(root, "Sprite matching settings")).toBeUndefined();
-  expect(find(root, "3D quad match")!.props.runToken).toBe(1);
+  const row = find(root, "3D quad match settings")!;
+  expect(find(row, "3D quad match")!.props.runToken).toBe(1);
+  // its own row, not inside the 3D quad's bar
+  expect(find(find(root, "3D quad settings")!, "3D quad match")).toBeUndefined();
+  // Match again turns it off; the 3D quad stays
+  find(root, "Toggle sprite matching tool")!.props.onClick();
+  root = await tree();
+  expect(pressed(root, "Toggle sprite matching tool")).toBe(false);
+  expect(find(root, "3D quad match settings")).toBeUndefined();
+  expect(pressed(root, "Toggle 3D quad")).toBe(true);
 });
 
 it("a 3D match previewed becomes the sprite the 3D quad draws", async () => {
-  const root = await with3D();
+  let root = await with3D();
+  find(root, "Toggle sprite matching tool")!.props.onClick();
+  root = await tree();
   find(root, "3D quad match")!.props.onPreview({ sheet: 1, row: 20, mirrored: true, phase: 4, support: 9 });
   const next = await tree();
   expect(find(next, "Manual mask row")!.props.value).toBe(20);

@@ -269,20 +269,26 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
     if (manualEnabled) setAnimationOpen(false);
     if (!manualEnabled) { setHudEnabled(false); const next = framePreview(view); if (next) { setManualAtlas(next.atlas); setManualSheet(next.sheet); setManualRow(next.row); setManualMirrored(next.mirrored); } }
   }
+  /** First-person fire and the 3D quad have their own matching row (they stay on; the quad mask stays off): Match turns
+   * it on and runs it, or turns it off. */
+  const ownMatcher = () => hudEnabled || (fire3dOn && !manualEnabled);
+  function toggleOwnMatcher() {
+    setMatchingEnabled(!matchingEnabled);
+    if (matchingEnabled) return;
+    setAnimationOpen(false);
+    if (hudEnabled) matchFirstPerson(); else setFindToken(n => n + 1);
+  }
   function toggleMatcher() {
-    if (hudEnabled) { matchFirstPerson(); return; }
+    if (ownMatcher()) { toggleOwnMatcher(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
-    // the 3D quad has its own Match (all its planes, one phase): it stays on
-    if (fire3dOn && !manualEnabled) { setFindToken(n => n + 1); return; }
     if (!matchingEnabled) setAnimationOpen(false);
     setMatchingEnabled(!matchingEnabled);
     if (!matchingEnabled) { setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
   }
   /** M toggles the matcher; opening also asks for the first match run. */
   function runMatcher() {
-    if (hudEnabled) { matchFirstPerson(); return; }
+    if (ownMatcher()) { toggleOwnMatcher(); return; }
     if(manualAtlas&&!soulFire(manualAtlas))return;
-    if (fire3dOn && !manualEnabled) { setFindToken(n => n + 1); return; }
     if (matchingEnabled) { setMatchingEnabled(false); return; }
     if (!matchingEnabled) { setAnimationOpen(false); setMatchingEnabled(true); setManualEnabled(true); setHudEnabled(false); setFire3dOn(false); }
     setFindToken(n => n + 1);
@@ -756,12 +762,16 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <OpacityControl groupLabel="First-person opacity" toggleLabel="Toggle first-person opacity"
             sliderLabel="First-person fire opacity" value={hudOpacity} onChange={setHudOpacity} />
           <span className="hud-hint">Ctrl+click atlas to preview · follows the next frame's guess</span>
-          {hudMatchShown && <span className="hud-match" role="status" aria-label="First-person match">
+          <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
+      </div>}
+      {matchingEnabled && hudEnabled && <div className="hud-controls" aria-label="First-person match settings" onKeyDown={(e) => e.stopPropagation()}>
+          <IconButton icon="zoomIn" label="Find first-person match" disabled={!backend.povMatch || !!stillImage || !!hudMatchShown?.busy}
+            title="Run the first-person labeller (the POV scan's) on this native frame: its row and FOV, and up to three rows to try" onClick={matchFirstPerson}>Find first-person match</IconButton>
+          {hudMatchShown ? <span className="hud-match" role="status" aria-label="First-person match">
             {hudMatchShown.busy ? "Matching…" : hudMatchShown.error ? "Match failed" : hudMatchShown.result?.row != null ? `Match: row ${hudMatchShown.result.row} · ${hudMatchShown.result.fov}°` : "No first-person fire found · try:"}
             {hudMatchShown.result?.candidates.map((c, i) => <button key={i} aria-label={`First-person match ${i + 1}: row ${c.row}, ${c.fov}°`} aria-pressed={hudRow === c.row && hudFov === c.fov}
               title={`M then ${i + 1} · colour evidence ${c.evidence === null ? "—" : c.evidence.toFixed(2)}${c.accepted ? " · the labeller's answer" : ""}`} onClick={() => pickFirstPerson(i)}>{i + 1} · {c.row} · {c.fov}°{c.accepted ? " ✓" : ""}</button>)}
-          </span>}
-          <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
+          </span> : <span className="hud-hint">{stillImage ? "First-person match needs a video" : "Matches the first-person fire's row and FOV on this frame"}</span>}
       </div>}
       {manualEnabled && <div className="hud-controls" aria-label="Quad mask settings" onKeyDown={(e) => e.stopPropagation()}>
           {spriteControls}
@@ -775,16 +785,18 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
           <span className="hud-hint">Shift: resize / rotate · P: parallelogram · G: refine alignment · Ctrl+drag: move all · select corner + Alt+click: place</span>
       </div>}
       {fire3dOn && <div className="hud-controls fire3d-controls" aria-label="3D quad settings">
-        <Fire3DBar fire={fire3d} sprite={<>{spriteControls}{compressionControls}
-          <Fire3DMatchControls quads={fire3d.quads} size={fire3d.size} picture={picture3d} load={load3d} material={manualAtlas && soulFire(manualAtlas) ? "soul" : "normal"}
-            runToken={findToken} pick={matchPick} disabled={(!stillImage && shown !== view.current) || playing}
-            onPreview={c => { setManualSheet(c.sheet); setManualRow(c.row); setManualMirrored(c.mirrored); }} /></>} />
+        <Fire3DBar fire={fire3d} sprite={<>{spriteControls}{compressionControls}</>} />
+      </div>}
+      {matchingEnabled && fire3dOn && !manualEnabled && !hudEnabled && <div className="hud-controls" aria-label="3D quad match settings" onKeyDown={e => e.stopPropagation()}>
+        <Fire3DMatchControls quads={fire3d.quads} size={fire3d.size} picture={picture3d} load={load3d} material={manualAtlas && soulFire(manualAtlas) ? "soul" : "normal"}
+          runToken={findToken} pick={matchPick} disabled={(!stillImage && shown !== view.current) || playing}
+          onPreview={c => { setManualSheet(c.sheet); setManualRow(c.row); setManualMirrored(c.mirrored); }} />
       </div>}
       {animationOpen && manualEnabled && <div className="hud-controls" aria-label="Sprite animation settings" onKeyDown={e => e.stopPropagation()}>
         <AnimationControls current={{atlas:manualAtlas,sheet:manualSheet,row:manualRow,mirrored:manualMirrored}} edges={atlasEdges} filter={atlasFilter} frame={view.current} stopToken={animationStop} disabled={shown !== view.current || !url}
           onStart={() => { setMatchingEnabled(false); onAnimationStart?.(); }} onPreview={sprite => { const preview=()=>{setManualAtlas(sprite.atlas);setManualSheet(sprite.sheet);setManualRow(sprite.row);setManualMirrored(sprite.mirrored);};if(undoHistory)undoHistory.ignore(preview);else preview(); }} />
       </div>}
-      {matchingEnabled && (!manualAtlas||soulFire(manualAtlas)) && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
+      {matchingEnabled && !hudEnabled && !(fire3dOn && !manualEnabled) && (!manualAtlas||soulFire(manualAtlas)) && <div className="hud-controls" aria-label="Sprite matching settings" onKeyDown={e=>e.stopPropagation()}>
         {url ? <QuadMatchControls material={manualAtlas&&soulFire(manualAtlas)?"soul":"normal"} frameUrl={url} sourceFrame={sourceForMatch} quad={manualQuad} filter={atlasFilter} disabled={shown!==view.current||playing} runToken={findToken} pick={matchPick} onPreview={candidate=> {
           setManualAtlas(candidate.atlas);setManualSheet(candidate.sheet);setManualRow(candidate.row);setManualMirrored(candidate.mirrored);setManualQuad(candidate.quad);
           onMatchCandidate?.({atlas:candidate.atlas,sheet:candidate.sheet,row:candidate.row,mirrored:candidate.mirrored});
