@@ -26,6 +26,9 @@ None of them finds the lines or the correspondences by itself, and none tracks t
 
 ## PerspectiveReverser, tested
 
+> **Superseded by the head-to-head benchmark** (`SOLVER-BENCHMARK.md`, 2026-10-25): at commit 7cba395 its default
+> is per-parameter descent × 1,000 iterations from eye (0, 0, 0), yaw 0, FOV 70, not the gradient run below.
+
 Run inside its own page against its own `project` / `reverseProjection` code, with a known camera (eye
 (10.37, 70.62, −3.21), yaw 32.4°, pitch 18.7°, FOV 70°, 2560×1440) and the projected corners of real block-grid
 points as "clicks".
@@ -43,6 +46,10 @@ points as "clicks".
   press until the error stops changing. It's not suitable as an automatic solver.
 
 ## Ours: `fire_core::camera` + `fire_core::fire_model`
+
+> **Correction (2026-10-25, `SOLVER-BENCHMARK.md`):** "FOV is held when all points are on one plane (it cannot be
+> separated from distance)" is wrong for a plane seen at an angle. Holding it at 70° made `solve` miss coplanar
+> clicks by 68–100 px; fitting it gives 0.29 px. The guided solve (the app's path) was not affected.
 
 - **Geometry:** the fire block's baked quads, reproduced from the game's model files with 1.16.5's
   `BakedQuadFactory` rules (1.16.5 and 1.21.11 models are identical). Every attachment (floor, 4 sides, up) and
