@@ -273,4 +273,20 @@ describe("the corner list", () => {
     expect(rule).toMatch(/overflow-x:\s*auto/);
     expect(rule).toMatch(/flex-shrink:\s*0/);
   });
+  it("no scrollbars on the bar's strips (the wheel scrolls them), and the strip's edge always cuts a chip", async () => {
+    const { readFile } = await vi.importActual<{ readFile(path: URL, enc: string): Promise<string> }>("node:fs/promises");
+    const css = await readFile(new URL("./Fire3DBar.css", import.meta.url), "utf8");
+    for (const cls of ["f3-chips", "f3-group"]) {
+      expect(css).toMatch(new RegExp(`\\.${cls}\\s*\\{[^}]*scrollbar-width:\\s*none`));
+      expect(css).toMatch(new RegExp(`\\.${cls}::-webkit-scrollbar\\s*\\{[^}]*display:\\s*none`));
+    }
+    // fixed chip width W, gap G, strip width M: the edge falls well inside a chip, never on a gap, so a cut chip
+    // always shows there is more and no chip can sit exactly hidden at the edge
+    const num = (re: RegExp) => Number(css.match(re)?.[1]);
+    const W = num(/\.f3-chip\s*\{[^}]*?[\s;{]width:\s*(\d+)px/), G = num(/\.f3-chips\s*\{[^}]*?gap:\s*(\d+)px/), M = num(/\.f3-chips\s*\{[^}]*?max-width:\s*(\d+)px/);
+    const cut = M % (W + G);
+    expect(cut).toBeGreaterThanOrEqual(W * 0.25);
+    expect(cut).toBeLessThanOrEqual(W * 0.75);
+    expect(css).toMatch(/\.f3-chip\s*\{[^}]*text-overflow:\s*ellipsis/);
+  });
 });
