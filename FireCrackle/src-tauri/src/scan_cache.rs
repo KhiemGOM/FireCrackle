@@ -222,8 +222,24 @@ impl<T: Decision> Journal<T> {
             .write(true)
             .open(&self.path)
             .map_err(|e| format!("Cannot open scan cache: {e}"))?;
-        file.try_lock()
-            .map_err(|_| "Another FireCrackle instance is using this scan cache")?;
+        // Another FireCrackle holds it for its whole scan; a holder that lets go within a moment (the file reopened
+        // right after it was closed) is waited for. Any other failure says what it was.
+        let mut tries = 0;
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) if tries < 25 => {
+                    tries += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    return Err("Another FireCrackle instance is using this scan cache".into());
+                }
+                Err(std::fs::TryLockError::Error(e)) => {
+                    return Err(format!("Cannot lock the scan cache: {e}"));
+                }
+            }
+        }
         file.set_len(self.valid_bytes).map_err(|e| e.to_string())?;
         file.seek(SeekFrom::End(0)).map_err(|e| e.to_string())?;
         self.file = Some(file);
@@ -523,5 +539,36 @@ pub(crate) mod tests {
         active.close().unwrap();
         let recovered = Journal::open(&f.project, false).unwrap();
         assert_eq!(recovered.rows(), vec![(0, 3)]);
+    }
+    #[test]
+    fn a_lock_held_only_for_a_moment_is_waited_for_and_one_held_on_is_still_refused() {
+        // 0.6.1's Linux release build: a journal reopened right after closing found its file still locked for a
+        // moment; a second FireCrackle holds it for the whole scan and must still be refused, saying why
+        let f = fixture(2);
+        let path = Journal::<i16>::location(&f.project, false).unwrap().0;
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let brief = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        brief.lock().unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            drop(brief);
+        });
+        let opened = Journal::open(&f.project, false);
+        release.join().unwrap();
+        assert!(opened.is_ok(), "{:?}", opened.err());
+        drop(opened);
+        let held = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        held.lock().unwrap();
+        let refused = Journal::open(&f.project, false).err().unwrap();
+        assert!(
+            refused.contains("Another FireCrackle instance is using this scan cache"),
+            "{refused}"
+        );
+        drop(held);
     }
 }
