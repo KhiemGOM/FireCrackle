@@ -50,3 +50,8 @@ export function fuseQuadPhases(result:QuadMatch,logits:number[],provider:string,
   const candidates=ranks.slice(0,3).map(r=>({...byPhase.get(r.phase)!,phaseScore:r.score}));
   return {...result,candidates,margin:ranks[0].score-(ranks[1]?.score??0),ai:{provider}};
 }
+/** The quad AI's model is still downloading on first use (src-tauri quad_phase.rs): Match uses the colour matcher and
+ *  notes it in its details instead of reporting an error on every match. */
+export function quadAiDownloading(message:string):boolean {
+  return message.startsWith("Downloading the quad AI model");
+}

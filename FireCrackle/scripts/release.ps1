@@ -45,7 +45,6 @@ $target = if ($oldTarget) { $oldTarget } else { Join-Path $project 'src-tauri/ta
 Push-Location $project
 try {
     Invoke-Checked 'python' @((Join-Path $PSScriptRoot 'prepare-no-fire.py'))
-    Invoke-Checked 'python' @((Join-Path $PSScriptRoot 'prepare-quad-phase.py'))
     & (Join-Path $PSScriptRoot 'prepare-runtime.ps1')
     $env:PATH = "$(Join-Path $project 'src-tauri/runtime');$oldPath"
     $env:CARGO_TARGET_DIR = $target

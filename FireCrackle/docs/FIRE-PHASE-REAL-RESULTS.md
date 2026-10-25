@@ -514,12 +514,15 @@ two staging/tamper tests, frontend production build and native debug build.
 Linux code reuses the existing provider path; a Linux binary was not built on
 this Windows host.
 
-Both Windows/Linux release scripts stage `quad-phase-v1.onnx` beside the same
-ORT resources. The local verified export is ready and can be supplied through
-`FIRECRACKLE_PHASE_MODEL_SOURCE`. Its public model-asset URL is intentionally
-unset until publication is authorized; a remote release build fails clearly
-instead of silently packaging a missing model. No release asset was published
-by this integration task.
+The models are not packaged (0.4.2-0.6.0 shipped them, 300 MB of every
+download): like FFmpeg and yt-dlp, the app downloads each one on first use from
+the `quad-phase-model-v1` release, verifies its pinned SHA-256 and caches it
+(`external_tools::install_model`, used by `src-tauri/src/quad_phase.rs`); Match
+uses the colour matcher until then. `prepare-quad-phase.py` stages them in
+`src-tauri/runtime/models/` for the build's model tests only, and the release
+checks (`release.test.ps1`, `verify-linux.sh`, `publish_release.py`) reject any
+package that contains them. A local export can be supplied through
+`FIRECRACKLE_PHASE_MODEL_SOURCE`.
 
 Reproduction (from the repo root except the frontend test):
 

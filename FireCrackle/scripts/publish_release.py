@@ -93,12 +93,43 @@ def verify_windows_archive(archive, version, commit):
         for name in ("FireCrackle.exe", "README.txt", "LICENSE.txt", "THIRD_PARTY_NOTICES.txt",
                      "release.json", "SHA256SUMS.txt"):
             package.getinfo(prefix + name)
-        if any(entry.filename.startswith(prefix + "tools/") for entry in package.infolist()):
-            raise ValueError("Third-party tools must be downloaded separately, not packaged")
+        external = separately_downloaded_names()
+        for entry in package.infolist():
+            if entry.filename.startswith(prefix + "tools/") or PurePosixPath(entry.filename).name in external:
+                raise ValueError(f"{entry.filename}: tools and models must be downloaded separately, not packaged")
         info = package.getinfo(prefix + "release.json")
         if info.file_size > 64 * 1024:
             raise ValueError("Oversized build metadata")
         verify_metadata(json.loads(package.read(info)), version, commit, "windows-x64")
+
+
+def separately_downloaded_names():
+    """File names the app downloads on first use, never packaged: the tools (FFmpeg/ffprobe, yt-dlp, Deno,
+    JoltCracker) and the AI models published as their own release. Read from their manifests, so they stay in sync."""
+    release_dir = ROOT / "FireCrackle/release"
+    names = {f"{tool}{suffix}" for tool in ("ffmpeg", "ffprobe", "jolt") for suffix in ("", ".exe")}
+    for platform in json.loads((release_dir / "download-tools.json").read_text(encoding="utf-8")).values():
+        for tool, asset in platform.items():
+            names |= {tool, f"{tool}.exe", PurePosixPath(asset["url"]).name}
+    for metadata in sorted(release_dir.glob("quad*-model.json")):
+        names.add(json.loads(metadata.read_text(encoding="utf-8"))["file"])
+    return names
+
+
+def asset_budgets():
+    """The largest size (MB) each published asset may have (release/asset-budgets.json)."""
+    budgets = json.loads((ROOT / "FireCrackle/release/asset-budgets.json").read_text(encoding="utf-8"))
+    return {key: value for key, value in budgets.items() if not key.startswith("_")}
+
+
+def verify_asset_sizes(assets):
+    """Reject an asset over its budget: a packaged model or tool shows up as hundreds of extra MB."""
+    budgets = asset_budgets()
+    for key, path in assets.items():
+        size = Path(path).stat().st_size
+        if size > budgets[key] * 1024 * 1024:
+            raise ValueError(f"{Path(path).name} is {size / 1048576:.0f} MB, over its {budgets[key]} MB budget: "
+                             "is something that is downloaded on demand packaged?")
 
 
 def expected_asset_names(version):
@@ -116,6 +147,8 @@ def verify_artifacts(windows, linux, version, commit):
     if verify_checksums(windows, "SHA256SUMS.txt") != {zip_name, setup_name}:
         raise ValueError("Unexpected Windows artifact list")
     verify_windows_archive(windows / zip_name, version, commit)
+    verify_asset_sizes({"windowsPortable": windows / zip_name, "windowsSetup": windows / setup_name,
+                        "linuxAppImage": linux / image_name, "linuxDeb": linux / deb_name})
     linux_names = {image_name, deb_name, "LICENSE.txt", "THIRD_PARTY_NOTICES.txt",
                    "README-linux.txt", "release-linux.json"}
     if verify_checksums(linux, "SHA256SUMS-linux-x64.txt") != linux_names:

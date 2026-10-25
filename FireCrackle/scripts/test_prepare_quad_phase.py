@@ -14,9 +14,11 @@ class PhaseStaging(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root,source=self.setup_root(d)
             with patch.object(m,'ROOT',root),patch.dict(m.os.environ,{'FIRECRACKLE_PHASE_MODEL_SOURCE':str(source),'FIRECRACKLE_SOUL_PHASE_MODEL_SOURCE':str(source)}):m.main()
-            self.assertEqual((root/'src-tauri/runtime/ai/quad-phase-v1.onnx').read_bytes(),source.read_bytes())
-            self.assertTrue((root/'src-tauri/runtime/ai/quad-phase-v1.json').is_file())
-            self.assertEqual((root/'src-tauri/runtime/ai/quad-soul-phase-v1.onnx').read_bytes(),source.read_bytes())
+            # staged for the build's model tests only: runtime/ai is packaged, and the app downloads these on first use
+            self.assertEqual((root/'src-tauri/runtime/models/quad-phase-v1.onnx').read_bytes(),source.read_bytes())
+            self.assertTrue((root/'src-tauri/runtime/models/quad-phase-v1.json').is_file())
+            self.assertEqual((root/'src-tauri/runtime/models/quad-soul-phase-v1.onnx').read_bytes(),source.read_bytes())
+            self.assertFalse((root/'src-tauri/runtime/ai').exists())
             source.write_bytes(b'tampered')
             with patch.object(m,'ROOT',root),patch.dict(m.os.environ,{'FIRECRACKLE_PHASE_MODEL_SOURCE':str(source)}),self.assertRaisesRegex(ValueError,'SHA'):m.main()
     def test_missing_unpublished_asset_is_a_loud_build_error(self):

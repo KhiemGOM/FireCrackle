@@ -4,7 +4,7 @@ import type { ManualQuad } from "../lib/quadMask";
 import type { EdgeFilter } from "../lib/atlasFilter";
 import { failureMessage,  reportError } from "../lib/appErrors";
 import {invoke,isTauri} from "@tauri-apps/api/core";
-import {fuseQuadPhases} from "../lib/quadPhase";
+import {fuseQuadPhases,quadAiDownloading} from "../lib/quadPhase";
 import {phaseMatchInput} from "../lib/quadPhaseInput";
 import {matchSoulQuad} from "../lib/quadSoul";
 import {readMatchImage as readImage,readFireAtlas as readAtlas,refineMatchCandidates} from "../lib/quadRefine";
@@ -85,7 +85,7 @@ export function QuadMatchControls({frameUrl,quad,disabled,onPreview,filter,runTo
           data=fuseQuadPhases(data,answer.logits,answer.provider,material);
         }catch(error){
           data={...data,ai:{error:failureMessage(error)}};
-          if(mine===token.current&&latest.current.key===start&&!latest.current.disabled)reportError("Quad AI unavailable — colour matcher used",failureMessage(error));
+          if(mine===token.current&&latest.current.key===start&&!latest.current.disabled&&!quadAiDownloading(failureMessage(error)))reportError("Quad AI unavailable — colour matcher used",failureMessage(error));
         }
       }
       if(mine!==token.current||latest.current.key!==start||latest.current.disabled)return;

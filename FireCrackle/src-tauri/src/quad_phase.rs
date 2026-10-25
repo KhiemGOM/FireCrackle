@@ -1,11 +1,13 @@
-//! Eager, reusable phase inference using the same ORT engine as no-fire.
+//! Eager, reusable phase inference using the same ORT engine as no-fire. The two models (normal and soul fire) are
+//! not packaged: like FFmpeg and yt-dlp they are downloaded on first use (`external_tools::install_model`), checked
+//! against their pinned SHA-256 and cached; until then Match uses the colour matcher.
 use no_fire_cnn::Engine;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
-        Mutex, OnceLock,
+        Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -15,10 +17,15 @@ struct Loaded {
     runtime: PathBuf,
     model: PathBuf,
 }
-static NORMAL: OnceLock<Mutex<Result<Loaded, String>>> = OnceLock::new();
-static SOUL: OnceLock<Mutex<Result<Loaded, String>>> = OnceLock::new();
+static NORMAL: Mutex<Option<Loaded>> = Mutex::new(None);
+static SOUL: Mutex<Option<Loaded>> = Mutex::new(None);
 static NORMAL_GPU: AtomicBool = AtomicBool::new(false);
 static SOUL_GPU: AtomicBool = AtomicBool::new(false);
+/// A download in progress, and the last one's failure (shown until the next attempt).
+static NORMAL_FETCH: AtomicBool = AtomicBool::new(false);
+static SOUL_FETCH: AtomicBool = AtomicBool::new(false);
+static NORMAL_FAILED: Mutex<Option<String>> = Mutex::new(None);
+static SOUL_FAILED: Mutex<Option<String>> = Mutex::new(None);
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Material {
@@ -39,35 +46,124 @@ impl Material {
             Self::Soul => include_str!("../../release/quad-soul-phase-model.json"),
         }
     }
+    fn slot(self) -> &'static Mutex<Option<Loaded>> {
+        match self {
+            Self::Normal => &NORMAL,
+            Self::Soul => &SOUL,
+        }
+    }
+    fn fetching(self) -> &'static AtomicBool {
+        match self {
+            Self::Normal => &NORMAL_FETCH,
+            Self::Soul => &SOUL_FETCH,
+        }
+    }
+    fn failed(self) -> &'static Mutex<Option<String>> {
+        match self {
+            Self::Normal => &NORMAL_FAILED,
+            Self::Soul => &SOUL_FAILED,
+        }
+    }
+    fn sha256(self) -> String {
+        serde_json::from_str::<serde_json::Value>(self.metadata())
+            .ok()
+            .and_then(|m| m["sha256"].as_str().map(str::to_string))
+            .unwrap_or_default()
+    }
 }
-fn engine(material: Material) -> &'static Mutex<Result<Loaded, String>> {
-    let slot = match material {
-        Material::Normal => &NORMAL,
-        Material::Soul => &SOUL,
-    };
-    slot.get_or_init(|| {
-        Mutex::new((|| {
-            let runtime = crate::no_fire::runtime()?;
-            let model = crate::no_fire::model_path(material.file());
-            let weights = std::fs::read(&model)
-                .map_err(|e| format!("Quad AI model is missing or unreadable: {e}"))?;
-            let metadata: serde_json::Value =
-                serde_json::from_str(material.metadata()).map_err(|e| e.to_string())?;
-            let hash = crate::hex(&Sha256::digest(&weights));
-            if metadata["sha256"].as_str() != Some(hash.as_str()) {
-                return Err("Quad AI model checksum mismatch; reinstall the matching model".into());
-            }
-            // Publish a ready CPU session first. GPU shader compilation must never
-            // keep the first match waiting for all adapter startup probes.
-            let engine = Engine::load(&runtime, &weights, false, 2)?;
-            eprintln!("Quad phase AI ready: {}", engine.provider);
-            Ok(Loaded {
-                engine,
-                runtime,
-                model,
-            })
-        })())
+
+/// The first of `places` holding the exact pinned file (by SHA-256); a damaged or different file is passed over.
+pub(crate) fn locate(file: &str, sha256: &str, places: &[PathBuf]) -> Option<PathBuf> {
+    places.iter().map(|dir| dir.join(file)).find(|path| {
+        std::fs::read(path).is_ok_and(|bytes| crate::hex(&Sha256::digest(&bytes)) == sha256)
     })
+}
+/// Where a model may already be: the download cache, the `ai` folder of an install from 0.4.2 to 0.6.0 (they bundled
+/// it, so updating downloads nothing), and in development the build scripts' staging folder.
+fn places(material: Material) -> Vec<PathBuf> {
+    let file = material.file();
+    let mut out: Vec<PathBuf> = crate::external_tools::installed_model(material.metadata(), file)
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .into_iter()
+        .collect();
+    if let Some(bundled) = crate::no_fire::model_path(file).parent() {
+        out.push(bundled.to_path_buf());
+    }
+    if cfg!(debug_assertions) {
+        out.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/models"));
+    }
+    out
+}
+/// Download the model in the background, one download at a time; a failure is kept for the next message.
+fn fetch(material: Material) {
+    if material.fetching().swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if let Ok(mut failed) = material.failed().lock() {
+        *failed = None;
+    }
+    std::thread::spawn(move || {
+        let result =
+            crate::external_tools::install_model(material.metadata(), material.file(), None);
+        if let Err(error) = result
+            && let Ok(mut failed) = material.failed().lock()
+        {
+            *failed = Some(error);
+        }
+        material.fetching().store(false, Ordering::SeqCst);
+    });
+}
+/// What Match says while the model is not there yet; it also starts (or retries) the download.
+fn missing_message(material: Material) -> String {
+    let failed = material.failed().lock().ok().and_then(|f| f.clone());
+    fetch(material);
+    if let Some(error) = failed {
+        return format!(
+            "Could not download the quad AI model ({error}); trying again. The colour matcher is used meanwhile."
+        );
+    }
+    let done = match crate::external_tools::model_progress(material.file()) {
+        Some((bytes, Some(total))) if total > 0 => {
+            format!(": {}% of {} MB", bytes * 100 / total, total / (1024 * 1024))
+        }
+        _ => String::new(),
+    };
+    format!(
+        "Downloading the quad AI model (first use){done}. The colour matcher is used meanwhile."
+    )
+}
+/// The engine for `material`, loaded once its model is on disk. `download`: when it is not, start fetching it
+/// (preloading at startup never downloads). A failed load is tried again next time.
+fn ready(
+    material: Material,
+    download: bool,
+) -> Result<MutexGuard<'static, Option<Loaded>>, String> {
+    let mut guard = material
+        .slot()
+        .lock()
+        .map_err(|_| "Quad AI state unavailable")?;
+    if guard.is_none() {
+        let Some(model) = locate(material.file(), &material.sha256(), &places(material)) else {
+            return Err(if download {
+                missing_message(material)
+            } else {
+                "Quad AI model not downloaded yet".into()
+            });
+        };
+        let runtime = crate::no_fire::runtime()?;
+        let weights = std::fs::read(&model)
+            .map_err(|e| format!("Quad AI model is missing or unreadable: {e}"))?;
+        // Publish a ready CPU session first. GPU shader compilation must never
+        // keep the first match waiting for all adapter startup probes.
+        let engine = Engine::load(&runtime, &weights, false, 2)?;
+        eprintln!("Quad phase AI ready: {}", engine.provider);
+        *guard = Some(Loaded {
+            engine,
+            runtime,
+            model,
+        });
+    }
+    Ok(guard)
 }
 pub(crate) fn eager_load() {
     for material in [Material::Normal, Material::Soul] {
@@ -77,21 +173,20 @@ pub(crate) fn eager_load() {
 fn eager_material(material: Material) {
     tauri::async_runtime::spawn_blocking(move || {
         let paths = {
-            let Ok(mut guard) = engine(material).lock() else {
-                return;
-            };
-            match guard.as_mut() {
+            let mut guard = match ready(material, false) {
+                Ok(guard) => guard,
                 Err(error) => {
-                    eprintln!("Quad phase AI preparation failed: {error}");
+                    eprintln!("Quad phase AI not preloaded: {error}");
                     return;
                 }
-                Ok(loaded) => {
-                    if let Err(error) = loaded.engine.phase_view(&vec![0; 128 * 128 * 3]) {
-                        eprintln!("Quad AI warmup failed: {error}");
-                    }
-                    (loaded.runtime.clone(), loaded.model.clone())
-                }
+            };
+            let Some(loaded) = guard.as_mut() else {
+                return;
+            };
+            if let Err(error) = loaded.engine.phase_view(&vec![0; 128 * 128 * 3]) {
+                eprintln!("Quad AI warmup failed: {error}");
             }
+            (loaded.runtime.clone(), loaded.model.clone())
         };
         let started = match material {
             Material::Normal => &NORMAL_GPU,
@@ -100,15 +195,15 @@ fn eager_material(material: Material) {
         if started.swap(true, Ordering::Relaxed) {
             return;
         }
-        // Do not hold ENGINE's mutex while compiling/probing GPU backends.
+        // Do not hold the engine's mutex while compiling/probing GPU backends.
         let upgrade = (|| {
             let weights = std::fs::read(&paths.1).map_err(|e| e.to_string())?;
             Engine::auto_phase(&paths.0, &weights, &AtomicBool::new(false))
         })();
         match upgrade {
             Ok(candidate) if candidate.provider.starts_with("GPU") => {
-                if let Ok(mut guard) = engine(material).lock()
-                    && let Ok(loaded) = guard.as_mut()
+                if let Ok(mut guard) = material.slot().lock()
+                    && let Some(loaded) = guard.as_mut()
                 {
                     loaded.engine = candidate;
                     eprintln!(
@@ -131,10 +226,10 @@ pub(crate) fn infer_for(rgb: &[u8], material: Material) -> Result<Answer, String
     if rgb.len() != 128 * 128 * 3 {
         return Err("Quad AI requires a128×128 RGB crop".into());
     }
-    let mut guard = engine(material)
-        .lock()
-        .map_err(|_| "Quad AI state unavailable")?;
-    let loaded = guard.as_mut().map_err(|e| e.clone())?;
+    let mut guard = ready(material, true)?;
+    let Some(loaded) = guard.as_mut() else {
+        return Err("Quad AI state unavailable".into());
+    };
     let logits = match loaded.engine.phase_view(rgb) {
         Ok(logits) => logits,
         Err(error) if loaded.engine.provider.starts_with("GPU") => {
@@ -161,6 +256,42 @@ pub(crate) async fn quad_phase(rgb: Vec<u8>, material: Option<Material>) -> Resu
 mod tests {
     fn infer(rgb: &[u8]) -> Result<super::Answer, String> {
         super::infer_for(rgb, super::Material::Normal)
+    }
+    #[test]
+    fn the_model_is_taken_from_the_first_place_holding_the_exact_pinned_file() {
+        use sha2::{Digest, Sha256};
+        let root = std::env::temp_dir().join(format!("firecrackle-locate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (cache, bundled, staged) = (root.join("cache"), root.join("ai"), root.join("models"));
+        for dir in [&cache, &bundled, &staged] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let sha = crate::hex(&Sha256::digest(b"model"));
+        let places = [cache.clone(), bundled.clone(), staged.clone()];
+        assert_eq!(super::locate("m.onnx", &sha, &places), None);
+        std::fs::write(staged.join("m.onnx"), b"model").unwrap();
+        assert_eq!(
+            super::locate("m.onnx", &sha, &places),
+            Some(staged.join("m.onnx"))
+        );
+        // an older install's bundled copy is used before the dev staging, so updating downloads nothing
+        std::fs::write(bundled.join("m.onnx"), b"model").unwrap();
+        assert_eq!(
+            super::locate("m.onnx", &sha, &places),
+            Some(bundled.join("m.onnx"))
+        );
+        // a damaged or different file is passed over
+        std::fs::write(cache.join("m.onnx"), b"other").unwrap();
+        assert_eq!(
+            super::locate("m.onnx", &sha, &places),
+            Some(bundled.join("m.onnx"))
+        );
+        std::fs::write(cache.join("m.onnx"), b"model").unwrap();
+        assert_eq!(
+            super::locate("m.onnx", &sha, &places),
+            Some(cache.join("m.onnx"))
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn invalid_input_fails_before_loading() {
@@ -215,7 +346,8 @@ mod tests {
             for material in [super::Material::Normal, super::Material::Soul] {
                 let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
                 loop {
-                    let ready = super::engine(material)
+                    let ready = material
+                        .slot()
                         .lock()
                         .unwrap()
                         .as_ref()

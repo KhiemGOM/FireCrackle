@@ -17,7 +17,7 @@ def main():
         def __init__(self,model):super().__init__();self.model=model
         def forward(self,pixels):return self.model(normalize(pixels.permute(0,3,1,2)/255.))
     base=model_for('resnet101',False).eval();base.load_state_dict(torch.load(checkpoint,map_location='cpu',weights_only=True)['state_dict'])
-    model=InputModel(base).eval();destination=ROOT/'FireCrackle/src-tauri/runtime/ai/quad-phase-v1.onnx';destination.parent.mkdir(parents=True,exist_ok=True)
+    model=InputModel(base).eval();destination=ROOT/'FireCrackle/src-tauri/runtime/models/quad-phase-v1.onnx';destination.parent.mkdir(parents=True,exist_ok=True)
     torch.onnx.export(model,torch.zeros(1,128,128,3),str(destination),input_names=['pixels'],output_names=['phase_logits'],opset_version=17,dynamo=False)
     onnx.checker.check_model(str(destination))
     opts=ort.SessionOptions();opts.intra_op_num_threads=4;opts.inter_op_num_threads=1

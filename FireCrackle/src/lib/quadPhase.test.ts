@@ -33,3 +33,11 @@ it("respects filtered appearance admission and refuses invalid network output",(
   expect(fuseQuadPhases(r,logits,"CPU").candidates.map(c=>c.row)).toEqual([2]);
   expect(()=>fuseQuadPhases(r,[NaN],"CPU")).toThrow("invalid");
 });
+// The quad AI's models download on first use (lib.rs quad_phase): meanwhile Match uses the colour matcher and says so
+// in its details, without an error popup on every match.
+import {quadAiDownloading} from "./quadPhase";
+it("a model still downloading is a quiet note, any other quad AI failure is reported",()=>{
+  expect(quadAiDownloading("Downloading the quad AI model (first use): 45% of 163 MB. The colour matcher is used meanwhile.")).toBe(true);
+  expect(quadAiDownloading("Quad AI model checksum mismatch; reinstall the matching model")).toBe(false);
+  expect(quadAiDownloading("Could not download quad-phase-v1.onnx: offline")).toBe(false);
+});

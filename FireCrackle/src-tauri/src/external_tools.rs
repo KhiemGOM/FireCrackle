@@ -328,6 +328,11 @@ fn extract_7z(archive: &Path, dir: &Path, executables: &[&str]) -> Result<(), St
     }
 }
 
+/// A completed installation of the exact pinned archive (only those are reused): its ready marker and every file.
+fn installed_at(dir: &Path, asset: &Asset, files: &[&str]) -> bool {
+    fs::read_to_string(dir.join("ready")).is_ok_and(|sha| sha == asset.sha256)
+        && files.iter().all(|n| dir.join(n).is_file())
+}
 fn install(
     name: &str,
     asset: &Asset,
@@ -336,10 +341,7 @@ fn install(
 ) -> Result<PathBuf, String> {
     check_cancel(cancel)?;
     let dir = root()?.join(asset_cache_name(name, asset));
-    // Reuse only a completed installation of the exact pinned archive.
-    if fs::read_to_string(dir.join("ready")).is_ok_and(|sha| sha == asset.sha256)
-        && executables.iter().all(|n| dir.join(n).is_file())
-    {
+    if installed_at(&dir, asset, executables) {
         return Ok(dir);
     }
     let _clear = ClearStatus;
@@ -474,6 +476,54 @@ pub fn link_tools(cancel: Option<&AtomicBool>) -> Result<(PathBuf, PathBuf), Str
     Ok((yt.join(yname), deno.join(dname)))
 }
 
+/// An AI model fetched on first use (the quad-phase models, published as their own GitHub release), from its pinned
+/// metadata (`release/*-model.json`: url, sha256): installed, verified and cached like the tools above.
+fn model_asset(metadata: &str) -> Result<Asset, String> {
+    let m: serde_json::Value = serde_json::from_str(metadata).map_err(|e| e.to_string())?;
+    let field = |k: &str| {
+        m[k].as_str()
+            .map(str::to_string)
+            .ok_or(format!("model metadata has no {k}"))
+    };
+    let sha256 = field("sha256")?;
+    Ok(Asset {
+        url: field("url")?,
+        // one cache folder per model build
+        version: sha256.chars().take(12).collect(),
+        sha256,
+        kind: "file".into(),
+    })
+}
+fn model_name(file: &str) -> &str {
+    file.strip_suffix(".onnx").unwrap_or(file)
+}
+/// The model's path when it is already installed in the tool cache (nothing is downloaded).
+pub(crate) fn installed_model(metadata: &str, file: &str) -> Option<PathBuf> {
+    let asset = model_asset(metadata).ok()?;
+    let dir = root()
+        .ok()?
+        .join(asset_cache_name(model_name(file), &asset));
+    installed_at(&dir, &asset, &[file]).then(|| dir.join(file))
+}
+/// Download and install the model (its progress shows under the model's name), or the installed one.
+pub(crate) fn install_model(
+    metadata: &str,
+    file: &str,
+    cancel: Option<&AtomicBool>,
+) -> Result<PathBuf, String> {
+    // its own lock: a 163 MB model must not hold up FFmpeg's setup
+    static MODELS: Mutex<()> = Mutex::new(());
+    let _lock = MODELS.lock().map_err(|_| "Model setup unavailable")?;
+    let asset = model_asset(metadata)?;
+    Ok(install(model_name(file), &asset, &[file], cancel)?.join(file))
+}
+/// Download progress of a model being installed: (bytes so far, total when known).
+pub(crate) fn model_progress(file: &str) -> Option<(u64, Option<u64>)> {
+    status()
+        .filter(|p| p.name == model_name(file))
+        .map(|p| (p.downloaded, p.total))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,6 +552,53 @@ mod tests {
                 assert!(a.sha256.bytes().all(|c| c.is_ascii_hexdigit()));
             }
         }
+    }
+    #[test]
+    fn the_quad_phase_models_are_on_demand_downloads_pinned_like_the_tools() {
+        // 0.4.2-0.6.0 bundled them (300 MB of every download); they are fetched on first use like FFmpeg and yt-dlp
+        for (file, metadata) in [
+            (
+                "quad-phase-v1.onnx",
+                include_str!("../../release/quad-phase-model.json"),
+            ),
+            (
+                "quad-soul-phase-v1.onnx",
+                include_str!("../../release/quad-soul-phase-model.json"),
+            ),
+        ] {
+            let asset = model_asset(metadata).unwrap();
+            assert!(asset.url.starts_with("https://github.com/"), "{file}");
+            assert!(asset.url.ends_with(&format!("/{file}")), "{file}");
+            assert_eq!(asset.sha256.len(), 64);
+            assert!(asset.sha256.bytes().all(|c| c.is_ascii_hexdigit()));
+            assert_eq!(asset.kind, "file");
+        }
+        assert!(model_asset("{}").is_err());
+    }
+    #[test]
+    fn a_completed_install_is_found_and_a_partial_or_other_build_is_not() {
+        let dir =
+            std::env::temp_dir().join(format!("firecrackle-installed-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let asset = Asset {
+            url: String::new(),
+            sha256: "a".repeat(64),
+            kind: "file".into(),
+            version: "v1".into(),
+        };
+        // a download that never finished: no ready marker
+        fs::write(dir.join("quad-phase-v1.onnx"), b"model").unwrap();
+        assert!(!installed_at(&dir, &asset, &["quad-phase-v1.onnx"]));
+        fs::write(dir.join("ready"), "a".repeat(64)).unwrap();
+        assert!(installed_at(&dir, &asset, &["quad-phase-v1.onnx"]));
+        // another build's install, or its file gone
+        fs::write(dir.join("ready"), "b".repeat(64)).unwrap();
+        assert!(!installed_at(&dir, &asset, &["quad-phase-v1.onnx"]));
+        fs::write(dir.join("ready"), "a".repeat(64)).unwrap();
+        fs::remove_file(dir.join("quad-phase-v1.onnx")).unwrap();
+        assert!(!installed_at(&dir, &asset, &["quad-phase-v1.onnx"]));
+        fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn refuses_bad_checksum() {

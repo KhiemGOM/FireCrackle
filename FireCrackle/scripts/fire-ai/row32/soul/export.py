@@ -14,7 +14,7 @@ def main():
  torch.set_num_threads(4);OUT.mkdir(exist_ok=True);saved=torch.load(DATA/'best.pt',map_location='cpu',weights_only=True)
  assert saved['epoch']==5 and saved['dataset_sha256']==json.loads((DATA/'manifest.json').read_text())['dataset_sha256']
  base=model_for('resnet101',False).eval();base.load_state_dict(saved['state_dict']);model=InputModel(base).eval()
- destination=ROOT/'FireCrackle/src-tauri/runtime/ai/quad-soul-phase-v1.onnx'
+ destination=ROOT/'FireCrackle/src-tauri/runtime/models/quad-soul-phase-v1.onnx'
  torch.onnx.export(model,torch.zeros(1,128,128,3),str(destination),input_names=['pixels'],output_names=['phase_logits'],opset_version=17,dynamo=False)
  onnx.checker.check_model(str(destination));opts=ort.SessionOptions();opts.intra_op_num_threads=4;opts.inter_op_num_threads=1
  session=ort.InferenceSession(str(destination),sess_options=opts,providers=['CPUExecutionProvider']);data=np.load(DATA/'real.npz');pred=np.load(DATA/'predictions.npz');rows=json.loads((DATA/'manifest.json').read_text())['samples'];checks=[];fixtures=[]

@@ -43,7 +43,7 @@ a second implementation, and record the decision here.
 
 | What | Canonical | Notes |
 |---|---|---|
-| FFmpeg / ffprobe / yt-dlp / JoltCracker download, pinning, lookup | `FireCrackle/src-tauri/src/external_tools.rs` (`video_tools`, `link_tools`, `command`) + `FireCrackle/release/runtime-lock.json` | Bundled FFmpeg is the gyan **full** build (libdav1d), pinned by hash; guarded by `scripts/test_runtime_lock.py`. Never fetch or assume another FFmpeg. |
+| FFmpeg / ffprobe / yt-dlp / JoltCracker / quad-phase model download, pinning, lookup | `FireCrackle/src-tauri/src/external_tools.rs` (`video_tools`, `link_tools`, `install_model` for the quad-phase models from `release/quad*-model.json`, `command`) + `FireCrackle/release/runtime-lock.json`. Nothing it downloads may be packaged: `publish_release.separately_downloaded_names` + size budgets in `release/asset-budgets.json` reject such a release | Bundled FFmpeg is the gyan **full** build (libdav1d), pinned by hash; guarded by `scripts/test_runtime_lock.py`. Never fetch or assume another FFmpeg. |
 | App scan decode feed (decoder choice, NVDEC/dav1d probe, yuv vs rgb pipe, priority, worker budget) | `ScanFeed` in `FireCrackle/src-tauri/src/pov.rs` | Shared by all three scans. See `fire-detection/perf-lab/REPORT.md` for why each choice was made. |
 | yuv420p → rgb24 | `fire_core::yuv::yuv420p_to_rgb24` (`fire-detection/core/src/yuv.rs`) | Bit-identical to the bundled swscale (BT.709/601 by stream tag). Do not write another colour conversion. |
 | Frames from a pipe, parallel frame workers, ffprobe parsing | `fire_core::video` (`read_frame`, `parallel_frames*`, `scan_workers`, `parse_probe`, `spawn_rgb24` for evaluation tools) | |

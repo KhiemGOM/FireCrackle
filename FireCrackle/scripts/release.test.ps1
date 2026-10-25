@@ -59,7 +59,8 @@ if ($ArchivePath) {
             if (!$zip.GetEntry("$prefix$name")) { throw "Missing packaged file: $name" }
         }
         $aiManifest = Get-Content -LiteralPath (Join-Path $project 'release/no-fire-model.json') -Raw | ConvertFrom-Json
-        $aiFiles = @('ai/no-fire-v3.onnx','ai/model.json','ai/quad-phase-v1.onnx','ai/quad-phase-v1.json','ai/quad-soul-phase-v1.onnx','ai/quad-soul-phase-v1.json')
+        # the quad-phase models are downloaded on first use, like the tools: packaged, they are an unexpected file
+        $aiFiles = @('ai/no-fire-v3.onnx','ai/model.json')
         foreach ($artifact in $aiManifest.platforms.'windows-x64') {
             $aiFiles += @($artifact.members.PSObject.Properties | ForEach-Object { "ai/$($_.Value)" })
         }

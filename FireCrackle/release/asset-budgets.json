@@ -1,0 +1,7 @@
+{
+  "_comment": "Largest size (MB) each published asset may have. 0.4.1 was 23 / 26 / 356 / 281 MB; 0.4.2-0.6.0 shipped the two quad-phase models (325 / 330 / 659 / 585 MB). Anything downloaded on demand stays out of the packages.",
+  "windowsSetup": 60,
+  "windowsPortable": 60,
+  "linuxAppImage": 420,
+  "linuxDeb": 340
+}

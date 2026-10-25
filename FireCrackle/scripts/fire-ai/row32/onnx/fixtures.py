@@ -26,7 +26,7 @@ def prepare():
 def verify():
     import onnxruntime as ort
     cases=json.loads((OUT/'pixel-parity.json').read_text());options=ort.SessionOptions();options.intra_op_num_threads=4
-    session=ort.InferenceSession(str(ROOT/'FireCrackle/src-tauri/runtime/ai/quad-phase-v1.onnx'),sess_options=options,providers=['CPUExecutionProvider']);error=0
+    session=ort.InferenceSession(str(ROOT/'FireCrackle/src-tauri/runtime/models/quad-phase-v1.onnx'),sess_options=options,providers=['CPUExecutionProvider']);error=0
     for r in cases:
         def run(name):return session.run(None,{'pixels':np.fromfile(OUT/f'{r["id"]}-{name}.rgb',np.uint8).reshape(1,128,128,3).astype(np.float32)})[0][0]
         a,b=run('expected'),run('frontend');error=max(error,float(np.max(abs(a-b))));assert a.argmax()==b.argmax();assert set(a.argsort()[-3:])==set(b.argsort()[-3:])

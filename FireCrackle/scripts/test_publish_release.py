@@ -140,6 +140,53 @@ class ReleaseSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "downloaded separately"):
             release.verify_windows_archive(archive, "0.1.0", "a" * 40)
 
+    def test_rejects_any_on_demand_tool_or_separately_published_model_anywhere_in_the_archive(self):
+        # 0.4.2-0.6.0 shipped the two quad-phase models in ai/ (330 MB instead of 26 MB): the tools/ check missed them
+        prefix = "FireCrackle-0.1.0-windows-x64/"
+        for packaged in ("ai/quad-phase-v1.onnx", "ai/quad-soul-phase-v1.onnx", "ffmpeg.exe", "ai/ffprobe.exe",
+                         "yt-dlp.exe", "bin/deno.exe", "jolt.exe"):
+            archive = self.root / f"bloated-{packaged.replace('/', '-')}.zip"
+            with zipfile.ZipFile(archive, "w") as package:
+                for name in ("FireCrackle.exe", "README.txt", "LICENSE.txt", "THIRD_PARTY_NOTICES.txt", "SHA256SUMS.txt",
+                             "ai/onnxruntime.dll", "ai/DirectML.dll"):
+                    package.writestr(prefix + name, "fixture")
+                package.writestr(prefix + "release.json", json.dumps(self.metadata()))
+                package.writestr(prefix + packaged, "must download separately")
+            with self.assertRaisesRegex(ValueError, "downloaded separately", msg=packaged):
+                release.verify_windows_archive(archive, "0.1.0", "a" * 40)
+
+    def test_the_separately_downloaded_names_come_from_the_manifests(self):
+        names = release.separately_downloaded_names()
+        for name in ("ffmpeg.exe", "ffprobe.exe", "ffmpeg", "ffprobe", "yt-dlp.exe", "yt-dlp_linux", "deno.exe", "deno",
+                     "jolt.exe", "jolt", "quad-phase-v1.onnx", "quad-soul-phase-v1.onnx"):
+            self.assertIn(name, names)
+        # what does ship is not on it
+        for name in ("FireCrackle.exe", "onnxruntime.dll", "DirectML.dll", "no-fire-v3.onnx", "libonnxruntime.so"):
+            self.assertNotIn(name, names)
+
+    def test_every_asset_has_a_size_budget_and_an_asset_over_it_is_rejected(self):
+        names = release.expected_asset_names("0.1.0")
+        budgets = release.asset_budgets()
+        self.assertEqual(set(budgets), set(names))
+        small = self.root / names["windowsPortable"]
+        with open(small, "wb") as f:
+            f.truncate(20 * 1024 * 1024)
+        release.verify_asset_sizes({"windowsPortable": small})
+        big = self.root / names["windowsSetup"]
+        with open(big, "wb") as f:
+            f.truncate((budgets["windowsSetup"] + 1) * 1024 * 1024)
+        with self.assertRaisesRegex(ValueError, r"FireCrackle-0\.1\.0-windows-x64-Setup\.exe.*budget"):
+            release.verify_asset_sizes({"windowsSetup": big})
+
+    def test_the_budgets_would_have_stopped_a_bundled_model(self):
+        # 0.4.1 (no models) passes; 0.6.0 (both models bundled) does not, on every platform
+        before = {"windowsSetup": 23, "windowsPortable": 26, "linuxAppImage": 356, "linuxDeb": 281}
+        after = {"windowsSetup": 325, "windowsPortable": 330, "linuxAppImage": 659, "linuxDeb": 585}
+        budgets = release.asset_budgets()
+        for key in before:
+            self.assertLess(before[key], budgets[key], key)
+            self.assertGreater(after[key], budgets[key], key)
+
     def test_retained_build_directories_are_resolved_without_ambiguity(self):
         output = self.root / "v0.1.0" / "fresh-build"
         output.mkdir(parents=True)
