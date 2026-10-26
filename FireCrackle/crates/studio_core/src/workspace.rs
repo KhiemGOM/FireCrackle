@@ -540,7 +540,8 @@ enum ThumbRun {
     #[default]
     Idle,
     Running,
-    Failed(String),
+    /// The error, and the thumbnail settings it failed for (other settings may still work).
+    Failed(String, ThumbKey),
 }
 
 pub struct Workspace {
@@ -1042,18 +1043,21 @@ impl Workspace {
             return status(ThumbState::Ready, frames.len(), None);
         }
         match run {
-            ThumbRun::Failed(msg) => status(ThumbState::Failed, 0, Some(msg)),
+            ThumbRun::Failed(msg, failed) if failed == key => {
+                status(ThumbState::Failed, 0, Some(msg))
+            }
             _ => status(ThumbState::Idle, 0, None),
         }
     }
 
-    /// Make sure thumbnails exist: nothing when disabled, already stored, or already running; otherwise start the
-    /// background pass. Returns the status right after.
+    /// Make sure thumbnails exist: nothing when disabled, already stored, already running, or already failed for these
+    /// settings (the timeline starts them each time it is shown: a failure is reported once per opened video, not
+    /// run and reported again on every screen switch); otherwise start the background pass. Returns the status.
     pub fn thumbs_start(&mut self) -> ThumbStatus {
         let current = self.thumbs_status();
         if matches!(
             current.state,
-            ThumbState::Disabled | ThumbState::Running | ThumbState::Ready
+            ThumbState::Disabled | ThumbState::Running | ThumbState::Ready | ThumbState::Failed
         ) {
             return current;
         }
@@ -1076,7 +1080,7 @@ impl Workspace {
             let mut run = shared.run.lock().expect("thumbnail state lock");
             *run = match outcome {
                 Ok(()) | Err(ThumbError::Cancelled) => ThumbRun::Idle,
-                Err(e) => ThumbRun::Failed(format!("{e:?}")),
+                Err(e) => ThumbRun::Failed(format!("{e:?}"), key),
             };
         });
         *self.thumb_job.lock().expect("thumbnail job lock") = Some(handle);

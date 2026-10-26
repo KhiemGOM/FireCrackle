@@ -102,7 +102,6 @@ pub fn assign(index: &FrameIndex, times: &[f64], tolerance: f64) -> Result<Vec<u
     if times.is_empty() || index.frames.is_empty() {
         return Err(ThumbError::NoPictures);
     }
-    let n = index.frames.len();
     let mut out: Vec<u32> = Vec::with_capacity(times.len());
     let mut prev: Option<f64> = None;
     for &t in times {
@@ -115,22 +114,7 @@ pub fn assign(index: &FrameIndex, times: &[f64], tolerance: f64) -> Result<Vec<u
             )));
         }
         prev = Some(t);
-        let i = crate::index::nearest_frame(&index.frames, t);
-        let pts = index.frames[i].pts;
-        let interval = if i + 1 < n {
-            index.frames[i + 1].pts - pts
-        } else if i > 0 {
-            pts - index.frames[i - 1].pts
-        } else {
-            0.0
-        };
-        let frame = index.frames[i].n;
-        if (t - pts).abs() > tolerance * interval.max(1e-6) {
-            return Err(ThumbError::Misaligned {
-                pts: t,
-                nearest_frame: frame,
-            });
-        }
+        let frame = place(index, t, tolerance)?;
         if out.last() == Some(&frame) {
             return Err(ThumbError::BadStream(format!(
                 "two pictures map to frame {frame}"
@@ -139,6 +123,55 @@ pub fn assign(index: &FrameIndex, times: &[f64], tolerance: f64) -> Result<Vec<u
         out.push(frame);
     }
     Ok(out)
+}
+
+/// The index frame a picture at time `t` shows: the nearest frame, if `t` is within `tolerance` of its local frame
+/// interval. `index` must not be empty.
+fn place(index: &FrameIndex, t: f64, tolerance: f64) -> Result<u32, ThumbError> {
+    let n = index.frames.len();
+    let i = crate::index::nearest_frame(&index.frames, t);
+    let pts = index.frames[i].pts;
+    let interval = if i + 1 < n {
+        index.frames[i + 1].pts - pts
+    } else if i > 0 {
+        pts - index.frames[i - 1].pts
+    } else {
+        0.0
+    };
+    let frame = index.frames[i].n;
+    if (t - pts).abs() > tolerance * interval.max(1e-6) {
+        return Err(ThumbError::Misaligned {
+            pts: t,
+            nearest_frame: frame,
+        });
+    }
+    Ok(frame)
+}
+
+/// The pictures (by output position) that line up with index frames, and those frames: like `assign`, but a picture
+/// that does not line up (between frames, out of order, the same frame again, no time) is dropped, not an error. A
+/// decoder's keyframes can differ from the index's (0.6.1: 538 decoded for 564 listed), and the ones it does give are
+/// still right where they are.
+pub fn line_up(index: &FrameIndex, times: &[f64], tolerance: f64) -> Vec<(usize, u32)> {
+    let mut out: Vec<(usize, u32)> = Vec::new();
+    let mut prev: Option<f64> = None;
+    if index.frames.is_empty() {
+        return out;
+    }
+    for (i, &t) in times.iter().enumerate() {
+        if !t.is_finite() || prev.is_some_and(|p| t <= p) {
+            continue;
+        }
+        let Ok(frame) = place(index, t, tolerance) else {
+            continue;
+        };
+        if out.last().is_some_and(|&(_, f)| f == frame) {
+            continue;
+        }
+        prev = Some(t);
+        out.push((i, frame));
+    }
+    out
 }
 
 /// The thumbnail frame closest to `frame` (the earlier one on a tie). `frames` must be sorted.
@@ -368,20 +401,20 @@ pub fn generate(
         .iter()
         .map(|t| base + t)
         .collect();
-    let frames = assign(index, &absolute, align_tolerance)?;
-    if frames != plan.frames {
+    // the decoder's keyframes may differ from the index's: keep every picture that lines up with a frame (labelled
+    // with that frame), drop the rest; only none lining up is a failure
+    let placed = line_up(index, &absolute, align_tolerance);
+    if placed.is_empty() {
         return Err(ThumbError::BadStream(format!(
-            "thumbnail keyframes differ from the index: expected {} pictures, got {}",
-            plan.frames.len(),
-            frames.len()
+            "none of the {} thumbnail pictures lines up with a frame of the video",
+            split.frames.len()
         )));
     }
-    Ok(frames
+    Ok(placed
         .into_iter()
-        .zip(split.frames)
-        .map(|(frame, r)| Thumb {
+        .map(|(picture, frame)| Thumb {
             frame,
-            jpeg: bytes[r].to_vec(),
+            jpeg: bytes[split.frames[picture].clone()].to_vec(),
         })
         .collect())
 }

@@ -235,7 +235,9 @@ fn a_cache_of_another_video_is_not_reused() {
 // ------------------------------------------------------------ failures and lifecycle
 
 #[test]
-fn a_failing_run_reports_failed_and_a_later_start_retries() {
+fn a_failed_run_is_reported_and_not_run_again_until_the_video_is_opened_again() {
+    // the timeline starts thumbnails each time it is shown: a failure was run again, and reported again, on every
+    // screen switch. It is reported once per opened video; opening the video again tries again
     let dir = scratch("fail");
     let src = Arc::new(Fake::default());
     src.fail.store(true, Ordering::SeqCst);
@@ -248,6 +250,12 @@ fn a_failing_run_reports_failed_and_a_later_start_retries() {
         s.error
     );
     src.fail.store(false, Ordering::SeqCst);
+    let again = ready(&mut w);
+    assert_eq!(again.state, ThumbState::Failed);
+    assert_eq!(again.error, s.error);
+    assert_eq!(src.calls.load(Ordering::SeqCst), 1);
+    drop(w);
+    let mut w = open(&dir, src.clone());
     let s = ready(&mut w);
     assert_eq!((s.state, s.count), (ThumbState::Ready, 10));
     assert_eq!(src.calls.load(Ordering::SeqCst), 2);

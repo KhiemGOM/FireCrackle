@@ -710,3 +710,45 @@ fn av1_thumbnails_only_include_planned_keyframes_even_when_decoder_emits_inter_f
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ============================================================ a decoder whose keyframes differ from the index
+// 0.6.1: "thumbnail keyframes differ from the index: expected 564 pictures, got 538" failed the whole strip, on every
+// screen switch. Each picture is placed by its time; the ones that line up are kept, the rest dropped, never guessed.
+
+#[test]
+fn pictures_that_line_up_keep_their_frames_and_the_rest_are_dropped() {
+    let idx = index(100, 20.0, 10); // a frame every 0.05 s
+    assert_eq!(
+        line_up(&idx, &[0.0, 0.5, 1.0], 0.5),
+        vec![(0, 0), (1, 10), (2, 20)]
+    );
+    // between two frames, going backwards, the same frame again, and no time: dropped; the others keep their frames
+    assert_eq!(
+        line_up(&idx, &[0.0, 0.525, 1.0, 0.5, 1.0, f64::NAN, 1.5], 0.25),
+        vec![(0, 0), (2, 20), (6, 30)]
+    );
+    assert!(line_up(&idx, &[99.0, -5.0], 0.5).is_empty());
+    assert!(line_up(&idx, &[], 0.5).is_empty());
+}
+
+#[test]
+fn an_index_whose_keyframes_differ_from_the_decoders_still_gets_its_thumbnails() {
+    if !have_tools() {
+        return;
+    }
+    let (dir, v, mut idx) = real("other_keys", 100, GOP);
+    // the index lists two keyframes the decoder does not give, and misses one it does
+    for f in [15, 45] {
+        idx.frames[f].key = true;
+    }
+    idx.frames[60].key = false;
+    let t = gen(&v, &idx, &TimelineConfig::default()).unwrap();
+    assert_eq!(
+        t.iter().map(|x| x.frame).collect::<Vec<_>>(),
+        vec![0, 30, 60, 90]
+    );
+    for x in &t {
+        assert_eq!(frame_of(&x.jpeg), x.frame as i64, "frame {}", x.frame);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
