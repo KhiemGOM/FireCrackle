@@ -1,2 +1,3 @@
-# Optional upstream game texture extracted locally for screen-mask research.
+# Optional upstream game textures extracted locally (FireCrackle/scripts/gui-assets.mjs): screen masks, toasts.
 recipe_book.rgba
+toasts.rgba

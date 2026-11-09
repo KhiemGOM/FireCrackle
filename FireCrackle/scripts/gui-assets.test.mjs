@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {deflateSync} from 'node:zlib';
 import fs from 'node:fs';
-import {decodeGuiRgba} from './gui-assets.mjs';
+import {decodeGuiRgba,GUI_SHEETS} from './gui-assets.mjs';
 
 function pngFixture(){
   const rgba=Buffer.alloc(256*256*4),raw=Buffer.alloc(256*(1024+1));
@@ -35,6 +35,14 @@ test('rejects unsupported, truncated and oversized formats',()=>{
   const wrong=Buffer.from(png);wrong[25]=2;assert.throws(()=>decodeGuiRgba(wrong),/Unsupported/);
   const huge=Buffer.from(png);huge.writeUInt32BE(0x7fffffff,16);assert.throws(()=>decodeGuiRgba(huge),/Unsupported/);
   assert.throws(()=>decodeGuiRgba(Buffer.alloc(33)),/Invalid/);
+});
+test('optional local sheets: recipe book and toasts from the official jar, gitignored',()=>{
+  assert.deepEqual(GUI_SHEETS,[
+    {png:'assets/minecraft/textures/gui/recipe_book.png',rgba:'recipe_book.rgba'},
+    {png:'assets/minecraft/textures/gui/toasts.png',rgba:'toasts.rgba'},
+  ]);
+  const ignore=fs.readFileSync(new URL('../../fire-detection/data/assets/gui/.gitignore',import.meta.url),'utf8').split(/\r?\n/);
+  for(const {rgba} of GUI_SHEETS)assert.ok(ignore.includes(rgba),`${rgba} must stay out of git`);
 });
 test('optional local vanilla fixture exactly reproduces measured RGBA',()=>{
   const png=new URL('../../.board/pov-dual-veil-v2/recipe_book.png',import.meta.url);

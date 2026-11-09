@@ -53,6 +53,8 @@ pub struct GuiTextures {
     pub font: Option<Texture>,
     /// Optional local recipe-book sheet; used only by opt-in screen masks.
     pub recipe_book: Option<Texture>,
+    /// Optional local `textures/gui/toasts.png` (256x256): recipe and advancement toasts are checked only with it.
+    pub toasts: Option<Texture>,
     /// Shared, source-versioned interaction/menu evidence. Optional for legacy
     /// research reproducibility; production callers install the same bank.
     pub interactions: Option<Arc<crate::gui_interaction::InteractionDetector>>,
@@ -85,6 +87,7 @@ impl GuiTextures {
             bars: None,
             font: None,
             recipe_book: None,
+            toasts: None,
             interactions: None,
         })
     }
@@ -132,6 +135,21 @@ impl GuiTextures {
         Ok(self)
     }
 
+    /// Add the toast sheet (256x256); `None` keeps the current one.
+    pub fn with_toasts(mut self, rgba: Option<Vec<u8>>) -> Result<Self, String> {
+        if let Some(rgba) = rgba {
+            if rgba.len() != 256 * 256 * 4 {
+                return Err("toasts must be 256x256 RGBA".into());
+            }
+            self.toasts = Some(Texture {
+                width: 256,
+                height: 256,
+                rgba,
+            });
+        }
+        Ok(self)
+    }
+
     /// Required HUD sheets and optional local extras from a folder.
     pub fn load(dir: &Path) -> Result<GuiTextures, String> {
         let read = |n: &str| {
@@ -143,7 +161,8 @@ impl GuiTextures {
             read("inventory.rgba")?,
         )?
         .with_extras(read("bars.rgba").ok(), read("ascii.rgba").ok())?
-        .with_recipe_book(read("recipe_book.rgba").ok())
+        .with_recipe_book(read("recipe_book.rgba").ok())?
+        .with_toasts(read("toasts.rgba").ok())
     }
 
     fn sheet(&self, s: Sheet) -> Option<&Texture> {
@@ -152,6 +171,7 @@ impl GuiTextures {
             Sheet::Icons => Some(&self.icons),
             Sheet::Inventory => Some(&self.inventory),
             Sheet::Bars => self.bars.as_ref(),
+            Sheet::Toasts => self.toasts.as_ref(),
         }
     }
 }
@@ -213,6 +233,54 @@ pub enum PieceId {
     RecipeBookPanel = 26,
     /// An item tooltip drawn by the open screen (on top of it, and past its edges).
     ItemTooltip = 27,
+    /// A settled "New Recipe(s) Unlocked!" toast (`ToastManager`, top right); its items and text are unknown content.
+    RecipeToast = 28,
+    /// A settled advancement toast (same geometry, dark background).
+    AdvancementToast = 29,
+}
+
+/// Toast backgrounds in `textures/gui/toasts.png` (row v; 1.21.11's `toast/*` sprites draw the same art).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToastKind {
+    Advancement,
+    Recipe,
+}
+
+impl ToastKind {
+    const ALL: [ToastKind; 2] = [ToastKind::Recipe, ToastKind::Advancement];
+    fn v(self) -> u32 {
+        match self {
+            ToastKind::Advancement => 0,
+            ToastKind::Recipe => 32,
+        }
+    }
+    fn piece(self) -> PieceId {
+        match self {
+            ToastKind::Advancement => PieceId::AdvancementToast,
+            ToastKind::Recipe => PieceId::RecipeToast,
+        }
+    }
+}
+
+/// `ToastManager`: five 32 GUI px slots from the top.
+pub const TOAST_SLOTS: usize = 5;
+/// Icon area (result item at 8,8; the 0.6-scaled category item at 1.8..11.4) and text area (title/description at
+/// x 30, y 7 and 18; wrapped advancement text from y 2.5, at most 125 px wide).
+const TOAST_UNKNOWN: &[(i32, i32, u32, u32)] = &[(1, 1, 24, 24), (29, 2, 127, 28)];
+
+/// A settled toast in `slot` of a `w`-wide scaled window (`Toast.getXPos/getYPos` at full visibility).
+fn toast_piece(w: i32, kind: ToastKind, slot: u8) -> Placed {
+    let mut p = place(
+        kind.piece(),
+        slot,
+        w - 160,
+        32 * slot as i32,
+        160,
+        32,
+        vec![lay(Sheet::Toasts, 0, kind.v(), 160, 32)],
+    );
+    p.unknown = TOAST_UNKNOWN;
+    p
 }
 
 #[repr(u8)]
@@ -238,6 +306,7 @@ pub enum Sheet {
     Icons,
     Inventory,
     Bars,
+    Toasts,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -291,6 +360,8 @@ pub struct HudState {
     pub action_bar_alpha: f32,
     /// Sound captions (Accessibility > Show Subtitles), oldest (bottom) first.
     pub captions: Vec<Caption>,
+    /// Settled toasts per slot, top first (`None`: the slot is free).
+    pub toasts: [Option<ToastKind>; TOAST_SLOTS],
 }
 
 /// Which side a caption's sound comes from (no arrow when it is in front).
@@ -350,6 +421,7 @@ impl Default for HudState {
             action_bar_color: [255, 255, 255],
             action_bar_alpha: 1.0,
             captions: Vec::new(),
+            toasts: [None; TOAST_SLOTS],
         }
     }
 }
@@ -377,9 +449,19 @@ pub struct Placed {
     pub w: u32,
     pub h: u32,
     pub layers: Vec<Layer>,
-    /// Part of the rectangle (relative) whose content cannot be predicted (item, effect sprite, inverted world).
+    /// Parts of the rectangle (relative) whose content cannot be predicted (item, effect sprite, inverted world, text).
     /// With sprite layers, only the sprite's drawn pixels are unknown (the crosshair keeps its cross shape).
-    pub unknown: Option<(i32, i32, u32, u32)>,
+    pub unknown: &'static [(i32, i32, u32, u32)],
+}
+
+/// Whether GUI pixel (gx, gy) of a piece lies in one of its unknown rectangles.
+fn in_unknown(unknown: &[(i32, i32, u32, u32)], gx: i64, gy: i64) -> bool {
+    unknown.iter().any(|&(ux, uy, uw, uh)| {
+        gx >= ux as i64
+            && gy >= uy as i64
+            && gx < ux as i64 + uw as i64
+            && gy < uy as i64 + uh as i64
+    })
 }
 
 fn lay(sheet: Sheet, u: u32, v: u32, w: u32, h: u32) -> Layer {
@@ -403,7 +485,7 @@ fn place(piece: PieceId, index: u8, x: i32, y: i32, w: u32, h: u32, layers: Vec<
         w,
         h,
         layers,
-        unknown: None,
+        unknown: &[],
     }
 }
 
@@ -474,13 +556,13 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
             16,
             vec![],
         );
-        p.unknown = Some((0, 0, 16, 16));
+        p.unknown = &[(0, 0, 16, 16)];
         out.push(p);
     }
     if let Some(hand) = st.offhand {
         let x = if hand == Hand::Left { c - 117 } else { c + 101 };
         let mut p = place(PieceId::HotbarItem, 9, x, h - 19, 16, 16, vec![]);
-        p.unknown = Some((0, 0, 16, 16));
+        p.unknown = &[(0, 0, 16, 16)];
         out.push(p);
     }
     // renderCrosshair 366: drawn with an inverting blend, so its pixels are the inverted world
@@ -493,7 +575,7 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
         15,
         vec![lay(Sheet::Icons, 0, 0, 15, 15)],
     );
-    cross.unknown = Some((0, 0, 15, 15));
+    cross.unknown = &[(0, 0, 15, 15)];
     out.push(cross);
 
     if st.status_bars {
@@ -674,8 +756,14 @@ pub fn hud_layout(w: u32, h: u32, st: &HudState) -> Vec<Placed> {
             24,
             vec![lay(Sheet::Inventory, u, 166, 24, 24)],
         );
-        p.unknown = Some((3, 3, 18, 18));
+        p.unknown = &[(3, 3, 18, 18)];
         out.push(p);
+    }
+    // ToastManager draws after the HUD
+    for (slot, kind) in st.toasts.iter().enumerate() {
+        if let Some(kind) = kind {
+            out.push(toast_piece(w, *kind, slot as u8));
+        }
     }
     out
 }
@@ -822,12 +910,7 @@ pub fn compose_hud(
                 }
                 let i = y * w + x;
                 let px = &mut frame[i * 3..i * 3 + 3];
-                let in_unknown = p.unknown.is_some_and(|(ux, uy, uw, uh)| {
-                    gx >= ux as i64
-                        && gy >= uy as i64
-                        && gx < (ux as i64 + uw as i64)
-                        && gy < (uy as i64 + uh as i64)
-                });
+                let in_unknown = in_unknown(p.unknown, gx, gy);
                 // the same rule as gui_class: with a sprite, only its drawn pixels are the piece
                 let drawn =
                     p.layers.is_empty() || img[gy as usize * p.w as usize + gx as usize][3] > 0;
@@ -1277,7 +1360,7 @@ struct ShapeKey {
     width: u32,
     height: u32,
     layers: ShapeLayers,
-    unknown: Option<(i32, i32, u32, u32)>,
+    unknown: &'static [(i32, i32, u32, u32)],
 }
 type ShapeCache = RwLock<HashMap<ShapeKey, Arc<Template>>>;
 fn piece_template(tex: &GuiTextures, p: &Placed, cache: Option<&ShapeCache>) -> Arc<Template> {
@@ -1337,11 +1420,11 @@ impl HotbarTemplates {
             .collect();
         let flat = pairs
             .iter()
-            .map(|img| template(img, 184, 24, true, None))
+            .map(|img| template(img, 184, 24, true, &[]))
             .collect();
         let edges = pairs
             .iter()
-            .map(|img| corners(&template(img, 184, 24, false, None)))
+            .map(|img| corners(&template(img, 184, 24, false, &[])))
             .collect();
         Self {
             hotbar,
@@ -1634,16 +1717,9 @@ fn template(
     w: usize,
     h: usize,
     flat_only: bool,
-    skip: Option<(i32, i32, u32, u32)>,
+    skip: &[(i32, i32, u32, u32)],
 ) -> Template {
-    let skipped = |x: usize, y: usize| {
-        skip.is_some_and(|(ux, uy, uw, uh)| {
-            (x as i32) >= ux
-                && (y as i32) >= uy
-                && (x as i32) < ux + uw as i32
-                && (y as i32) < uy + uh as i32
-        })
-    };
+    let skipped = |x: usize, y: usize| in_unknown(skip, x as i64, y as i64);
     let opaque: Vec<(usize, usize)> = (0..h)
         .flat_map(|y| (0..w).map(move |x| (x, y)))
         .filter(|&(x, y)| img[y * w + x][3] == 255 && !skipped(x, y))
@@ -2403,7 +2479,7 @@ fn detect_prepared(
     if let Some(side) = offhand_side {
         let x = if side == 0 { c - 117 } else { c + 101 };
         let mut p = place(PieceId::HotbarItem, 9, x, sh_ - 19, 16, 16, vec![]);
-        p.unknown = Some((0, 0, 16, 16));
+        p.unknown = &[(0, 0, 16, 16)];
         accepted.push((p, 1.0));
     }
 
@@ -2648,7 +2724,7 @@ fn detect_prepared(
                         24,
                         vec![lay(Sheet::Inventory, u, 166, 24, 24)],
                     );
-                    p.unknown = Some((3, 3, 18, 18));
+                    p.unknown = &[(3, 3, 18, 18)];
                     p
                 })
                 .collect();
@@ -2661,6 +2737,25 @@ fn detect_prepared(
                 None => break,
             }
         }
+    }
+
+    // settled toasts (ToastManager): every slot, since one can empty while those below stay; a sliding toast is
+    // between places and is not claimed
+    if tex.toasts.is_some() {
+        let mut toast_templates = None;
+        for slot in 0..TOAST_SLOTS as u8 {
+            let cands: Vec<Placed> = ToastKind::ALL
+                .iter()
+                .map(|&kind| toast_piece(sw, kind, slot))
+                .collect();
+            let templates = toast_templates.get_or_insert_with(|| resolve(&cands));
+            if let Some(x) = best_of_with(cands, templates, &[0]) {
+                accepted.push(x);
+            }
+        }
+    } else {
+        mask.notes
+            .push("no toast texture: recipe and advancement toasts are not checked".into());
     }
 
     // boss bars (BossBarHud 29-60): bars.png, every colour, any fill, from y = 12 every 19 GUI px
@@ -2696,6 +2791,7 @@ fn detect_prepared(
             PieceId::Offhand => 2,
             PieceId::HotbarItem => 3,
             PieceId::Crosshair => 4,
+            PieceId::RecipeToast | PieceId::AdvancementToast => 6,
             _ => 5,
         }
     };
@@ -2751,12 +2847,8 @@ fn gui_class(img: &[[u8; 4]], p: &Placed, gx: i64, gy: i64) -> PixelClass {
     if gx < 0 || gy < 0 || gx >= p.w as i64 || gy >= p.h as i64 {
         return PixelClass::None;
     }
-    if let Some((ux, uy, uw, uh)) = p.unknown {
-        if gx >= ux as i64
-            && gy >= uy as i64
-            && gx < (ux as i64 + uw as i64)
-            && gy < (uy as i64 + uh as i64)
-        {
+    {
+        if in_unknown(p.unknown, gx, gy) {
             // the colour is unpredictable, but a sprite still fixes where it is drawn
             let drawn = p.layers.is_empty() || img[gy as usize * p.w as usize + gx as usize][3] > 0;
             return if drawn {
@@ -3672,6 +3764,13 @@ fn detect_text(
     // F3 (DebugHud 134-153): grey 0xE0E0E0 text, no shadow, rows from y = 2 every 9 GUI px, left from x = 2 and
     // right-aligned at W-2, each on a 0x90505050 box
     let f3 = [224.0, 224.0, 224.0];
+    // toasts are drawn over F3, and their grey 222 body is no F3 line: rows a toast covers are skipped, not ended on
+    let toast_rows: Vec<(i32, i32, i32)> = mask
+        .hits
+        .iter()
+        .filter(|t| matches!(t.piece, PieceId::RecipeToast | PieceId::AdvancementToast))
+        .map(|t| (sw - 160, 32 * t.index as i32, 32 * t.index as i32 + 32))
+        .collect();
     let mut idx = 0u8;
     for left in [true, false] {
         for row in 0..30 {
@@ -3680,6 +3779,12 @@ fn detect_text(
                 break;
             }
             let (x0, x1) = if left { (2, sw / 2) } else { (sw / 2, sw - 2) };
+            if toast_rows
+                .iter()
+                .any(|&(tx, ty0, ty1)| x1 > tx && y < ty1 && y + 8 > ty0)
+            {
+                continue;
+            }
             let mut px = Vec::new();
             for gy in y..y + 8 {
                 for gx in x0..x1 {

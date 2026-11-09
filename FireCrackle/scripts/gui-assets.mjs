@@ -44,13 +44,20 @@ export function decodeGuiRgba(png){
   return rgba;
 }
 
+// Optional 256x256 vanilla sheets decoded locally (never committed): screen masks and toasts.
+export const GUI_SHEETS=[
+  {png:'assets/minecraft/textures/gui/recipe_book.png',rgba:'recipe_book.rgba'},
+  {png:'assets/minecraft/textures/gui/toasts.png',rgba:'toasts.rgba'},
+];
+
 export async function prepareGuiAssets(){
-  const output=fileURLToPath(new URL('../../fire-detection/data/assets/gui/recipe_book.rgba',import.meta.url));
-  if(fs.existsSync(output)){
-    if(fs.statSync(output).size!==256*256*4)throw Error('Invalid local recipe-book RGBA');
-    return;
+  for(const sheet of GUI_SHEETS){
+    const output=fileURLToPath(new URL(`../../fire-detection/data/assets/gui/${sheet.rgba}`,import.meta.url));
+    if(fs.existsSync(output)){
+      if(fs.statSync(output).size!==256*256*4)throw Error(`Invalid local ${sheet.rgba}`);
+      continue;
+    }
+    const rgba=decodeGuiRgba(zipEntry(await minecraftClientBytes(),sheet.png));
+    fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,rgba);
   }
-  const jar=await minecraftClientBytes();
-  const rgba=decodeGuiRgba(zipEntry(jar,'assets/minecraft/textures/gui/recipe_book.png'));
-  fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,rgba);
 }
