@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as Array<{ current: unknown }>, stateCursor: 0, refCursor: 0, effects: [] as Array<() => void | (() => void)> }));
 vi.mock("react", async (original) => ({
@@ -19,6 +19,8 @@ import { VideoPane } from "./VideoPane";
 import {LabelUndo} from '../lib/labelUndo';
 import {FireQuadMask} from './FireQuadMask';
 import * as proofs from "../lib/comparisonProof";
+import * as frameCopy from "../lib/frameCopy";
+import { FrameMenu } from "./FrameMenu";
 import { ANIMATION_ATLASES } from "../lib/animationAtlases";
 import { AnimationControls } from "./AnimationControls";
 import { OpacityControl } from "./OpacityControl";
@@ -838,3 +840,104 @@ it("draws a paused frame pixel for pixel and leaves playback pictures as they ar
       p.stop?.();
     });
 }
+
+describe("copying the frame", () => {
+  function byType(node: Element, type: unknown): Element | undefined {
+    if (node.type === type) return node;
+    for (const child of [node.props.children].flat(Infinity)) {
+      if (child && typeof child === "object" && "props" in child) { const match = byType(child, type); if (match) return match; }
+    }
+  }
+  function byClass(node: Element, className: string): Element | undefined {
+    if (typeof node.props.className === "string" && node.props.className.split(" ").includes(className)) return node;
+    for (const child of [node.props.children].flat(Infinity)) {
+      if (child && typeof child === "object" && "props" in child) { const match = byClass(child, className); if (match) return match; }
+    }
+  }
+  const text = (node: Element | undefined): string => !node ? "" : [node.props.children].flat(Infinity)
+    .map(child => typeof child === "string" || typeof child === "number" ? String(child) : child && typeof child === "object" && "props" in child ? text(child) : "").join("");
+  const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+  async function at(frame: number, extra: Partial<Parameters<typeof VideoPane>[0]> = {}) {
+    const backend = createMockBackend();
+    const view = { ...await backend.view(), current: frame };
+    const render = () => tree({ backend, view, ...extra });
+    return { backend, render, root: await render() };
+  }
+
+  it("right-click on the video opens Copy frame / Save frame where the pointer is, instead of the browser's menu", async () => {
+    const copy = vi.spyOn(frameCopy, "copyFrame").mockResolvedValue("Copied frame 17 · 4 × 4");
+    const { backend, render, root } = await at(17);
+    const event = { clientX: 120, clientY: 80, preventDefault: vi.fn() };
+    viewport(root)!.props.onContextMenu(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    const menu = byType(await render(), FrameMenu)!;
+    expect(menu.props).toMatchObject({ x: 120, y: 80 });
+    menu.props.onCopy();
+    expect(copy).toHaveBeenCalledExactlyOnceWith({ backend, frame: 17 });
+    await flush();
+    const after = await render();
+    expect(byType(after, FrameMenu)).toBeUndefined();
+    expect(text(byClass(after, "frame-copy-note"))).toContain("Copied frame 17 · 4 × 4");
+    expect(byClass(after, "frame-copy-note")!.props.role).toBe("status");
+  });
+
+  it("saves the frame from the same menu", async () => {
+    const save = vi.spyOn(frameCopy, "saveFrame").mockResolvedValue("Saved frame 4");
+    const { backend, render, root } = await at(4);
+    viewport(root)!.props.onContextMenu({ clientX: 1, clientY: 2, preventDefault: vi.fn() });
+    byType(await render(), FrameMenu)!.props.onSave();
+    expect(save).toHaveBeenCalledExactlyOnceWith({ backend, frame: 4 });
+    await flush();
+    expect(text(byClass(await render(), "frame-copy-note"))).toContain("Saved frame 4");
+  });
+
+  it("shows why a copy failed, as an alert", async () => {
+    vi.spyOn(frameCopy, "copyFrame").mockRejectedValue(Error("Clipboard is busy. Try copying again."));
+    const { render, root } = await at(2);
+    viewport(root)!.props.onContextMenu({ clientX: 1, clientY: 2, preventDefault: vi.fn() });
+    byType(await render(), FrameMenu)!.props.onCopy();
+    await flush();
+    const note = byClass(await render(), "frame-copy-note")!;
+    expect(note.props.role).toBe("alert");
+    expect(text(note)).toContain("Could not copy the frame: Clipboard is busy. Try copying again.");
+  });
+
+  it("copies the image itself in the Images tab", async () => {
+    const copy = vi.spyOn(frameCopy, "copyFrame").mockResolvedValue("Copied");
+    const stillImage = { name: "shot.png", url: "blob:shot" };
+    const { render, root } = await at(0, { stillImage });
+    viewport(root)!.props.onContextMenu({ clientX: 1, clientY: 2, preventDefault: vi.fn() });
+    byType(await render(), FrameMenu)!.props.onCopy();
+    expect(copy).toHaveBeenCalledExactlyOnceWith({ still: stillImage });
+  });
+
+  it("Ctrl+Shift+C copies the current frame; Ctrl+C, typing, a hidden pane and a dialog are left alone", async () => {
+    const listeners = new Map<string, (e: any) => void>();
+    vi.stubGlobal("window", { addEventListener: (type: string, handler: (e: any) => void) => listeners.set(type, handler), removeEventListener: vi.fn() });
+    const copy = vi.spyOn(frameCopy, "copyFrame").mockResolvedValue("Copied");
+    const { backend, root } = await at(9);
+    const stop = hooks.effects.find(effect => effect.toString().includes("copyFrameKey"))!();
+    const press = (extra = {}) => {
+      const event = { key: "C", target: { tagName: "DIV" }, ctrlKey: true, metaKey: false, altKey: false, shiftKey: true, repeat: false, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...extra };
+      listeners.get("keydown")!(event); return event;
+    };
+    expect(press().preventDefault).toHaveBeenCalledOnce();
+    expect(copy).toHaveBeenCalledExactlyOnceWith({ backend, frame: 9 });
+    expect(press({ key: "c", shiftKey: false }).preventDefault).not.toHaveBeenCalled();
+    expect(press({ target: { tagName: "INPUT", type: "text" } }).preventDefault).not.toHaveBeenCalled();
+    expect(press({ repeat: true }).preventDefault).not.toHaveBeenCalled();
+    const frame = viewport(root)!;
+    frame.props.ref.current.offsetParent = null;
+    expect(press().preventDefault).not.toHaveBeenCalled();
+    frame.props.ref.current.offsetParent = {};
+    vi.stubGlobal("document", { querySelector: () => ({}) });
+    expect(press().preventDefault).not.toHaveBeenCalled();
+    expect(copy).toHaveBeenCalledOnce();
+    stop?.();
+  });
+
+  it("tells you about right-click and Ctrl+Shift+C on the video", async () => {
+    const { root } = await at(0);
+    expect(viewport(root)!.props.title).toContain("right-click to copy the frame · Ctrl+Shift+C");
+  });
+});

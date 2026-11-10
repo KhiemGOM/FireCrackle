@@ -17,7 +17,8 @@ import { Fire3DMatchControls } from "./Fire3DMatchControls";
 import { matchPanel } from "./MatchPanel";
 import { Fire3DWorldPane } from "./Fire3DWorldPane";
 import { useFire3D } from "../lib/useFire3D";
-import { IconButton } from "./Icon";
+import { Icon, IconButton } from "./Icon";
+import { FrameMenu } from "./FrameMenu";
 import { DEFAULT_QUAD, type ManualQuad } from "../lib/quadMask";
 import { readFrameQuads, recalledQuad, rememberQuad, sameQuad, writeFrameQuads } from "../lib/frameQuads";
 import { framePreview, previewSprite, spriteWithSheet, labelSprite, type PreviewSprite } from "../lib/firePreview";
@@ -59,6 +60,7 @@ import { correctsNow } from "../lib/correctionGate";
 import { dispatchToolKey, resetToolKeys, type ToolAction } from "../lib/toolKeys";
 import { blocksVideoToolKeys, focusVideoViewport, maskShortcut, videoToolContextAvailable } from "../lib/shortcutFocus";
 import { failureMessage } from "../lib/appErrors";
+import { copyFrame, copyFrameKey, saveFrame, type FrameSource } from "../lib/frameCopy";
 
 export interface VideoPreviewHandle {
   /** True when an enabled preview consumes the selection without a label write. */
@@ -679,6 +681,28 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
             sliderLabel="Manual mask opacity" value={manualOpacity} onChange={setManualOpacity} />
           <label><input type="checkbox" checked={pixelGrid} onChange={(e) => setPixelGrid(e.target.checked)} /> Pixel grid</label>
   </>;
+  // Copy frame: right-click menu and Ctrl+Shift+C, the frame itself without overlays
+  const [frameMenu, setFrameMenu] = useState<{ x: number; y: number } | null>(null);
+  const [frameNote, setFrameNote] = useState<{ text: string; error?: boolean } | null>(null);
+  useEffect(() => { if (!frameNote) return; const t = setTimeout(() => setFrameNote(null), 2200); return () => clearTimeout(t); }, [frameNote]);
+  const exportFrame = (kind: "copy" | "save") => {
+    setFrameMenu(null);
+    const source: FrameSource = stillImage ? { still: stillImage } : { backend, frame: view.current };
+    (kind === "copy" ? copyFrame : saveFrame)(source).then(text => { if (text) setFrameNote({ text }); },
+      e => setFrameNote({ text: `Could not ${kind} the frame: ${failureMessage(e)}`, error: true }));
+  };
+  const exportFrameRef = useRef(exportFrame);
+  exportFrameRef.current = exportFrame;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || !videoToolContextAvailable(frameRef.current, document)) return;
+      if (!copyFrameKey({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, repeat: e.repeat, blocked: blocksVideoToolKeys(e.target as HTMLElement | null) })) return;
+      e.preventDefault();
+      exportFrameRef.current("copy");
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
   return (
     <div className="video-pane">
       <div className="video-split">
@@ -697,7 +721,8 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
         onPointerCancel={panUp}
         onLostPointerCapture={panUp}
         onDoubleClick={() => setXf(IDENTITY)}
-        title="scroll to zoom · drag to move · hold Shift for rotation · double-click to reset"
+        onContextMenu={e => { e.preventDefault(); setFrameMenu({ x: e.clientX, y: e.clientY }); }}
+        title="scroll to zoom · drag to move · hold Shift for rotation · double-click to reset · right-click to copy the frame · Ctrl+Shift+C"
       >
         <div
           className="video-zoom"
@@ -731,7 +756,9 @@ export function VideoPane({ undoHistory, firstPersonAllowed = true, backend, vie
             {s.mirrored ? " · mirrored" : ""} · unconfirmed
           </div>
         )}
+        {frameNote && <div className={`frame-copy-note${frameNote.error ? " error" : ""}`} role={frameNote.error ? "alert" : "status"}><Icon name={frameNote.error ? "alert" : "check"} />{frameNote.text}</div>}
       </div>
+      {frameMenu && <FrameMenu x={frameMenu.x} y={frameMenu.y} onCopy={() => exportFrame("copy")} onSave={() => exportFrame("save")} onClose={() => setFrameMenu(null)} />}
       {fire3dOn && <Fire3DWorldPane fire={fire3d} />}
       </div>
       <div className="hud-controls video-tools" role="group" aria-label={stillImage ? "Image tools" : "Video tools"} onKeyDown={(e) => e.stopPropagation()}>

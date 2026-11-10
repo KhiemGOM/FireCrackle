@@ -63,6 +63,7 @@ const KEY_HELP: Array<[string, string]> = [
   ["Backspace · Ctrl+Z", "clear label · undo"],
   ["Ctrl+Y · Ctrl+Shift+Z", "redo"],
   ["Ctrl+S", "save labels and position"],
+  ["Ctrl+Shift+C · right-click video", "copy the frame (no overlays) · save it"],
   ["N · Shift+N", "next / previous unlabelled frame"],
   ["F · Shift+F", "next / previous flag"],
   ["Esc", "discard candidate / deselect corner"],

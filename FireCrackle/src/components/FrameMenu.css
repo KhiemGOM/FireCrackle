@@ -1,0 +1,22 @@
+.frame-menu { position: fixed; right: auto; min-width: 210px; }
+.frame-menu kbd { float: right; margin-left: 16px; }
+
+.frame-copy-note {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(22, 27, 36, 0.95);
+  border: 1px solid var(--green);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.frame-copy-note .icon { width: 16px; height: 16px; color: var(--green); }
+.frame-copy-note.error { border-color: var(--red); white-space: normal; }
+.frame-copy-note.error .icon { color: var(--red); }
