@@ -45,13 +45,16 @@ pub fn write_answer(project_dir: &Path, answer: GuiAnswer) -> Result<(), String>
     })
 }
 
-/// Set on pixels of an open screen (inventory, menu buttons, recipe book), whose ids do not fit the low nibble.
+/// Set on pixels drawn over the screen's veil (inventory, menu buttons, recipe book, tooltips, toasts), whose ids do
+/// not fit the low nibble. Toasts count: `ToastManager` draws after the screen in 1.16.5 and 1.21.11.
 pub const SCREEN_FLAG: u8 = 0x40;
-const SCREEN_PIECES: [PieceId; 4] = [
+const SCREEN_PIECES: [PieceId; 6] = [
     PieceId::InventoryPanel,
     PieceId::MenuButton,
     PieceId::RecipeBookPanel,
     PieceId::ItemTooltip,
+    PieceId::RecipeToast,
+    PieceId::AdvancementToast,
 ];
 
 /// One byte per pixel: the pixel class (0 none, 1 opaque, 2 translucent, 3 unknown) in bits 4-5, the piece id in

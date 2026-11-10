@@ -50,7 +50,7 @@ export function veilScreenEvidence(reply: GuiMaskReply | null): ScreenEvidence |
  * ("menu"), or one that looks the same in 1.16 ("unclear", the pause menu); absent for the flat veil. */
 export interface ScreenEvidence { width: number; height: number; menu?: "menu" | "unclear" }
 
-/** Set on pixels of an open screen (inventory, menu buttons, recipe book): studio_core::gui::SCREEN_FLAG. */
+/** Set on pixels drawn over the screen's veil (inventory, menu buttons, recipe book, tooltips, toasts): studio_core::gui::SCREEN_FLAG. */
 const SCREEN_FLAG = 0x40;
 const classOf = (b: number) => (b >> 4) & 0x03;
 

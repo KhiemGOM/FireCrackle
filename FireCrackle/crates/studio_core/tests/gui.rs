@@ -94,7 +94,14 @@ fn open_screen_pixels_are_flagged_apart_from_the_hud() {
         assert!(is_screen(b), "piece {screen}");
         assert_eq!(unpack(b).1, 3, "class survives the flag");
     }
-    for hud in [1, 4, 8, 9, 10, 11, 15] {
+    // Tooltips and toasts are drawn after the screen's veil (ToastManager renders after the screen in 1.16.5 and
+    // 1.21.11): unveil must leave them as they are, like the panels.
+    for over_veil in [27, 28, 29] {
+        assert!(is_screen(pack(over_veil, 3)), "piece {over_veil}");
+        assert!(is_screen(pack(over_veil, 1)), "piece {over_veil}");
+    }
+    // ChatLine/ItemName share the toasts' low nibble (12, 13) but sit under the veil.
+    for hud in [1, 4, 8, 9, 10, 11, 12, 13, 15] {
         assert!(!is_screen(pack(hud, 1)), "piece {hud}");
         assert!(!is_screen(pack(hud, 3)), "piece {hud}");
     }
