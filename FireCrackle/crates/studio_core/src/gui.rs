@@ -126,6 +126,10 @@ static RECIPE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../fire-detection/data/assets/gui/recipe_book.rgba"
 ));
+static TOASTS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../fire-detection/data/assets/gui/toasts.rgba"
+));
 
 /// One immutable source bank for previews, AI preprocessing and Misc scans.
 /// Cache geometry only; never carry a previous frame's GUI decision forward.
@@ -151,12 +155,13 @@ pub fn with_interactions(mut textures: GuiTextures) -> Result<GuiTextures, Strin
 }
 
 /// Exact vanilla sheets used by the validated first-person pipeline. The
-/// recipe sheet is generated locally by the frontend build prerequisite.
+/// recipe and toast sheets are generated locally by the frontend build prerequisite.
 pub fn pov_textures() -> Result<GuiTextures, String> {
     with_interactions(
         GuiTextures::from_rgba(WIDGETS.to_vec(), ICONS.to_vec(), INVENTORY.to_vec())?
             .with_extras(Some(BARS.to_vec()), Some(FONT.to_vec()))?
-            .with_recipe_book(Some(RECIPE.to_vec()))?,
+            .with_recipe_book(Some(RECIPE.to_vec()))?
+            .with_toasts(Some(TOASTS.to_vec()))?,
     )
 }
 

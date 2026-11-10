@@ -33,7 +33,7 @@ pub(crate) fn pipeline_version() -> &'static str {
             "../../../fire-detection/data/assets/fire_1.rgba", "../../../fire-detection/data/assets/gui/widgets.rgba",
             "../../../fire-detection/data/assets/gui/icons.rgba", "../../../fire-detection/data/assets/gui/inventory.rgba",
             "../../../fire-detection/data/assets/gui/bars.rgba", "../../../fire-detection/data/assets/gui/ascii.rgba",
-            "../../../fire-detection/data/assets/gui/recipe_book.rgba");
+            "../../../fire-detection/data/assets/gui/recipe_book.rgba", "../../../fire-detection/data/assets/gui/toasts.rgba");
         crate::hex(&hash.finalize())
     })
 }

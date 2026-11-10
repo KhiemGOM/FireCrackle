@@ -116,6 +116,14 @@ fn the_embedded_vanilla_textures_load() {
 }
 
 #[test]
+fn the_app_textures_check_recipe_and_advancement_toasts() {
+    // Without the sheet the shared mask skips toasts ("no toast texture") and unveil brightens them.
+    let tex = studio_core::gui::pov_textures().unwrap();
+    assert!(tex.toasts.is_some(), "toasts.rgba is embedded");
+    assert!(tex.recipe_book.is_some(), "recipe_book.rgba is still embedded");
+}
+
+#[test]
 fn bytes_that_are_not_a_jpeg_are_an_error() {
     let a = GuiAnalyzer::new().unwrap();
     assert!(a.analyze_jpeg(&[]).is_err());
