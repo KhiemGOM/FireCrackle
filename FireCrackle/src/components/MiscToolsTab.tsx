@@ -13,7 +13,7 @@ import {Viewable,type ViewerImage} from './ImageViewer';
 import {canvasBlob} from '../lib/canvas';
 import {nativeFrame} from '../lib/exactFrame';
 import { failureMessage } from '../lib/appErrors';
-import {BOUNDARY_POST,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from '../lib/comparisonPost';
+import {BOUNDARY_POST,compareEffects,comparesProcessed,comparisonPictures,comparisonSettings,type ComparePost} from '../lib/comparisonPost';
 import {guiPairFrames} from '../lib/guiAimReview';
 import {hasEnhancement} from '../lib/post/pipeline';
 import {DEFAULT_POST,type PostSettings} from '../lib/post/settings';
@@ -127,7 +127,7 @@ export function MiscToolsTab({backend,view,videoKey,onOpenFrame,post=DEFAULT_POS
  const range=reviewInterval(interval.first,interval.last,view.frame_count),frames=comparisonFrames(range,view.frame_count),fps=view.fps||1;
  const postPictures=usePostPictures(backend,[frames.before,frames.during,frames.after],post,compare,veil);
  const tick=(key:keyof ComparePost,on:boolean)=>setCompare(previous=>({...previous,[key]:on}));
- const effects=([['veil','Unveil'],['portal','Portal undone'],['enhance','Enhanced']] as const).filter(([key])=>compare[key]).map(([,text])=>text).join(' · ');
+ const effects=compareEffects(compare);
  const processedOf=(frame:number|null,other:number|null=null)=>postPictures.urls&&frame!==null?{url:postPictures.urls.get(frame),compareUrl:other===null?undefined:postPictures.urls.get(other)}:undefined;
  const canEnhance=hasEnhancement(comparisonSettings(post,{...compare,enhance:true}));
  const name=videoKey?.split(/[\\/]/).pop();

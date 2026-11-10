@@ -44,6 +44,12 @@ it('cancelled saving produces no success or file write',async()=>{
  expect(await exportFrameProof({frame:vi.fn(async()=>new ArrayBuffer(4))} as unknown as Backend,proof,{format:'gif',destination:'save'})).toBe(false);
  expect(native.invoke).not.toHaveBeenCalled();
 });
+it('a save with a given path skips the dialog and writes there',async()=>{
+ fixture();
+ expect(await exportFrameProof({frame:vi.fn(async()=>new ArrayBuffer(4))} as unknown as Backend,proof,{format:'gif',destination:'save',path:'D:/out/blink.gif'})).toBe(true);
+ expect(native.save).not.toHaveBeenCalled();
+ expect(native.invoke).toHaveBeenCalledWith('save_comparison_proof',{path:'D:/out/blink.gif',format:'gif',png:[50],base:[49],transition:'blink'});
+});
 it('a decoder failure cannot create a proof from an unrelated or stale picture',async()=>{
  fixture();await expect(exportFrameProof({frame:vi.fn(async()=>{throw Error('Decode failed');})} as unknown as Backend,proof,{format:'webp',destination:'copy'})).rejects.toThrow('Decode failed');expect(native.invoke).not.toHaveBeenCalled();
 });

@@ -53,7 +53,7 @@ export async function exportFrameProof(backend:Backend,proof:FrameProof,action:P
  const filename=`frame-comparison-${proof.before}-${proof.after}.${proofExtension(action.format)}`;
  if(native){
   let path:string|null=null;
-  if(action.destination==='save'){path=await askSavePath(filename,action.format);if(!path)return false;}
+  if(action.destination==='save'){path=action.path??await askSavePath(filename,action.format);if(!path)return false;}
   const {image,base}=await pending,{invoke}=await import('@tauri-apps/api/core');
   await invoke(action.destination==='copy'?'copy_formatted_comparison_proof':'save_comparison_proof',{
    ...(path?{path}:{}),format:action.format,png:await blobBytes(image),base:await blobBytes(base),transition:'blink'});

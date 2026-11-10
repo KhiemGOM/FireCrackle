@@ -21,6 +21,8 @@ export const NO_COMPARE_POST:ComparePost={veil:false,portal:false,enhance:false,
 export const BOUNDARY_POST:Partial<ComparePost>={veil:true};
 
 export const comparesProcessed=(c:ComparePost)=>c.veil||c.portal||c.enhance;
+/** The proof's effects line: the ticked post effects, in pipeline order. */
+export const compareEffects=(c:ComparePost)=>([['veil','Unveil'],['portal','Portal undone'],['enhance','Enhanced']] as const).filter(([key])=>c[key]).map(([,text])=>text).join(' · ');
 
 /** The Enhance panel's settings narrowed to the ticked effects. A ticked veil or portal the panel has off runs in Auto. */
 export function comparisonSettings(post:PostSettings,c:ComparePost):PostSettings{

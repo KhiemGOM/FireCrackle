@@ -46,6 +46,7 @@ import { actionFor, reservedGlobally } from "./lib/keymap";
 import { blocksVideoToolKeys, modalOpen } from "./lib/shortcutFocus";
 import type { AtlasEdges, EdgeFilter } from "./lib/atlasFilter";
 import { readPreferences, writePreferences } from "./lib/preferences";
+import { installConsoleApi, type ConsoleContext } from "./lib/consoleApi";
 
 const KEY_HELP: Array<[string, string]> = [
   ["Q · H · M · U", "quad · first-person fire · matcher · ruler"],
@@ -190,6 +191,10 @@ export default function App() {
   };
   const typeTimeout = settingValue(ws.settings, "label.row_type_timeout_ms", 700);
   const veilOptions = { ...veilOptionsFromSettings(ws.settings), menu: post.settings.menuVeil };
+  // window.firecrackle (lib/consoleApi.ts): the comparison's blink proofs from the console, on the open video and settings
+  const consoleContext = useRef<ConsoleContext | null>(null);
+  consoleContext.current = backend && ws.videoPath && view ? { backend, fps: view.fps || 1, frameCount: view.frame_count, source: ws.videoPath.split(/[\\/]/).pop() ?? ws.videoPath, post: post.settings, veil: veilOptions } : null;
+  useEffect(() => { installConsoleApi(() => consoleContext.current); }, []);
 
   // hotkeys
   useEffect(() => {

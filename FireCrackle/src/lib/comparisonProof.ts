@@ -95,7 +95,8 @@ async function rasterMask(svg: SVGSVGElement): Promise<{ image: HTMLImageElement
 }
 
 export type ProofFormat = "gif" | "webp" | "png" | "jpeg";
-export interface ProofAction {format: ProofFormat; destination: "copy" | "save"}
+/** `path`: where a save goes, chosen by the caller (the console API); without it the save dialog asks. */
+export interface ProofAction {format: ProofFormat; destination: "copy" | "save"; path?: string}
 
 const canvasBlob = (canvas: HTMLCanvasElement, type = "image/png") => encodeCanvas(canvas, type, 0.95, "Could not render the comparison proof.");
 
